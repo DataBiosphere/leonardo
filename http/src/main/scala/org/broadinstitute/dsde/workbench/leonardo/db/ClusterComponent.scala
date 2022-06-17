@@ -248,7 +248,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def detachPersistentDisk(runtimeId: Long, now: Instant)(implicit ec: ExecutionContext): DBIO[Unit] = for {
     runtimeConfigIdOpt <- findByIdQuery(runtimeId).map(_.runtimeConfigId).result.headOption
     _ <- runtimeConfigIdOpt match {
-      case None => DBIO.successful(())
+      case None                  => DBIO.successful(())
       case Some(runtimeConfigId) => RuntimeConfigQueries.updatePersistentDiskId(runtimeConfigId, None, now)
     }
   } yield ()
