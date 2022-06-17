@@ -8,7 +8,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.auth.Credentials
 import com.google.cloud.compute.v1.Operation
 import com.google.cloud.storage.Blob
-import com.google.cloud.storage.Storage.BucketSourceOption
+import com.google.cloud.storage.Storage.{BlobGetOption, BucketSourceOption}
 import fs2.Stream
 import io.circe.{Decoder, Encoder}
 import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
@@ -41,7 +41,8 @@ object FakeGoogleStorageService extends BaseFakeGoogleStorage {
   override def getObjectMetadata(bucketName: GcsBucketName,
                                  blobName: GcsBlobName,
                                  traceId: Option[TraceId],
-                                 retryConfig: RetryConfig
+                                 retryConfig: RetryConfig,
+                                 blobGetOption: List[BlobGetOption]
   ): fs2.Stream[IO, GetMetadataResponse] =
     fs2.Stream.empty.covary[IO]
 
@@ -49,7 +50,8 @@ object FakeGoogleStorageService extends BaseFakeGoogleStorage {
                        blobName: GcsBlobName,
                        credentials: scala.Option[Credentials],
                        traceId: Option[TraceId],
-                       retryConfig: RetryConfig
+                       retryConfig: RetryConfig,
+                       blobGetOption: List[BlobGetOption]
   ): fs2.Stream[IO, Blob] =
     bucketName match {
       case GcsBucketName("nonExistent") => fs2.Stream.empty
