@@ -174,6 +174,44 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  "createRuntimeErrorHandler" should "handle runtime creation failure properly" in isolatedDbTest {
+    val runtimeMonitor = new MockRuntimeMonitor {
+      override def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val leoSubscriber = makeLeoSubscriber(runtimeMonitor = runtimeMonitor, asyncTaskQueue = queue)
+    val res =
+      for {
+        disk <- makePersistentDisk().save()
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+        )
+        tr <- traceId.ask[TraceId]
+        gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+        )
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+        } yield {
+          error.nonEmpty shouldBe true
+          runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+        }
+
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          assertions
+        )
+      } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   /**
    * When createRuntime gets 409, we shouldn't attempt to update AsyncRuntimeFields.
    * These fields should've been updated in a previous createRuntime request, and

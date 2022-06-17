@@ -226,14 +226,16 @@ class LeoPubsubMessageSubscriber[F[_]](
         Task(
           ctx.traceId,
           taskToRun,
-          Some(createRuntimeErrorHandler(msg.runtimeId, ctx.now)),
+          Some(createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)),
           ctx.now,
           "createRuntime"
         )
       )
     } yield ()
 
-    createCluster.handleErrorWith(e => ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg.runtimeId, ctx.now)(e)))
+    createCluster.handleErrorWith(e =>
+      ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)(e))
+    )
   }
 
   private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(implicit
@@ -1225,7 +1227,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     }
   }
 
-  private[monitor] def createRuntimeErrorHandler(runtimeId: Long, now: Instant)(
+  private[monitor] def createRuntimeErrorHandler(runtimeId: Long, cloudService: CloudService, now: Instant)(
     e: Throwable
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -1245,7 +1247,11 @@ class LeoPubsubMessageSubscriber[F[_]](
           clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
       // want to detach persistent disk for runtime
-      _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
+      _ <- cloudService match {
+        case CloudService.GCE      => clusterQuery.detachPersistentDisk(runtimeId, now).transaction
+        case CloudService.Dataproc => F.unit
+        case CloudService.AzureVm  => F.unit
+      }
     } yield ()
 
   private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(
