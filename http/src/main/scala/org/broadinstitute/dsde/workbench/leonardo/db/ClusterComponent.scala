@@ -245,6 +245,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       (cluster, image) <- clusterQuery join clusterImageQuery on (_.id === _.clusterId)
     } yield (cluster, image)
 
+  def detachPersistentDisk(runtimeId: Long, now: Instant)(implicit ec: ExecutionContext): DBIO[Unit] = for {
+    runtimeConfigIdOpt <- findByIdQuery(runtimeId).map(_.runtimeConfigId).result.headOption
+    _ <- runtimeConfigIdOpt match {
+      case None                  => DBIO.successful(())
+      case Some(runtimeConfigId) => RuntimeConfigQueries.updatePersistentDiskId(runtimeConfigId, None, now)
+    }
+  } yield ()
+
   def getRuntimeQueryByUniqueKey(cloudContext: CloudContext,
                                  clusterName: RuntimeName,
                                  destroyedDateOpt: Option[Instant]

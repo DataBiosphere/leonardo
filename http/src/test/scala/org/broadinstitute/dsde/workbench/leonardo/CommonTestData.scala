@@ -264,6 +264,13 @@ object CommonTestData {
                             zone = ZoneName("us-west2-b"),
                             None
     )
+  def defaultGceRuntimeWithPDConfig(persistentDiskId: Option[DiskId]) =
+    RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                                  bootDiskSize = DiskSize(50),
+                                  persistentDiskId = None,
+                                  zone = ZoneName("us-west2-b"),
+                                  gpuConfig = None
+    )
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(
       Some(0),
