@@ -1277,7 +1277,7 @@ class GKEInterpreter[F[_]](
         nodepoolBuilder.setConfig(
           NodeConfig
             .newBuilder()
-            .setTags(0, config.vpcNetworkTag.value)
+            .addTags(config.vpcNetworkTag.value)
             .setMachineType(nodepool.machineType.value)
             .setServiceAccount(sa)
         )
@@ -1286,7 +1286,7 @@ class GKEInterpreter[F[_]](
           NodeConfig
             .newBuilder()
             .setMachineType(nodepool.machineType.value)
-            .setTags(0, config.vpcNetworkTag.value)
+            .addTags(config.vpcNetworkTag.value)
         )
     }
 
