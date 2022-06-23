@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.time.Instant
+import cats.implicits._
 
+import java.time.Instant
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -43,6 +44,23 @@ object RuntimeConfigQueries {
       res.fold[DBIO[RuntimeConfig]](DBIO.failed(new Exception(s"no runtimeConfig found for ${id}")))(x =>
         DBIO.successful(x)
       )
+    }
+
+  def getDiskId(id: RuntimeConfigId)(implicit ec: ExecutionContext): DBIO[Option[DiskId]] =
+    runtimeConfigs.filter(x => x.id === id).result.flatMap { x =>
+      val runtimeConfig = x.headOption.map(x => x.runtimeConfig)
+      val diskId = runtimeConfig match {
+        case Some(value) =>
+          value match {
+            case RuntimeConfig.GceConfig(_, _, _, _, _)                        => none[DiskId]
+            case RuntimeConfig.GceWithPdConfig(_, persistentDiskId, _, _, _)   => persistentDiskId
+            case RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _) => none[DiskId]
+            case RuntimeConfig.AzureConfig(_, persistentDiskId, _)             => persistentDiskId.some
+          }
+        case None => none[DiskId]
+      }
+
+      DBIO.successful(diskId)
     }
 
   def updateNumberOfWorkers(id: RuntimeConfigId, numberOfWorkers: Int, dateAccessed: Instant): DBIO[Int] =

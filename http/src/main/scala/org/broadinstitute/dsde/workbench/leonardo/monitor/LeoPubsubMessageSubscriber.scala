@@ -702,15 +702,35 @@ class LeoPubsubMessageSubscriber[F[_]](
         case None => F.unit
         case Some(v) =>
           val task = for {
-            operation <- F.blocking(v.get())
-            _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
-              new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${operation}")
-            )
-            _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider.notifyResourceDeleted(
-              disk.samResource,
-              disk.auditInfo.creator,
-              googleProject
-            )
+            operationAttempt <- F.blocking(v.get()).attempt
+            _ <- operationAttempt match {
+              case Left(error: java.util.concurrent.ExecutionException) if error.getMessage.contains("Not Found") =>
+                logger.info(ctx.loggingCtx)("disk is already deleted") >> persistentDiskQuery
+                  .delete(diskId, ctx.now)
+                  .transaction[F]
+                  .void >> authProvider
+                  .notifyResourceDeleted(
+                    disk.samResource,
+                    disk.auditInfo.creator,
+                    googleProject
+                  )
+              case Left(error) =>
+                F.raiseError(
+                  new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name}", error)
+                )
+              case Right(op) =>
+                for {
+                  _ <- F.raiseUnless(isSuccess(op.getHttpErrorStatusCode))(
+                    new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${op}")
+                  )
+                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider
+                    .notifyResourceDeleted(
+                      disk.samResource,
+                      disk.auditInfo.creator,
+                      googleProject
+                    )
+                } yield ()
+            }
           } yield ()
           if (sync) task
           else {

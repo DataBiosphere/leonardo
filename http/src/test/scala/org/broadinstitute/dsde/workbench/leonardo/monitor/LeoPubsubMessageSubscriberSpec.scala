@@ -624,6 +624,45 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle DeleteDiskMessage and delete disk properly even if disk doesn't exist in cloud" in isolatedDbTest {
+    val operationFuture = new FakeComputeOperationFuture {
+      override def get(): Operation = {
+        val exception = new java.util.concurrent.ExecutionException(
+          "com.google.api.gax.rpc.NotFoundException: Not Found",
+          new Exception("bad")
+        )
+        throw exception
+      }
+    }
+    val diskService = new MockGoogleDiskService {
+      override def deleteDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(Some(operationFuture))
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = diskService)
+    val res =
+      for {
+        disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
+        tr <- traceId.ask[TraceId]
+
+        _ <- leoSubscriber.messageResponder(DeleteDiskMessage(disk.id, Some(tr)))
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          for {
+            updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
+          } yield {
+            updatedDisk shouldBe defined
+            updatedDisk.get.status shouldBe DiskStatus.Deleted
+          }
+        )
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "handle DeleteDiskMessage when disk is not in Deleting status" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
 
