@@ -130,7 +130,7 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       )
       updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultGceRuntimeConfig)
-      res <- gce.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
+      res <- gce.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None, true))
     } yield res shouldBe None
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }

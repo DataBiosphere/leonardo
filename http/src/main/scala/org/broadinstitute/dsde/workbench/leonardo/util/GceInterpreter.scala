@@ -472,11 +472,21 @@ class GceInterpreter[F[_]](
                   _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(
                     new Exception(s"addInstanceMetadata failed")
                   )
-                  opFutureOpt <- googleComputeService
-                    .deleteInstance(googleProject,
-                                    zoneParam,
-                                    InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-                    )
+                  opFutureOpt <-
+                    if (params.deleteDisk)
+                      googleComputeService
+                        .deleteInstanceWithAutoDeleteDisk(
+                          googleProject,
+                          zoneParam,
+                          InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+                          Set(config.gceConfig.userDiskDeviceName)
+                        )
+                    else
+                      googleComputeService
+                        .deleteInstance(googleProject,
+                                        zoneParam,
+                                        InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+                        )
                 } yield opFutureOpt
             }
         }

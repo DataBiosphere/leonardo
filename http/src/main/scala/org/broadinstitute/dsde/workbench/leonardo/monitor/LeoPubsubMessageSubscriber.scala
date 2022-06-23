@@ -265,7 +265,10 @@ class LeoPubsubMessageSubscriber[F[_]](
         case _ => F.pure(none[DataprocInstance])
       }
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), masterInstance)
+        DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                            masterInstance,
+                            msg.persistentDiskToDelete.isDefined
+        )
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
@@ -288,8 +291,6 @@ class LeoPubsubMessageSubscriber[F[_]](
           now <- nowInstant
           diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
           disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
-          deleteDiskOp <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
-          _ <- deleteDiskOp.traverse(x => F.blocking(x.get()))
           _ <- persistentDiskQuery.delete(id, now).transaction.void >> authProvider
             .notifyResourceDeleted(
               disk.samResource,
