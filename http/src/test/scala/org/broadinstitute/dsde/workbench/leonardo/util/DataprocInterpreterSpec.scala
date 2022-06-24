@@ -213,7 +213,7 @@ class DataprocInterpreterSpec
       )
       updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultDataprocRuntimeConfig)
-      res <- dataproc.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None, false))
+      res <- dataproc.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
     } yield res shouldBe None
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -251,7 +251,7 @@ class DataprocInterpreterSpec
       dataproc = dataprocInterp(computeService, dataprocService)
 
       res <- dataproc
-        .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, Some(CommonTestData.masterInstance), false))
+        .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, Some(CommonTestData.masterInstance)))
         .attempt
     } yield
     // this is really hacky way of verifying deleteCluster is being called once. But I tried a few different ways to mock out `GoogleDataprocService[IO]`

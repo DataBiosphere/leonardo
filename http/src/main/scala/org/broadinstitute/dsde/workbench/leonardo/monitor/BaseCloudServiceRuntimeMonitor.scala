@@ -109,7 +109,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(runtimeAndRuntimeConfig, mainInstance, false)
+            DeleteRuntimeParams(runtimeAndRuntimeConfig, mainInstance)
           )
           .void
           .whenA(deleteRuntime),

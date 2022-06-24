@@ -87,9 +87,7 @@ final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFie
                                              bootSource: BootSource
 )
 final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                                     masterInstance: Option[DataprocInstance],
-                                     // whether or not we should delete persistent disk as well. Only applicable to GCE with PD
-                                     deleteDisk: Boolean
+                                     masterInstance: Option[DataprocInstance]
 )
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
