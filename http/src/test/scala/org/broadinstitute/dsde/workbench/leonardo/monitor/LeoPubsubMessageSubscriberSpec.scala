@@ -310,6 +310,44 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "persist delete disk error when if fail to delete disk" in isolatedDbTest {
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+    val diskService = new MockGoogleDiskService {
+      override def deleteDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[OperationFuture[Operation, Operation]]] = IO.raiseError(new Exception(s"Fail to delete ${diskName}"))
+    }
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = diskService)
+    val res =
+      for {
+        disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
+        runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                                                      bootDiskSize = DiskSize(50),
+                                                      persistentDiskId = Some(disk.id),
+                                                      zone = ZoneName("us-cetnral1-a"),
+                                                      gpuConfig = None
+        )
+
+        runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
+        tr <- traceId.ask[TraceId]
+        _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, Some(disk.id), Some(tr)))
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          clusterErrorQuery.get(runtime.id).transaction.map { error =>
+            val dummyNow = Instant.now()
+            error.head.copy(timestamp = dummyNow) shouldBe RuntimeError(
+              s"Fail to delete ${disk.name}",
+              None,
+              dummyNow
+            )
+          }
+        )
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "not handle DeleteRuntimeMessage when cluster is not in Deleting status" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
     val res =
