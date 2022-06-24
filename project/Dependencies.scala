@@ -130,7 +130,7 @@ object Dependencies {
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
-  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.15.0"
+  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.16.0"
   val azureIdentity =  "com.azure" % "azure-identity" % "1.5.2"
 
   val coreDependencies = List(
