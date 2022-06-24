@@ -109,7 +109,8 @@ trait TestLeoRoutes {
     whitelistAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService
+    FakeGoogleComputeService,
+    MockDiskServiceInterp
   )
 
   val serviceConfig = RuntimeServiceConfig(
@@ -182,7 +183,8 @@ trait TestLeoRoutes {
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,
     FakeGoogleComputeService,
-    QueueFactory.makePublisherQueue()
+    QueueFactory.makePublisherQueue(),
+    MockDiskServiceInterp
   )
 
   val httpRoutes =

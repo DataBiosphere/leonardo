@@ -10,7 +10,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -35,7 +35,8 @@ import scala.concurrent.ExecutionContext
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
                                         serviceAccountProvider: ServiceAccountProvider[F],
-                                        publisherQueue: Queue[F, LeoPubsubMessage]
+                                        publisherQueue: Queue[F, LeoPubsubMessage],
+                                        googleDiskService: GoogleDiskService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -64,9 +65,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
+      sourceDiskOpt <- req.sourceDisk.traverse(lookupSourceDiskLink(userInfo, ctx))
+
       cloudContext = CloudContext.Gcp(googleProject)
       diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
-
       _ <- diskOpt match {
         case Some(c) =>
           F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, diskName, c.status, ctx.traceId))
@@ -74,7 +76,16 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           for {
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             disk <- F.fromEither(
-              convertToDisk(userInfo.userEmail, petSA, cloudContext, diskName, samResource, config, req, ctx.now)
+              convertToDisk(userInfo.userEmail,
+                            petSA,
+                            cloudContext,
+                            diskName,
+                            samResource,
+                            config,
+                            req,
+                            ctx.now,
+                            sourceDiskOpt
+              )
             )
             _ <- authProvider
               .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
@@ -89,6 +100,22 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           } yield ()
       }
     } yield ()
+
+  override def lookupSourceDiskLink(userInfo: UserInfo, ctx: AppContext)(
+    sourceDiskReq: SourceDiskRequest
+  )(implicit as: Ask[F, AppContext]): F[DiskLink] =
+    for {
+      sourceDisk <- getDisk(userInfo, CloudContext.Gcp(sourceDiskReq.googleProject), sourceDiskReq.name).recoverWith {
+        case _: DiskNotFoundException =>
+          F.raiseError(BadRequestException("source disk does not exist", Option(ctx.traceId)))
+      }
+      maybeGoogleDisk <- googleDiskService.getDisk(sourceDiskReq.googleProject, sourceDisk.zone, sourceDisk.name)
+      googleDisk <- maybeGoogleDisk.toOptionT.getOrElseF(
+        F.raiseError(
+          LeoInternalServerError(s"Source disk $sourceDiskReq does not exist in google", Option(ctx.traceId))
+        )
+      )
+    } yield DiskLink(googleDisk.getSelfLink)
 
   override def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(implicit
     as: Ask[F, AppContext]
@@ -247,9 +274,10 @@ object DiskServiceInterp {
                                      samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
-                                     now: Instant
+                                     now: Instant,
+                                     sourceDisk: Option[DiskLink]
   ): Either[Throwable, PersistentDisk] =
-    convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false)
+    convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false, sourceDisk)
 
   private[service] def convertToDisk(userEmail: WorkbenchEmail,
                                      serviceAccount: WorkbenchEmail,
@@ -259,7 +287,8 @@ object DiskServiceInterp {
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant,
-                                     willBeUsedByGalaxy: Boolean
+                                     willBeUsedByGalaxy: Boolean,
+                                     sourceDisk: Option[DiskLink]
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
@@ -294,7 +323,8 @@ object DiskServiceInterp {
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
       None,
       None,
-      labels
+      labels,
+      sourceDisk
     )
   }
 }

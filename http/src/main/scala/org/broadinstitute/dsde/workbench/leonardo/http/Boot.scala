@@ -120,6 +120,13 @@ object Boot extends IOApp {
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image
         )
       )
+      val diskService = new DiskServiceInterp[IO](
+        ConfigReader.appConfig.persistentDisk,
+        appDependencies.authProvider,
+        appDependencies.serviceAccountProvider,
+        appDependencies.publisherQueue,
+        googleDependencies.googleDiskService
+      )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
         ConfigReader.appConfig.persistentDisk,
@@ -128,13 +135,8 @@ object Boot extends IOApp {
         appDependencies.dockerDAO,
         googleDependencies.googleStorageService,
         googleDependencies.googleComputeService,
-        appDependencies.publisherQueue
-      )
-      val diskService = new DiskServiceInterp[IO](
-        ConfigReader.appConfig.persistentDisk,
-        appDependencies.authProvider,
-        appDependencies.serviceAccountProvider,
-        appDependencies.publisherQueue
+        appDependencies.publisherQueue,
+        diskService
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
@@ -142,7 +144,8 @@ object Boot extends IOApp {
                                 appDependencies.authProvider,
                                 appDependencies.serviceAccountProvider,
                                 appDependencies.publisherQueue,
-                                appDependencies.googleDependencies.googleComputeService
+                                appDependencies.googleDependencies.googleComputeService,
+                                diskService
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -494,7 +497,8 @@ object Boot extends IOApp {
         gkeService,
         openTelemetry,
         kubernetesScopedCredential,
-        googleOauth2DAO
+        googleOauth2DAO,
+        googleDiskService
       )
 
       val bucketHelperConfig = BucketHelperConfig(
@@ -682,7 +686,8 @@ final case class GoogleDependencies[F[_]](
   gkeService: GKEService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   credentials: GoogleCredentials,
-  googleOauth2DAO: GoogleOAuth2Service[F]
+  googleOauth2DAO: GoogleOAuth2Service[F],
+  googleDiskService: GoogleDiskService[F]
 )
 
 final case class AppDependencies[F[_]](

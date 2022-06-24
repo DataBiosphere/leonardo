@@ -582,51 +582,55 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def createDisk(msg: CreateDiskMessage, formattedBy: Option[FormattedBy], sync: Boolean)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = {
-    val create = for {
-      ctx <- ev.ask
-      operationFutureOpt <- googleDiskService
-        .createDisk(
-          msg.googleProject,
-          msg.zone,
-          Disk
-            .newBuilder()
-            .setName(msg.name.value)
-            .setSizeGb(msg.size.gb)
-            .setZone(msg.zone.value)
-            .setType(msg.diskType.googleString(msg.googleProject, msg.zone))
-            .setPhysicalBlockSizeBytes(msg.blockSize.bytes)
-            .putAllLabels(Map("leonardo" -> "true").asJava)
-            .build()
-        )
-      _ <- operationFutureOpt match {
-        case None => F.unit
-        case Some(v) =>
-          val task = for {
-            _ <- F.blocking(v.get())
-            _ <- formattedBy match {
-              case Some(value) =>
-                persistentDiskQuery
-                  .updateStatusAndIsFormatted(msg.diskId, DiskStatus.Ready, value, ctx.now)
-                  .transaction[F]
-                  .void
-              case None =>
-                persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void
-            }
-          } yield ()
+    val create = {
+      val diskBuilder = Disk
+        .newBuilder()
+        .setName(msg.name.value)
+        .setSizeGb(msg.size.gb)
+        .setZone(msg.zone.value)
+        .setType(msg.diskType.googleString(msg.googleProject, msg.zone))
+        .setPhysicalBlockSizeBytes(msg.blockSize.bytes)
+        .putAllLabels(Map("leonardo" -> "true").asJava)
+      msg.sourceDisk.foreach(sourceDisk => diskBuilder.setSourceDisk(sourceDisk.asString))
 
-          if (sync) task
-          else {
-            asyncTasks.offer(
-              Task(ctx.traceId,
-                   task,
-                   Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
-                   ctx.now,
-                   "createDisk"
+      for {
+        ctx <- ev.ask
+        operationFutureOpt <- googleDiskService
+          .createDisk(
+            msg.googleProject,
+            msg.zone,
+            diskBuilder.build()
+          )
+        _ <- operationFutureOpt match {
+          case None => F.unit
+          case Some(v) =>
+            val task = for {
+              _ <- F.blocking(v.get())
+              _ <- formattedBy match {
+                case Some(value) =>
+                  persistentDiskQuery
+                    .updateStatusAndIsFormatted(msg.diskId, DiskStatus.Ready, value, ctx.now)
+                    .transaction[F]
+                    .void
+                case None =>
+                  persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void
+              }
+            } yield ()
+
+            if (sync) task
+            else {
+              asyncTasks.offer(
+                Task(ctx.traceId,
+                     task,
+                     Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
+                     ctx.now,
+                     "createDisk"
+                )
               )
-            )
-          }
-      }
-    } yield ()
+            }
+        }
+      } yield ()
+    }
 
     create.onError { case e =>
       for {

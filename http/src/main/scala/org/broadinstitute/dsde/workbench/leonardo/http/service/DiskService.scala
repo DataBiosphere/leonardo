@@ -3,7 +3,7 @@ package service
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, DiskLink}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -11,6 +11,10 @@ trait DiskService[F[_]] {
   def createDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: CreateDiskRequest)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
+
+  def lookupSourceDiskLink(userInfo: UserInfo, ctx: AppContext)(sourceDiskReq: SourceDiskRequest)(implicit
+    as: Ask[F, AppContext]
+  ): F[DiskLink]
 
   def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(implicit
     as: Ask[F, AppContext]

@@ -33,6 +33,13 @@ object MockDiskServiceInterp extends DiskService[IO] {
       )
     )
 
+  override def lookupSourceDiskLink(userInfo: UserInfo, ctx: AppContext)(sourceDiskReq: SourceDiskRequest)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[DiskLink] =
+    IO.pure(
+      DiskLink(s"projects/${sourceDiskReq.googleProject}/zones/${CommonTestData.zone}/disks/${sourceDiskReq.name}")
+    )
+
   def listDisks(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(implicit
     as: Ask[IO, AppContext]
   ): IO[Vector[ListPersistentDiskResponse]] =

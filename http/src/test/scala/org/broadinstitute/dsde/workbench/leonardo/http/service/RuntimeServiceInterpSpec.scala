@@ -72,7 +72,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
       computeService,
-      publisherQueue
+      publisherQueue,
+      MockDiskServiceInterp
     )
   val runtimeService = makeRuntimeService(publisherQueue)
   val emptyCreateRuntimeReq = CreateRuntime2Request(
@@ -1806,7 +1807,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         serviceAccount,
         FormattedBy.GCE,
         whitelistAuthProvider,
-        ConfigReader.appConfig.persistentDisk
+        ConfigReader.appConfig.persistentDisk,
+        MockDiskServiceInterp
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery
@@ -1852,7 +1854,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           serviceAccount,
           FormattedBy.GCE,
           whitelistAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          MockDiskServiceInterp
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield diskResult shouldBe (Left(
@@ -1879,7 +1882,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           serviceAccount,
           FormattedBy.GCE,
           whitelistAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          MockDiskServiceInterp
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       persistedDisk <- persistentDiskQuery
         .getById(diskResult.disk.id)(scala.concurrent.ExecutionContext.global)
@@ -1903,7 +1907,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           serviceAccount,
           FormattedBy.GCE,
           whitelistAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          MockDiskServiceInterp
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
@@ -1925,7 +1930,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           serviceAccount,
           FormattedBy.GCE,
           whitelistAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          MockDiskServiceInterp
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -1957,7 +1963,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           serviceAccount,
           FormattedBy.GCE,
           whitelistAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          MockDiskServiceInterp
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
@@ -1979,7 +1986,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           serviceAccount,
           FormattedBy.Galaxy,
           whitelistAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          MockDiskServiceInterp
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
       galaxyDisk <- makePersistentDisk(Some(DiskName("galaxyDisk")), Some(FormattedBy.Galaxy)).save()
@@ -1993,7 +2001,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           serviceAccount,
           FormattedBy.GCE,
           whitelistAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          MockDiskServiceInterp
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield {
@@ -2021,7 +2030,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         serviceAccount,
         FormattedBy.GCE,
         whitelistAuthProvider,
-        ConfigReader.appConfig.persistentDisk
+        ConfigReader.appConfig.persistentDisk,
+        MockDiskServiceInterp
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
     } yield ()
 

@@ -7,6 +7,7 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.google2.mock.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
@@ -17,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -26,10 +28,12 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ConfigReader.appConfig.persistentDisk,
     whitelistAuthProvider,
     serviceAccountProvider,
-    publisherQueue
+    publisherQueue,
+    MockGoogleDiskService
   )
   val emptyCreateDiskReq = CreateDiskRequest(
     Map.empty,
+    None,
     None,
     None,
     None,

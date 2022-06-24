@@ -48,13 +48,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                 whitelistAuthProvider,
                                 serviceAccountProvider,
                                 queue,
-                                FakeGoogleComputeService
+                                FakeGoogleComputeService,
+                                MockDiskServiceInterp
     )
   val appServiceInterp = new LeoAppServiceInterp[IO](appServiceConfig,
                                                      whitelistAuthProvider,
                                                      serviceAccountProvider,
                                                      QueueFactory.makePublisherQueue(),
-                                                     FakeGoogleComputeService
+                                                     FakeGoogleComputeService,
+                                                     MockDiskServiceInterp
   )
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -82,19 +84,22 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                                      whitelistAuthProvider,
                                                      serviceAccountProvider,
                                                      QueueFactory.makePublisherQueue(),
-                                                     passComputeService
+                                                     passComputeService,
+                                                     MockDiskServiceInterp
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](appServiceConfig,
                                                                 whitelistAuthProvider,
                                                                 serviceAccountProvider,
                                                                 QueueFactory.makePublisherQueue(),
-                                                                notEnoughMemoryComputeService
+                                                                notEnoughMemoryComputeService,
+                                                                MockDiskServiceInterp
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](appServiceConfig,
                                                              whitelistAuthProvider,
                                                              serviceAccountProvider,
                                                              QueueFactory.makePublisherQueue(),
-                                                             notEnoughCpuComputeService
+                                                             notEnoughCpuComputeService,
+                                                             MockDiskServiceInterp
     )
 
     for {
@@ -117,7 +122,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                              authProvider,
                                              serviceAccountProvider,
                                              QueueFactory.makePublisherQueue(),
-                                             FakeGoogleComputeService
+                                             FakeGoogleComputeService,
+                                             MockDiskServiceInterp
     )
     val res = interp
       .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -135,7 +141,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                              authProvider,
                                              serviceAccountProvider,
                                              QueueFactory.makePublisherQueue(),
-                                             FakeGoogleComputeService
+                                             FakeGoogleComputeService,
+                                             MockDiskServiceInterp
     )
     val res = interp
       .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))

@@ -55,7 +55,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            dockerDAO: DockerDAO[F],
                                            googleStorageService: GoogleStorageService[F],
                                            googleComputeService: GoogleComputeService[F],
-                                           publisherQueue: Queue[F, LeoPubsubMessage]
+                                           publisherQueue: Queue[F, LeoPubsubMessage],
+                                           diskService: DiskService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -147,7 +148,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                           petSA,
                           FormattedBy.GCE,
                           authProvider,
-                          diskConfig
+                          diskConfig,
+                          diskService
                         )
                         .map(diskResult =>
                           RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
@@ -931,7 +933,8 @@ object RuntimeServiceInterp {
     serviceAccount: WorkbenchEmail,
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
-    diskConfig: PersistentDiskConfig
+    diskConfig: PersistentDiskConfig,
+    diskService: DiskService[F]
   )(implicit
     as: Ask[F, AppContext],
     F: Async[F],
@@ -998,6 +1001,7 @@ object RuntimeServiceInterp {
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             // Look up the original email in case this API was called by a pet SA
             originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
+            sourceDiskOpt <- req.sourceDisk.traverse(diskService.lookupSourceDiskLink(userInfo, ctx))
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(
                 originatingUserEmail,
@@ -1008,7 +1012,8 @@ object RuntimeServiceInterp {
                 diskConfig,
                 CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
                 ctx.now,
-                if (willBeUsedBy == FormattedBy.Galaxy) true else false
+                if (willBeUsedBy == FormattedBy.Galaxy) true else false,
+                sourceDiskOpt
               )
             )
             _ <- authProvider
