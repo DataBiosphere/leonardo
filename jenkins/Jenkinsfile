@@ -422,7 +422,7 @@ pipeline {
                                                     --zone $ZONE \
                                                     --gcs-bucket $DATAPROC_IMAGE_BUCKET \
                                                     --project-id=$GOOGLE_PROJECT \
-                                                    --disk-size=120"
+                                                    --disk-size=140"
                                             """
                                         )
                                     }
