@@ -64,7 +64,7 @@ class RuntimeDataprocSpec
         RuntimeConfigRequest.DataprocConfig(
           Some(2),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
+          Some(DiskSize(120)),
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(150)),
           None,
@@ -105,7 +105,7 @@ class RuntimeDataprocSpec
         RuntimeConfigRequest.DataprocConfig(
           Some(2),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
+          Some(DiskSize(120)),
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(150)),
           None,
@@ -192,7 +192,7 @@ class RuntimeDataprocSpec
             RuntimeConfigRequest.DataprocConfig(
               Some(2),
               Some(MachineTypeName("n1-standard-4")),
-              Some(DiskSize(100)),
+              Some(DiskSize(120)),
               Some(MachineTypeName("n1-standard-4")),
               Some(DiskSize(150)),
               None,
@@ -304,7 +304,7 @@ class RuntimeDataprocSpec
         RuntimeConfigRequest.DataprocConfig(
           Some(2),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
+          Some(DiskSize(120)),
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(150)),
           None,
