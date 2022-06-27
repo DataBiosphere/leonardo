@@ -210,7 +210,8 @@ object Boot extends IOApp {
           )
 
           val nonLeoMessageSubscriber =
-            new NonLeoMessageSubscriber[IO](appDependencies.gkeAlg,
+            new NonLeoMessageSubscriber[IO](NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
+                                            appDependencies.gkeAlg,
                                             googleDependencies.googleComputeService,
                                             appDependencies.samDAO,
                                             appDependencies.nonLeoMessageGoogleSubscriber,
