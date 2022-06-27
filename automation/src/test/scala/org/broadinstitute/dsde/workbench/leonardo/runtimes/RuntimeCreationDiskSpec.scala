@@ -199,7 +199,7 @@ class RuntimeCreationDiskSpec
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val runtimeWithCloneName = randomeName.copy(asString = randomeName.asString + "pd-spec-clone")
     val diskName = genDiskName.sample.get
-    val diskCloneName = DiskName(diskName.value + "_clone")
+    val diskCloneName = DiskName(diskName.value + "-clone")
     val diskSize = DiskSize(110)
     val newDiskSize = DiskSize(150)
 
