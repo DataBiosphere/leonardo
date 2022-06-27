@@ -8,6 +8,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineSizeTypes}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, RelayHybridConnectionName}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
@@ -32,6 +33,7 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
@@ -40,7 +42,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   wsmDao: WsmDao[F],
   samDAO: SamDAO[F],
   jupyterDAO: JupyterDAO[F],
-  azureManager: AzureManagerDao[F]
+  azureRelay: AzureRelayService[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
   implicit val wsmDeleteVmDoneCheckable: DoneCheckable[Option[GetDeleteJobResult]] = (v: Option[GetDeleteJobResult]) =>
@@ -96,7 +98,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
       hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
-      primaryKey <- azureManager.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext)
+      primaryKey <- azureRelay.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext)
       createDiskAction = createDisk(params, auth)
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
@@ -373,7 +375,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
       _ <- relayNamespaceOpt.traverse(ns =>
-        azureManager.deleteRelayHybridConnection(
+        azureRelay.deleteRelayHybridConnection(
           ns,
           RelayHybridConnectionName(runtime.runtimeName.asString),
           cloudContext

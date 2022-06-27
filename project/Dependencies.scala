@@ -105,7 +105,7 @@ object Dependencies {
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
-  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests" excludeAll (excludeGuava) //for generators
+  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
     excludeGuava,
@@ -133,9 +133,6 @@ object Dependencies {
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
-  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.16.0"
-  val azureIdentity =  "com.azure" % "azure-identity" % "1.5.2"
-
   val coreDependencies = List(
     workbenchOauth2,
     workbenchOauth2Tests,
@@ -160,9 +157,8 @@ object Dependencies {
     circeYaml,
     http4sDsl,
     scalaTestScalaCheck,
-    azureResourceManager,
-    azureIdentity,
-    workbenchAzure
+    workbenchAzure,
+    workbenchAzureTest
   )
 
   val httpDependencies = Seq(
@@ -189,7 +185,6 @@ object Dependencies {
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
     "com.auth0" % "java-jwt" % "3.19.1",
-    "com.azure.resourcemanager" % "azure-resourcemanager-relay" % "1.0.0-beta.1",
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito

@@ -22,6 +22,13 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureCloudContext,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
