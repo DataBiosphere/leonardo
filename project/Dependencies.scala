@@ -22,6 +22,7 @@ object Dependencies {
   val workbenchGoogle2V = s"0.24-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.3-$workbenchLibsHash"
   val workbenchOauth2V = s"0.2-$workbenchLibsHash"
+  val workbenchAzureV = s"0.1-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.4"
 
@@ -99,10 +100,12 @@ object Dependencies {
     excludeCloudBilling,
     excludeSundrCodegen,
     excludeGuava)
+  val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
+  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
     excludeGuava,
@@ -158,7 +161,8 @@ object Dependencies {
     http4sDsl,
     scalaTestScalaCheck,
     azureResourceManager,
-    azureIdentity
+    azureIdentity,
+    workbenchAzure
   )
 
   val httpDependencies = Seq(

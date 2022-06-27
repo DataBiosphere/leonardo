@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{

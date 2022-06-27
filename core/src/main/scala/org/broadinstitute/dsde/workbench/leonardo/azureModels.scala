@@ -19,18 +19,9 @@ final case class AzureUnimplementedException(message: String) extends Exception 
   override def getMessage: String = message
 }
 
-final case class ClientId(value: String) extends AnyVal
-final case class ClientSecret(value: String) extends AnyVal
-final case class ManagedAppTenantId(value: String) extends AnyVal
-
 final case class WsmControlledResourceId(value: UUID) extends AnyVal
 final case class RelayNamespace(value: String) extends AnyVal
 final case class RelayHybridConnectionName(value: String) extends AnyVal
-
-final case class AzureAppRegistrationConfig(clientId: ClientId,
-                                            clientSecret: ClientSecret,
-                                            managedAppTenantId: ManagedAppTenantId
-)
 
 object AzureCloudContext {
   def fromString(s: String): Either[String, AzureCloudContext] = {

@@ -7,17 +7,15 @@ import com.azure.core.management.AzureEnvironment
 import com.azure.core.management.exception.ManagementException
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder}
-import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.VirtualMachine
 import com.azure.resourcemanager.relay.RelayManager
 import com.azure.resourcemanager.relay.fluent.models.AuthorizationRuleInner
 import com.azure.resourcemanager.relay.models.AccessRights
+import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.jdk.CollectionConverters._
 
 trait AzureManagerDao[F[_]] {
-  def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): F[Option[VirtualMachine]]
   def createRelayHybridConnection(relayNamespace: RelayNamespace,
                                   hybridConnectionName: RelayHybridConnectionName,
                                   cloudContext: AzureCloudContext
@@ -32,23 +30,6 @@ class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(impli
   val F: Async[F],
   logger: StructuredLogger[F]
 ) extends AzureManagerDao[F] {
-
-  def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): F[Option[VirtualMachine]] =
-    for {
-      azureComputeManager <- buildComputeManager(cloudContext)
-      vmOpt <- F
-        .delay(
-          azureComputeManager
-            .virtualMachines()
-            .getByResourceGroup(cloudContext.managedResourceGroupName.value, name.asString)
-        )
-        .map(Option(_))
-        .handleErrorWith {
-          case e: ManagementException if e.getValue.getCode().equals("ResourceNotFound") => F.pure(none[VirtualMachine])
-          case e => F.raiseError[Option[VirtualMachine]](e)
-        }
-    } yield vmOpt
-
   override def createRelayHybridConnection(relayNamespace: RelayNamespace,
                                            hybridConnectionName: RelayHybridConnectionName,
                                            cloudContext: AzureCloudContext
@@ -118,11 +99,6 @@ class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(impli
     val azureProfile =
       new AzureProfile(azureCloudContext.tenantId.value, azureCloudContext.subscriptionId.value, AzureEnvironment.AZURE)
     (azureCreds, azureProfile)
-  }
-
-  private def buildComputeManager(azureCloudContext: AzureCloudContext): F[ComputeManager] = {
-    val (azureCreds, azureProfile) = buildAzureProfile(azureCloudContext)
-    F.delay(ComputeManager.authenticate(azureCreds, azureProfile))
   }
 
   private def buildRelayManager(azureCloudContext: AzureCloudContext): F[RelayManager] = {
