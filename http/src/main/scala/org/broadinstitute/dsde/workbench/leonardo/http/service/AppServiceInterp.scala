@@ -38,8 +38,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
                                                 serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
-                                                computeService: GoogleComputeService[F],
-                                                diskService: DiskService[F]
+                                                computeService: GoogleComputeService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -151,8 +150,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           petSA,
           appTypeToFormattedByType(req.appType),
           authProvider,
-          config.leoKubernetesConfig.diskConfig,
-          diskService
+          config.leoKubernetesConfig.diskConfig
         )
       )
 

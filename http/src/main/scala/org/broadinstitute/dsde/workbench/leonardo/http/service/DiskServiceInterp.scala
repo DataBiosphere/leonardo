@@ -101,7 +101,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       }
     } yield ()
 
-  override def lookupSourceDiskLink(userInfo: UserInfo, ctx: AppContext)(
+  private def lookupSourceDiskLink(userInfo: UserInfo, ctx: AppContext)(
     sourceDiskReq: SourceDiskRequest
   )(implicit as: Ask[F, AppContext]): F[DiskLink] =
     for {

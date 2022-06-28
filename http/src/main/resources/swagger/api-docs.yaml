@@ -3391,8 +3391,6 @@ components:
         labels:
           type: object
           description: The labels to be placed on the cluster. Of type Map[String,String]
-        sourceDisk:
-          $ref: "#/components/schemas/SourceDisk"
 
     KubernetesError:
       description: a kubernetes app error

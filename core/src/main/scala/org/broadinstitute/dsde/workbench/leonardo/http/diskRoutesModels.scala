@@ -18,14 +18,13 @@ final case class SourceDiskRequest(googleProject: GoogleProject, name: DiskName)
 
 object CreateDiskRequest {
   def fromDiskConfigRequest(create: PersistentDiskRequest, zone: Option[ZoneName]): CreateDiskRequest =
-    CreateDiskRequest(create.labels, create.size, create.diskType, None, zone, create.sourceDisk)
+    CreateDiskRequest(create.labels, create.size, create.diskType, None, zone, None)
 }
 
 final case class PersistentDiskRequest(name: DiskName,
                                        size: Option[DiskSize],
                                        diskType: Option[DiskType],
-                                       labels: LabelMap,
-                                       sourceDisk: Option[SourceDiskRequest] = None
+                                       labels: LabelMap
 )
 
 final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize)

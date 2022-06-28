@@ -61,8 +61,7 @@ object RuntimeService {
                             dockerDAO: DockerDAO[F],
                             googleStorageService: GoogleStorageService[F],
                             googleComputeService: GoogleComputeService[F],
-                            publisherQueue: Queue[F, LeoPubsubMessage],
-                            diskService: DiskService[F]
+                            publisherQueue: Queue[F, LeoPubsubMessage]
   )(implicit
     F: Async[F],
     log: StructuredLogger[F],
@@ -78,8 +77,7 @@ object RuntimeService {
       dockerDAO,
       googleStorageService,
       googleComputeService,
-      publisherQueue,
-      diskService
+      publisherQueue
     )
 }
 
