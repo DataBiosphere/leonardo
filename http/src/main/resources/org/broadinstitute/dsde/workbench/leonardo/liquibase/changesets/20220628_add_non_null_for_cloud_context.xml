@@ -2,10 +2,16 @@
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
     <changeSet logicalFilePath="leonardo" author="qi" id="add_non_null_for_cloud_context">
-        <addColumn tableName="CLUSTER">
-            <column name="cloudContext" type="varchar(254)">
-                <constraints nullable="false"/>
-            </column>
-        </addColumn>
+        <addNotNullConstraint columnDataType="varchar(254)"
+                              columnName="cloudContext"
+                              constraintName="non_nullabel_cloudContext_cluster"
+                              defaultNullValue="This is wrong"
+                              tableName="CLUSTER"/>
+
+        <addNotNullConstraint columnDataType="varchar(254)"
+                              columnName="cloudContext"
+                              constraintName="non_nullabel_cloudContext_pd"
+                              defaultNullValue="This is wrong"
+                              tableName="PERSISTENT_DISK"/>
     </changeSet>
 </databaseChangeLog>
