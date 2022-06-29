@@ -729,15 +729,15 @@ object LeoPubsubCodec {
 
   implicit val createDiskMessageEncoder: Encoder[CreateDiskMessage] =
     Encoder.forProduct10("messageType",
-                        "diskId",
-                        "googleProject",
-                        "name",
-                        "zone",
-                        "size",
-                        "diskType",
-                        "blockSize",
-                        "traceId",
-      "sourceDisk"
+                         "diskId",
+                         "googleProject",
+                         "name",
+                         "zone",
+                         "size",
+                         "diskType",
+                         "blockSize",
+                         "traceId",
+                         "sourceDisk"
     )(x =>
       (
         x.messageType,
