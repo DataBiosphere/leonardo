@@ -120,13 +120,6 @@ object Boot extends IOApp {
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image
         )
       )
-      val diskService = new DiskServiceInterp[IO](
-        ConfigReader.appConfig.persistentDisk,
-        appDependencies.authProvider,
-        appDependencies.serviceAccountProvider,
-        appDependencies.publisherQueue,
-        googleDependencies.googleDiskService
-      )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
         ConfigReader.appConfig.persistentDisk,
@@ -136,6 +129,13 @@ object Boot extends IOApp {
         googleDependencies.googleStorageService,
         googleDependencies.googleComputeService,
         appDependencies.publisherQueue
+      )
+      val diskService = new DiskServiceInterp[IO](
+        ConfigReader.appConfig.persistentDisk,
+        appDependencies.authProvider,
+        appDependencies.serviceAccountProvider,
+        appDependencies.publisherQueue,
+        googleDependencies.googleDiskService
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
