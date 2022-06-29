@@ -8,6 +8,18 @@
                               defaultNullValue="This is wrong"
                               tableName="CLUSTER"/>
 
+        <addNotNullConstraint columnDataType="varchar(255)"
+                              columnName="runtimeName"
+                              constraintName="non_nullabel_runtimeName_cluster"
+                              defaultNullValue="This is wrong"
+                              tableName="CLUSTER"/>
+
+        <addNotNullConstraint columnDataType="enum('DATAPROC','GCE','AZURE_VM')"
+                              columnName="cloudService"
+                              constraintName="non_nullabel_cloudService_runtimeconfig"
+                              defaultNullValue="GCE"
+                              tableName="RUNTIME_CONFIG"/>
+
         <addNotNullConstraint columnDataType="varchar(254)"
                               columnName="cloudContext"
                               constraintName="non_nullabel_cloudContext_pd"
