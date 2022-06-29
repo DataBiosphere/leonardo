@@ -6,11 +6,17 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, streamFUntilDone}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Ron, getAuthTokenAndAuthorization}
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateDiskRequest, PersistentDiskRequest, RuntimeConfigRequest, SourceDiskRequest, UpdateDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateDiskRequest,
+  PersistentDiskRequest,
+  RuntimeConfigRequest,
+  SourceDiskRequest,
+  UpdateDiskRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.Status
@@ -237,7 +243,8 @@ class RuntimeCreationDiskSpec
         )
       )
 
-      val createDiskCloneRequest = CreateDiskRequest(Map.empty, None, None, None, None, Some(SourceDiskRequest(googleProject, diskName)))
+      val createDiskCloneRequest =
+        CreateDiskRequest(Map.empty, None, None, None, defaultCreateDiskRequest.zone, Some(SourceDiskRequest(googleProject, diskName)))
 
       for {
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
