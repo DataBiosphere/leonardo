@@ -244,7 +244,13 @@ class RuntimeCreationDiskSpec
       )
 
       val createDiskCloneRequest =
-        CreateDiskRequest(Map.empty, None, None, None, defaultCreateDiskRequest.zone, Some(SourceDiskRequest(googleProject, diskName)))
+        CreateDiskRequest(Map.empty,
+                          None,
+                          None,
+                          None,
+                          defaultCreateDiskRequest.zone,
+                          Some(SourceDiskRequest(googleProject, diskName))
+        )
 
       for {
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
