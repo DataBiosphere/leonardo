@@ -728,7 +728,7 @@ object LeoPubsubCodec {
     )
 
   implicit val createDiskMessageEncoder: Encoder[CreateDiskMessage] =
-    Encoder.forProduct9("messageType",
+    Encoder.forProduct10("messageType",
                         "diskId",
                         "googleProject",
                         "name",
@@ -736,7 +736,8 @@ object LeoPubsubCodec {
                         "size",
                         "diskType",
                         "blockSize",
-                        "traceId"
+                        "traceId",
+      "sourceDisk"
     )(x =>
       (
         x.messageType,
@@ -747,7 +748,8 @@ object LeoPubsubCodec {
         x.size,
         x.diskType,
         x.blockSize,
-        x.traceId
+        x.traceId,
+        x.sourceDisk
       )
     )
 
