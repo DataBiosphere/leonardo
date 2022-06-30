@@ -35,14 +35,6 @@ import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
 
 class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
-  val publisherQueue = QueueFactory.makePublisherQueue()
-  val diskService = new DiskServiceInterp(
-    ConfigReader.appConfig.persistentDisk,
-    whitelistAuthProvider,
-    serviceAccountProvider,
-    publisherQueue,
-    MockGoogleDiskService
-  )
   val emptyCreateDiskReq = CreateDiskRequest(
     Map.empty,
     None,
@@ -56,7 +48,20 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     AppContext(model.TraceId("traceId"), Instant.now())
   )
 
+  private def makeDiskService() = {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val diskService = new DiskServiceInterp(
+      ConfigReader.appConfig.persistentDisk,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      publisherQueue,
+      MockGoogleDiskService
+    )
+    (diskService, publisherQueue)
+  }
+
   "DiskService" should "fail with AuthorizationError if user doesn't have project level permission" in {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
     val googleProject = GoogleProject("googleProject")
 
@@ -74,6 +79,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "successfully create a persistent disk" in isolatedDbTest {
+    val (diskService, publisherQueue) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -109,6 +115,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   it should "successfully create a persistent disk clone" in isolatedDbTest {
     val dummyDiskLink = "dummyDiskLink"
 
+    val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk,
       whitelistAuthProvider,
@@ -169,6 +176,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "fail with BadRequestException if source disk does not exist" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -196,6 +204,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val authProviderMock = mock[LeoAuthProvider[IO]](defaultMockitoAnswer[IO])
     val googleDiskServiceMock = mock[GoogleDiskService[IO]](defaultMockitoAnswer[IO])
 
+    val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk,
       authProviderMock,
@@ -240,8 +249,6 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           emptyCreateDiskReq
         )
 
-      createDiskMessage <- publisherQueue.take // need to take this off the queue or other tests will fail
-
       _ <- DiskServiceDbQueries
         .getGetPersistentDiskResponse(CloudContext.Gcp(googleProject), diskName, context.traceId)
         .transaction
@@ -270,6 +277,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "get a disk" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -291,6 +299,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "list disks" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -310,6 +319,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "list disks with a project" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -327,6 +337,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "list disks with parameters" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -344,6 +355,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "list disks belonging to other users" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -368,6 +380,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "delete a disk" in isolatedDbTest {
+    val (diskService, publisherQueue) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -395,6 +408,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -429,6 +443,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                               0
       ) // this email is white listed
       it should s"fail to update a disk in $status status" in isolatedDbTest {
+        val (diskService, _) = makeDiskService()
         val res = for {
           t <- ctx.ask[AppContext]
           diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
@@ -445,6 +460,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "update a disk in Ready status" in isolatedDbTest {
+    val (diskService, publisherQueue) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
