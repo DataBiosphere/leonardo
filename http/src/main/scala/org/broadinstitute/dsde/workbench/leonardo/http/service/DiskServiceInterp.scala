@@ -66,7 +66,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
 
       sourceDiskOpt <- req.sourceDisk.traverse(lookupSourceDiskLink(userInfo, ctx))
-
+      _ <- log.info("source disk link: " + sourceDiskOpt)
       cloudContext = CloudContext.Gcp(googleProject)
       diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
       _ <- diskOpt match {
@@ -96,6 +96,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
               }
             // TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
+            _ <- log.info("saved disk: " + savedDisk.toString)
+            _ <- log.info("CreateDiskMessage: " + CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)).toString)
             _ <- publisherQueue.offer(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
           } yield ()
       }

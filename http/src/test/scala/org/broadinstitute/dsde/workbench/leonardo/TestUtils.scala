@@ -1,11 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
-import cats.effect.IO
+import cats.effect.{Async, IO}
 import org.broadinstitute.dsde.workbench.leonardo.http.SslContextReader
 
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.mockito.invocation.InvocationOnMock
+import org.mockito.stubbing.Answer
 import org.scalactic.Equality
 import org.scalatest.matchers.should.Matchers
 
@@ -200,4 +202,18 @@ object TestUtils extends Matchers {
 
   def sslContext(implicit as: ActorSystem): SSLContext =
     SslContextReader.getSSLContext[IO]().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+  /**
+   * By default Mockito will return `null` when mock is invoked but the function was not stubbed. In Java, this
+   * typically leads to a NPE and stack trace that can easily be followed to find the invocation. In Scala and
+   * especially using Cats the stack traces are useless and there is just an error that says "fa is null" but
+   * nothing useful about where that fa came from.
+   *
+   * This default answer will instead return an F that raises and exception detailing which stub is missing.
+   * Example:
+   * val authProviderMock = mock[LeoAuthProvider[IO]](defaultMockitoAnswer[IO])
+   */
+  def defaultMockitoAnswer[F[_]](implicit F: Async[F]): Answer[F[_]] =
+    (invocation: InvocationOnMock) =>
+      F.raiseError(new Exception("invocation call has not been stubbed: " + invocation.toString))
 }

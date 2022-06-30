@@ -7,22 +7,34 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
+import com.google.cloud.compute.v1.Disk
 import org.broadinstitute.dsde.workbench.google2.mock.MockGoogleDiskService
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersistentDisk
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
+import org.broadinstitute.dsde.workbench.leonardo.model.{
+  BadRequestException,
+  ForbiddenError,
+  LeoAuthProvider,
+  SamResourceAction
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.mockito.ArgumentMatchers
+import org.mockito.ArgumentMatchers.any
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpec
+import org.mockito.Mockito._
+import org.scalatestplus.mockito.MockitoSugar
 
-class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val diskService = new DiskServiceInterp(
     ConfigReader.appConfig.persistentDisk,
@@ -91,6 +103,169 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
       message shouldBe expectedMessage
     }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "successfully create a persistent disk clone" in isolatedDbTest {
+    val dummyDiskLink = "dummyDiskLink"
+
+    val diskService = new DiskServiceInterp(
+      ConfigReader.appConfig.persistentDisk,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      publisherQueue,
+      new MockGoogleDiskService {
+        override def getDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
+          ev: Ask[IO, TraceId]
+        ): IO[Option[Disk]] =
+          IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build()))
+      }
+    )
+
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
+    val googleProject = GoogleProject("project1")
+    val cloudContext = CloudContext.Gcp(googleProject)
+    val diskName = DiskName("diskName1")
+    val diskCloneName = DiskName("clone")
+
+    val res = for {
+      context <- ctx.ask[AppContext]
+      _ <- diskService
+        .createDisk(
+          userInfo,
+          googleProject,
+          diskName,
+          emptyCreateDiskReq
+        )
+
+      createDiskMessage <- publisherQueue.take // need to take this off the queue
+
+      d <- diskService
+        .createDisk(
+          userInfo,
+          googleProject,
+          diskCloneName,
+          emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(googleProject, diskName)))
+        )
+        .attempt
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskCloneName).transaction
+      disk = diskOpt.get
+      createCloneMessage <- publisherQueue.take
+    } yield {
+      withClue(d) {
+        d shouldBe Right(())
+      }
+      disk.cloudContext shouldBe cloudContext
+      disk.name shouldBe diskCloneName
+      val expectedMessage = CreateDiskMessage.fromDisk(disk, Some(context.traceId))
+
+      createCloneMessage shouldBe expectedMessage
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail with BadRequestException if source disk does not exist" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
+    val googleProject = GoogleProject("project1")
+    val diskName = DiskName("diskName1")
+
+    val res = for {
+      context <- ctx.ask[AppContext]
+      cloneAttempt <- diskService
+        .createDisk(
+          userInfo,
+          googleProject,
+          DiskName(diskName.value + "-clone"),
+          emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(googleProject, diskName)))
+        )
+        .attempt
+    } yield cloneAttempt shouldBe (Left(BadRequestException("source disk does not exist", Some(context.traceId))))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail with BadRequestException if user doesn't have permission to source disk" in isolatedDbTest {
+    val dummyDiskLink = "dummyDiskLink"
+    val authProviderMock = mock[LeoAuthProvider[IO]](defaultMockitoAnswer[IO])
+    val googleDiskServiceMock = mock[GoogleDiskService[IO]](defaultMockitoAnswer[IO])
+
+    val diskService = new DiskServiceInterp(
+      ConfigReader.appConfig.persistentDisk,
+      authProviderMock,
+      serviceAccountProvider,
+      publisherQueue,
+      googleDiskServiceMock
+    )
+    val userInfoCreator =
+      UserInfo(OAuth2BearerToken(""), WorkbenchUserId("creator"), WorkbenchEmail("creator@example.com"), 0)
+    val userInfoCloner =
+      UserInfo(OAuth2BearerToken(""), WorkbenchUserId("cloner"), WorkbenchEmail("cloner@example.com"), 0)
+
+    val googleProject = GoogleProject("project1")
+    val diskName = DiskName("diskName1")
+    when(
+      authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
+                                     ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),
+                                     ArgumentMatchers.eq(userInfoCreator)
+      )(any(), any())
+    ).thenReturn(IO.pure(true))
+
+    when(authProviderMock.notifyResourceCreated(any(), any(), any())(any(), any(), any())).thenReturn(IO.unit)
+
+    when(
+      authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
+                                     ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),
+                                     ArgumentMatchers.eq(userInfoCloner)
+      )(any(), any())
+    ).thenReturn(IO.pure(true))
+
+    when(
+      googleDiskServiceMock.getDisk(googleProject, ConfigReader.appConfig.persistentDisk.defaultZone, diskName)
+    ).thenReturn(IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build())))
+
+    val res = for {
+      context <- ctx.ask[AppContext]
+      _ <- diskService
+        .createDisk(
+          userInfoCreator,
+          googleProject,
+          diskName,
+          emptyCreateDiskReq
+        )
+
+      createDiskMessage <- publisherQueue.take // need to take this off the queue or other tests will fail
+
+      _ <- DiskServiceDbQueries
+        .getGetPersistentDiskResponse(CloudContext.Gcp(googleProject), diskName, context.traceId)
+        .transaction
+        .map { r =>
+          when(
+            authProviderMock.hasPermissionWithProjectFallback(
+              ArgumentMatchers.eq(r.samResource),
+              ArgumentMatchers.eq(PersistentDiskAction.ReadPersistentDisk),
+              ArgumentMatchers.eq(ProjectAction.ReadPersistentDisk),
+              ArgumentMatchers.eq(userInfoCloner),
+              ArgumentMatchers.eq(googleProject)
+            )(any[SamResourceAction[PersistentDiskSamResourceId, ReadPersistentDisk.type]], any[Ask[IO, TraceId]])
+          ).thenReturn(IO.pure(false))
+        }
+
+      cloneAttempt <- diskService
+        .createDisk(
+          userInfoCloner,
+          googleProject,
+          DiskName(diskName.value + "-clone"),
+          emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(googleProject, diskName)))
+        )
+        .attempt
+    } yield cloneAttempt shouldBe (Left(BadRequestException("source disk does not exist", Some(context.traceId))))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
