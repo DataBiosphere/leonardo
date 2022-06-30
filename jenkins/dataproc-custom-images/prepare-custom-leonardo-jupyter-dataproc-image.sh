@@ -20,7 +20,7 @@ set -e -x
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.11"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.1.3"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.1.3"
-terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.16"
+terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.18"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.2.5"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.5"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
