@@ -131,7 +131,7 @@ object Dependencies {
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
   val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.16.0"
-  val azureIdentity =  "com.azure" % "azure-identity" % "1.5.2"
+  val azureIdentity =  "com.azure" % "azure-identity" % "1.5.3"
 
   val coreDependencies = List(
     workbenchOauth2,
