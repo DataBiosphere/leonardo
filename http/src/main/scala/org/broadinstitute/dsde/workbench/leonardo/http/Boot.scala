@@ -28,18 +28,7 @@ import org.broadinstitute.dsde.workbench.google.{
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{
-  credentialResource,
-  Event,
-  GKEService,
-  GoogleComputeService,
-  GoogleDataprocService,
-  GoogleDiskService,
-  GooglePublisher,
-  GoogleResourceService,
-  GoogleStorageService,
-  GoogleSubscriber
-}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, Event, GoogleSubscriber, GooglePublisher, GoogleDataprocService, GKEService, GoogleDiskService, GoogleResourceService, GoogleStorageService, credentialResource}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -48,7 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{StandardUserInfoDirectives, HttpRoutes, LivelinessRoutes, BuildTimeVersion}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -62,17 +51,18 @@ import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
+import org.http4s.client.middleware.{Retry, Metrics, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
-
 import java.net.InetSocketAddress
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+
 import javax.net.ssl.SSLContext
-import scala.concurrent.ExecutionContext
+
+import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -81,6 +71,7 @@ object Boot extends IOApp {
 
   private def startup(): IO[Unit] = {
     // We need an ActorSystem to host our application in
+
     implicit val system = ActorSystem(applicationConfig.applicationName)
     import system.dispatcher
     implicit val logger =
@@ -90,6 +81,21 @@ object Boot extends IOApp {
           "version" -> BuildTimeVersion.version.getOrElse("unknown")
         )
       )
+
+    val livelinessRoutes = new LivelinessRoutes
+
+    val liveliness = logger.info("Liveliness server has been created, starting...").unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
+      .newServerAt("0.0.0.0", 9000)
+      .bindFlow(livelinessRoutes.route)
+      .onError { case t: Throwable =>
+        logger
+          .error(t)("FATAL - failure starting liveliness http server")
+          .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+      }
+
+    Await.ready(liveliness, Duration.Inf)
+
+    logger.info("Liveliness server has been started").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
       val googleDependencies = appDependencies.googleDependencies
@@ -186,6 +192,7 @@ object Boot extends IOApp {
           if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
             appDependencies.dataprocInterp.setupDataprocImageGoogleGroup
           } else IO.unit
+
         _ <- IO.fromFuture {
           IO {
             Http()
@@ -291,10 +298,10 @@ object Boot extends IOApp {
         runtimeDnsCacheConfig.cacheMaxSize,
         runtimeDnsCacheConfig.cacheExpiryTime
       )
-      runtimeDnsCaffineCache <- Resource.make(
+      runtimeDnsCaffeineCache <- Resource.make(
         F.delay(CaffeineCache[F, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache))
       )(_.close)
-      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffineCache)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffeineCache)
       underlyingKubernetesDnsCache = buildCache[KubernetesDnsCacheKey, scalacache.Entry[HostStatus]](
         kubernetesDnsCacheConfig.cacheMaxSize,
         kubernetesDnsCacheConfig.cacheExpiryTime
