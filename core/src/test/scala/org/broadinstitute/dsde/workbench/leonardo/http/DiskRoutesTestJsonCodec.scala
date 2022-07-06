@@ -12,7 +12,7 @@ object DiskRoutesTestJsonCodec {
   implicit val sourceDiskRequestEncocer: Encoder[SourceDiskRequest] = Encoder.forProduct2(
     "googleProject",
     "name"
-  )( x =>
+  )(x =>
     (
       x.googleProject,
       x.name
