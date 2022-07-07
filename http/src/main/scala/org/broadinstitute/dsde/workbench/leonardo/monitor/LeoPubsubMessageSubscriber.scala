@@ -596,11 +596,13 @@ class LeoPubsubMessageSubscriber[F[_]](
         ctx <- ev.ask
         _ <- logger.info("creating disk message: " + msg.toString)
         _ <- logger.info("creating disk: " + diskBuilder.toString)
+        disk = diskBuilder.build()
+        _ <- logger.info("creating disk 2: " + disk.toString)
         operationFutureOpt <- googleDiskService
           .createDisk(
             msg.googleProject,
             msg.zone,
-            diskBuilder.build()
+            disk
           )
         _ <- operationFutureOpt match {
           case None => F.unit

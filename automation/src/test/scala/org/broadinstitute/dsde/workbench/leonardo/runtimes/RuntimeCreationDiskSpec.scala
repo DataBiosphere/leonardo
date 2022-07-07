@@ -245,7 +245,7 @@ class RuntimeCreationDiskSpec
 
       val createDiskCloneRequest =
         CreateDiskRequest(Map.empty,
-                          None,
+                          Some(newDiskSize),
                           None,
                           None,
                           defaultCreateDiskRequest.zone,
@@ -299,7 +299,7 @@ class RuntimeCreationDiskSpec
         // Creating new runtime with existing disk should have test.txt file and user installed package
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntime2Request)
         _ <- verifyDisk(ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData))
-        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
+//        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
 
         // verify clone
         runtimeWithClone <- waitUntilRunning(googleProject, runtimeWithCloneName)
