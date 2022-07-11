@@ -296,7 +296,7 @@ class RuntimeCreationDiskSpec
         // clone the disk
         _ <- LeonardoApiClient.createDiskWithWait(googleProject, diskCloneName, createDiskCloneRequest)
         // Creating new runtime with clone of existing disk should have test.txt file and user installed package
-        runtimeWithClone <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntimeCloneRequest)
+        runtimeWithClone <- createRuntimeWithWait(googleProject, runtimeWithCloneName, createRuntimeCloneRequest)
         _ <- verifyDisk(ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithClone))
 
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
