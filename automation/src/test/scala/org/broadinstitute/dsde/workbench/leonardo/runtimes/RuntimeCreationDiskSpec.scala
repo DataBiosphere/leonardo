@@ -289,21 +289,17 @@ class RuntimeCreationDiskSpec
         _ <- LeonardoApiClient.patchDisk(googleProject, diskName, UpdateDiskRequest(Map.empty, newDiskSize))
         _ <- IO.sleep(5 seconds)
 
-        // clone the disk
-        _ <- LeonardoApiClient.createDiskWithWait(googleProject, diskCloneName, createDiskCloneRequest)
-
-        // Creating new runtime with clone of existing disk should have test.txt file and user installed package
-        // will wait for creation later
-        _ <- LeonardoApiClient.createRuntime(googleProject, runtimeWithCloneName, createRuntimeCloneRequest)
-
         // Creating new runtime with existing disk should have test.txt file and user installed package
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntime2Request)
         _ <- verifyDisk(ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData))
-//        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
 
-        // verify clone
-        runtimeWithClone <- waitUntilRunning(googleProject, runtimeWithCloneName)
+        // clone the disk
+        _ <- LeonardoApiClient.createDiskWithWait(googleProject, diskCloneName, createDiskCloneRequest)
+        // Creating new runtime with clone of existing disk should have test.txt file and user installed package
+        runtimeWithClone <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntimeCloneRequest)
         _ <- verifyDisk(ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithClone))
+
+        _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithCloneName, deleteDisk = true)
 
         // Disk deletion may take some time so we're retrying to reduce flaky test failures
