@@ -138,6 +138,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val cloudContext = CloudContext.Gcp(googleProject)
     val diskName = DiskName("diskName1")
     val diskCloneName = DiskName("clone")
+    val expectedFormattedBy = FormattedBy.GCE
 
     val res = for {
       context <- ctx.ask[AppContext]
@@ -148,6 +149,10 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           diskName,
           emptyCreateDiskReq
         )
+
+      persistedDiskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
+      persistedDisk = persistedDiskOpt.get
+      _ <- persistentDiskQuery.updateStatusAndIsFormatted(persistedDisk.id, persistedDisk.status, expectedFormattedBy, Instant.now()).transaction
 
       createDiskMessage <- publisherQueue.take // need to take this off the queue
 
@@ -168,6 +173,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       }
       disk.cloudContext shouldBe cloudContext
       disk.name shouldBe diskCloneName
+      disk.formattedBy shouldBe Some(expectedFormattedBy)
       val expectedMessage = CreateDiskMessage.fromDisk(disk, Some(context.traceId))
 
       createCloneMessage shouldBe expectedMessage

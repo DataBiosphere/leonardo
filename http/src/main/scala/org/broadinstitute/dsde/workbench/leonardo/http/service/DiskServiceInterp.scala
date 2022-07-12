@@ -105,7 +105,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
   private def lookupSourceDiskLink(userInfo: UserInfo, ctx: AppContext)(
     sourceDiskReq: SourceDiskRequest
-  )(implicit as: Ask[F, AppContext]): F[DiskLink] =
+  )(implicit as: Ask[F, AppContext]): F[(DiskLink, GetPersistentDiskResponse)] =
     for {
       sourceDisk <- getDisk(userInfo, CloudContext.Gcp(sourceDiskReq.googleProject), sourceDiskReq.name).recoverWith {
         case _: DiskNotFoundException =>
@@ -117,7 +117,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           LeoInternalServerError(s"Source disk $sourceDiskReq does not exist in google", Option(ctx.traceId))
         )
       )
-    } yield DiskLink(googleDisk.getSelfLink)
+    } yield (DiskLink(googleDisk.getSelfLink), sourceDisk)
 
   override def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(implicit
     as: Ask[F, AppContext]
@@ -277,7 +277,7 @@ object DiskServiceInterp {
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant,
-                                     sourceDisk: Option[DiskLink]
+                                     sourceDisk: Option[(DiskLink, GetPersistentDiskResponse)]
   ): Either[Throwable, PersistentDisk] =
     convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false, sourceDisk)
 
@@ -290,7 +290,7 @@ object DiskServiceInterp {
                                      req: CreateDiskRequest,
                                      now: Instant,
                                      willBeUsedByGalaxy: Boolean,
-                                     sourceDisk: Option[DiskLink]
+                                     sourceDisk: Option[(DiskLink, GetPersistentDiskResponse)]
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
@@ -323,10 +323,10 @@ object DiskServiceInterp {
       else req.size.getOrElse(config.defaultDiskSizeGb),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
-      None,
+      sourceDisk.flatMap(_._2.formattedBy),
       None,
       labels,
-      sourceDisk
+      sourceDisk.map(_._1)
     )
   }
 }

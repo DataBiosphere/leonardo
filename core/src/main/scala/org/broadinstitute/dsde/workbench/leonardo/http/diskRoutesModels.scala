@@ -56,7 +56,8 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            size: DiskSize,
                                            diskType: DiskType,
                                            blockSize: BlockSize,
-                                           labels: LabelMap
+                                           labels: LabelMap,
+                                           formattedBy: Option[FormattedBy]
 )
 
 final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)
