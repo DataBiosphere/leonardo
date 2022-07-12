@@ -152,7 +152,9 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
       persistedDiskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
       persistedDisk = persistedDiskOpt.get
-      _ <- persistentDiskQuery.updateStatusAndIsFormatted(persistedDisk.id, persistedDisk.status, expectedFormattedBy, Instant.now()).transaction
+      _ <- persistentDiskQuery
+        .updateStatusAndIsFormatted(persistedDisk.id, persistedDisk.status, expectedFormattedBy, Instant.now())
+        .transaction
 
       createDiskMessage <- publisherQueue.take // need to take this off the queue
 

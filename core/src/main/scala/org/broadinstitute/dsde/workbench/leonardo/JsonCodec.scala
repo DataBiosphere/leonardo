@@ -447,7 +447,8 @@ object JsonCodec {
   implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
   implicit val diskLinkDecoder: Decoder[DiskLink] = Decoder.decodeString.map(DiskLink)
-  implicit val formattedByDecoder: Decoder[FormattedBy] = Decoder.decodeString.emap(fb => FormattedBy.values.find(_.asString == fb).toRight(s"Invalid formatted by: $fb"))
+  implicit val formattedByDecoder: Decoder[FormattedBy] =
+    Decoder.decodeString.emap(fb => FormattedBy.values.find(_.asString == fb).toRight(s"Invalid formatted by: $fb"))
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =

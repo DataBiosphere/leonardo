@@ -67,7 +67,7 @@ object DiskRoutesTestJsonCodec {
                                       diskType,
                                       blockSize,
                                       labels,
-      formattedBy
+                                      formattedBy
     )
   }
 
