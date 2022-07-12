@@ -2660,6 +2660,14 @@ components:
         labels:
           type: object
           description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        formattedBy:
+          type: string
+          enum:
+            - GALAXY
+            - GCE
+            - CROMWELL
+            - CUSTOM
+          description: App that formatted disk, missing if unformatted
 
     InstanceKey:
       description: ""

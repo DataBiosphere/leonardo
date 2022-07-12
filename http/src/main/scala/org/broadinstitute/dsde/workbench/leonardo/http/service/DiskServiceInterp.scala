@@ -65,8 +65,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
-      sourceDiskOpt <- req.sourceDisk.traverse(lookupSourceDiskLink(userInfo, ctx))
-      _ <- log.info("source disk link: " + sourceDiskOpt)
+      sourceDiskOpt <- req.sourceDisk.traverse(lookupSourceDisk(userInfo, ctx))
       cloudContext = CloudContext.Gcp(googleProject)
       diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
       _ <- diskOpt match {
@@ -96,16 +95,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
               }
             // TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
-            _ <- log.info("saved disk: " + savedDisk.toString)
-            _ <- log.info("CreateDiskMessage: " + CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)).toString)
             _ <- publisherQueue.offer(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
           } yield ()
       }
     } yield ()
 
-  private def lookupSourceDiskLink(userInfo: UserInfo, ctx: AppContext)(
+  private def lookupSourceDisk(userInfo: UserInfo, ctx: AppContext)(
     sourceDiskReq: SourceDiskRequest
-  )(implicit as: Ask[F, AppContext]): F[(DiskLink, GetPersistentDiskResponse)] =
+  )(implicit as: Ask[F, AppContext]): F[SourceDisk] =
     for {
       sourceDisk <- getDisk(userInfo, CloudContext.Gcp(sourceDiskReq.googleProject), sourceDiskReq.name).recoverWith {
         case _: DiskNotFoundException =>
@@ -117,7 +114,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           LeoInternalServerError(s"Source disk $sourceDiskReq does not exist in google", Option(ctx.traceId))
         )
       )
-    } yield (DiskLink(googleDisk.getSelfLink), sourceDisk)
+    } yield SourceDisk(DiskLink(googleDisk.getSelfLink), sourceDisk.formattedBy)
 
   override def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(implicit
     as: Ask[F, AppContext]
@@ -277,7 +274,7 @@ object DiskServiceInterp {
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant,
-                                     sourceDisk: Option[(DiskLink, GetPersistentDiskResponse)]
+                                     sourceDisk: Option[SourceDisk]
   ): Either[Throwable, PersistentDisk] =
     convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false, sourceDisk)
 
@@ -290,7 +287,7 @@ object DiskServiceInterp {
                                      req: CreateDiskRequest,
                                      now: Instant,
                                      willBeUsedByGalaxy: Boolean,
-                                     sourceDisk: Option[(DiskLink, GetPersistentDiskResponse)]
+                                     sourceDisk: Option[SourceDisk]
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
@@ -323,10 +320,10 @@ object DiskServiceInterp {
       else req.size.getOrElse(config.defaultDiskSizeGb),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
-      sourceDisk.flatMap(_._2.formattedBy),
+      sourceDisk.flatMap(_.formattedBy),
       None,
       labels,
-      sourceDisk.map(_._1)
+      sourceDisk.map(_.diskLink)
     )
   }
 }

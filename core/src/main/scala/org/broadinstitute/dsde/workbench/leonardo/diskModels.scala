@@ -140,3 +140,5 @@ object AppRestore {
 }
 
 final case class DiskLink(asString: String) extends AnyVal
+
+final case class SourceDisk(diskLink: DiskLink, formattedBy: Option[FormattedBy])

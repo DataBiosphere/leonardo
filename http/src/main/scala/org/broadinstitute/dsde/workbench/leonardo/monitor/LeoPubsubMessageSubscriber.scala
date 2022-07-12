@@ -594,10 +594,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       msg.sourceDisk.foreach(sourceDisk => diskBuilder.setSourceDisk(sourceDisk.asString))
       for {
         ctx <- ev.ask
-        _ <- logger.info("creating disk message: " + msg.toString)
-        _ <- logger.info("creating disk: " + diskBuilder.toString)
         disk = diskBuilder.build()
-        _ <- logger.info("creating disk 2: " + disk.toString)
         operationFutureOpt <- googleDiskService
           .createDisk(
             msg.googleProject,

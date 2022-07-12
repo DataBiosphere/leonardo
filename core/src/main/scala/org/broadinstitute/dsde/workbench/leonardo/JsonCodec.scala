@@ -83,6 +83,7 @@ object JsonCodec {
   implicit val gpuTypeEncoder: Encoder[GpuType] = Encoder.encodeString.contramap(_.asString)
   implicit val cloudProviderEncoder: Encoder[CloudProvider] = Encoder.encodeString.contramap(_.asString)
   implicit val diskLinkEncoder: Encoder[DiskLink] = Encoder.encodeString.contramap(_.asString)
+  implicit val formattedByEncoder: Encoder[FormattedBy] = Encoder.encodeString.contramap(_.asString)
 
   implicit val cloudContextEncoder: Encoder[CloudContext] = Encoder.forProduct2(
     "cloudProvider",

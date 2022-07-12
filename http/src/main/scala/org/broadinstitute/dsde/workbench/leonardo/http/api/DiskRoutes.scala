@@ -206,7 +206,7 @@ object DiskRoutes {
     } yield UpdateDiskRequest(l.getOrElse(Map.empty), us)
   }
 
-  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
+  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct13(
     "id",
     "googleProject",
     "cloudContext",
@@ -218,7 +218,8 @@ object DiskRoutes {
     "size",
     "diskType",
     "blockSize",
-    "labels"
+    "labels",
+    "formattedBy"
   )(x =>
     (
       x.id,
@@ -232,7 +233,8 @@ object DiskRoutes {
       x.size,
       x.diskType,
       x.blockSize,
-      x.labels
+      x.labels,
+      x.formattedBy
     )
   )
 
