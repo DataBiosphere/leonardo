@@ -8,5 +8,6 @@ final case class PersistentDiskConfig(
   defaultDiskType: DiskType,
   defaultBlockSizeBytes: BlockSize,
   defaultZone: ZoneName,
-  defaultGalaxyNfsdiskSizeGb: DiskSize
+  defaultGalaxyNfsdiskSizeGb: DiskSize,
+  dontCloneFromTheseGoogleFolders: Vector[String]
 )

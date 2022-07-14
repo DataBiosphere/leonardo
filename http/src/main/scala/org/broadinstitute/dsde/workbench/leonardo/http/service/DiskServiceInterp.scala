@@ -9,6 +9,8 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.services.cloudresourcemanager.model.Ancestor
+import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -36,7 +38,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
                                         serviceAccountProvider: ServiceAccountProvider[F],
                                         publisherQueue: Queue[F, LeoPubsubMessage],
-                                        googleDiskService: GoogleDiskService[F]
+                                        googleDiskService: GoogleDiskService[F],
+                                        googleProjectDAO: GoogleProjectDAO
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -64,6 +67,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       petSA <- F.fromEither(
         serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
+
+      _ <- req.sourceDisk.traverse(sd => verifyOkToClone(sd.googleProject, googleProject))
 
       sourceDiskOpt <- req.sourceDisk.traverse(lookupSourceDisk(userInfo, ctx))
       cloudContext = CloudContext.Gcp(googleProject)
@@ -99,6 +104,52 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           } yield ()
       }
     } yield ()
+
+  /**
+   * Cloning persistent disks creates a data exfiltration path that must be blocked when appropriate. Disks
+   * within a controlled perimeter must not be cloned to locations outside that perimeter. However, Leo has no notion
+   * of what perimeters are. Fortunately google projects in perimeters are in their own google folder so this check
+   * raises an error if source and target google projects are not in the same folder AND the source project is
+   * in dontCloneFromTheseGoogleFolders.
+   *
+   * @param sourceGoogleProject the project containing the disk to be cloned
+   * @param targetGoogleProject the project containing the new disk
+   * @return
+   */
+  private def verifyOkToClone(sourceGoogleProject: GoogleProject, targetGoogleProject: GoogleProject)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      sourceAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(sourceGoogleProject.value)))
+      sourceAncestor <- immediateAncestor(sourceAncestry)
+
+      targetAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(targetGoogleProject.value)))
+      targetAncestor <- immediateAncestor(targetAncestry)
+
+      _ <- F.raiseWhen(
+        sourceAncestor != targetAncestor &&
+          config.dontCloneFromTheseGoogleFolders.contains(sourceAncestor.getResourceId.getId)
+      )(
+        BadRequestException(s"persistent disk clone from $sourceGoogleProject to $targetGoogleProject not permitted",
+                            Option(ctx.traceId)
+        )
+      )
+    } yield ()
+
+  /**
+   * Ancestors are ordered from bottom to top of the resource hierarchy.
+   * The first ancestor is the project itself, followed by the project's parent, etc..
+   */
+  private def immediateAncestor(ancestry: Seq[Ancestor])(implicit
+    as: Ask[F, AppContext]
+  ): F[Ancestor] =
+    for {
+      ctx <- as.ask
+      _ <- F.raiseWhen(ancestry.size < 2)(
+        LeoInternalServerError(s"expected at least 2 ancestors but got ${ancestry.mkString(",")}", Option(ctx.traceId))
+      )
+    } yield ancestry.tail.head
 
   private def lookupSourceDisk(userInfo: UserInfo, ctx: AppContext)(
     sourceDiskReq: SourceDiskRequest

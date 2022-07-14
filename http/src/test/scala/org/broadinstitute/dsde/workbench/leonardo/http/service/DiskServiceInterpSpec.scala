@@ -7,7 +7,10 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
+import com.google.api.services.cloudresourcemanager.model.{Ancestor, ResourceId}
 import com.google.cloud.compute.v1.Disk
+import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.mock.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -34,6 +37,8 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
 
+import scala.concurrent.Future
+
 class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val emptyCreateDiskReq = CreateDiskRequest(
     Map.empty,
@@ -48,14 +53,17 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     AppContext(model.TraceId("traceId"), Instant.now())
   )
 
-  private def makeDiskService() = {
+  private def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
+                              googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
+  ) = {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
-      ConfigReader.appConfig.persistentDisk,
+      ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = dontCloneFromTheseGoogleFolders),
       whitelistAuthProvider,
       serviceAccountProvider,
       publisherQueue,
-      MockGoogleDiskService
+      MockGoogleDiskService,
+      googleProjectDAO
     )
     (diskService, publisherQueue)
   }
@@ -112,12 +120,37 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "successfully create a persistent disk clone" in isolatedDbTest {
+  it should "successfully create a persistent disk clone, same project, nothing forbidden" in isolatedDbTest {
+    val googleProject = GoogleProject("project1")
+    successfulDiskCloneTest(googleProject, googleProject, Map(googleProject -> "folder"), Vector.empty)
+  }
+
+  it should "successfully create a persistent disk clone, same forbidden project" in isolatedDbTest {
+    val googleProject = GoogleProject("project1")
+    val folder = "folder"
+    successfulDiskCloneTest(googleProject, googleProject, Map(googleProject -> folder), Vector(folder))
+  }
+
+  it should "successfully create a persistent disk clone, different project, not forbidden" in isolatedDbTest {
+    val googleProject1 = GoogleProject("project1")
+    val googleProject2 = GoogleProject("project2")
+    successfulDiskCloneTest(googleProject1,
+                            googleProject2,
+                            Map(googleProject1 -> "folder1", googleProject2 -> "folder2"),
+                            Vector("anotherFolder")
+    )
+  }
+
+  private def successfulDiskCloneTest(sourceProject: GoogleProject,
+                                      targetProject: GoogleProject,
+                                      projectToFolder: Map[GoogleProject, String],
+                                      forbiddenFolders: Vector[String]
+  ) = {
     val dummyDiskLink = "dummyDiskLink"
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
-      ConfigReader.appConfig.persistentDisk,
+      ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = forbiddenFolders),
       whitelistAuthProvider,
       serviceAccountProvider,
       publisherQueue,
@@ -126,7 +159,8 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           ev: Ask[IO, TraceId]
         ): IO[Option[Disk]] =
           IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build()))
-      }
+      },
+      new MockGoogleProjectDAOWithCustomAncestors(projectToFolder)
     )
 
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -134,8 +168,6 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchEmail("user1@example.com"),
                             0
     ) // this email is white listed
-    val googleProject = GoogleProject("project1")
-    val cloudContext = CloudContext.Gcp(googleProject)
     val diskName = DiskName("diskName1")
     val diskCloneName = DiskName("clone")
     val expectedFormattedBy = FormattedBy.GCE
@@ -145,12 +177,12 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       _ <- diskService
         .createDisk(
           userInfo,
-          googleProject,
+          sourceProject,
           diskName,
           emptyCreateDiskReq
         )
 
-      persistedDiskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
+      persistedDiskOpt <- persistentDiskQuery.getActiveByName(CloudContext.Gcp(sourceProject), diskName).transaction
       persistedDisk = persistedDiskOpt.get
       _ <- persistentDiskQuery
         .updateStatusAndIsFormatted(persistedDisk.id, persistedDisk.status, expectedFormattedBy, Instant.now())
@@ -158,22 +190,18 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
       createDiskMessage <- publisherQueue.take // need to take this off the queue
 
-      d <- diskService
+      _ <- diskService
         .createDisk(
           userInfo,
-          googleProject,
+          targetProject,
           diskCloneName,
-          emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(googleProject, diskName)))
+          emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(sourceProject, diskName)))
         )
-        .attempt
-      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskCloneName).transaction
+      diskOpt <- persistentDiskQuery.getActiveByName(CloudContext.Gcp(targetProject), diskCloneName).transaction
       disk = diskOpt.get
       createCloneMessage <- publisherQueue.take
     } yield {
-      withClue(d) {
-        d shouldBe Right(())
-      }
-      disk.cloudContext shouldBe cloudContext
+      disk.cloudContext shouldBe CloudContext.Gcp(targetProject)
       disk.name shouldBe diskCloneName
       disk.formattedBy shouldBe Some(expectedFormattedBy)
       val expectedMessage = CreateDiskMessage.fromDisk(disk, Some(context.traceId))
@@ -207,6 +235,39 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "fail with BadRequestException if source disk is in different, forbidden folder" in isolatedDbTest {
+    val sourceGoogleProject = GoogleProject("sourceProject1")
+    val forbiddenFolder = "forbiddenFolder"
+    val (diskService, _) =
+      makeDiskService(Vector(forbiddenFolder),
+                      new MockGoogleProjectDAOWithCustomAncestors(Map(sourceGoogleProject -> forbiddenFolder))
+      )
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
+    val googleProject = GoogleProject("project1")
+    val diskName = DiskName("diskName1")
+
+    val res = for {
+      context <- ctx.ask[AppContext]
+      cloneAttempt <- diskService
+        .createDisk(
+          userInfo,
+          googleProject,
+          DiskName(diskName.value + "-clone"),
+          emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(sourceGoogleProject, diskName)))
+        )
+        .attempt
+    } yield cloneAttempt shouldBe (Left(
+      BadRequestException(s"persistent disk clone from $sourceGoogleProject to $googleProject not permitted",
+                          Some(context.traceId)
+      )
+    ))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "fail with BadRequestException if user doesn't have permission to source disk" in isolatedDbTest {
     val dummyDiskLink = "dummyDiskLink"
     val authProviderMock = mock[LeoAuthProvider[IO]](defaultMockitoAnswer[IO])
@@ -218,7 +279,8 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       authProviderMock,
       serviceAccountProvider,
       publisherQueue,
-      googleDiskServiceMock
+      googleDiskServiceMock,
+      new MockGoogleProjectDAO
     )
     val userInfoCreator =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("creator"), WorkbenchEmail("creator@example.com"), 0)
@@ -489,4 +551,20 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
+}
+
+class MockGoogleProjectDAOWithCustomAncestors(customAncestors: Map[GoogleProject, String])
+    extends MockGoogleProjectDAO {
+  override def getAncestry(projectName: String): Future[Seq[Ancestor]] =
+    customAncestors
+      .get(GoogleProject(projectName))
+      .map(folder =>
+        Future.successful(
+          Seq(
+            new Ancestor().setResourceId(new ResourceId().setId(projectName).setType("project")),
+            new Ancestor().setResourceId(new ResourceId().setId(folder).setType("folder"))
+          )
+        )
+      )
+      .getOrElse(super.getAncestry(projectName))
 }

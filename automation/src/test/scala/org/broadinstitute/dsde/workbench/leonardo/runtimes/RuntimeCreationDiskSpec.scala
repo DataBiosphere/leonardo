@@ -29,7 +29,6 @@ import scala.concurrent.duration._
 @DoNotDiscover
 class RuntimeCreationDiskSpec
     extends BillingProjectFixtureSpec
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
