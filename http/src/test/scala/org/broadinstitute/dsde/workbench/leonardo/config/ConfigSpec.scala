@@ -81,7 +81,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "69.173.127.240/28",
         "69.173.112.0/21"
       ).map(CidrIP),
-      KubernetesClusterVersion("1.19.16"),
+      KubernetesClusterVersion("1.19.17"),
       1 hour,
       200
     )
