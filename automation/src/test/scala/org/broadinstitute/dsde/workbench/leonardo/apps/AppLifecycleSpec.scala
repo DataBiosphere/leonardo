@@ -50,7 +50,7 @@ class AppLifecycleSpec
     ("create and delete a CUSTOM app", customCreateAppRequest)
   )
 
-  // TODO: enable once Galaxy supports newer version of GKE
+  // TODO: enable once Galaxy supports newer version of GKE: https://broadworkbench.atlassian.net/browse/PROD-698
 
 //  forAll(appTestCases) { (description, createAppRequest) =>
 //    description taggedAs Retryable in { _ =>
