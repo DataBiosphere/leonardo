@@ -109,5 +109,5 @@ class AppLifecycleSpec
 //        }
 //      }
 //    }
-  }
+  // }
 }
