@@ -28,7 +28,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         BlockSize(4096),
         ZoneName("us-central1-a"),
         DiskSize(250),
-        Vector.empty
+        Vector("bogus")
       ),
       AzureConfig(
         AzurePubsubHandlerConfig(
