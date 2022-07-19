@@ -4,17 +4,21 @@ package http
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class CreateDiskRequest(labels: LabelMap,
                                    size: Option[DiskSize],
                                    diskType: Option[DiskType],
                                    blockSize: Option[BlockSize],
-                                   zone: Option[ZoneName]
+                                   zone: Option[ZoneName],
+                                   sourceDisk: Option[SourceDiskRequest]
 )
+
+final case class SourceDiskRequest(googleProject: GoogleProject, name: DiskName)
 
 object CreateDiskRequest {
   def fromDiskConfigRequest(create: PersistentDiskRequest, zone: Option[ZoneName]): CreateDiskRequest =
-    CreateDiskRequest(create.labels, create.size, create.diskType, None, zone)
+    CreateDiskRequest(create.labels, create.size, create.diskType, None, zone, None)
 }
 
 final case class PersistentDiskRequest(name: DiskName,
@@ -52,7 +56,8 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            size: DiskSize,
                                            diskType: DiskType,
                                            blockSize: BlockSize,
-                                           labels: LabelMap
+                                           labels: LabelMap,
+                                           formattedBy: Option[FormattedBy]
 )
 
 final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)

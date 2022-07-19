@@ -82,6 +82,8 @@ object JsonCodec {
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
   implicit val gpuTypeEncoder: Encoder[GpuType] = Encoder.encodeString.contramap(_.asString)
   implicit val cloudProviderEncoder: Encoder[CloudProvider] = Encoder.encodeString.contramap(_.asString)
+  implicit val diskLinkEncoder: Encoder[DiskLink] = Encoder.encodeString.contramap(_.asString)
+  implicit val formattedByEncoder: Encoder[FormattedBy] = Encoder.encodeString.contramap(_.asString)
 
   implicit val cloudContextEncoder: Encoder[CloudContext] = Encoder.forProduct2(
     "cloudProvider",
@@ -445,6 +447,9 @@ object JsonCodec {
   implicit val regionDecoder: Decoder[RegionName] = Decoder.decodeString.map(RegionName(_))
   implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
+  implicit val diskLinkDecoder: Decoder[DiskLink] = Decoder.decodeString.map(DiskLink)
+  implicit val formattedByDecoder: Decoder[FormattedBy] =
+    Decoder.decodeString.emap(fb => FormattedBy.values.find(_.asString == fb).toRight(s"Invalid formatted by: $fb"))
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =

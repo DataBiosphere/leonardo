@@ -19,7 +19,8 @@ final case class PersistentDisk(id: DiskId,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
                                 appRestore: Option[AppRestore],
-                                labels: LabelMap
+                                labels: LabelMap,
+                                sourceDisk: Option[DiskLink]
 ) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
@@ -137,3 +138,7 @@ object AppRestore {
   // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
   final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore
 }
+
+final case class DiskLink(asString: String) extends AnyVal
+
+final case class SourceDisk(diskLink: DiskLink, formattedBy: Option[FormattedBy])

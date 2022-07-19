@@ -2660,6 +2660,14 @@ components:
         labels:
           type: object
           description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        formattedBy:
+          type: string
+          enum:
+            - GALAXY
+            - GCE
+            - CROMWELL
+            - CUSTOM
+          description: App that formatted disk, missing if unformatted
 
     InstanceKey:
       description: ""
@@ -2932,6 +2940,20 @@ components:
         blockSize:
           type: integer
           description: The block size of the persistent disk to be created in bytes.
+        sourceDisk:
+          $ref: "#/components/schemas/SourceDisk"
+
+    SourceDisk:
+      description: opitonal location of a disk to clone
+      type: object
+      properties:
+        googleProject:
+          type: string
+          description: google project containing the source disk to be cloned
+        name:
+          type: string
+          description: name of the source disk to be cloned
+
     UpdateDiskRequest:
       description: "Updates an existing persistent disk"
       type: object

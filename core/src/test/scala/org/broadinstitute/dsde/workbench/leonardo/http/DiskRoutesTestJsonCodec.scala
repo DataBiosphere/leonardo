@@ -9,19 +9,31 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 object DiskRoutesTestJsonCodec {
-  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct5(
+  implicit val sourceDiskRequestEncocer: Encoder[SourceDiskRequest] = Encoder.forProduct2(
+    "googleProject",
+    "name"
+  )(x =>
+    (
+      x.googleProject,
+      x.name
+    )
+  )
+
+  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct6(
     "labels",
     "size",
     "diskType",
     "blockSize",
-    "zone"
+    "zone",
+    "sourceDisk"
   )(x =>
     (
       x.labels,
       x.size,
       x.diskType,
       x.blockSize,
-      x.zone
+      x.zone,
+      x.sourceDisk
     )
   )
 
@@ -42,6 +54,7 @@ object DiskRoutesTestJsonCodec {
       diskType <- x.downField("diskType").as[DiskType]
       blockSize <- x.downField("blockSize").as[BlockSize]
       labels <- x.downField("labels").as[LabelMap]
+      formattedBy <- x.downField("formattedBy").as[Option[FormattedBy]]
     } yield GetPersistentDiskResponse(id,
                                       cloudContext,
                                       zone,
@@ -53,7 +66,8 @@ object DiskRoutesTestJsonCodec {
                                       size,
                                       diskType,
                                       blockSize,
-                                      labels
+                                      labels,
+                                      formattedBy
     )
   }
 

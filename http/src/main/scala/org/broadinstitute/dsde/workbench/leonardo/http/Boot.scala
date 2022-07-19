@@ -19,7 +19,12 @@ import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleProjectDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
@@ -134,7 +139,9 @@ object Boot extends IOApp {
         ConfigReader.appConfig.persistentDisk,
         appDependencies.authProvider,
         appDependencies.serviceAccountProvider,
-        appDependencies.publisherQueue
+        appDependencies.publisherQueue,
+        googleDependencies.googleDiskService,
+        googleDependencies.googleProjectDAO
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
@@ -353,6 +360,7 @@ object Boot extends IOApp {
       jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
 
       // Set up Google DAOs
+      googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
                                                       jsonWithServiceAccountUser,
@@ -494,7 +502,9 @@ object Boot extends IOApp {
         gkeService,
         openTelemetry,
         kubernetesScopedCredential,
-        googleOauth2DAO
+        googleOauth2DAO,
+        googleDiskService,
+        googleProjectDAO
       )
 
       val bucketHelperConfig = BucketHelperConfig(
@@ -682,7 +692,9 @@ final case class GoogleDependencies[F[_]](
   gkeService: GKEService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   credentials: GoogleCredentials,
-  googleOauth2DAO: GoogleOAuth2Service[F]
+  googleOauth2DAO: GoogleOAuth2Service[F],
+  googleDiskService: GoogleDiskService[F],
+  googleProjectDAO: GoogleProjectDAO
 )
 
 final case class AppDependencies[F[_]](

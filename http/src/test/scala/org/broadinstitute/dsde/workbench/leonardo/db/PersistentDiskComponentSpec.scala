@@ -19,7 +19,11 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
   "PersistentDiskComponent" should "save and get records" in isolatedDbTest {
     val disk1 = makePersistentDisk(Some(DiskName("d1")))
     val disk2 =
-      makePersistentDisk(Some(DiskName("d2"))).copy(size = DiskSize(1000), diskType = SSD, blockSize = BlockSize(16384))
+      makePersistentDisk(Some(DiskName("d2"))).copy(size = DiskSize(1000),
+                                                    diskType = SSD,
+                                                    blockSize = BlockSize(16384),
+                                                    sourceDisk = Some(DiskLink("some/disk/link"))
+      )
 
     val res = for {
       savedDisk1 <- disk1.save()

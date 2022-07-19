@@ -174,6 +174,13 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
 }
 
 object DiskRoutes {
+  implicit val sourceDiskDecoder: Decoder[SourceDiskRequest] = Decoder.instance { x =>
+    for {
+      gp <- x.downField("googleProject").as[GoogleProject]
+      n <- x.downField("name").as[DiskName]
+    } yield SourceDiskRequest(gp, n)
+  }
+
   implicit val createDiskRequestDecoder: Decoder[CreateDiskRequest] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
@@ -181,12 +188,14 @@ object DiskRoutes {
       t <- c.downField("diskType").as[Option[DiskType]]
       bs <- c.downField("blockSize").as[Option[BlockSize]]
       zone <- c.downField("zone").as[Option[ZoneName]]
+      sourceDisk <- c.downField("sourceDisk").as[Option[SourceDiskRequest]]
     } yield CreateDiskRequest(
       l.getOrElse(Map.empty),
       s,
       t,
       bs,
-      zone
+      zone,
+      sourceDisk
     )
   }
 
@@ -197,7 +206,7 @@ object DiskRoutes {
     } yield UpdateDiskRequest(l.getOrElse(Map.empty), us)
   }
 
-  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
+  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct13(
     "id",
     "googleProject",
     "cloudContext",
@@ -209,7 +218,8 @@ object DiskRoutes {
     "size",
     "diskType",
     "blockSize",
-    "labels"
+    "labels",
+    "formattedBy"
   )(x =>
     (
       x.id,
@@ -223,7 +233,8 @@ object DiskRoutes {
       x.size,
       x.diskType,
       x.blockSize,
-      x.labels
+      x.labels,
+      x.formattedBy
     )
   )
 
