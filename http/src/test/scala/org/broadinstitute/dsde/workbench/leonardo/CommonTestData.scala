@@ -437,7 +437,8 @@ object CommonTestData {
       blockSize,
       formattedBy,
       appRestore,
-      Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3")
+      Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3"),
+      None
     )
 
   // TODO look into parameterized tests so both provider impls can be tested

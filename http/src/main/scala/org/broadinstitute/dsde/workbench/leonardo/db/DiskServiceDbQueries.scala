@@ -91,7 +91,8 @@ object DiskServiceDbQueries {
           diskRec.size,
           diskRec.diskType,
           diskRec.blockSize,
-          labelMap
+          labelMap,
+          diskRec.formattedBy
         )
         DBIO.successful(getDiskResponse)
       }
