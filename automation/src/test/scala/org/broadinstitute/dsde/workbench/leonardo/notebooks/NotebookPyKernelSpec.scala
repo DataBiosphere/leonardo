@@ -97,7 +97,6 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
           val result = notebookPage.executeCell(query, timeout = 5.minutes).get
-          result should include("Current status: DONE")
           result should include(expectedResult)
         }
       }
