@@ -285,6 +285,10 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val workspaceIdColumnType: BaseColumnType[WorkspaceId] =
       MappedColumnType
         .base[WorkspaceId, String](_.value.toString, s => WorkspaceId(UUID.fromString(s)))
+
+    implicit val diskLinkColumnType: BaseColumnType[DiskLink] =
+      MappedColumnType
+        .base[DiskLink, String](_.asString, DiskLink.apply)
   }
 
   case class ColumnDecodingException(message: String) extends Exception

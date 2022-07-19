@@ -219,7 +219,8 @@ object LeoPubsubMessage {
                                      size: DiskSize,
                                      diskType: DiskType,
                                      blockSize: BlockSize,
-                                     traceId: Option[TraceId]
+                                     traceId: Option[TraceId],
+                                     sourceDisk: Option[DiskLink]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateDisk
   }
@@ -236,7 +237,8 @@ object LeoPubsubMessage {
         disk.size,
         disk.diskType,
         disk.blockSize,
-        traceId
+        traceId,
+        disk.sourceDisk
       )
   }
 
@@ -420,7 +422,16 @@ object LeoPubsubCodec {
     )
 
   implicit val createDiskDecoder: Decoder[CreateDiskMessage] =
-    Decoder.forProduct8("diskId", "googleProject", "name", "zone", "size", "diskType", "blockSize", "traceId")(
+    Decoder.forProduct9("diskId",
+                        "googleProject",
+                        "name",
+                        "zone",
+                        "size",
+                        "diskType",
+                        "blockSize",
+                        "traceId",
+                        "sourceDisk"
+    )(
       CreateDiskMessage.apply
     )
 
@@ -717,15 +728,16 @@ object LeoPubsubCodec {
     )
 
   implicit val createDiskMessageEncoder: Encoder[CreateDiskMessage] =
-    Encoder.forProduct9("messageType",
-                        "diskId",
-                        "googleProject",
-                        "name",
-                        "zone",
-                        "size",
-                        "diskType",
-                        "blockSize",
-                        "traceId"
+    Encoder.forProduct10("messageType",
+                         "diskId",
+                         "googleProject",
+                         "name",
+                         "zone",
+                         "size",
+                         "diskType",
+                         "blockSize",
+                         "traceId",
+                         "sourceDisk"
     )(x =>
       (
         x.messageType,
@@ -736,7 +748,8 @@ object LeoPubsubCodec {
         x.size,
         x.diskType,
         x.blockSize,
-        x.traceId
+        x.traceId,
+        x.sourceDisk
       )
     )
 

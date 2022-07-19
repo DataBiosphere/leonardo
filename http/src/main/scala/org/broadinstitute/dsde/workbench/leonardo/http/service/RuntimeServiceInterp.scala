@@ -1008,7 +1008,8 @@ object RuntimeServiceInterp {
                 diskConfig,
                 CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
                 ctx.now,
-                if (willBeUsedBy == FormattedBy.Galaxy) true else false
+                willBeUsedBy == FormattedBy.Galaxy,
+                None
               )
             )
             _ <- authProvider

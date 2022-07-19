@@ -543,6 +543,7 @@ class HttpRoutesSpec
       Some(DiskSize(500)),
       Some(DiskType.Standard),
       Some(BlockSize(65536)),
+      None,
       None
     )
     Post("/api/google/v1/disks/googleProject1/disk1")
