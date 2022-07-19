@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   ClusterError,
   GoogleComputeService,
   GoogleDataprocService,
-  InstanceName,
   RegionName,
   ZoneName
 }
@@ -33,6 +32,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global

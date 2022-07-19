@@ -8,7 +8,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

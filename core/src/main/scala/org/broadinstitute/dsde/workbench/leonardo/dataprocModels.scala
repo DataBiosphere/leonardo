@@ -4,9 +4,10 @@ import java.time.Instant
 
 import ca.mrvisser.sealerate
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, ZoneName}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 /** An instance in a Dataproc cluster */
 case class DataprocInstanceKey(project: GoogleProject, zone: ZoneName, name: InstanceName)

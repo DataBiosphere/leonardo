@@ -8,7 +8,7 @@ import com.google.cloud.compute.v1.Instance
 import io.circe.parser.decode
 import io.circe.{CursorOp, DecodingFailure}
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, traceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeNodepool}
@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscribe
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global

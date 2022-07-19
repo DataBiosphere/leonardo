@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
   GoogleComputeService,
   GoogleDiskService,
-  InstanceName,
   MachineTypeName,
   OperationName,
   RegionName,
@@ -29,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID

@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleResourceService,
   MockGoogleDiskService
 }
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.time.Instant
