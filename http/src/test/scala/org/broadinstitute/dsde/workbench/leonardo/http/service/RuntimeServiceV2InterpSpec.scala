@@ -83,7 +83,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
 
-      jobId = WsmJobId("job1")
       r <- azureService
         .createRuntime(
           userInfo,
