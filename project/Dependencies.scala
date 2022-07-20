@@ -179,7 +179,6 @@ object Dependencies {
     hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
-//    "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
     mysql,
     liquibase,
