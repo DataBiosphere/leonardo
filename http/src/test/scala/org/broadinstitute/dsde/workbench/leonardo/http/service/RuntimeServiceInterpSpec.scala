@@ -1413,7 +1413,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "update a GCE machine type in Running state" in {
+  it should "update a GCE machine type in Running state" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -1448,7 +1448,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
   }
 
-  it should "increase the disk on a GCE runtime" in {
+  it should "increase the disk on a GCE runtime" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
       ctx <- appContext.ask[AppContext]
