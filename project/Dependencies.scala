@@ -9,8 +9,8 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.11"
-  val slickV = "3.3.3"
   val http4sVersion = "1.0.0-M34"
+  val slickV = "3.4.0-RC2"
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
@@ -179,7 +179,7 @@ object Dependencies {
     hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
-    "com.rms.miu" %% "slick-cats" % "0.10.4",
+//    "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
     mysql,
     liquibase,
