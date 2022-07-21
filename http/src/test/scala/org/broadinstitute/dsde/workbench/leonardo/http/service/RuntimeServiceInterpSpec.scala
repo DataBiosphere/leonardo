@@ -1417,13 +1417,15 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
       ctx <- appContext.ask[AppContext]
+      runtime <- IO(makeCluster(1).save())
+      cr <- clusterQuery.getActiveClusterRecordByName(runtime.cloudContext, runtime.runtimeName).transaction
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
                                                             true,
-                                                            testClusterRecord.copy(status = RuntimeStatus.Running),
+                                                            cr.get.copy(status = RuntimeStatus.Running),
                                                             gceRuntimeConfig
       )
       message <- publisherQueue.take
-    } yield message shouldBe UpdateRuntimeMessage(testClusterRecord.id,
+    } yield message shouldBe UpdateRuntimeMessage(runtime.id,
                                                   Some(MachineTypeName("n1-micro-2")),
                                                   true,
                                                   None,
@@ -1452,9 +1454,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
       ctx <- appContext.ask[AppContext]
-      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
+      runtime <- IO(makeCluster(1).save())
+      cr <- clusterQuery.getActiveClusterRecordByName(runtime.cloudContext, runtime.runtimeName).transaction
+      _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, cr.get, gceRuntimeConfig)
       message <- publisherQueue.take
-    } yield message shouldBe UpdateRuntimeMessage(testCluster.id,
+    } yield message shouldBe UpdateRuntimeMessage(runtime.id,
                                                   None,
                                                   true,
                                                   Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
@@ -1470,14 +1474,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
       ctx <- appContext.ask[AppContext]
+      runtime <- IO(makeCluster(1).save())
+      cr <- clusterQuery.getActiveClusterRecordByName(runtime.cloudContext, runtime.runtimeName).transaction
       _ <- runtimeService.processUpdateRuntimeConfigRequest(
         req,
         true,
-        testClusterRecord,
+        cr.get,
         gceWithPdRuntimeConfig.copy(persistentDiskId = Some(disk.id))
       )
       message <- publisherQueue.take
-    } yield message shouldBe UpdateRuntimeMessage(testCluster.id,
+    } yield message shouldBe UpdateRuntimeMessage(runtime.id,
                                                   None,
                                                   true,
                                                   Some(DiskUpdate.PdSizeUpdate(disk.id, disk.name, DiskSize(1024))),
