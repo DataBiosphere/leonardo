@@ -7,7 +7,7 @@ import cats.effect.{Async, Temporal}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService, InstanceName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.GceInstanceStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.getInstanceIP
@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonit
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.typelevel.log4cats.StructuredLogger
 
 import java.sql.SQLDataException

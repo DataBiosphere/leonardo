@@ -8,6 +8,8 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
+import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
+import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -61,10 +63,7 @@ class AzurePubsubHandlerSpec
         )
     }
     val azureInterp =
-      makeAzureInterp(computeManagerDao = new MockComputeManagerDao(Some(vmReturn)),
-                      asyncTaskQueue = queue,
-                      wsmDAO = mockWsmDAO
-      )
+      makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
 
     val res =
       for {
@@ -320,7 +319,7 @@ class AzurePubsubHandlerSpec
   }
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
-                      computeManagerDao: AzureManagerDao[IO] = new MockComputeManagerDao(),
+                      relayService: AzureRelayService[IO] = FakeAzureRelayService,
                       wsmDAO: WsmDao[IO] = new MockWsmDAO
   ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
@@ -330,7 +329,7 @@ class AzurePubsubHandlerSpec
       wsmDAO,
       new MockSamDAO(),
       new MockJupyterDAO(),
-      computeManagerDao
+      relayService
     )
 
 }

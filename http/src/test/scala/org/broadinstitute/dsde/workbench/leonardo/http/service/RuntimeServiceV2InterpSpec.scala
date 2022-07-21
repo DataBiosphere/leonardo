@@ -30,6 +30,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import java.util.UUID
 import cats.mtl.Ask
 import com.azure.core.management.Region
+import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.http4s.headers.Authorization
 

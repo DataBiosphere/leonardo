@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   DiskName,
   GoogleComputeService,
-  InstanceName,
   MachineTypeName,
   ZoneName
 }
@@ -42,6 +41,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar

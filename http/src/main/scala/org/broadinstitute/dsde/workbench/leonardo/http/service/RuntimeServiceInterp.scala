@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GcsBlobName,
   GoogleComputeService,
   GoogleStorageService,
-  InstanceName,
   MachineTypeName,
   ZoneName
 }
@@ -41,6 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.typelevel.log4cats.StructuredLogger
 import slick.dbio.DBIOAction
 
