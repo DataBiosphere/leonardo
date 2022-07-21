@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
   DiskName,
-  InstanceName,
   MachineTypeName,
   NetworkName,
   OperationName,
@@ -68,8 +67,10 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
 import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import scala.concurrent.duration._
 
@@ -437,7 +438,8 @@ object CommonTestData {
       blockSize,
       formattedBy,
       appRestore,
-      Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3")
+      Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3"),
+      None
     )
 
   // TODO look into parameterized tests so both provider impls can be tested

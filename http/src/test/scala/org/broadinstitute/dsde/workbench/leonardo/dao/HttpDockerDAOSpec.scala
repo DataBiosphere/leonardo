@@ -160,8 +160,9 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |}
         |""".stripMargin
     val expectedResult =
-      DecodingFailure("Attempt to decode value on failed cursor", List(DownField("config")))
-    decode[ContainerConfigResponse](jsonString) shouldBe Left(expectedResult)
+      DecodingFailure("Missing required field", List(DownField("config")))
+    decode[ContainerConfigResponse](jsonString).swap.toOption.get.getMessage shouldBe expectedResult.leftSideValue
+      .getMessage()
   }
 
   it should "fail to decode Docker API response if it does not contain 'Env' field" in {
@@ -174,8 +175,9 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |}
         |""".stripMargin
     val expectedResult =
-      DecodingFailure("Attempt to decode value on failed cursor", List(DownField("Env"), DownField("container_config")))
-    decode[ContainerConfigResponse](jsonString) shouldBe Left(expectedResult)
+      DecodingFailure("Missing required field", List(DownField("Env"), DownField("container_config")))
+    decode[ContainerConfigResponse](jsonString).swap.toOption.get.getMessage shouldBe expectedResult.leftSideValue
+      .getMessage()
   }
 
   it should s"detect tool RStudio for image rtitle/anvil-rstudio-base:0.0.1" in withDockerDAO { dockerDAO =>

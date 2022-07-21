@@ -68,7 +68,8 @@ class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with A
         "creator" -> "ron.weasley@test.firecloud.org",
         "googleProject" -> "gpalloc-dev-master-tzprbkr",
         "serviceAccount" -> "b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"
-      )
+      ),
+      None
     )
     res shouldBe (Right(expected))
   }

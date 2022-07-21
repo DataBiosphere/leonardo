@@ -2,9 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import pureconfig.ConfigReader
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.{ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import pureconfig.error.ExceptionThrown
+
 import java.nio.file.{Path, Paths}
 import org.http4s.Uri
 

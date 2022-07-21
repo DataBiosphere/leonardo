@@ -10,7 +10,13 @@ import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, Go
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest, UpdateDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateDiskRequest,
+  PersistentDiskRequest,
+  RuntimeConfigRequest,
+  SourceDiskRequest,
+  UpdateDiskRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.Status
@@ -186,12 +192,14 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "create runtime and attach an existing persistent disk" taggedAs Retryable in { googleProject =>
+  "create runtime and attach an existing persistent disk or clone" taggedAs Retryable in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName =
       randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
+    val runtimeWithCloneName = randomeName.copy(asString = randomeName.asString + "pd-spec-clone")
     val diskName = genDiskName.sample.get
+    val diskCloneName = DiskName(diskName.value + "-clone")
     val diskSize = DiskSize(110)
     val newDiskSize = DiskSize(150)
 
@@ -217,6 +225,31 @@ class RuntimeCreationDiskSpec
       val createRuntime2Request = createRuntimeRequest.copy(toolDockerImage =
         Some(ContainerImage(LeonardoConfig.Leonardo.pythonImageUrl, ContainerRegistry.GCR))
       ) // this just needs to be a different image from default image Leonardo uses, which is gatk
+
+      val createRuntimeCloneRequest = createRuntime2Request.copy(
+        runtimeConfig = Some(
+          RuntimeConfigRequest.GceWithPdConfig(
+            None,
+            PersistentDiskRequest(
+              diskCloneName,
+              Some(DiskSize(500)),
+              None,
+              Map.empty
+            ),
+            defaultCreateDiskRequest.zone,
+            None
+          )
+        )
+      )
+
+      val createDiskCloneRequest =
+        CreateDiskRequest(Map.empty,
+                          Some(newDiskSize),
+                          None,
+                          None,
+                          defaultCreateDiskRequest.zone,
+                          Some(SourceDiskRequest(googleProject, diskName))
+        )
 
       for {
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
@@ -257,29 +290,19 @@ class RuntimeCreationDiskSpec
 
         // Creating new runtime with existing disk should have test.txt file and user installed package
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntime2Request)
-        clusterCopyWithData = ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData)
-        _ <- IO(withWebDriver { implicit driver =>
-          withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
-            val persistedData =
-              """! cat /home/jupyter/test.txt""".stripMargin
-            notebookPage.executeCell(persistedData).get should include("this should save")
-            val persistedPackage = "! pip show simplejson"
-            notebookPage.executeCell(persistedPackage).get should include(
-              "/home/jupyter/.local/lib/python3.7/site-packages"
-            )
+        _ <- verifyDisk(ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData))
 
-            val res = notebookPage
-              .executeCell(
-                "! df -h --output=size $HOME"
-              )
-              .get
-            res should include("148G")
-          }
-        })
+        // clone the disk
+        _ <- LeonardoApiClient.createDiskWithWait(googleProject, diskCloneName, createDiskCloneRequest)
+        // Creating new runtime with clone of existing disk should have test.txt file and user installed package
+        runtimeWithClone <- createRuntimeWithWait(googleProject, runtimeWithCloneName, createRuntimeCloneRequest)
+        _ <- verifyDisk(ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithClone))
+
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
-        getDiskAttempt = getDisk(googleProject, diskName).attempt
+        _ <- deleteRuntimeWithWait(googleProject, runtimeWithCloneName, deleteDisk = true)
 
         // Disk deletion may take some time so we're retrying to reduce flaky test failures
+        getDiskAttempt = getDisk(googleProject, diskName).attempt
         diskResp <- streamFUntilDone(getDiskAttempt, 15, 5 seconds).compile.lastOrError
       } yield {
         runtime.diskConfig.map(_.name) shouldBe Some(diskName)
@@ -300,6 +323,26 @@ class RuntimeCreationDiskSpec
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
+
+  private def verifyDisk(clusterCopyWithData: ClusterCopy)(implicit authToken: AuthToken) =
+    IO(withWebDriver { implicit driver =>
+      withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
+        val persistedData =
+          """! cat /home/jupyter/test.txt""".stripMargin
+        notebookPage.executeCell(persistedData).get should include("this should save")
+        val persistedPackage = "! pip show simplejson"
+        notebookPage.executeCell(persistedPackage).get should include(
+          "/home/jupyter/.local/lib/python3.7/site-packages"
+        )
+
+        val res = notebookPage
+          .executeCell(
+            "! df -h --output=size $HOME"
+          )
+          .get
+        res should include("148G")
+      }
+    })
 }
 
 final case class RuntimeCreationPdSpecDependencies(httpClient: Client[IO], googleDiskService: GoogleDiskService[IO])

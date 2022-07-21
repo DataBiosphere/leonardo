@@ -358,7 +358,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       config.defaultBlockSizeBytes,
       None,
       None,
-      labels
+      labels,
+      None
     )
   }
 

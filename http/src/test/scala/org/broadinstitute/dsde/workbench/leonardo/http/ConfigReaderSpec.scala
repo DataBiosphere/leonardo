@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -27,7 +28,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         DiskType.Standard,
         BlockSize(4096),
         ZoneName("us-central1-a"),
-        DiskSize(250)
+        DiskSize(250),
+        Vector("bogus")
       ),
       AzureConfig(
         AzurePubsubHandlerConfig(

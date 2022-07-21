@@ -1,8 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.util.UUID
-
 import ca.mrvisser.sealerate
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class WorkspaceId(value: UUID) extends AnyVal

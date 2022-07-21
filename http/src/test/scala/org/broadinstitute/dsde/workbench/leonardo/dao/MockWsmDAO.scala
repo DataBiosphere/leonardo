@@ -5,6 +5,7 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.core.management.Region
+import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime

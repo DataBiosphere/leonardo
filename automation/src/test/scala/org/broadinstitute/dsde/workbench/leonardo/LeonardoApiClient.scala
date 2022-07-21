@@ -61,7 +61,8 @@ object LeonardoApiClient {
     None,
     None,
     None,
-    Some(ZoneName("us-east1-b"))
+    Some(ZoneName("us-east1-b")),
+    None
   )
 
   val defaultCreateRuntime2Request = CreateRuntime2Request(
