@@ -190,8 +190,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     as: Ask[F, AppContext]
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
+      ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, cloudContext).transaction
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
       diskAndProjects = disks.map(d =>
         (GoogleProject(d.cloudContext.asString), d.samResource)
       ) // TODO: update this to support Azure
@@ -199,6 +201,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
       }
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))
       res = samVisibleDisksOpt match {
         case None => Vector.empty
         case Some(samVisibleDisks) =>
