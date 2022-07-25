@@ -78,7 +78,7 @@ import java.util.concurrent.TimeUnit
 
 import javax.net.ssl.SSLContext
 
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -110,8 +110,6 @@ object Boot extends IOApp {
           .error(t)("FATAL - failure starting liveliness http server")
           .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
       }
-
-    Await.ready(liveliness, Duration.Inf)
 
     logger.info("Liveliness server has been started").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
