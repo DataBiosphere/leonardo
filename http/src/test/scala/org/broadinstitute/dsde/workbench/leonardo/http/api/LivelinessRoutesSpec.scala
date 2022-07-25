@@ -10,7 +10,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class LivelinessRoutesSpec
-  extends AnyFlatSpec
+    extends AnyFlatSpec
     with Matchers
     with ScalatestRouteTest
     with LeonardoTestSuite

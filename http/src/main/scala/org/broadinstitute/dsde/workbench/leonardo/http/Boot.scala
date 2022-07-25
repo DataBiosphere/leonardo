@@ -28,7 +28,18 @@ import org.broadinstitute.dsde.workbench.google.{
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, Event, GoogleSubscriber, GooglePublisher, GoogleDataprocService, GKEService, GoogleDiskService, GoogleResourceService, GoogleStorageService, credentialResource}
+import org.broadinstitute.dsde.workbench.google2.{
+  credentialResource,
+  Event,
+  GKEService,
+  GoogleComputeService,
+  GoogleDataprocService,
+  GoogleDiskService,
+  GooglePublisher,
+  GoogleResourceService,
+  GoogleStorageService,
+  GoogleSubscriber
+}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -37,7 +48,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{StandardUserInfoDirectives, HttpRoutes, LivelinessRoutes, BuildTimeVersion}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  BuildTimeVersion,
+  HttpRoutes,
+  LivelinessRoutes,
+  StandardUserInfoDirectives
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -51,7 +67,7 @@ import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Retry, Metrics, RetryPolicy, Logger => Http4sLogger}
+import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
@@ -62,7 +78,7 @@ import java.util.concurrent.TimeUnit
 
 import javax.net.ssl.SSLContext
 
-import scala.concurrent.{ExecutionContext, Await}
+import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -84,7 +100,9 @@ object Boot extends IOApp {
 
     val livelinessRoutes = new LivelinessRoutes
 
-    val liveliness = logger.info("Liveliness server has been created, starting...").unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
+    val liveliness = logger
+      .info("Liveliness server has been created, starting...")
+      .unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
       .newServerAt("0.0.0.0", 9000)
       .bindFlow(livelinessRoutes.route)
       .onError { case t: Throwable =>
