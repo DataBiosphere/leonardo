@@ -4,7 +4,7 @@ package service
 
 import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
@@ -12,9 +12,9 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
     userInfo: UserInfo,
     cloudContext: CloudContext,
     runtimeName: RuntimeName,
-    req: CreateRuntime2Request
-  )(implicit as: Ask[IO, AppContext]): IO[Unit] =
-    IO.unit
+    req: CreateRuntimeRequest
+  )(implicit as: Ask[IO, AppContext]): IO[CreateRuntimeResponse] =
+    IO.pure(CreateRuntimeResponse(TraceId("fakeTraceId")))
 
   override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
     as: Ask[IO, AppContext]

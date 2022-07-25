@@ -23,8 +23,8 @@ trait RuntimeService[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     cloudContext: CloudContext,
                     runtimeName: RuntimeName,
-                    req: CreateRuntime2Request
-  )(implicit as: Ask[F, AppContext]): F[Unit]
+                    req: CreateRuntimeRequest
+  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse]
 
   def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
     as: Ask[F, AppContext]

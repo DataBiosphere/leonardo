@@ -75,7 +75,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       publisherQueue
     )
   val runtimeService = makeRuntimeService(publisherQueue)
-  val emptyCreateRuntimeReq = CreateRuntime2Request(
+  val emptyCreateRuntimeReq = CreateRuntimeRequest(
     Map.empty,
     None,
     None,

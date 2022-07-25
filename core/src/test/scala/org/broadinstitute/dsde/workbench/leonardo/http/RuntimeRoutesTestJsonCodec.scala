@@ -86,7 +86,7 @@ object RuntimeRoutesTestJsonCodec {
       x => CreateAzureRuntimeRequest.unapply(x).get
     )
 
-  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct12(
+  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct12(
     "labels",
     "userScriptUri",
     "startUserScriptUri",

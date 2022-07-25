@@ -46,7 +46,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
                              req: CreateAzureRuntimeRequest
-  )(implicit as: Ask[F, AppContext]): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
       ctx <- as.ask
 
@@ -129,7 +129,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           } yield ()
       }
 
-    } yield ()
+    } yield CreateRuntimeResponse(ctx.traceId)
 
   override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
     as: Ask[F, AppContext]

@@ -9,7 +9,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, RuntimeConfigRequest}
 import org.http4s.client.Client
 import org.scalatest.freespec.FixtureAnyFreeSpec
 
@@ -153,7 +153,7 @@ object RuntimeFixtureSpec {
   def getRuntimeRequest(cloudService: CloudService,
                         toolDockerImage: Option[ContainerImage],
                         welderRegistry: Option[ContainerRegistry]
-  ): CreateRuntime2Request = {
+  ): CreateRuntimeRequest = {
     val machineConfig = cloudService match {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
@@ -180,7 +180,7 @@ object RuntimeFixtureSpec {
         throw new NotImplementedError()
     }
 
-    CreateRuntime2Request(
+    CreateRuntimeRequest(
       runtimeConfig = Some(machineConfig),
       toolDockerImage = toolDockerImage,
       autopause = Some(false),
