@@ -10,7 +10,7 @@ import cats.mtl.Ask
 import com.google.api.services.oauth2.Oauth2
 import com.google.api.services.oauth2.model.Tokeninfo
 import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.withLogging
+import org.broadinstitute.dsde.workbench.util2.withLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 

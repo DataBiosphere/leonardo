@@ -18,8 +18,14 @@ import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
+import org.broadinstitute.dsde.workbench.azure.AzureRelayService
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleProjectDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
@@ -134,7 +140,9 @@ object Boot extends IOApp {
         ConfigReader.appConfig.persistentDisk,
         appDependencies.authProvider,
         appDependencies.serviceAccountProvider,
-        appDependencies.publisherQueue
+        appDependencies.publisherQueue,
+        googleDependencies.googleDiskService,
+        googleDependencies.googleProjectDAO
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
@@ -210,7 +218,8 @@ object Boot extends IOApp {
           )
 
           val nonLeoMessageSubscriber =
-            new NonLeoMessageSubscriber[IO](appDependencies.gkeAlg,
+            new NonLeoMessageSubscriber[IO](NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
+                                            appDependencies.gkeAlg,
                                             googleDependencies.googleComputeService,
                                             appDependencies.samDAO,
                                             appDependencies.nonLeoMessageGoogleSubscriber,
@@ -331,7 +340,7 @@ object Boot extends IOApp {
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
 
-      computeManagerDao = new AzureManagerDaoInterp[F](ConfigReader.appConfig.azure.appRegistration)
+      azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
@@ -352,6 +361,7 @@ object Boot extends IOApp {
       jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
 
       // Set up Google DAOs
+      googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
                                                       jsonWithServiceAccountUser,
@@ -493,7 +503,9 @@ object Boot extends IOApp {
         gkeService,
         openTelemetry,
         kubernetesScopedCredential,
-        googleOauth2DAO
+        googleOauth2DAO,
+        googleDiskService,
+        googleProjectDAO
       )
 
       val bucketHelperConfig = BucketHelperConfig(
@@ -546,11 +558,12 @@ object Boot extends IOApp {
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
+                                                     contentSecurityPolicy,
                                                      asyncTasksQueue,
                                                      wsmDao,
                                                      samDao,
                                                      jupyterDao,
-                                                     computeManagerDao
+                                                     azureRelay
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
@@ -680,7 +693,9 @@ final case class GoogleDependencies[F[_]](
   gkeService: GKEService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   credentials: GoogleCredentials,
-  googleOauth2DAO: GoogleOAuth2Service[F]
+  googleOauth2DAO: GoogleOAuth2Service[F],
+  googleDiskService: GoogleDiskService[F],
+  googleProjectDAO: GoogleProjectDAO
 )
 
 final case class AppDependencies[F[_]](

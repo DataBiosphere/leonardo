@@ -22,6 +22,13 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureCloudContext,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -66,7 +73,7 @@ trait WsmDao[F[_]] {
 
   def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[GetDeleteJobResult]
+  ): F[Option[GetDeleteJobResult]]
 
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]

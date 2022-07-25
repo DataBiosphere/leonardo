@@ -2,16 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import cats.effect.IO
+import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
-import cats.effect.std.Queue
-import io.circe.{CursorOp, DecodingFailure}
 import io.circe.parser.decode
+import io.circe.{CursorOp, DecodingFailure}
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, traceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeNodepool}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
@@ -23,8 +25,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscribe
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.flatspec.AnyFlatSpec
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
@@ -338,6 +341,13 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): NonLeoMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
-    new NonLeoMessageSubscriber(gkeInterp, computeService, samDao, googleSubscriber, publisher, asyncTaskQueue)
+    new NonLeoMessageSubscriber(NonLeoMessageSubscriberConfig(Config.gceConfig.userDiskDeviceName),
+                                gkeInterp,
+                                computeService,
+                                samDao,
+                                googleSubscriber,
+                                publisher,
+                                asyncTaskQueue
+    )
   }
 }

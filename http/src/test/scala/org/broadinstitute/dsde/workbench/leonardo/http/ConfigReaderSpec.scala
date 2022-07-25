@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -27,7 +28,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         DiskType.Standard,
         BlockSize(4096),
         ZoneName("us-central1-a"),
-        DiskSize(250)
+        DiskSize(250),
+        Vector("bogus")
       ),
       AzureConfig(
         AzurePubsubHandlerConfig(
@@ -57,10 +59,10 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/140d9c5fa6723fd92ce30d75595a6c2f9f5db290/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/c4a076ec75624ebd410dd2fff375c6364bf03eef/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a91c0e4",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a3ef8e0",
             VMCredential(username = "username", password = "password")
           )
         ),

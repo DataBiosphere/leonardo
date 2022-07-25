@@ -9,8 +9,10 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.services.cloudresourcemanager.model.Ancestor
+import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -35,7 +37,9 @@ import scala.concurrent.ExecutionContext
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
                                         serviceAccountProvider: ServiceAccountProvider[F],
-                                        publisherQueue: Queue[F, LeoPubsubMessage]
+                                        publisherQueue: Queue[F, LeoPubsubMessage],
+                                        googleDiskService: GoogleDiskService[F],
+                                        googleProjectDAO: GoogleProjectDAO
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -64,9 +68,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
+      _ <- req.sourceDisk.traverse(sd => verifyOkToClone(sd.googleProject, googleProject))
+
+      sourceDiskOpt <- req.sourceDisk.traverse(lookupSourceDisk(userInfo, ctx))
       cloudContext = CloudContext.Gcp(googleProject)
       diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
-
       _ <- diskOpt match {
         case Some(c) =>
           F.raiseError[Unit](PersistentDiskAlreadyExistsException(googleProject, diskName, c.status, ctx.traceId))
@@ -74,7 +80,16 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           for {
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             disk <- F.fromEither(
-              convertToDisk(userInfo.userEmail, petSA, cloudContext, diskName, samResource, config, req, ctx.now)
+              convertToDisk(userInfo.userEmail,
+                            petSA,
+                            cloudContext,
+                            diskName,
+                            samResource,
+                            config,
+                            req,
+                            ctx.now,
+                            sourceDiskOpt
+              )
             )
             _ <- authProvider
               .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
@@ -89,6 +104,68 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           } yield ()
       }
     } yield ()
+
+  /**
+   * Cloning persistent disks creates a data exfiltration path that must be blocked when appropriate. Disks
+   * within a controlled perimeter must not be cloned to locations outside that perimeter. However, Leo has no notion
+   * of what perimeters are. Fortunately google projects in perimeters are in their own google folder so this check
+   * raises an error if source and target google projects are not in the same folder AND the source project is
+   * in dontCloneFromTheseGoogleFolders.
+   *
+   * @param sourceGoogleProject the project containing the disk to be cloned
+   * @param targetGoogleProject the project containing the new disk
+   * @return
+   */
+  private def verifyOkToClone(sourceGoogleProject: GoogleProject, targetGoogleProject: GoogleProject)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      sourceAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(sourceGoogleProject.value)))
+      sourceAncestor <- immediateAncestor(sourceAncestry)
+
+      targetAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(targetGoogleProject.value)))
+      targetAncestor <- immediateAncestor(targetAncestry)
+
+      _ <- F.raiseWhen(
+        sourceAncestor != targetAncestor &&
+          config.dontCloneFromTheseGoogleFolders.contains(sourceAncestor.getResourceId.getId)
+      )(
+        BadRequestException(s"persistent disk clone from $sourceGoogleProject to $targetGoogleProject not permitted",
+                            Option(ctx.traceId)
+        )
+      )
+    } yield ()
+
+  /**
+   * Ancestors are ordered from bottom to top of the resource hierarchy.
+   * The first ancestor is the project itself, followed by the project's parent, etc..
+   */
+  private def immediateAncestor(ancestry: Seq[Ancestor])(implicit
+    as: Ask[F, AppContext]
+  ): F[Ancestor] =
+    for {
+      ctx <- as.ask
+      _ <- F.raiseWhen(ancestry.size < 2)(
+        LeoInternalServerError(s"expected at least 2 ancestors but got ${ancestry.mkString(",")}", Option(ctx.traceId))
+      )
+    } yield ancestry.tail.head
+
+  private def lookupSourceDisk(userInfo: UserInfo, ctx: AppContext)(
+    sourceDiskReq: SourceDiskRequest
+  )(implicit as: Ask[F, AppContext]): F[SourceDisk] =
+    for {
+      sourceDisk <- getDisk(userInfo, CloudContext.Gcp(sourceDiskReq.googleProject), sourceDiskReq.name).recoverWith {
+        case _: DiskNotFoundException =>
+          F.raiseError(BadRequestException("source disk does not exist", Option(ctx.traceId)))
+      }
+      maybeGoogleDisk <- googleDiskService.getDisk(sourceDiskReq.googleProject, sourceDisk.zone, sourceDisk.name)
+      googleDisk <- maybeGoogleDisk.toOptionT.getOrElseF(
+        F.raiseError(
+          LeoInternalServerError(s"Source disk $sourceDiskReq does not exist in google", Option(ctx.traceId))
+        )
+      )
+    } yield SourceDisk(DiskLink(googleDisk.getSelfLink), sourceDisk.formattedBy)
 
   override def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(implicit
     as: Ask[F, AppContext]
@@ -113,8 +190,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     as: Ask[F, AppContext]
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
+      ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, cloudContext).transaction
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
       diskAndProjects = disks.map(d =>
         (GoogleProject(d.cloudContext.asString), d.samResource)
       ) // TODO: update this to support Azure
@@ -122,6 +201,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
       }
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))
       res = samVisibleDisksOpt match {
         case None => Vector.empty
         case Some(samVisibleDisks) =>
@@ -247,9 +327,10 @@ object DiskServiceInterp {
                                      samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
-                                     now: Instant
+                                     now: Instant,
+                                     sourceDisk: Option[SourceDisk]
   ): Either[Throwable, PersistentDisk] =
-    convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false)
+    convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false, sourceDisk)
 
   private[service] def convertToDisk(userEmail: WorkbenchEmail,
                                      serviceAccount: WorkbenchEmail,
@@ -259,7 +340,8 @@ object DiskServiceInterp {
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant,
-                                     willBeUsedByGalaxy: Boolean
+                                     willBeUsedByGalaxy: Boolean,
+                                     sourceDisk: Option[SourceDisk]
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
@@ -292,9 +374,10 @@ object DiskServiceInterp {
       else req.size.getOrElse(config.defaultDiskSizeGb),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
+      sourceDisk.flatMap(_.formattedBy),
       None,
-      None,
-      labels
+      labels,
+      sourceDisk.map(_.diskLink)
     )
   }
 }

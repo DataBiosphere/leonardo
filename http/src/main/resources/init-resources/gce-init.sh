@@ -162,7 +162,7 @@ function apply_user_script() {
   log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
   USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
   if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
-    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var
+    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var &> /var/user_script_copy_output.txt
   else
     curl $USER_SCRIPT_URI -o /var/${USER_SCRIPT}
   fi
@@ -324,7 +324,7 @@ docker network create -d bridge app_network
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
 
-retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull
+retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull &> /var/docker_pull_output.txt
 
 # This needs to happen before we start up containers
 chmod a+rwx ${WORK_DIRECTORY}

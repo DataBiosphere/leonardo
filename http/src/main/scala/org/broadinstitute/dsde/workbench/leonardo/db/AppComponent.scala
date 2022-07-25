@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unma
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.Release
-import com.rms.miu.slickcats.DBIOInstances._
+import DBIOInstances._
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.http4s.Uri

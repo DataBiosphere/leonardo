@@ -7,7 +7,7 @@ import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 import RuntimeFixtureSpec._
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, RuntimeConfigRequest}
 import org.http4s.client.Client
@@ -159,13 +159,13 @@ object RuntimeFixtureSpec {
         RuntimeConfigRequest.GceConfig(
           machineType = Some(MachineTypeName("n1-standard-4")),
           diskSize = Some(DiskSize(100)),
-          None,
+          Some(ZoneName("us-east1-c")),
           None
         )
       case CloudService.Dataproc =>
         RuntimeConfigRequest.DataprocConfig(
           numberOfWorkers = Some(0),
-          masterDiskSize = Some(DiskSize(100)),
+          masterDiskSize = Some(DiskSize(120)),
           masterMachineType = Some(MachineTypeName("n1-standard-8")),
           workerMachineType = Some(MachineTypeName("n1-standard-8")),
           workerDiskSize = None,

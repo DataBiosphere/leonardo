@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
@@ -89,20 +89,29 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     val runtimeMonitor = baseRuntimeMonitor(false)
 
     val res = for {
+      disk <- makePersistentDisk().save()
       start <- IO.realTimeInstant
       tid <- traceId.ask[TraceId]
-      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Creating)
+          .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+      )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
       res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      runtimeConfig <- RuntimeConfigQueries
+        .getRuntimeConfig(runtime.runtimeConfigId)(scala.concurrent.ExecutionContext.Implicits.global)
+        .transaction
     } yield {
       // handleCheckTools should have been interrupted after 10 seconds and moved the runtime to Error status
       elapsed shouldBe 10000L +- 2000L
       status shouldBe Some(RuntimeStatus.Error)
       res shouldBe (((), None))
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

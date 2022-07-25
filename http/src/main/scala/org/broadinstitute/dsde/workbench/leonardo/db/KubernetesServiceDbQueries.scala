@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNode
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import com.rms.miu.slickcats.DBIOInstances._
+import DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.nonDeletedAppQuery
 import org.broadinstitute.dsde.workbench.model.TraceId

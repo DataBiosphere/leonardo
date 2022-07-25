@@ -9,19 +9,20 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.11"
-  val slickV = "3.3.3"
-  val http4sVersion = "1.0.0-M32"
+  val http4sVersion = "1.0.0-M34"
+  val slickV = "3.4.0-RC3"
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "1962b9a"
+  private val workbenchLibsHash = "3159fd9"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.24-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.3-$workbenchLibsHash"
   val workbenchOauth2V = s"0.2-$workbenchLibsHash"
+  val workbenchAzureV = s"0.1-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.4"
 
@@ -72,7 +73,7 @@ object Dependencies {
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
-  val scalaTestMockito = "org.scalatestplus" %% "mockito-3-12" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-mockito
+  val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
@@ -99,10 +100,12 @@ object Dependencies {
     excludeCloudBilling,
     excludeSundrCodegen,
     excludeGuava)
+  val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
+  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
     excludeGuava,
@@ -120,7 +123,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.29"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.11.0"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.12.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.20" % Test // brought in for FakeStorageInterpreter
 
@@ -129,9 +132,6 @@ object Dependencies {
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
-
-  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.15.0"
-  val azureIdentity =  "com.azure" % "azure-identity" % "1.5.2"
 
   val coreDependencies = List(
     workbenchOauth2,
@@ -157,8 +157,8 @@ object Dependencies {
     circeYaml,
     http4sDsl,
     scalaTestScalaCheck,
-    azureResourceManager,
-    azureIdentity
+    workbenchAzure,
+    workbenchAzureTest
   )
 
   val httpDependencies = Seq(
@@ -179,13 +179,11 @@ object Dependencies {
     hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
-    "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
     "com.auth0" % "java-jwt" % "3.19.1",
-    "com.azure.resourcemanager" % "azure-resourcemanager-relay" % "1.0.0-beta.1",
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito

@@ -5,6 +5,8 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.google2.DeviceName
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import fs2.Stream
@@ -16,14 +18,18 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GooglePublisher,
   GoogleSubscriber,
-  InstanceName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  DbReference
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
   CryptoMining,
@@ -38,13 +44,16 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.util2.InstanceName
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * This is subscriber for messages that are not published by Leonardo itself.
  * But rather from cron jobs, or cloud logging sink (triggered from crypto-mining activity)
  */
-class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
+class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
+                                    gkeAlg: GKEAlgebra[F],
                                     computeService: GoogleComputeService[F],
                                     samDao: SamDAO[F],
                                     subscriber: GoogleSubscriber[F, NonLeoMessage],
@@ -167,7 +176,22 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
             _ <- clusterQuery
               .markDeleted(cloudContext, runtimeName, ctx.now, Some(s"cryptomining: ${message}"))
               .transaction
-            _ <- computeService.deleteInstance(googleProject, zone, InstanceName(runtimeName.asString))
+            diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
+            _ <- diskIdOpt match {
+              case Some(diskId) =>
+                for {
+                  _ <- persistentDiskQuery
+                    .delete(diskId, ctx.now)
+                    .transaction
+                  _ <- computeService.deleteInstanceWithAutoDeleteDisk(googleProject,
+                                                                       zone,
+                                                                       InstanceName(runtimeName.asString),
+                                                                       Set(config.userDiskDeviceName)
+                  )
+                } yield ()
+              case None => computeService.deleteInstance(googleProject, zone, InstanceName(runtimeName.asString))
+            }
+
             userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, googleProject)
             _ <- userSubjectId.traverse { sid =>
               val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
@@ -322,3 +346,5 @@ final case class CryptoMiningSccResource(
   runtimeName: RuntimeName,
   zone: ZoneName
 )
+
+final case class NonLeoMessageSubscriberConfig(userDiskDeviceName: DeviceName)

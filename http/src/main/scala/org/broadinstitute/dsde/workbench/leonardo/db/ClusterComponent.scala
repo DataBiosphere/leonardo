@@ -3,6 +3,7 @@ package db
 
 import cats.data.Chain
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -24,9 +25,9 @@ import org.broadinstitute.dsde.workbench.model.google.{
   ServiceAccountKeyId
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+
 import java.sql.SQLDataException
 import java.time.Instant
-
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(
@@ -244,6 +245,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     for {
       (cluster, image) <- clusterQuery join clusterImageQuery on (_.id === _.clusterId)
     } yield (cluster, image)
+
+  def detachPersistentDisk(runtimeId: Long, now: Instant)(implicit ec: ExecutionContext): DBIO[Unit] = for {
+    runtimeConfigIdOpt <- findByIdQuery(runtimeId).map(_.runtimeConfigId).result.headOption
+    _ <- runtimeConfigIdOpt match {
+      case None                  => DBIO.successful(())
+      case Some(runtimeConfigId) => RuntimeConfigQueries.updatePersistentDiskId(runtimeConfigId, None, now)
+    }
+  } yield ()
 
   def getRuntimeQueryByUniqueKey(cloudContext: CloudContext,
                                  clusterName: RuntimeName,

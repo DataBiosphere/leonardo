@@ -4,6 +4,7 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
@@ -171,10 +172,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[GetDeleteJobResult] =
+  ): F[Option[GetDeleteJobResult]] =
     for {
       ctx <- ev.ask
-      res <- httpClient.expectOr[GetDeleteJobResult](
+      res <- httpClient.expectOptionOr[GetDeleteJobResult](
         Request[F](
           method = Method.GET,
           uri = config.uri

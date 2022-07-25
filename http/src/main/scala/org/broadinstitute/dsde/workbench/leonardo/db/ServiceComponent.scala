@@ -12,7 +12,7 @@ import slick.lifted.Tag
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import cats.syntax.all._
-import com.rms.miu.slickcats.DBIOInstances._
+import DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 
 import scala.concurrent.ExecutionContext

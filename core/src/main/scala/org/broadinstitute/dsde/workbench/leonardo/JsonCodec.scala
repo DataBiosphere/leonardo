@@ -6,13 +6,13 @@ import cats.syntax.all._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
   DiskName,
-  InstanceName,
   KubernetesName,
   Location,
   MachineTypeName,
@@ -38,6 +38,7 @@ import java.util.UUID
 import java.util.stream.Collectors
 import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
@@ -82,6 +83,8 @@ object JsonCodec {
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
   implicit val gpuTypeEncoder: Encoder[GpuType] = Encoder.encodeString.contramap(_.asString)
   implicit val cloudProviderEncoder: Encoder[CloudProvider] = Encoder.encodeString.contramap(_.asString)
+  implicit val diskLinkEncoder: Encoder[DiskLink] = Encoder.encodeString.contramap(_.asString)
+  implicit val formattedByEncoder: Encoder[FormattedBy] = Encoder.encodeString.contramap(_.asString)
 
   implicit val cloudContextEncoder: Encoder[CloudContext] = Encoder.forProduct2(
     "cloudProvider",
@@ -445,6 +448,9 @@ object JsonCodec {
   implicit val regionDecoder: Decoder[RegionName] = Decoder.decodeString.map(RegionName(_))
   implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
+  implicit val diskLinkDecoder: Decoder[DiskLink] = Decoder.decodeString.map(DiskLink)
+  implicit val formattedByDecoder: Decoder[FormattedBy] =
+    Decoder.decodeString.emap(fb => FormattedBy.values.find(_.asString == fb).toRight(s"Invalid formatted by: $fb"))
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =

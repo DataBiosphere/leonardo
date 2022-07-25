@@ -5,6 +5,7 @@ import cats.implicits._
 import java.time.Instant
 import monocle.macros.GenLens
 import monocle.{Lens, Optional, Prism}
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,

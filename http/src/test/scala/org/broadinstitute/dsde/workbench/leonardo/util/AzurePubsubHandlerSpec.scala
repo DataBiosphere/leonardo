@@ -8,6 +8,8 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
+import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
+import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -61,10 +63,7 @@ class AzurePubsubHandlerSpec
         )
     }
     val azureInterp =
-      makeAzureInterp(computeManagerDao = new MockComputeManagerDao(Some(vmReturn)),
-                      asyncTaskQueue = queue,
-                      wsmDAO = mockWsmDAO
-      )
+      makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
 
     val res =
       for {
@@ -203,7 +202,7 @@ class AzurePubsubHandlerSpec
     val wsm = new MockWsmDAO {
       override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
-      ): IO[GetDeleteJobResult] = IO.raiseError(new Exception("test exception"))
+      ): IO[Option[GetDeleteJobResult]] = IO.raiseError(new Exception("test exception"))
     }
     val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm)
 
@@ -256,19 +255,21 @@ class AzurePubsubHandlerSpec
     val wsm = new MockWsmDAO {
       override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
-      ): IO[GetDeleteJobResult] =
+      ): IO[Option[GetDeleteJobResult]] =
         IO.pure(
-          GetDeleteJobResult(
-            WsmJobReport(
-              request.jobId,
-              "desc",
-              WsmJobStatus.Running,
-              200,
-              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-              "resultUrl"
-            ),
-            None
+          Some(
+            GetDeleteJobResult(
+              WsmJobReport(
+                request.jobId,
+                "desc",
+                WsmJobStatus.Running,
+                200,
+                ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+                Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+                "resultUrl"
+              ),
+              None
+            )
           )
         )
     }
@@ -318,16 +319,17 @@ class AzurePubsubHandlerSpec
   }
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
-                      computeManagerDao: AzureManagerDao[IO] = new MockComputeManagerDao(),
+                      relayService: AzureRelayService[IO] = FakeAzureRelayService,
                       wsmDAO: WsmDao[IO] = new MockWsmDAO
   ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
+      contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
       new MockJupyterDAO(),
-      computeManagerDao
+      relayService
     )
 
 }

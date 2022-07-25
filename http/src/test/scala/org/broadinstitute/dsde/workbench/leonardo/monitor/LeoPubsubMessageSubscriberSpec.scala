@@ -15,6 +15,8 @@ import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
+import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
+import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
@@ -171,6 +173,44 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
       }
 
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  "createRuntimeErrorHandler" should "handle runtime creation failure properly" in isolatedDbTest {
+    val runtimeMonitor = new MockRuntimeMonitor {
+      override def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val leoSubscriber = makeLeoSubscriber(runtimeMonitor = runtimeMonitor, asyncTaskQueue = queue)
+    val res =
+      for {
+        disk <- makePersistentDisk().save()
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+        )
+        tr <- traceId.ask[TraceId]
+        gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+        )
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+        } yield {
+          error.nonEmpty shouldBe true
+          runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+        }
+
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          assertions
+        )
+      } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -582,6 +622,45 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk shouldBe defined
         updatedDisk.get.status shouldBe DiskStatus.Deleting
       }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle DeleteDiskMessage and delete disk properly even if disk doesn't exist in cloud" in isolatedDbTest {
+    val operationFuture = new FakeComputeOperationFuture {
+      override def get(): Operation = {
+        val exception = new java.util.concurrent.ExecutionException(
+          "com.google.api.gax.rpc.NotFoundException: Not Found",
+          new Exception("bad")
+        )
+        throw exception
+      }
+    }
+    val diskService = new MockGoogleDiskService {
+      override def deleteDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(Some(operationFuture))
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = diskService)
+    val res =
+      for {
+        disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
+        tr <- traceId.ask[TraceId]
+
+        _ <- leoSubscriber.messageResponder(DeleteDiskMessage(disk.id, Some(tr)))
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          for {
+            updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
+          } yield {
+            updatedDisk shouldBe defined
+            updatedDisk.get.status shouldBe DiskStatus.Deleted
+          }
+        )
+      } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1688,16 +1767,17 @@ class LeoPubsubMessageSubscriberSpec
 
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
-                      computeManagerDao: AzureManagerDao[IO] = new MockComputeManagerDao(),
+                      relayService: AzureRelayService[IO] = FakeAzureRelayService,
                       wsmDAO: MockWsmDAO = new MockWsmDAO
   ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
+      contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
       new MockJupyterDAO(),
-      computeManagerDao
+      relayService
     )
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =

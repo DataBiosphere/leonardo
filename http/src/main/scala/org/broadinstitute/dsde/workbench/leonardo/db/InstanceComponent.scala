@@ -5,8 +5,9 @@ import java.sql.{SQLDataException, Timestamp}
 
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import LeoProfile.api._
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, ZoneName}
 import org.broadinstitute.dsde.workbench.model.IP
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import scala.concurrent.ExecutionContext
 

@@ -226,14 +226,16 @@ class LeoPubsubMessageSubscriber[F[_]](
         Task(
           ctx.traceId,
           taskToRun,
-          Some(createRuntimeErrorHandler(msg.runtimeId, ctx.now)),
+          Some(createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)),
           ctx.now,
           "createRuntime"
         )
       )
     } yield ()
 
-    createCluster.handleErrorWith(e => ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg.runtimeId, ctx.now)(e)))
+    createCluster.handleErrorWith(e =>
+      ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)(e))
+    )
   }
 
   private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(implicit
@@ -580,51 +582,55 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def createDisk(msg: CreateDiskMessage, formattedBy: Option[FormattedBy], sync: Boolean)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = {
-    val create = for {
-      ctx <- ev.ask
-      operationFutureOpt <- googleDiskService
-        .createDisk(
-          msg.googleProject,
-          msg.zone,
-          Disk
-            .newBuilder()
-            .setName(msg.name.value)
-            .setSizeGb(msg.size.gb)
-            .setZone(msg.zone.value)
-            .setType(msg.diskType.googleString(msg.googleProject, msg.zone))
-            .setPhysicalBlockSizeBytes(msg.blockSize.bytes)
-            .putAllLabels(Map("leonardo" -> "true").asJava)
-            .build()
-        )
-      _ <- operationFutureOpt match {
-        case None => F.unit
-        case Some(v) =>
-          val task = for {
-            _ <- F.blocking(v.get())
-            _ <- formattedBy match {
-              case Some(value) =>
-                persistentDiskQuery
-                  .updateStatusAndIsFormatted(msg.diskId, DiskStatus.Ready, value, ctx.now)
-                  .transaction[F]
-                  .void
-              case None =>
-                persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void
-            }
-          } yield ()
+    val create = {
+      val diskBuilder = Disk
+        .newBuilder()
+        .setName(msg.name.value)
+        .setSizeGb(msg.size.gb)
+        .setZone(msg.zone.value)
+        .setType(msg.diskType.googleString(msg.googleProject, msg.zone))
+        .setPhysicalBlockSizeBytes(msg.blockSize.bytes)
+        .putAllLabels(Map("leonardo" -> "true").asJava)
+      msg.sourceDisk.foreach(sourceDisk => diskBuilder.setSourceDisk(sourceDisk.asString))
+      for {
+        ctx <- ev.ask
+        disk = diskBuilder.build()
+        operationFutureOpt <- googleDiskService
+          .createDisk(
+            msg.googleProject,
+            msg.zone,
+            disk
+          )
+        _ <- operationFutureOpt match {
+          case None => F.unit
+          case Some(v) =>
+            val task = for {
+              _ <- F.blocking(v.get())
+              _ <- formattedBy match {
+                case Some(value) =>
+                  persistentDiskQuery
+                    .updateStatusAndIsFormatted(msg.diskId, DiskStatus.Ready, value, ctx.now)
+                    .transaction[F]
+                    .void
+                case None =>
+                  persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void
+              }
+            } yield ()
 
-          if (sync) task
-          else {
-            asyncTasks.offer(
-              Task(ctx.traceId,
-                   task,
-                   Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
-                   ctx.now,
-                   "createDisk"
+            if (sync) task
+            else {
+              asyncTasks.offer(
+                Task(ctx.traceId,
+                     task,
+                     Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
+                     ctx.now,
+                     "createDisk"
+                )
               )
-            )
-          }
-      }
-    } yield ()
+            }
+        }
+      } yield ()
+    }
 
     create.onError { case e =>
       for {
@@ -700,15 +706,35 @@ class LeoPubsubMessageSubscriber[F[_]](
         case None => F.unit
         case Some(v) =>
           val task = for {
-            operation <- F.blocking(v.get())
-            _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
-              new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${operation}")
-            )
-            _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider.notifyResourceDeleted(
-              disk.samResource,
-              disk.auditInfo.creator,
-              googleProject
-            )
+            operationAttempt <- F.blocking(v.get()).attempt
+            _ <- operationAttempt match {
+              case Left(error: java.util.concurrent.ExecutionException) if error.getMessage.contains("Not Found") =>
+                logger.info(ctx.loggingCtx)("disk is already deleted") >> persistentDiskQuery
+                  .delete(diskId, ctx.now)
+                  .transaction[F]
+                  .void >> authProvider
+                  .notifyResourceDeleted(
+                    disk.samResource,
+                    disk.auditInfo.creator,
+                    googleProject
+                  )
+              case Left(error) =>
+                F.raiseError(
+                  new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name}", error)
+                )
+              case Right(op) =>
+                for {
+                  _ <- F.raiseUnless(isSuccess(op.getHttpErrorStatusCode))(
+                    new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${op}")
+                  )
+                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider
+                    .notifyResourceDeleted(
+                      disk.samResource,
+                      disk.auditInfo.creator,
+                      googleProject
+                    )
+                } yield ()
+            }
           } yield ()
           if (sync) task
           else {
@@ -1225,7 +1251,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     }
   }
 
-  private[monitor] def createRuntimeErrorHandler(runtimeId: Long, now: Instant)(
+  private[monitor] def createRuntimeErrorHandler(runtimeId: Long, cloudService: CloudService, now: Instant)(
     e: Throwable
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -1244,6 +1270,12 @@ class LeoPubsubMessageSubscriber[F[_]](
         (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now)) >>
           clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
+      // want to detach persistent disk for runtime
+      _ <- cloudService match {
+        case CloudService.GCE      => clusterQuery.detachPersistentDisk(runtimeId, now).transaction
+        case CloudService.Dataproc => F.unit
+        case CloudService.AzureVm  => F.unit
+      }
     } yield ()
 
   private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(

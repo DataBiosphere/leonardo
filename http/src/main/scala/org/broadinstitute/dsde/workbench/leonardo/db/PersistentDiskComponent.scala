@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
@@ -30,7 +31,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       diskType: DiskType,
                                       blockSize: BlockSize,
                                       formattedBy: Option[FormattedBy],
-                                      appRestore: Option[AppRestore]
+                                      appRestore: Option[AppRestore],
+                                      sourceDisk: Option[DiskLink]
 )
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
@@ -53,6 +55,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
   def cvmfsPvcId = column[Option[PvcId]]("cvmfsPvcId", O.Length(254))
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
+  def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
 
   override def * =
     (id,
@@ -70,7 +73,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      diskType,
      blockSize,
      formattedBy,
-     (galaxyPvcId, cvmfsPvcId, lastUsedBy)
+     (galaxyPvcId, cvmfsPvcId, lastUsedBy),
+     sourceDisk
     ) <> ({
       case (id,
             (cloudProvider, cloudContextDb),
@@ -87,7 +91,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             diskType,
             blockSize,
             formattedBy,
-            (galaxyPvcId, cvmfsPvcId, lastUsedBy)
+            (galaxyPvcId, cvmfsPvcId, lastUsedBy),
+            sourceDisk
           ) =>
         PersistentDiskRecord(
           id,
@@ -118,7 +123,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
               (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, lb) => GalaxyRestore(gp, cp, lb))
             case FormattedBy.Cromwell                 => lastUsedBy.map(CromwellRestore)
             case FormattedBy.GCE | FormattedBy.Custom => None
-          }
+          },
+          sourceDisk
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -146,7 +152,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           case None                       => (None, None, None)
           case Some(app: CromwellRestore) => (None, None, Some(app.lastUsedBy))
           case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.cvmfsPvcId), Some(app.lastUsedBy))
-        }
+        },
+        record.sourceDisk
       )
     })
 }
@@ -273,7 +280,8 @@ object persistentDiskQuery {
       disk.diskType,
       disk.blockSize,
       disk.formattedBy,
-      disk.appRestore
+      disk.appRestore,
+      disk.sourceDisk
     )
 
   private[db] def aggregateLabels(
@@ -310,6 +318,7 @@ object persistentDiskQuery {
       rec.blockSize,
       rec.formattedBy,
       rec.appRestore,
-      labels
+      labels,
+      rec.sourceDisk
     )
 }

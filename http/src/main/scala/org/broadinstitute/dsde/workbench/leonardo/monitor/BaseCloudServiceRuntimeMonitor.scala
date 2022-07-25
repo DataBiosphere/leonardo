@@ -144,6 +144,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           curStatusOpt,
           new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
         )
+        _ <- clusterQuery.detachPersistentDisk(runtimeAndRuntimeConfig.runtime.id, ctx.now).transaction
         _ <- curStatus match {
           case RuntimeStatus.Deleted =>
             logger.info(ctx.loggingCtx)(

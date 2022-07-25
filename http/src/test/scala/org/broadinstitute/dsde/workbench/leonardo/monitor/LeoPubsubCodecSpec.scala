@@ -6,6 +6,7 @@ import java.util.UUID
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
+import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy

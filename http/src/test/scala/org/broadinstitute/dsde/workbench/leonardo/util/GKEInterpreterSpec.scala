@@ -173,7 +173,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
-      """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,""" +
+      """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service/cromwell,""" +
       """config.gcsProject=dsp-leo-test1,""" +
       """config.gcsBucket=gs://test-bucket/cromwell-execution,""" +
       """config.serviceAccount.name=app1-cromwell-ksa,""" +
