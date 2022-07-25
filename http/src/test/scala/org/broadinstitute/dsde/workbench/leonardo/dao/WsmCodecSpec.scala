@@ -18,6 +18,7 @@ import io.circe.parser._
 import WsmDecoders._
 import WsmEncoders._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 

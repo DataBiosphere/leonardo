@@ -11,14 +11,13 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
-import com.rms.miu.slickcats.DBIOInstances._
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GcsBlobName,
   GoogleComputeService,
   GoogleStorageService,
-  InstanceName,
   MachineTypeName,
   ZoneName
 }
@@ -41,6 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.typelevel.log4cats.StructuredLogger
 import slick.dbio.DBIOAction
 

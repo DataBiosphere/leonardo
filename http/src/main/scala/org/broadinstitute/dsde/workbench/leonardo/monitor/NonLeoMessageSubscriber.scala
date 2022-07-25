@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GooglePublisher,
   GoogleSubscriber,
-  InstanceName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
@@ -45,6 +44,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

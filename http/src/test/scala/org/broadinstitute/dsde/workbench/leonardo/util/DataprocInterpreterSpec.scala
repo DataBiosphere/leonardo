@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   DataprocRoleZonePreemptibility,
   GoogleComputeService,
   GoogleDataprocService,
-  InstanceName,
   MachineTypeName,
   RegionName,
   ZoneName
@@ -36,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponen
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike

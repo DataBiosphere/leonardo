@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
+
 import java.net.{MalformedURLException, URL}
 import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._

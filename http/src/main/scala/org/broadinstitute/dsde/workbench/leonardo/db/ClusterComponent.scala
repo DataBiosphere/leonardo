@@ -3,6 +3,7 @@ package db
 
 import cats.data.Chain
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -24,9 +25,9 @@ import org.broadinstitute.dsde.workbench.model.google.{
   ServiceAccountKeyId
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+
 import java.sql.SQLDataException
 import java.time.Instant
-
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(

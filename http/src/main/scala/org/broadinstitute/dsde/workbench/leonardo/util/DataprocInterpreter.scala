@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDataprocService,
   GoogleDiskService,
   GoogleResourceService,
-  InstanceName,
   MachineTypeName,
   RegionName,
   ZoneName
@@ -43,6 +42,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
