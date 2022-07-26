@@ -5,11 +5,8 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Encoder, KeyEncoder}
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
-import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
-import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
 
 import scala.concurrent.ExecutionContext
 
@@ -19,11 +16,6 @@ object BuildTimeVersion {
 }
 
 class StatusRoutes(statusService: StatusService)(implicit executionContext: ExecutionContext) {
-  implicit val subsystemEncoder: KeyEncoder[Subsystem] = KeyEncoder.encodeKeyString.contramap(_.value)
-  implicit val subsystemStatusEncoder: Encoder[SubsystemStatus] =
-    Encoder.forProduct2("ok", "messages")(x => SubsystemStatus.unapply(x).get)
-  implicit val statusCheckResponseEncoder: Encoder[StatusCheckResponse] =
-    Encoder.forProduct2("ok", "systems")(x => StatusCheckResponse.unapply(x).get)
 
   val route: server.Route =
     pathPrefix("status") {
