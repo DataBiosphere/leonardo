@@ -7,10 +7,10 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
 import akka.http.scaladsl.server.Directives._
 
-class LivelinessRoutes {
+class LivenessRoutes {
 
   val route: server.Route =
-    pathPrefix("liveliness") {
+    pathPrefix("liveness") {
       pathEndOrSingleSlash {
         get {
           complete {
