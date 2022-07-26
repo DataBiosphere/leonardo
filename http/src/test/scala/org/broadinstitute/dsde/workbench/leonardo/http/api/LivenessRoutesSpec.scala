@@ -9,18 +9,18 @@ import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class LivelinessRoutesSpec
+class LivenessRoutesSpec
     extends AnyFlatSpec
     with Matchers
     with ScalatestRouteTest
     with LeonardoTestSuite
     with TestComponent
     with TestLeoRoutes {
-  val livelinessRoutes = new LivelinessRoutes
+  val livenessRoutes = new LivenessRoutes
 
-  "GET /liveliness" should "give 200" in {
+  "GET /liveness" should "give 200" in {
     eventually {
-      Get("/liveliness") ~> livelinessRoutes.route ~> check {
+      Get("/liveness") ~> livenessRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
       }
     }

@@ -51,7 +51,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   BuildTimeVersion,
   HttpRoutes,
-  LivelinessRoutes,
+  LivenessRoutes,
   StandardUserInfoDirectives
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
@@ -98,20 +98,20 @@ object Boot extends IOApp {
         )
       )
 
-    val livelinessRoutes = new LivelinessRoutes
+    val livenessRoutes = new LivenessRoutes
 
-    val liveliness = logger
-      .info("Liveliness server has been created, starting...")
+    val liveness = logger
+      .info("Liveness server has been created, starting...")
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
       .newServerAt("0.0.0.0", 9000)
-      .bindFlow(livelinessRoutes.route)
+      .bindFlow(livenessRoutes.route)
       .onError { case t: Throwable =>
         logger
-          .error(t)("FATAL - failure starting liveliness http server")
+          .error(t)("FATAL - failure starting liveness http server")
           .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
       }
 
-    logger.info("Liveliness server has been started").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    logger.info("Liveness server has been started").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
       val googleDependencies = appDependencies.googleDependencies
