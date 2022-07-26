@@ -15,13 +15,22 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import java.time.Instant
 import java.util.UUID
 
+import io.circe.{Encoder, KeyEncoder}
 import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
+import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
+import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 
 import scala.concurrent.Future
 
 package object api {
   implicit def ioMarshaller[A, B](implicit m: Marshaller[Future[A], B]): Marshaller[IO[A], B] =
     Marshaller(implicit ec => x => m(x.unsafeToFuture()(cats.effect.unsafe.IORuntime.global)))
+
+  implicit val subsystemEncoder: KeyEncoder[Subsystem] = KeyEncoder.encodeKeyString.contramap(_.value)
+  implicit val subsystemStatusEncoder: Encoder[SubsystemStatus] =
+    Encoder.forProduct2("ok", "messages")(x => SubsystemStatus.unapply(x).get)
+  implicit val statusCheckResponseEncoder: Encoder[StatusCheckResponse] =
+    Encoder.forProduct2("ok", "systems")(x => StatusCheckResponse.unapply(x).get)
 
   val googleProjectSegment = Segment.map(GoogleProject)
   val runtimeNameSegment = Segment.map(RuntimeName)

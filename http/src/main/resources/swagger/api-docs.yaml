@@ -36,9 +36,16 @@ security:
 ## PATHS
 ##########################################################################################
 paths:
+  /liveliness:
+    get:
+      summary: Gets system liveliness
+      responses:
+        "200":
+          description: System is up, other routes may not be ready yet. See status api for readiness
+      operationId: getLiveliness
   /status:
     get:
-      summary: Gets system status
+      summary: Gets system readiness
       responses:
         "200":
           description: System ok
