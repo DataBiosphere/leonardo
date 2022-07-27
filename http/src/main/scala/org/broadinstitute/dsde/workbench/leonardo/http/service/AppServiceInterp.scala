@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.typelevel.log4cats.StructuredLogger
-
 import java.time.Instant
 import java.util.UUID
 
@@ -48,7 +47,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def createApp(
     userInfo: UserInfo,
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     appName: AppName,
     req: CreateAppRequest
   )(implicit
@@ -56,6 +55,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // TODO: add azure support
+      googleProject = cloudContext match {
+        case CloudContext.Gcp(value) => value
+        case CloudContext.Azure(_)   => ???
+      }
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateApp,
                                                   userInfo
@@ -64,9 +68,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       _ <- checkIfUserAllowed(req.appType, userInfo.userEmail)
 
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(googleProject), appName).transaction
       _ <- appOpt.fold(F.unit)(c =>
-        F.raiseError[Unit](AppAlreadyExistsException(googleProject, appName, c.app.status, ctx.traceId))
+        F.raiseError[Unit](AppAlreadyExistsException(cloudContext, appName, c.app.status, ctx.traceId))
       )
 
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
@@ -78,10 +82,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         .handleErrorWith { t =>
           log.error(ctx.loggingCtx, t)(
             s"Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
-          ) >> F.raiseError(t)
+          ) >> F.raiseError[Unit](t)
         }
 
-      saveCluster <- F.fromEither(getSavableCluster(originatingUserEmail, googleProject, ctx.now, None))
+      saveCluster <- F.fromEither(getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <-
@@ -106,18 +110,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // We want to know if the user already has a nodepool with the requested config that can be re-used
       userNodepoolOpt <- nodepoolQuery
-        .getMinimalByUserAndConfig(originatingUserEmail, googleProject, machineConfig)
+        .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
         .transaction
 
       nodepool <- userNodepoolOpt match {
         case Some(n) =>
           log.info(ctx.loggingCtx)(
-            s"Reusing user's nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject} with ${machineConfig}"
+            s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
           ) >> F.pure(n)
         case None =>
           for {
             _ <- log.info(ctx.loggingCtx)(
-              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.googleProject}. Will create a new nodepool."
+              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
               getUserNodepool(clusterId, originatingUserEmail, req.kubernetesRuntimeConfig, ctx.now)
@@ -220,7 +224,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       ctx
         )
       )
-      app <- appQuery.save(saveApp).transaction
+      app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
       clusterNodepoolAction = saveClusterResult match {
         case ClusterExists(_) =>
@@ -245,15 +249,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def getApp(
     userInfo: UserInfo,
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     appName: AppName
   )(implicit
     as: Ask[F, AppContext]
   ): F[GetAppResponse] =
     for {
       ctx <- as.ask
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
-      app <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
+      app <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId))
 
       hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
       _ <-
@@ -262,17 +266,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           log.info(ctx.loggingCtx)(
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
-            .raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
+            .raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
     userInfo: UserInfo,
-    googleProject: Option[GoogleProject],
+    cloudContext: Option[CloudContext],
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]] =
     for {
       paramMap <- F.fromEither(processListParameters(params))
-      allClusters <- KubernetesServiceDbQueries.listFullApps(googleProject, paramMap._1, paramMap._2).transaction
+      allClusters <- KubernetesServiceDbQueries
+        .listFullApps(cloudContext, paramMap._1, paramMap._2)
+        .transaction
       samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
       samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
         authProvider.filterUserVisible(apps, userInfo)
@@ -309,8 +315,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(request.googleProject, request.appName).transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(request.googleProject, request.appName, ctx.traceId))
+      appOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(request.cloudContext, request.appName)
+        .transaction
+      appResult <- F.fromOption(appOpt, AppNotFoundException(request.cloudContext, request.appName, ctx.traceId))
 
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, request.userInfo)
 
@@ -318,7 +326,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(request.googleProject, request.appName, ctx.traceId))
+        else F.raiseError[Unit](AppNotFoundException(request.cloudContext, request.appName, ctx.traceId))
 
       // throw 403 if no DeleteApp permission
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
@@ -329,7 +337,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (canDelete) F.unit
         else
           F.raiseError[Unit](
-            AppCannotBeDeletedException(request.googleProject, request.appName, appResult.app.status, ctx.traceId)
+            AppCannotBeDeletedException(request.cloudContext, request.appName, appResult.app.status, ctx.traceId)
           )
 
       // Get the disk to delete if specified
@@ -342,37 +350,42 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Note this has the side effect of not deleting the disk if requested to do so. The
       // caller must manually delete the disk in this situation. We have the same behavior for
       // runtimes.
+      googleProjectOpt = LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext)
       _ <-
         if (appResult.app.status == AppStatus.Error) {
           for {
-            _ <- authProvider.notifyResourceDeleted(appResult.app.samResourceId,
-                                                    appResult.app.auditInfo.creator,
-                                                    appResult.cluster.googleProject
+            // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
+            _ <- googleProjectOpt.traverse(g =>
+              authProvider.notifyResourceDeleted(appResult.app.samResourceId, appResult.app.auditInfo.creator, g)
             )
             _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
           } yield ()
         } else {
           for {
             _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
-            deleteMessage = DeleteAppMessage(
-              appResult.app.id,
-              appResult.app.appName,
-              appResult.cluster.googleProject,
-              diskOpt,
-              Some(ctx.traceId)
-            )
+            deleteMessage = appResult.cluster.cloudContext match {
+              case CloudContext.Gcp(value) =>
+                DeleteAppMessage(
+                  appResult.app.id,
+                  appResult.app.appName,
+                  value,
+                  diskOpt,
+                  Some(ctx.traceId)
+                )
+              case CloudContext.Azure(_) => ???
+            }
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
         }
     } yield ()
 
-  def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+  def stopApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
+      appResult <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId))
 
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
@@ -380,7 +393,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
+        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId))
 
       // throw 403 if no StopStartApp permission
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
@@ -391,26 +404,31 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (canStop) F.unit
         else
           F.raiseError[Unit](
-            AppCannotBeStoppedException(googleProject, appName, appResult.app.status, ctx.traceId)
+            AppCannotBeStoppedException(cloudContext, appName, appResult.app.status, ctx.traceId)
           )
 
       _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStopping).transaction
+      // TODO: support Azure
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext),
+        AzureUnimplementedException("Azure runtime is not supported yet")
+      )
       message = StopAppMessage(
         appResult.app.id,
         appResult.app.appName,
-        appResult.cluster.googleProject,
+        googleProject,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(message)
     } yield ()
 
-  def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+  def startApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
+      appResult <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId))
 
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
@@ -418,7 +436,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
+        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId))
 
       // throw 403 if no StopStartApp permission
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
@@ -429,14 +447,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (canStop) F.unit
         else
           F.raiseError[Unit](
-            AppCannotBeStartedException(googleProject, appName, appResult.app.status, ctx.traceId)
+            AppCannotBeStartedException(cloudContext, appName, appResult.app.status, ctx.traceId)
           )
 
       _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStarting).transaction
+      // TODO: support Azure
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(cloudContext),
+        AzureUnimplementedException("Azure runtime is not supported yet")
+      )
       message = StartAppMessage(
         appResult.app.id,
         appResult.app.appName,
-        appResult.cluster.googleProject,
+        googleProject,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(message)
@@ -444,7 +467,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     now: Instant,
     numNodepools: Option[NumNodepools],
     clusterName: Option[KubernetesClusterName] = None
@@ -480,7 +503,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
     } yield SaveKubernetesCluster(
-      googleProject = googleProject,
+      cloudContext = cloudContext,
       clusterName = clusterName.getOrElse(defaultClusterName),
       location = config.leoKubernetesConfig.clusterConfig.location,
       region = config.leoKubernetesConfig.clusterConfig.region,
@@ -709,29 +732,26 @@ object LeoAppServiceInterp {
     aSplited(0) == bSplited(0) && aSplited(1) == bSplited(1)
   }
 }
-case class AppNotFoundException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
+case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId)
     extends LeoException(
-      s"App ${googleProject.value}/${appName.value} not found.",
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} not found.",
       StatusCodes.NotFound,
       traceId = Some(traceId)
     )
 
-case class AppAlreadyExistsException(googleProject: GoogleProject,
-                                     appName: AppName,
-                                     status: AppStatus,
-                                     traceId: TraceId
-) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} already exists in ${status.toString} status.",
+case class AppAlreadyExistsException(cloudContext: CloudContext, appName: AppName, status: AppStatus, traceId: TraceId)
+    extends LeoException(
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} already exists in ${status.toString} status.",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
 
-case class AppCannotBeDeletedException(googleProject: GoogleProject,
+case class AppCannotBeDeletedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
                                        traceId: TraceId
 ) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status." +
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
       traceId = Some(traceId)
@@ -761,22 +781,22 @@ case class ClusterExistsException(googleProject: GoogleProject)
       traceId = None
     )
 
-case class AppCannotBeStoppedException(googleProject: GoogleProject,
+case class AppCannotBeStoppedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
                                        traceId: TraceId
 ) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be stopped in ${status} status. Trace ID: ${traceId.asString}",
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be stopped in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
 
-case class AppCannotBeStartedException(googleProject: GoogleProject,
+case class AppCannotBeStartedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
                                        traceId: TraceId
 ) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

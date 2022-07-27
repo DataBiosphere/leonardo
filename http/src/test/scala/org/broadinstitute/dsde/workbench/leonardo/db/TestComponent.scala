@@ -187,7 +187,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       dbFutureValue {
         kubernetesClusterQuery.save(
           SaveKubernetesCluster(
-            c.googleProject,
+            c.cloudContext,
             c.clusterName,
             c.location,
             c.region,
@@ -207,7 +207,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
         kubernetesClusterQuery.save(
           KubernetesClusterRecord(
             KubernetesClusterLeoId(0),
-            c.googleProject,
+            c.cloudContext,
             c.clusterName,
             c.location,
             c.region,
@@ -238,7 +238,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     def save(): App =
       dbFutureValue {
         appQuery.save(
-          SaveApp(a)
+          SaveApp(a),
+          None
         )
       }
   }

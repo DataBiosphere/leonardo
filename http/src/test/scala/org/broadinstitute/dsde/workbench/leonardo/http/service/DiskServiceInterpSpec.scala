@@ -397,10 +397,10 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is white listed
 
     val res = for {
-      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContext)).save()
-      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContext)).save()
+      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
+      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextGcp)).save()
       _ <- makePersistentDisk(None, cloudContextOpt = Some(CloudContext.Gcp(GoogleProject("non-default")))).save()
-      listResponse <- diskService.listDisks(userInfo, Some(cloudContext), Map.empty)
+      listResponse <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
     } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

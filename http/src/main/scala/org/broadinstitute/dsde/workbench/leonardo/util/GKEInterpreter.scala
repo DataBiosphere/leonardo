@@ -107,8 +107,12 @@ class GKEInterpreter[F[_]](
         SetUpProjectNetworkParams(params.googleProject, dbCluster.region)
       )
 
-      kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network)
-      kubeSubNetwork = KubernetesSubNetwork(dbCluster.googleProject, dbCluster.region, subnetwork)
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
+        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+      )
+      kubeNetwork = KubernetesNetwork(googleProject, network)
+      kubeSubNetwork = KubernetesSubNetwork(googleProject, dbCluster.region, subnetwork)
 
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
@@ -140,12 +144,12 @@ class GKEInterpreter[F[_]](
         )
 
       // Submit request to GKE
-      req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, legacyCreateClusterRec)
+      req = KubernetesCreateClusterRequest(googleProject, dbCluster.location, legacyCreateClusterRec)
       // the Operation will be none if we get a 409, indicating we have already created this cluster
       operationOpt <- gkeService.createCluster(req)
 
     } yield operationOpt.map(op =>
-      CreateClusterResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName),
+      CreateClusterResult(KubernetesOperationId(googleProject, dbCluster.location, op.getName),
                           kubeNetwork,
                           kubeSubNetwork
       )
@@ -299,8 +303,12 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       // Grab records from the database
-      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
-      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Gcp(params.googleProject), params.appName)
+        .transaction
+      dbApp <- F.fromOption(dbAppOpt,
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+      )
 
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
@@ -585,8 +593,12 @@ class GKEInterpreter[F[_]](
     for {
       ctx <- ev.ask
 
-      dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(params.googleProject, params.appId).transaction
-      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .transaction
+      dbApp <- F.fromOption(dbAppOpt,
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+      )
 
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
@@ -676,8 +688,12 @@ class GKEInterpreter[F[_]](
     for {
       ctx <- ev.ask
 
-      dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(params.googleProject, params.appId).transaction
-      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .transaction
+      dbApp <- F.fromOption(dbAppOpt,
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+      )
       dbNodepool = dbApp.nodepool
       dbCluster = dbApp.cluster
       nodepoolId = NodepoolId(dbCluster.getClusterId, dbNodepool.nodepoolName)
@@ -757,8 +773,12 @@ class GKEInterpreter[F[_]](
     for {
       ctx <- ev.ask
 
-      dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(params.googleProject, params.appId).transaction
-      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .transaction
+      dbApp <- F.fromOption(dbAppOpt,
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+      )
       dbNodepool = dbApp.nodepool
       dbCluster = dbApp.cluster
       nodepoolId = NodepoolId(dbCluster.getClusterId, dbNodepool.nodepoolName)
@@ -797,10 +817,14 @@ class GKEInterpreter[F[_]](
         } yield ()
       }
 
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
+        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+      )
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
       isDone <- streamFUntilDone(
-        appDao.isProxyAvailable(dbCluster.googleProject, dbApp.app.appName),
+        appDao.isProxyAvailable(googleProject, dbApp.app.appName),
         config.monitorConfig.startApp.maxAttempts,
         config.monitorConfig.startApp.interval
       ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
@@ -1011,13 +1035,17 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for app ${appName.value} in project ${dbCluster.googleProject.value}"
+        s"helm install for app ${appName.value} in project ${dbCluster.cloudContext.asString}"
       ).compile.lastOrError
 
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
+        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+      )
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
       isDone <- streamFUntilDone(
-        appDao.isProxyAvailable(dbCluster.googleProject, appName),
+        appDao.isProxyAvailable(googleProject, appName),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1081,14 +1109,18 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for CROMWELL app ${appName.value} in project ${cluster.googleProject.value}"
+        s"helm install for CROMWELL app ${appName.value} in project ${cluster.cloudContext.asString}"
       ).compile.lastOrError
 
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
+        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+      )
       // Poll the app until it starts up
       last <- streamFUntilDone(
         config.cromwellAppConfig.services
           .map(_.name)
-          .traverse(s => appDao.isProxyAvailable(cluster.googleProject, appName, s)),
+          .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1191,14 +1223,15 @@ class GKEInterpreter[F[_]](
 
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for app ${appName.value} in project ${dbCluster.googleProject.value}"
+        s"helm install for app ${appName.value} in project ${dbCluster.cloudContext.asString}"
       ).compile.lastOrError
-
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
+        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+      )
       // Poll app until it starts up
       last <- streamFUntilDone(
-        descriptor.services.keys.toList.traverse(s =>
-          appDao.isProxyAvailable(dbCluster.googleProject, appName, ServiceName(s))
-        ),
+        descriptor.services.keys.toList.traverse(s => appDao.isProxyAvailable(googleProject, appName, ServiceName(s))),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1362,7 +1395,7 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String]
   ): List[String] = {
-    val proxyPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
+    val proxyPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val gcsBucket = customEnvironmentVariables.getOrElse("WORKSPACE_BUCKET", "<no workspace bucket defined>")
@@ -1390,7 +1423,7 @@ class GKEInterpreter[F[_]](
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       raw"""env.swaggerBasePath=$proxyPath/cromwell""",
       // cromwellConfig
-      raw"""config.gcsProject=${cluster.googleProject.value}""",
+      raw"""config.gcsProject=${cluster.cloudContext.asString}""",
       raw"""config.gcsBucket=$gcsBucket/cromwell-execution""",
       // Service Account
       raw"""config.serviceAccount.name=${ksaName.value}""",
@@ -1413,7 +1446,7 @@ class GKEInterpreter[F[_]](
   ): List[String] = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/galaxy"
     val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
     val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
     // Machine type info
@@ -1511,7 +1544,7 @@ class GKEInterpreter[F[_]](
   ): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/${serviceName}"
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/${serviceName}"
 
     // Command and args
     val command = service.command.zipWithIndex.map { case (c, i) =>

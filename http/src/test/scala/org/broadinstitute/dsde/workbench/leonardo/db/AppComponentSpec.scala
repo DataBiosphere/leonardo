@@ -65,7 +65,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     dbFutureValue(appQuery.updateStatus(savedApp1.id, AppStatus.Running)) shouldEqual 1
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
     }
     getApp.get.app.status shouldEqual AppStatus.Running
   }

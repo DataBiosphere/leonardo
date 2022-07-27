@@ -158,11 +158,11 @@ class ProxyService(
 
   private[leonardo] def getSamResourceFromDb(samResourceCacheKey: SamResourceCacheKey): IO[Option[String]] =
     samResourceCacheKey match {
-      case RuntimeCacheKey(googleProject, name) =>
-        clusterQuery.getActiveClusterInternalIdByName(googleProject, name).map(_.map(_.resourceId)).transaction
+      case RuntimeCacheKey(cloudContext, name) =>
+        clusterQuery.getActiveClusterInternalIdByName(cloudContext, name).map(_.map(_.resourceId)).transaction
       case AppCacheKey(googleProject, name) =>
         KubernetesServiceDbQueries
-          .getActiveFullAppByName(googleProject, name)
+          .getActiveFullAppByName(CloudContext.Gcp(googleProject), name) // TODO: support Azure
           .map(_.map(_.app.samResourceId.resourceId))
           .transaction
     }
@@ -205,7 +205,7 @@ class ProxyService(
             s"Unable to look up sam resource for ${key.toString}"
           ) >> IO.raiseError(
             AppNotFoundException(
-              key.googleProject,
+              CloudContext.Gcp(key.googleProject),
               key.name,
               ctx.traceId
             )
@@ -296,7 +296,7 @@ class ProxyService(
       hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
       _ <-
         if (!hasViewPermission) {
-          IO.raiseError(AppNotFoundException(googleProject, appName, ctx.traceId))
+          IO.raiseError(AppNotFoundException(CloudContext.Gcp(googleProject), appName, ctx.traceId))
         } else IO.unit
       hasConnectPermission <- authProvider.hasPermission(samResource, AppAction.ConnectToApp, userInfo)
       _ <-

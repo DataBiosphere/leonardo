@@ -3,12 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Async, Ref}
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, CloudProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, GetAppResult}
+import org.broadinstitute.dsde.workbench.leonardo.{AppName, CloudContext, CloudProvider}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -37,7 +37,9 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   private def getHostStatusHelper(key: KubernetesDnsCacheKey): F[HostStatus] =
     for {
       appResultOpt <- dbRef.inTransaction {
-        KubernetesServiceDbQueries.getActiveFullAppByName(key.googleProject, key.appName)
+        KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(key.googleProject),
+                                                          key.appName
+        ) // TODO: support proxying Azure apps
       }
       hostStatus <- appResultOpt match {
         case None            => F.pure[HostStatus](HostNotFound)

@@ -116,10 +116,10 @@ object KubernetesTestData {
 
   def makeKubeCluster(index: Int, withDefaultNodepool: Boolean = true): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
-    val uniqueProject = GoogleProject(project.value + index)
+    val uniqueCloudContextGcp = CloudContext.Gcp(GoogleProject(project.value + index))
     KubernetesCluster(
       KubernetesClusterLeoId(-1),
-      uniqueProject,
+      uniqueCloudContextGcp,
       name,
       location,
       region,

@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.NodepoolStatus
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
+import org.broadinstitute.dsde.workbench.leonardo.CloudContext
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -84,7 +84,7 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     val nodepool1 = makeNodepool(1, cluster1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
 
     val nodepoolOpt =
-      dbFutureValue(nodepoolQuery.getMinimalByUserAndConfig(realUser, cluster1.googleProject, kubernetesRuntimeConfig))
+      dbFutureValue(nodepoolQuery.getMinimalByUserAndConfig(realUser, cluster1.cloudContext, kubernetesRuntimeConfig))
     nodepoolOpt.isDefined shouldBe true
     nodepoolOpt.map(_.id) shouldBe Some(nodepool1.id)
   }
@@ -99,7 +99,7 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     makeApp(2, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
 
     val nodepoolOpt =
-      dbFutureValue(nodepoolQuery.getMinimalByUserAndConfig(realUser, cluster1.googleProject, kubernetesRuntimeConfig))
+      dbFutureValue(nodepoolQuery.getMinimalByUserAndConfig(realUser, cluster1.cloudContext, kubernetesRuntimeConfig))
     nodepoolOpt.isDefined shouldBe true
     nodepoolOpt.map(_.id) shouldBe Some(nodepool1.id)
   }
@@ -110,7 +110,7 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     val fakeUser = WorkbenchEmail("fake@gmail.com")
 
     val nodepoolOpt =
-      dbFutureValue(nodepoolQuery.getMinimalByUserAndConfig(fakeUser, cluster1.googleProject, kubernetesRuntimeConfig))
+      dbFutureValue(nodepoolQuery.getMinimalByUserAndConfig(fakeUser, cluster1.cloudContext, kubernetesRuntimeConfig))
     nodepoolOpt.isDefined shouldBe false
   }
 
@@ -120,7 +120,10 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     makeNodepool(1, cluster1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
 
     val nodepoolOpt = dbFutureValue(
-      nodepoolQuery.getMinimalByUserAndConfig(realUser, GoogleProject("fake project"), kubernetesRuntimeConfig)
+      nodepoolQuery.getMinimalByUserAndConfig(realUser,
+                                              CloudContext.Gcp(GoogleProject("fake project")),
+                                              kubernetesRuntimeConfig
+      )
     )
     nodepoolOpt.isDefined shouldBe false
   }

@@ -214,16 +214,16 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
     // No images or labels -> default to Jupyter
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map.empty)
+      .getProxyUrl(proxyUrlBase, cloudContextGcp, name0, Set.empty, None, Map.empty)
       .toString shouldBe expectedBase + "jupyter"
 
     // images only
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(jupyterImage), None, Map.empty)
+      .getProxyUrl(proxyUrlBase, cloudContextGcp, name0, Set(jupyterImage), None, Map.empty)
       .toString shouldBe expectedBase + "jupyter"
     Runtime
       .getProxyUrl(proxyUrlBase,
-                   cloudContext,
+                   cloudContextGcp,
                    name0,
                    Set(welderImage, customDataprocImage, jupyterImage),
                    None,
@@ -231,11 +231,11 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       )
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(rstudioImage), None, Map.empty)
+      .getProxyUrl(proxyUrlBase, cloudContextGcp, name0, Set(rstudioImage), None, Map.empty)
       .toString shouldBe expectedBase + "rstudio"
     Runtime
       .getProxyUrl(proxyUrlBase,
-                   cloudContext,
+                   cloudContextGcp,
                    name0,
                    Set(welderImage, customDataprocImage, rstudioImage),
                    None,
@@ -245,19 +245,19 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
     // labels only
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map("tool" -> "Jupyter", "foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase, cloudContextGcp, name0, Set.empty, None, Map("tool" -> "Jupyter", "foo" -> "bar"))
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map("tool" -> "RStudio", "foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase, cloudContextGcp, name0, Set.empty, None, Map("tool" -> "RStudio", "foo" -> "bar"))
       .toString shouldBe expectedBase + "rstudio"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map("foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase, cloudContextGcp, name0, Set.empty, None, Map("foo" -> "bar"))
       .toString shouldBe expectedBase + "jupyter"
 
     // images and labels -> images take precedence
     Runtime
       .getProxyUrl(proxyUrlBase,
-                   cloudContext,
+                   cloudContextGcp,
                    name0,
                    Set(welderImage, customDataprocImage, rstudioImage),
                    None,

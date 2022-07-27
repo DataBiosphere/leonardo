@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
-import java.net.URL
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -17,8 +16,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   Nodepool
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.Uri
+
+import java.net.URL
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
@@ -29,11 +29,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   extraArgs: List[String]
 )
 
-final case class DeleteAppRequest(userInfo: UserInfo,
-                                  googleProject: GoogleProject,
-                                  appName: AppName,
-                                  deleteDisk: Boolean
-)
+final case class DeleteAppRequest(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName, deleteDisk: Boolean)
 
 final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[AppError],

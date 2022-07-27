@@ -19,7 +19,7 @@ object MockDiskServiceInterp extends DiskService[IO] {
     IO.pure(
       GetPersistentDiskResponse(
         DiskId(-1),
-        CommonTestData.cloudContext,
+        CommonTestData.cloudContextGcp,
         CommonTestData.zone,
         CommonTestData.diskName,
         CommonTestData.serviceAccount,
@@ -41,7 +41,7 @@ object MockDiskServiceInterp extends DiskService[IO] {
       Vector(
         ListPersistentDiskResponse(
           DiskId(-1),
-          CommonTestData.cloudContext,
+          CommonTestData.cloudContextGcp,
           CommonTestData.zone,
           CommonTestData.diskName,
           DiskStatus.Ready,
