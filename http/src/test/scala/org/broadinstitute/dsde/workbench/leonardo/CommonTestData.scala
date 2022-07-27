@@ -50,7 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
   ConfigReader,
-  CreateRuntime2Request,
+  CreateRuntimeRequest,
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.model._
@@ -244,7 +244,7 @@ object CommonTestData {
                                  true
     )
 
-  val defaultCreateRuntimeRequest = CreateRuntime2Request(
+  val defaultCreateRuntimeRequest = CreateRuntimeRequest(
     Map("lbl1" -> "true"),
     None,
     Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),

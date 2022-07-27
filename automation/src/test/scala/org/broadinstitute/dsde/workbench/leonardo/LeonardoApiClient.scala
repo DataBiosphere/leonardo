@@ -65,7 +65,7 @@ object LeonardoApiClient {
     None
   )
 
-  val defaultCreateRuntime2Request = CreateRuntime2Request(
+  val defaultCreateRuntime2Request = CreateRuntimeRequest(
     Map("foo" -> UUID.randomUUID().toString),
     None,
     None,
@@ -80,7 +80,7 @@ object LeonardoApiClient {
     Map.empty
   )
 
-  val defaultCreateDataprocRuntimeRequest = CreateRuntime2Request(
+  val defaultCreateDataprocRuntimeRequest = CreateRuntimeRequest(
     Map("foo" -> UUID.randomUUID().toString),
     None,
     None,
@@ -136,7 +136,7 @@ object LeonardoApiClient {
   def createRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
-    createRuntime2Request: CreateRuntime2Request = defaultCreateRuntime2Request
+    createRuntime2Request: CreateRuntimeRequest = defaultCreateRuntime2Request
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
@@ -164,7 +164,7 @@ object LeonardoApiClient {
   def createRuntimeWithWait(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
-    createRuntime2Request: CreateRuntime2Request
+    createRuntime2Request: CreateRuntimeRequest
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)

@@ -75,7 +75,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       publisherQueue
     )
   val runtimeService = makeRuntimeService(publisherQueue)
-  val emptyCreateRuntimeReq = CreateRuntime2Request(
+  val emptyCreateRuntimeReq = CreateRuntimeRequest(
     Map.empty,
     None,
     None,
@@ -203,7 +203,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       gceRuntimeConfig = runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig]
       gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
     } yield {
-      r shouldBe Right(())
+      r shouldBe Right(CreateRuntimeResponse(context.traceId))
       runtimeConfig shouldBe (Config.gceConfig.runtimeConfigDefaults)
       cluster.cloudContext shouldBe cloudContext
       cluster.runtimeName shouldBe runtimeName
@@ -262,7 +262,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
         .attempt
       _ <- publisherQueue.take // dequeue the message so that it doesn't affect other tests
-    } yield r shouldBe Right(())
+    } yield r.isRight shouldBe true
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -291,7 +291,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtime <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName).transaction
       _ <- publisherQueue.take // dequeue the message so that it doesn't affect other tests
     } yield {
-      r shouldBe Right(())
+      r.isRight shouldBe true
       runtime.get.runtimeImages.map(_.imageType) contains (RuntimeImageType.RStudio)
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -503,17 +503,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       welder3 = runtime2Images.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
     } yield {
-      r1 shouldBe Right(())
+      r1.isRight shouldBe true
       runtime1.runtimeName shouldBe runtimeName1
       welder1 shouldBe defined
       welder1.get.imageUrl shouldBe Config.imageConfig.welderDockerHubImage.imageUrl
 
-      r2 shouldBe Right(())
+      r2.isRight shouldBe true
       runtime2.runtimeName shouldBe runtimeName2
       welder2 shouldBe defined
       welder2.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
 
-      r3 shouldBe Right(())
+      r3.isRight shouldBe true
       runtime3.runtimeName shouldBe runtimeName3
       welder3 shouldBe defined
       welder3.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
@@ -565,11 +565,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- publisherQueue.take
     } yield {
       // Crypto detector not supported on DockerHub
-      r1 shouldBe Right(())
+      r1.isRight shouldBe true
       runtime1.runtimeName shouldBe runtimeName1
       runtime1Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter, Welder, RuntimeImageType.Proxy)
 
-      r2 shouldBe Right(())
+      r2.isRight shouldBe true
       runtime2.runtimeName shouldBe runtimeName2
       runtime2Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter,
                                                                            Welder,
@@ -626,7 +626,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(runtimeConfig).get
       message <- publisherQueue.take
     } yield {
-      r shouldBe Right(())
+      r shouldBe Right(CreateRuntimeResponse(context.traceId))
       runtime.cloudContext shouldBe cloudContext
       runtime.runtimeName shouldBe name0
       runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(disk.id)
@@ -731,7 +731,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .transaction
       message <- publisherQueue.take
     } yield {
-      r shouldBe Right(())
+      r.isRight shouldBe true
       runtime.cloudContext shouldBe cloudContext
       runtime.runtimeName shouldBe name0
       runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].gpuConfig shouldBe gpuConfig

@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName
 }
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
@@ -293,7 +293,7 @@ trait LeonardoTestUtils
 
   def createRuntime(googleProject: GoogleProject,
                     runtimeName: RuntimeName,
-                    runtimeRequest: CreateRuntime2Request,
+                    runtimeRequest: CreateRuntimeRequest,
                     monitor: Boolean,
                     shouldError: Boolean = true
   )(implicit token: IO[Authorization]): GetRuntimeResponseCopy = {
@@ -323,7 +323,7 @@ trait LeonardoTestUtils
   def monitorCreateRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
-    runtimeRequest: CreateRuntime2Request
+    runtimeRequest: CreateRuntimeRequest
   )(implicit token: AuthToken): GetRuntimeResponseCopy = {
     // wait for "Running", "Stopped", or error (fail fast)
     val expectedStatuses =
@@ -450,7 +450,7 @@ trait LeonardoTestUtils
 
   def createNewRuntime(googleProject: GoogleProject,
                        name: RuntimeName = randomClusterName,
-                       request: CreateRuntime2Request = LeonardoApiClient.defaultCreateRuntime2Request,
+                       request: CreateRuntimeRequest = LeonardoApiClient.defaultCreateRuntime2Request,
                        monitor: Boolean = true
   )(implicit token: IO[Authorization]): ClusterCopy = {
 
@@ -490,7 +490,7 @@ trait LeonardoTestUtils
   def withNewRuntime[T](
     googleProject: GoogleProject,
     name: RuntimeName = randomClusterName,
-    request: CreateRuntime2Request = LeonardoApiClient.defaultCreateRuntime2Request,
+    request: CreateRuntimeRequest = LeonardoApiClient.defaultCreateRuntime2Request,
     monitorCreate: Boolean = true,
     monitorDelete: Boolean = false,
     deleteRuntimeAfter: Boolean = true

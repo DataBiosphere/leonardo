@@ -10,7 +10,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Decoder, DecodingFailure}
+import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import scala.concurrent.duration._
 
 class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
@@ -72,7 +72,7 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
                     RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
                       pathEndOrSingleSlash {
                         post {
-                          entity(as[CreateRuntime2Request]) { req =>
+                          entity(as[CreateRuntimeRequest]) { req =>
                             complete(
                               createRuntimeHandler(
                                 userInfo,
@@ -148,7 +148,7 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def createRuntimeHandler(userInfo: UserInfo,
                                         cloudContext: CloudContext,
                                         runtimeName: RuntimeName,
-                                        req: CreateRuntime2Request
+                                        req: CreateRuntimeRequest
   )(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
@@ -406,7 +406,7 @@ object RuntimeRoutes {
     } yield r
   }
 
-  implicit val createRuntime2RequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
+  implicit val createRuntimeRequestDecoder: Decoder[CreateRuntimeRequest] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
       _ <- l.fold(().asRight[DecodingFailure]) { labelMap =>
@@ -429,7 +429,7 @@ object RuntimeRoutes {
       wr <- c.downField("welderRegistry").as[Option[ContainerRegistry]]
       s <- c.downField("scopes").as[Option[Set[String]]]
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
-    } yield CreateRuntime2Request(
+    } yield CreateRuntimeRequest(
       l.getOrElse(Map.empty),
       us.orElse(jus),
       sus.orElse(jsus),
@@ -444,6 +444,9 @@ object RuntimeRoutes {
       cv.getOrElse(Map.empty)
     )
   }
+
+  implicit val createRuntimeResponseEncoder: Encoder[CreateRuntimeResponse] =
+    Encoder.forProduct1("traceId")(x => CreateRuntimeResponse.unapply(x).get)
 
   implicit val updateGceConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
     for {

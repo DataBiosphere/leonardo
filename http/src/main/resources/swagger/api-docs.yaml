@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "1.3.3"
+  version: "1.3.4"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -252,6 +252,10 @@ paths:
       responses:
         "202":
           description: Runtime creation request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/requestBodies/CreateRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -697,6 +701,10 @@ paths:
       responses:
         "202":
           description: Runtime creation request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/requestBodies/CreateRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -3276,7 +3284,13 @@ components:
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
-
+    CreateRuntimeResponse:
+      description: response for create runtime APIs
+        type: object
+        properties:
+          traceId:
+            type: string
+            description: `traceId` that's useful for debugging.
     CreateAppRequest:
       description: the configuration of an app, used to create an app
       type: object

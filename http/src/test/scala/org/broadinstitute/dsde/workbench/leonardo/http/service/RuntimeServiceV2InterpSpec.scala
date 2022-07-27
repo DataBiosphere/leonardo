@@ -109,7 +109,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       diskOpt <- persistentDiskQuery.getById(azureRuntimeConfig.persistentDiskId).transaction
       disk = diskOpt.get
     } yield {
-      r shouldBe Right(())
+      r shouldBe Right(CreateRuntimeResponse(context.traceId))
       cluster.cloudContext shouldBe cloudContext
       cluster.runtimeName shouldBe runtimeName
       cluster.status shouldBe RuntimeStatus.PreCreating
