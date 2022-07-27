@@ -83,7 +83,7 @@ class GKEInterpreter[F[_]](
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Beginning cluster creation for cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Beginning cluster creation for cluster ${dbCluster.getClusterId.toString}"
       )
 
       // Get nodepools to pass in the create cluster request
@@ -97,7 +97,7 @@ class GKEInterpreter[F[_]](
           F.raiseError[Unit](
             ClusterCreationException(
               ctx.traceId,
-              s"CreateCluster was called with nodepools that are not present in the database for cluster ${dbCluster.getGkeClusterId.toString}"
+              s"CreateCluster was called with nodepools that are not present in the database for cluster ${dbCluster.getClusterId.toString}"
             )
           )
         else F.unit
@@ -165,7 +165,7 @@ class GKEInterpreter[F[_]](
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Polling cluster creation for cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Polling cluster creation for cluster ${dbCluster.getClusterId.toString}"
       )
 
       _ <- F.fromOption(dbCluster.nodepools.find(_.isDefault), DefaultNodepoolNotFoundException(dbCluster.id))
@@ -182,32 +182,32 @@ class GKEInterpreter[F[_]](
       _ <-
         if (lastOp.isDone)
           logger.info(ctx.loggingCtx)(
-            s"Create cluster operation has finished for cluster ${dbCluster.getGkeClusterId.toString}"
+            s"Create cluster operation has finished for cluster ${dbCluster.getClusterId.toString}"
           )
         else
           logger.error(ctx.loggingCtx)(
-            s"Create cluster operation timed out or failed for cluster ${dbCluster.getGkeClusterId.toString}"
+            s"Create cluster operation timed out or failed for cluster ${dbCluster.getClusterId.toString}"
           ) >>
             // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
             F.raiseError[Unit](
               ClusterCreationException(
                 ctx.traceId,
-                s"Cluster creation timed out or failed for ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+                s"Cluster creation timed out or failed for ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
               )
             )
 
       // Resolve the cluster in Google
-      googleClusterOpt <- gkeService.getCluster(dbCluster.getGkeClusterId)
+      googleClusterOpt <- gkeService.getCluster(dbCluster.getClusterId)
       googleCluster <- F.fromOption(
         googleClusterOpt,
         ClusterCreationException(
           ctx.traceId,
-          s"Cluster not found in Google: ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+          s"Cluster not found in Google: ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Successfully created cluster ${dbCluster.getGkeClusterId.toString}!"
+        s"Successfully created cluster ${dbCluster.getClusterId.toString}!"
       )
 
       // TODO: Handle the case where currently, if ingress installation fails, the cluster is marked as `Error`ed
@@ -252,16 +252,16 @@ class GKEInterpreter[F[_]](
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
       projectLabels <- googleResourceService.getLabels(params.googleProject)
       req = KubernetesCreateNodepoolRequest(
-        dbCluster.getGkeClusterId,
+        dbCluster.getClusterId,
         buildGoogleNodepool(dbNodepool, params.googleProject, projectLabels)
       )
 
-      operationOpt <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+      operationOpt <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
         for {
           opOpt <- gkeService.createNodepool(req)
           lastOpOpt <- opOpt.traverse { op =>
@@ -305,7 +305,7 @@ class GKEInterpreter[F[_]](
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
       dbCluster = dbApp.cluster
-      gkeClusterId = dbCluster.getGkeClusterId
+      gkeClusterId = dbCluster.getClusterId
       googleProject = params.googleProject
 
       // TODO: This DB query might not be needed if it makes sense to add diskId in App model (will revisit in next PR)
@@ -498,7 +498,7 @@ class GKEInterpreter[F[_]](
         KubernetesClusterNotFoundException(s"Cluster with id ${params.clusterId} not found in database")
       )
       // the operation will be None if the cluster is not found and we have already deleted it
-      operationOpt <- gkeService.deleteCluster(dbCluster.getGkeClusterId)
+      operationOpt <- gkeService.deleteCluster(dbCluster.getClusterId)
       lastOp <- operationOpt
         .traverse(op =>
           gkeService
@@ -538,13 +538,13 @@ class GKEInterpreter[F[_]](
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
-      _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+      _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
         for {
           operationOpt <- gkeService.deleteNodepool(
-            NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
+            NodepoolId(dbCluster.getClusterId, dbNodepool.nodepoolName)
           )
           lastOp <- operationOpt
             .traverse(op =>
@@ -591,7 +591,7 @@ class GKEInterpreter[F[_]](
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
       dbCluster = dbApp.cluster
-      gkeClusterId = dbCluster.getGkeClusterId
+      gkeClusterId = dbCluster.getClusterId
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Beginning app deletion for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
@@ -605,7 +605,7 @@ class GKEInterpreter[F[_]](
           helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
           _ <- logger.info(ctx.loggingCtx)(
-            s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+            s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
           )
 
           // helm uninstall the app chart and wait
@@ -614,7 +614,7 @@ class GKEInterpreter[F[_]](
             .run(helmAuthContext)
 
           last <- streamFUntilDone(
-            kubeService.listPodStatus(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName)),
+            kubeService.listPodStatus(dbCluster.getClusterId, KubernetesNamespace(namespaceName)),
             config.monitorConfig.deleteApp.maxAttempts,
             config.monitorConfig.deleteApp.interval
           ).compile.lastOrError
@@ -622,7 +622,7 @@ class GKEInterpreter[F[_]](
           _ <-
             if (!podDoneCheckable.isDone(last)) {
               val msg =
-                s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}. The following pods are not in a terminal state: ${last
+                s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
                     .filterNot(isPodDone)
                     .map(_.name.value)
                     .mkString(", ")}"
@@ -641,12 +641,12 @@ class GKEInterpreter[F[_]](
       )
 
       // delete the namespace only after the helm uninstall completes
-      _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
+      _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
                                        KubernetesNamespace(dbApp.app.appResources.namespace.name)
       )
 
       fa = kubeService
-        .namespaceExists(dbApp.cluster.getGkeClusterId, KubernetesNamespace(dbApp.app.appResources.namespace.name))
+        .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace.name))
         .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
 
       _ <- streamUntilDoneOrTimeout(fa, 30, 5 seconds, "delete namespace timed out")
@@ -660,8 +660,8 @@ class GKEInterpreter[F[_]](
       }
       _ <- appRestore.traverse { restore =>
         for {
-          _ <- kubeService.deletePv(dbCluster.getGkeClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
-          _ <- kubeService.deletePv(dbCluster.getGkeClusterId, PvName(s"pvc-${restore.cvmfsPvcId.asString}"))
+          _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
+          _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.cvmfsPvcId.asString}"))
         } yield ()
       }
       _ <-
@@ -680,10 +680,10 @@ class GKEInterpreter[F[_]](
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
       dbNodepool = dbApp.nodepool
       dbCluster = dbApp.cluster
-      nodepoolId = NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
+      nodepoolId = NodepoolId(dbCluster.getClusterId, dbNodepool.nodepoolName)
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Stopping app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Stopping app ${dbApp.app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
       _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Provisioning).transaction
@@ -691,7 +691,7 @@ class GKEInterpreter[F[_]](
       // If autoscaling is enabled, disable it first
       _ <-
         if (dbNodepool.autoscalingEnabled) {
-          nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+          nodepoolLock.withKeyLock(dbCluster.getClusterId) {
             for {
               op <- gkeService.setNodepoolAutoscaling(
                 nodepoolId,
@@ -720,7 +720,7 @@ class GKEInterpreter[F[_]](
         } else F.unit
 
       // Scale the nodepool to zero nodes
-      _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+      _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
         for {
           op <- gkeService.setNodepoolSize(nodepoolId, 0)
           lastOp <- gkeService
@@ -761,16 +761,16 @@ class GKEInterpreter[F[_]](
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
       dbNodepool = dbApp.nodepool
       dbCluster = dbApp.cluster
-      nodepoolId = NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
+      nodepoolId = NodepoolId(dbCluster.getClusterId, dbNodepool.nodepoolName)
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Starting app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Starting app ${dbApp.app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
       _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Provisioning).transaction
 
       // First scale the node pool to > 0 nodes
-      _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+      _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
         for {
           op <- gkeService.setNodepoolSize(
             nodepoolId,
@@ -810,7 +810,7 @@ class GKEInterpreter[F[_]](
           // If starting timed out, persist an error and attempt to stop the app again.
           // We don't want to move the app to Error status because that status is unrecoverable by the user.
           val msg =
-            s"Galaxy startup has failed or timed out for app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+            s"Galaxy startup has failed or timed out for app ${dbApp.app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
           for {
             _ <- logger.error(ctx.loggingCtx)(msg)
             _ <- dbRef.inTransaction {
@@ -828,7 +828,7 @@ class GKEInterpreter[F[_]](
             _ <-
               if (dbNodepool.autoscalingEnabled) {
                 dbNodepool.autoscalingConfig.traverse_ { autoscalingConfig =>
-                  nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+                  nodepoolLock.withKeyLock(dbCluster.getClusterId) {
                     for {
                       op <- gkeService.setNodepoolAutoscaling(
                         nodepoolId,
@@ -899,7 +899,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.getClusterId.toString}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, config.ingressConfig.namespace)
@@ -917,7 +917,7 @@ class GKEInterpreter[F[_]](
 
       // Monitor nginx until public IP is accessible
       loadBalancerIpOpt <- streamFUntilDone(
-        kubeService.getServiceExternalIp(dbCluster.getGkeClusterId,
+        kubeService.getServiceExternalIp(dbCluster.getClusterId,
                                          KubernetesNamespace(config.ingressConfig.namespace),
                                          config.ingressConfig.loadBalancerService
         ),
@@ -929,12 +929,12 @@ class GKEInterpreter[F[_]](
         loadBalancerIpOpt,
         ClusterCreationException(
           ctx.traceId,
-          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} in cluster ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Successfully obtained public IP ${loadBalancerIp.asString} for cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Successfully obtained public IP ${loadBalancerIp.asString} for cluster ${dbCluster.getClusterId.toString}"
       )
     } yield loadBalancerIp
 
@@ -958,7 +958,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(nfsDisk.cloudContext),
@@ -1025,7 +1025,7 @@ class GKEInterpreter[F[_]](
       _ <-
         if (!isDone) {
           val msg =
-            s"Galaxy installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+            s"Galaxy installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
         } else F.unit
@@ -1051,7 +1051,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
+        s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getClusterId.toString}"
       )
 
       chartValues = buildCromwellAppChartOverrideValuesString(appName,
@@ -1096,7 +1096,7 @@ class GKEInterpreter[F[_]](
       _ <-
         if (!last.isDone) {
           val msg =
-            s"Cromwell app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
+            s"Cromwell app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
         } else F.unit
@@ -1122,13 +1122,13 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.customAppConfig.chart} for custom app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Installing helm chart ${config.customAppConfig.chart} for custom app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
       desc <- F.fromOption(descriptorOpt, AppRequiresDescriptorException(appId))
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"about to process descriptor for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"about to process descriptor for app ${appName.value} in cluster ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
@@ -1138,7 +1138,7 @@ class GKEInterpreter[F[_]](
       }
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Finished processing descriptor for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Finished processing descriptor for app ${appName.value} in cluster ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       // TODO we're only handling 1 service for now
@@ -1206,7 +1206,7 @@ class GKEInterpreter[F[_]](
       _ <-
         if (!last.isDone) {
           val msg =
-            s"App installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+            s"App installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
           logger.error(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
         } else F.unit
@@ -1241,7 +1241,7 @@ class GKEInterpreter[F[_]](
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Helm auth context for cluster ${dbCluster.getGkeClusterId.toString}: ${helmAuthContext
+        s"Helm auth context for cluster ${dbCluster.getClusterId.toString}: ${helmAuthContext
             .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))}"
       )
 

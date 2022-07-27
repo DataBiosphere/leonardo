@@ -26,7 +26,7 @@ import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
-                             googleProject: GoogleProject,
+                             cloudContext: CloudContext,
                              clusterName: KubernetesClusterName,
                              // the GKE API supports a location (e.g. us-central1 (a 'region') or us-central1-a (a 'zone))
                              // If a zone is specified, it will be a single-zone cluster, otherwise it will span multiple zones in the region
@@ -44,7 +44,10 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
 
   // TODO consider renaming this method and the KubernetesClusterId class
   // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
-  def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
+  def getClusterId: KubernetesClusterId = cloudContext match {
+    case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
+    case CloudContext.Azure(_)   => ??? // TODO: implement once we start supporting Azure
+  }
 }
 
 final case class KubernetesClusterAsyncFields(loadBalancerIp: IP, apiServerIp: IP, networkInfo: NetworkFields)

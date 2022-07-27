@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+<changeSet logicalFilePath="leonardo" author="qi" id="support_azure_for_app">
+    <addColumn tableName="KUBERNETES_CLUSTER">
+        <column name="cloudProvider" type="ENUM('GCP', 'AZURE')" defaultValue="GCP">
+            <constraints nullable="false"/>
+        </column>
+    </addColumn>
+
+    <dropUniqueConstraint tableName="KUBERNETES_CLUSTER" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE"/>
+
+    <renameColumn newColumnName="cloudContext"
+                  columnDataType="varchar(254)"
+                  oldColumnName="googleProject"
+                  tableName="KUBERNETES_CLUSTER"/>
+
+    <addUniqueConstraint
+            columnNames="cloudProvider,cloudContext,destroyedDate"
+            constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE_V2"
+            tableName="KUBERNETES_CLUSTER"
+    />
+</changeSet>
+
+</databaseChangeLog>

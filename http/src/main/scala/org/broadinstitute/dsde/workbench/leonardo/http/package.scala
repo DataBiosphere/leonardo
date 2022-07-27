@@ -75,7 +75,7 @@ package object http {
 
   // This hostname is used by the ProxyService and also needs to be specified in the Galaxy ingress resource
   def kubernetesProxyHost(cluster: KubernetesCluster, proxyDomain: String): Host = {
-    val prefix = Math.abs(cluster.getGkeClusterId.toString.hashCode).toString
+    val prefix = Math.abs(cluster.getClusterId.toString.hashCode).toString
     Host(prefix + proxyDomain)
   }
 
