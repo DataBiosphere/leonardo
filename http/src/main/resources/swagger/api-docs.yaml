@@ -255,7 +255,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/requestBodies/CreateRuntimeResponse"
+                $ref: "#/components/schemas/CreateRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -704,7 +704,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/requestBodies/CreateRuntimeResponse"
+                $ref: "#/components/schemas/CreateRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -3286,11 +3286,14 @@ components:
           description: Block size of persistent disk in bytes
     CreateRuntimeResponse:
       description: response for create runtime APIs
-        type: object
-        properties:
-          traceId:
-            type: string
-            description: `traceId` that's useful for debugging.
+      required:
+        - traceId
+      type: object
+      properties:
+        traceId:
+          type: string
+          description: traceId that's useful for debugging.
+
     CreateAppRequest:
       description: the configuration of an app, used to create an app
       type: object
