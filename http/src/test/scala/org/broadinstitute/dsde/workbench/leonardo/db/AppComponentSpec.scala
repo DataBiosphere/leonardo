@@ -71,8 +71,6 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
   }
 
   it should "fail to save an app without a nodepool" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-
     val appName = AppName("test")
     // this is important because we short-circuit the saveApp function with this instead of letting the DB throw it
     val caught = the[SQLIntegrityConstraintViolationException] thrownBy {

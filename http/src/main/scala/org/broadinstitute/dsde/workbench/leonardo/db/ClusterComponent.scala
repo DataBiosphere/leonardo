@@ -407,6 +407,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def countActiveByProject(cloudContext: CloudContext) =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.status inSetBind RuntimeStatus.activeStatuses)
       .length
@@ -416,6 +417,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[Runtime]] = {
     val res = clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)

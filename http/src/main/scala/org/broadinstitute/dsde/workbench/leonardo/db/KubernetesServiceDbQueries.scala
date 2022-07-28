@@ -211,7 +211,7 @@ object KubernetesServiceDbQueries {
       case Some(context) =>
         kubernetesClusterQuery
           .filter(_.cloudProvider === context.cloudProvider)
-          .filter(_.cloudContextDb.toString() === context.asString)
+          .filter(_.cloudContextDb === context.asCloudContextDb)
       case None => kubernetesClusterQuery
     }
 
