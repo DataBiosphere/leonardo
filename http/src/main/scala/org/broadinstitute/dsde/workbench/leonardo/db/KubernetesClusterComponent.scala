@@ -282,7 +282,7 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
   ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
     kubernetesClusterQuery
       .filter(_.cloudProvider === cloudContext.cloudProvider)
-      .filter(_.cloudContextDb.toString() === cloudContext.asString)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.destroyedDate === dummyDate)
 
   // all network fields should be set at the same time. We unmarshal the entire record as None if any fields are unset
