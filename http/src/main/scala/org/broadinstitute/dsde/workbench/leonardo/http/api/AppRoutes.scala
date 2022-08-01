@@ -233,17 +233,32 @@ object AppRoutes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct10("googleProject",
-                         "kubernetesRuntimeConfig",
-                         "errors",
-                         "status",
-                         "proxyUrls",
-                         "appName",
-                         "appType",
-                         "diskName",
-                         "auditInfo",
-                         "labels"
-    )(x => ListAppResponse.unapply(x).get)
+    Encoder.forProduct11(
+      "cloudContext",
+      "googleProject",
+      "kubernetesRuntimeConfig",
+      "errors",
+      "status",
+      "proxyUrls",
+      "appName",
+      "appType",
+      "diskName",
+      "auditInfo",
+      "labels"
+    )(x =>
+      (x.cloudContext,
+       x.cloudContext,
+       x.kubernetesRuntimeConfig,
+       x.errors,
+       x.status,
+       x.proxyUrls,
+       x.appName,
+       x.appType,
+       x.diskName,
+       x.auditInfo,
+       x.labels
+      )
+    )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
     Encoder.forProduct8("kubernetesRuntimeConfig",
