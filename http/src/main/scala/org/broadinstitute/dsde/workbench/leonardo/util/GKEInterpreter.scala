@@ -461,8 +461,7 @@ class GKEInterpreter[F[_]](
               )
 
               galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
-              cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
-              _ <- (galaxyPvc, cvmfsPvc).tupled
+              _ <- (galaxyPvc).tupled
                 .fold(
                   F.raiseError[Unit](
                     PubsubKubernetesError(AppError("Fail to retrieve pvc ids",
@@ -673,7 +672,6 @@ class GKEInterpreter[F[_]](
       _ <- appRestore.traverse { restore =>
         for {
           _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
-          _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.cvmfsPvcId.asString}"))
         } yield ()
       }
       _ <-
@@ -1468,9 +1466,7 @@ class GKEInterpreter[F[_]](
     val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
       List(
         raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
-        raw"""restore.persistence.nfs.cvmfsCache.pvcID=${g.cvmfsPvcId.asString}""",
         raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-pvc""",
-        raw"""cvmfs.cache.alienCache.existingClaim=${release.asString}-cvmfs-alien-cache-pvc"""
       )
     )
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
@@ -1479,10 +1475,7 @@ class GKEInterpreter[F[_]](
     List(
       // Storage class configs
       raw"""nfs.storageClass.name=nfs-${release.asString}""",
-      raw"""cvmfs.repositories.cvmfs-gxy-data-${release.asString}=data.galaxyproject.org""",
-      raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.asString}""",
       raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
-      raw"""galaxy.cvmfs.galaxyPersistentVolumeClaims.data.storageClassName=cvmfs-gxy-data-${release.asString}""",
       // Node selector config: this ensures the app is run on the user's nodepool
       raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
