@@ -117,7 +117,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.createApp(
         userInfo,
-        googleProject,
+        CloudContext.Gcp(googleProject),
         appName,
         req
       )
@@ -132,7 +132,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.getApp(
         userInfo,
-        googleProject,
+        CloudContext.Gcp(googleProject),
         appName
       )
       _ <- metrics.incrementCounter("getApp")
@@ -149,7 +149,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.listApp(
         userInfo,
-        googleProject,
+        googleProject.map(CloudContext.Gcp),
         params
       )
       _ <- metrics.incrementCounter("listApp")
@@ -169,7 +169,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       deleteDisk = params.get("deleteDisk").exists(_ == "true")
       deleteParams = DeleteAppRequest(
         userInfo,
-        googleProject,
+        CloudContext.Gcp(googleProject),
         appName,
         deleteDisk
       )
@@ -186,7 +186,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.stopApp(userInfo, googleProject, appName)
+      apiCall = kubernetesService.stopApp(userInfo, CloudContext.Gcp(googleProject), appName)
       _ <- metrics.incrementCounter("stopApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "stopApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
@@ -196,7 +196,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.startApp(userInfo, googleProject, appName)
+      apiCall = kubernetesService.startApp(userInfo, CloudContext.Gcp(googleProject), appName)
       _ <- metrics.incrementCounter("startApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "startApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
@@ -233,17 +233,32 @@ object AppRoutes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct10("googleProject",
-                         "kubernetesRuntimeConfig",
-                         "errors",
-                         "status",
-                         "proxyUrls",
-                         "appName",
-                         "appType",
-                         "diskName",
-                         "auditInfo",
-                         "labels"
-    )(x => ListAppResponse.unapply(x).get)
+    Encoder.forProduct11(
+      "cloudContext",
+      "googleProject",
+      "kubernetesRuntimeConfig",
+      "errors",
+      "status",
+      "proxyUrls",
+      "appName",
+      "appType",
+      "diskName",
+      "auditInfo",
+      "labels"
+    )(x =>
+      (x.cloudContext,
+       x.cloudContext,
+       x.kubernetesRuntimeConfig,
+       x.errors,
+       x.status,
+       x.proxyUrls,
+       x.appName,
+       x.appType,
+       x.diskName,
+       x.auditInfo,
+       x.labels
+      )
+    )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
     Encoder.forProduct8("kubernetesRuntimeConfig",

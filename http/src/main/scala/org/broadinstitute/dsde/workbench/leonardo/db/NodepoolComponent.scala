@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AutoscalingConfig,
   AutoscalingMax,
   AutoscalingMin,
+  CloudContext,
   KubernetesClusterLeoId,
   KubernetesRuntimeConfig,
   Nodepool,
@@ -20,7 +21,6 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 
@@ -160,12 +160,12 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       nodepools <- findByNodepoolIdQuery(id).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
 
-  def getMinimalByUserAndConfig(creator: WorkbenchEmail, project: GoogleProject, config: KubernetesRuntimeConfig)(
+  def getMinimalByUserAndConfig(creator: WorkbenchEmail, cloudContext: CloudContext, config: KubernetesRuntimeConfig)(
     implicit ec: ExecutionContext
   ): DBIO[Option[Nodepool]] =
     for {
       clusters <- kubernetesClusterQuery.joinMinimalClusterAndUnmarshal(
-        kubernetesClusterQuery.findActiveByNameQuery(project),
+        kubernetesClusterQuery.findActiveByNameQuery(cloudContext),
         nodepoolQuery
           .filter(_.destroyedDate === dummyDate)
           .filterNot(_.isDefault)

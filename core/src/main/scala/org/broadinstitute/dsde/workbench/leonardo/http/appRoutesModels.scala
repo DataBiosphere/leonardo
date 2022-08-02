@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
-import java.net.URL
-
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -11,14 +9,16 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppStatus,
   AppType,
   AuditInfo,
+  CloudContext,
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,
   Nodepool
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.Uri
+
+import java.net.URL
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
@@ -29,11 +29,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   extraArgs: List[String]
 )
 
-final case class DeleteAppRequest(userInfo: UserInfo,
-                                  googleProject: GoogleProject,
-                                  appName: AppName,
-                                  deleteDisk: Boolean
-)
+final case class DeleteAppRequest(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName, deleteDisk: Boolean)
 
 final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[AppError],
@@ -45,7 +41,7 @@ final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig
                                 appType: AppType
 )
 
-final case class ListAppResponse(googleProject: GoogleProject,
+final case class ListAppResponse(cloudContext: CloudContext,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
                                  status: AppStatus, // TODO: do we need some sort of aggregate status?
@@ -64,7 +60,7 @@ object ListAppResponse {
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
-          c.googleProject,
+          c.cloudContext,
           KubernetesRuntimeConfig(
             n.numNodes,
             n.machineType,
@@ -72,7 +68,9 @@ object ListAppResponse {
           ),
           a.errors,
           a.status,
-          a.getProxyUrls(c.googleProject, proxyUrlBase),
+          a.getProxyUrls(c.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                         proxyUrlBase
+          ), // TODO: refactor once we support proxying azure app
           a.appName,
           a.appType,
           a.appResources.disk.map(_.name),
@@ -94,7 +92,9 @@ object GetAppResponse {
       ),
       appResult.app.errors,
       appResult.app.status,
-      appResult.app.getProxyUrls(appResult.cluster.googleProject, proxyUrlBase),
+      appResult.app.getProxyUrls(appResult.cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                                 proxyUrlBase
+      ), // TODO: refactor once we support proxying azure app
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,

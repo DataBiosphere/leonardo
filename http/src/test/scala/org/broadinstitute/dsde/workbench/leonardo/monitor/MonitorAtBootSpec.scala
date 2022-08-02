@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppMachineType,
   AppStatus,
   AppType,
+  CloudContext,
   DiskStatus,
   KubernetesClusterStatus,
   LeoLenses,
@@ -123,7 +124,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       msg <- queue.tryTake
     } yield {
       val expected = CreateAppMessage(
-        cluster.googleProject,
+        cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
         Some(CreateClusterAndNodepool(cluster.id, defaultNodepool.id, nodepool.id)),
         savedApp.id,
         savedApp.appName,
@@ -153,7 +154,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       msg <- queue.tryTake
     } yield {
       val expected = CreateAppMessage(
-        cluster.googleProject,
+        cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
         Some(CreateNodepool(nodepool.id)),
         savedApp.id,
         savedApp.appName,
@@ -183,7 +184,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       msg <- queue.tryTake
     } yield {
       val expected = CreateAppMessage(
-        cluster.googleProject,
+        cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
         None,
         savedApp.id,
         savedApp.appName,
@@ -215,7 +216,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       val expected = DeleteAppMessage(
         savedApp.id,
         savedApp.appName,
-        cluster.googleProject,
+        cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
         None,
         None
       )

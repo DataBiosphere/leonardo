@@ -68,13 +68,13 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       .save()
     val googleNodepool =
       gkeInterp.buildGoogleNodepool(savedNodepool1,
-                                    savedCluster1.googleProject,
+                                    savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                                     Some(Map("gke-default-sa" -> "gke-node-default-sa"))
       )
     googleNodepool.getAutoscaling.getEnabled shouldBe true
     googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
     googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
-    googleNodepool.getConfig.getServiceAccount shouldBe s"gke-node-default-sa@${savedCluster1.googleProject.value}.iam.gserviceaccount.com"
+    googleNodepool.getConfig.getServiceAccount shouldBe s"gke-node-default-sa@${savedCluster1.cloudContext.asString}.iam.gserviceaccount.com"
   }
 
   it should "get a helm auth context" in {
@@ -205,7 +205,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       savedCluster <- IO(makeKubeCluster(1).save())
       m = DeleteClusterParams(
         savedCluster.id,
-        savedCluster.googleProject
+        savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value
       )
       _ <- gkeInterp.deleteAndPollCluster(m)
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster.id).transaction
@@ -218,7 +218,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val res = for {
       savedCluster <- IO(makeKubeCluster(1).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
-      m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
+      m = DeleteNodepoolParams(savedNodepool.id, savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value)
       _ <- gkeInterp.deleteAndPollNodepool(m)
       nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
     } yield nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
@@ -252,7 +252,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val res = for {
       savedCluster <- IO(makeKubeCluster(1).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
-      m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
+      m = DeleteNodepoolParams(savedNodepool.id, savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value)
       _ <- gkeInterpDelete.deleteAndPollNodepool(m)
       nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
     } yield nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
@@ -266,8 +266,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Stopping).save()
 
     val res = for {
-      _ <- gkeInterp.stopAndPollApp(StopAppParams(savedApp1.id, savedApp1.appName, savedCluster1.googleProject))
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      _ <- gkeInterp.stopAndPollApp(
+        StopAppParams(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value)
+      )
+      getAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
+        .transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 0
@@ -286,8 +290,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Stopping).save()
 
     val res = for {
-      _ <- gkeInterp.startAndPollApp(StartAppParams(savedApp1.id, savedApp1.appName, savedCluster1.googleProject))
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      _ <- gkeInterp.startAndPollApp(
+        StartAppParams(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value)
+      )
+      getAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
+        .transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 0
@@ -324,11 +332,14 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val res = for {
       createResult <- gkeInterp
         .createCluster(
-          CreateClusterParams(savedCluster1.id, savedCluster1.googleProject, List())
+          CreateClusterParams(savedCluster1.id, savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value, List())
         )
       r <- gkeInterp
         .pollCluster(
-          PollClusterParams(savedCluster1.id, savedCluster1.googleProject, createResult.get)
+          PollClusterParams(savedCluster1.id,
+                            savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                            createResult.get
+          )
         )
         .attempt
     } yield r shouldBe (Left(
@@ -344,13 +355,16 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       r <- gkeInterp
         .createCluster(
-          CreateClusterParams(savedCluster1.id, savedCluster1.googleProject, List(NodepoolLeoId(-2)))
+          CreateClusterParams(savedCluster1.id,
+                              savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                              List(NodepoolLeoId(-2))
+          )
         )
         .attempt
     } yield r shouldBe (Left(
       org.broadinstitute.dsde.workbench.leonardo.util.ClusterCreationException(
         ctx.traceId,
-        s"CreateCluster was called with nodepools that are not present in the database for cluster ${savedCluster1.getGkeClusterId.toString}"
+        s"CreateCluster was called with nodepools that are not present in the database for cluster ${savedCluster1.getClusterId.toString}"
       )
     ))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -363,12 +377,16 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       r <- gkeInterp
         .createAndPollApp(
-          CreateAppParams(AppId(-1), savedCluster1.googleProject, AppName("non-existent"), None)
+          CreateAppParams(AppId(-1),
+                          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                          AppName("non-existent"),
+                          None
+          )
         )
         .attempt
     } yield r shouldBe (Left(
       AppNotFoundException(
-        savedCluster1.googleProject,
+        savedCluster1.cloudContext,
         AppName("non-existent"),
         ctx.traceId
       )

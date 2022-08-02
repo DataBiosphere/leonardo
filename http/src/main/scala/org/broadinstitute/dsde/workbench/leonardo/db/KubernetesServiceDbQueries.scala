@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unma
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.nonDeletedAppQuery
@@ -22,12 +21,11 @@ import scala.concurrent.ExecutionContext
 object KubernetesServiceDbQueries {
   // the 'full' here means that all joins possible are done, meaning all fields in the cluster, nodepool, and app will be present
   // if you just need the cluster, nodepools, and cluster-wide namespaces, see the minimal join in the KubernetesClusterComponent
-  def listFullApps(googleProject: Option[GoogleProject],
-                   labelFilter: LabelMap = Map(),
-                   includeDeleted: Boolean = false
-  )(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
+  def listFullApps(cloudContext: Option[CloudContext], labelFilter: LabelMap = Map(), includeDeleted: Boolean = false)(
+    implicit ec: ExecutionContext
+  ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
-      listClustersByProject(googleProject),
+      listClustersByCloudContext(cloudContext),
       nodepoolQuery,
       if (includeDeleted) appQuery else nonDeletedAppQuery,
       labelFilter
@@ -51,7 +49,7 @@ object KubernetesServiceDbQueries {
     saveKubernetesCluster: SaveKubernetesCluster
   )(implicit ec: ExecutionContext): DBIO[SaveClusterResult] =
     for {
-      clusterOpt <- kubernetesClusterQuery.getMinimalActiveClusterByName(saveKubernetesCluster.googleProject)
+      clusterOpt <- kubernetesClusterQuery.getMinimalActiveClusterByName(saveKubernetesCluster.cloudContext)
 
       eitherClusterOrError <- clusterOpt match {
         case Some(cluster) =>
@@ -72,19 +70,19 @@ object KubernetesServiceDbQueries {
       }
     } yield eitherClusterOrError
 
-  def getActiveFullAppByName(googleProject: GoogleProject, appName: AppName, labelFilter: LabelMap = Map())(implicit
+  def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByProject(Some(googleProject)),
+    getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
                      nodepoolQuery,
                      appQuery.findActiveByNameQuery(appName),
                      labelFilter
     )
 
-  def getFullAppByName(googleProject: GoogleProject, appId: AppId, labelFilter: LabelMap = Map())(implicit
+  def getFullAppByName(cloudContext: CloudContext, appId: AppId, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByProject(Some(googleProject)),
+    getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
                      nodepoolQuery,
                      appQuery.getByIdQuery(appId),
                      labelFilter
@@ -206,12 +204,15 @@ object KubernetesServiceDbQueries {
       _ <- diskId.fold[DBIO[Int]](DBIO.successful(0))(diskId => persistentDiskQuery.markPendingDeletion(diskId, now))
     } yield ()
 
-  private[db] def listClustersByProject(
-    googleProject: Option[GoogleProject]
+  private[db] def listClustersByCloudContext(
+    cloudContext: Option[CloudContext]
   ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
-    googleProject match {
-      case Some(project) => kubernetesClusterQuery.filter(_.googleProject === project)
-      case None          => kubernetesClusterQuery
+    cloudContext match {
+      case Some(context) =>
+        kubernetesClusterQuery
+          .filter(_.cloudProvider === context.cloudProvider)
+          .filter(_.cloudContextDb === context.asCloudContextDb)
+      case None => kubernetesClusterQuery
     }
 
   private[db] def joinFullAppAndUnmarshal(

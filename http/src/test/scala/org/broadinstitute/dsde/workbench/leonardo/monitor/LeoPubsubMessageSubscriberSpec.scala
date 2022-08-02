@@ -716,7 +716,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
         .transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
@@ -760,7 +760,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
           savedApp1.id,
           savedApp1.appName,
@@ -799,7 +799,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
         .transaction
       getApp = getAppOpt.get
     } yield getApp.app.status shouldBe AppStatus.Running
@@ -813,7 +813,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
           savedApp1.id,
           savedApp1.appName,
@@ -863,10 +863,10 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt1 <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
         .transaction
       getAppOpt2 <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp2.appName)
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp2.appName)
         .transaction
       getApp1 = getAppOpt1.get
       getApp2 = getAppOpt2.get
@@ -909,7 +909,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
         msg1 = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
           savedApp1.id,
           savedApp1.appName,
@@ -921,7 +921,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(tr)
         )
         msg2 = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateNodepool(savedNodepool2.id)),
           savedApp2.id,
           savedApp2.appName,
@@ -949,7 +949,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -963,7 +963,7 @@ class LeoPubsubMessageSubscriberSpec
       for {
         tr <- traceId.ask[TraceId]
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
           savedApp1.id,
           savedApp1.appName,
@@ -1000,7 +1000,7 @@ class LeoPubsubMessageSubscriberSpec
       .save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
@@ -1016,7 +1016,12 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                             None,
+                             Some(tr)
+      )
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1044,7 +1049,7 @@ class LeoPubsubMessageSubscriberSpec
       .save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
@@ -1061,7 +1066,12 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(disk.id), Some(tr))
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                             Some(disk.id),
+                             Some(tr)
+      )
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1077,7 +1087,7 @@ class LeoPubsubMessageSubscriberSpec
     val mockAckConsumer = mock[AckReplyConsumer]
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
@@ -1111,7 +1121,12 @@ class LeoPubsubMessageSubscriberSpec
     val res =
       for {
         tr <- traceId.ask[TraceId]
-        msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
+        msg = DeleteAppMessage(savedApp1.id,
+                               savedApp1.appName,
+                               savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                               None,
+                               Some(tr)
+        )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1140,7 +1155,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
         .transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
@@ -1168,7 +1183,7 @@ class LeoPubsubMessageSubscriberSpec
       for {
         tr <- traceId.ask[TraceId]
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           None,
           savedApp1.id,
           savedApp1.appName,
@@ -1223,7 +1238,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
+        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
@@ -1272,7 +1287,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
           savedApp1.id,
           savedApp1.appName,
@@ -1310,7 +1325,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
+        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
@@ -1335,7 +1350,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(
             ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)
           ),
@@ -1382,7 +1397,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
+        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -1414,7 +1429,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
           savedApp1.id,
           savedApp1.appName,
@@ -1442,7 +1457,11 @@ class LeoPubsubMessageSubscriberSpec
     val res =
       for {
         tr <- traceId.ask[TraceId]
-        msg = StopAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
+        msg = StopAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                             Some(tr)
+        )
         _ <- leoSubscriber.handleStopAppMessage(msg)
       } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1458,7 +1477,11 @@ class LeoPubsubMessageSubscriberSpec
     val res =
       for {
         tr <- traceId.ask[TraceId]
-        msg = StartAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
+        msg = StartAppMessage(savedApp1.id,
+                              savedApp1.appName,
+                              savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                              Some(tr)
+        )
         _ <- leoSubscriber.handleStartAppMessage(msg)
       } yield ()
 
@@ -1471,7 +1494,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Starting).save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
@@ -1504,7 +1527,11 @@ class LeoPubsubMessageSubscriberSpec
     val res =
       for {
         tr <- traceId.ask[TraceId]
-        msg = StartAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
+        msg = StartAppMessage(savedApp1.id,
+                              savedApp1.appName,
+                              savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                              Some(tr)
+        )
         // create a GKEInterpreter instance with a 'down' GalaxyDAO to simulate a timeout
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleStartAppMessage(msg)
@@ -1534,7 +1561,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
         .transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
@@ -1573,7 +1600,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
         msg = CreateAppMessage(
-          savedCluster1.googleProject,
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
           Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
           savedApp1.id,
           savedApp1.appName,
@@ -1600,7 +1627,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 0
@@ -1612,7 +1639,12 @@ class LeoPubsubMessageSubscriberSpec
     val res =
       for {
         tr <- traceId.ask[TraceId]
-        msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
+        msg = DeleteAppMessage(savedApp1.id,
+                               savedApp1.appName,
+                               savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                               None,
+                               Some(tr)
+        )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         // send message twice
         _ <- leoSubscriber.handleDeleteAppMessage(msg)

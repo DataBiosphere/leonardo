@@ -31,10 +31,10 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
     dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)
 
     dbFutureValue(
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
+      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.cloudContext)
     ) shouldEqual Some(savedCluster1)
     dbFutureValue(
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster2.googleProject)
+      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster2.cloudContext)
     ) shouldEqual Some(savedCluster2)
 
     // should delete the cluster and initial nodepool, hence '2' records updated

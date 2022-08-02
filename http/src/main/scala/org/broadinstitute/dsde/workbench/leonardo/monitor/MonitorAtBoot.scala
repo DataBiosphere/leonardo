@@ -161,9 +161,15 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   )
                 )
             }
+            googleProject <- F.fromOption(
+              LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
+              new RuntimeException(
+                "trying to provision app on Azure during MonitorAtBoot. This is not supported yet"
+              ) // TODO: support azure
+            )
             machineType <- computeService
               .getMachineType(
-                cluster.googleProject,
+                googleProject,
                 ZoneName("us-central1-a"),
                 nodepool.machineType
               ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
@@ -176,7 +182,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
 
             diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
             msg = CreateAppMessage(
-              cluster.googleProject,
+              googleProject,
               action,
               app.id,
               app.appName,
@@ -190,14 +196,19 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           } yield msg
 
         case AppStatus.Deleting =>
-          F.pure(
-            DeleteAppMessage(
-              app.id,
-              app.appName,
-              cluster.googleProject,
-              None, // Assume we do not want to delete the disk, since we don't currently persist that information
-              Some(traceId)
+          for {
+            googleProject <- F.fromOption(
+              LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
+              new RuntimeException(
+                "trying to provision app on Azure during MonitorAtBoot. This is not supported yet"
+              ) // TODO: support azure
             )
+          } yield DeleteAppMessage(
+            app.id,
+            app.appName,
+            googleProject,
+            None, // Assume we do not want to delete the disk, since we don't currently persist that information
+            Some(traceId)
           )
 
         case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", traceId))

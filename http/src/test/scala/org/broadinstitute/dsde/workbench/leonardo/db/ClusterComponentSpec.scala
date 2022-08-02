@@ -97,7 +97,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     dbFutureValue(clusterQuery.getClusterById(savedCluster3.id)) shouldEqual Some(savedCluster3)
 
     dbFutureValue(clusterQuery.countActiveByClusterServiceAccount(serviceAccount)) shouldEqual 2
-    dbFutureValue(clusterQuery.countActiveByProject(cloudContext)) shouldEqual 3
+    dbFutureValue(clusterQuery.countActiveByProject(cloudContextGcp)) shouldEqual 3
 
     // (project, name) unique key test
     val saveCluster = SaveCluster(cluster4,

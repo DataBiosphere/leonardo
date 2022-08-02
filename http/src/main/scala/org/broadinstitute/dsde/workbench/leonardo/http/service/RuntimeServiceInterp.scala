@@ -369,7 +369,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        new AzureUnimplementedException("Azure runtime is not supported yet")
+        AzureUnimplementedException("Azure runtime is not supported yet")
       )
       // throw 404 if not existent
       runtimeOpt <- clusterQuery

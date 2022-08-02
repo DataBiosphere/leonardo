@@ -288,7 +288,7 @@ class HttpRoutesSpec
         as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteApp =
-          DeleteAppRequest(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)
+          DeleteAppRequest(timedUserInfo, CloudContext.Gcp(GoogleProject("googleProject1")), AppName("app1"), false)
         request shouldBe expectedDeleteApp
       }
     }
