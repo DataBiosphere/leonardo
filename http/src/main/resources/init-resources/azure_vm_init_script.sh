@@ -34,7 +34,11 @@ LISTENER_DOCKER_IMAGE=$6
 SAMURL=$7
 SAMRESOURCEID=$8
 CONTENTSECURITYPOLICY_FILE=$9
-#SAMRESOURCEID="${10}"
+
+# Envs for welder
+WSM_URL="${10}"
+WORKSPACE_ID="${11}"
+STORAGE_CONTAINER_RESOURCE_ID="${12}"
 
 # Define environment variables for Jupyter Server customization
 
