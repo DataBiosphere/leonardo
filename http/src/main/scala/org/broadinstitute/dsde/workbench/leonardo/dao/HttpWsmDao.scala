@@ -198,7 +198,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   ): F[Option[RelayNamespace]] =
     for {
       ctx <- ev.ask
-      resp <- httpClient.expectOr[GetRelayNamespace](
+      resp <- httpClient.expectOr[GetWsmResourceResponse](
         Request[F](
           method = Method.GET,
           uri = config.uri
@@ -213,9 +213,45 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         )
       )(onError)
     } yield resp.resources.collect {
-      case r if r.resourceAttributes.relayNamespace.region == region =>
-        r.resourceAttributes.relayNamespace.namespaceName
+      case r
+          if r.resourceAttributes
+            .isInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes] && r.resourceAttributes
+            .asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes]
+            .region == region =>
+        r.resourceAttributes.asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes].namespaceName
     }.headOption
+
+  override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[StorageContainerResponse]] = for {
+    ctx <- ev.ask
+    resp <- httpClient.expectOr[GetWsmResourceResponse](
+      Request[F](
+        method = Method.GET,
+        uri = config.uri
+          .withPath(
+            Uri.Path
+              .unsafeFromString(
+                s"/api/workspaces/v1/${workspaceId.value}/resources"
+              )
+          )
+          .withMultiValueQueryParams(Map("resource" -> List("AZURE_STORAGE_CONTAINER"))),
+        headers = headers(authorization, ctx.traceId, false)
+      )
+    )(onError)
+    res <- resp.resources.headOption.traverse { resource =>
+      resource.resourceAttributes match {
+        case ResourceAttributes.RelayNamespaceResourceAttributes(_, _) =>
+          F.raiseError[StorageContainerResponse](
+            new RuntimeException(
+              "WSM bug. Trying to retrieve AZURE_STORAGE_CONTAINER but getting back AZURE_RELAY_NAMESPACE"
+            )
+          )
+        case ResourceAttributes.StorageContainerResourceAttributes(name) =>
+          F.pure(StorageContainerResponse(name, resource.metadata.resourceId))
+      }
+    }
+  } yield res
 
   private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(implicit
     ev: Ask[F, AppContext]
@@ -253,4 +289,5 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     else
       Headers(authorization, requestId)
   }
+
 }

@@ -318,6 +318,7 @@ object LeoPubsubMessage {
   final case class CreateAzureRuntimeMessage(runtimeId: Long,
                                              workspaceId: WorkspaceId,
                                              relayNamespace: RelayNamespace,
+                                             storageContainerResourceId: WsmControlledResourceId,
                                              traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
@@ -488,7 +489,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct4("runtimeId", "workspaceId", "relayNamespace", "traceId")(
+    Decoder.forProduct5("runtimeId", "workspaceId", "relayNamespace", "storageContainerResourceId", "traceId")(
       CreateAzureRuntimeMessage.apply
     )
 
@@ -827,9 +828,13 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "relayNamespace", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.workspaceId, x.relayNamespace, x.traceId)
-    )
+    Encoder.forProduct6("messageType",
+                        "runtimeId",
+                        "workspaceId",
+                        "relayNamespace",
+                        "storageContainerResourceId",
+                        "traceId"
+    )(x => (x.messageType, x.runtimeId, x.workspaceId, x.relayNamespace, x.storageContainerResourceId, x.traceId))
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
     Encoder.forProduct6("messageType", "runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(x =>

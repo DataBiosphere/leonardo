@@ -132,6 +132,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         cluster.id,
         workspaceId,
         relayNamespace,
+        WsmControlledResourceId(UUID.randomUUID()),
         Some(context.traceId)
       )
       message shouldBe expectedMessage

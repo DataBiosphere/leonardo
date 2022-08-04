@@ -31,6 +31,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtime: Runtime,
                                           relayeNamespace: RelayNamespace,
+                                          storageContainerResourceId: WsmControlledResourceId,
                                           runtimeConfig: RuntimeConfig.AzureConfig,
                                           vmImage: AzureImage
 )
@@ -43,7 +44,12 @@ final case class PollRuntimeParams(workspaceId: WorkspaceId,
 )
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
+                                          wsmUrl: Uri,
+                                          welderAcrUri: String,
+                                          welderImageHash: String,
                                           createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
                                           runtimeDefaults: AzureRuntimeDefaults
-)
+) {
+  def welderImage: String = s"$welderAcrUri:$welderImageHash"
+}

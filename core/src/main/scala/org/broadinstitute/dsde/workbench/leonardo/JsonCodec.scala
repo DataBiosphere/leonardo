@@ -321,6 +321,8 @@ object JsonCodec {
   implicit val blockSizeDecoder: Decoder[BlockSize] =
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
+  implicit val storageContainerNameDecoder: Decoder[StorageContainerName] =
+    Decoder.decodeString.map(StorageContainerName)
   implicit val pathDecoder: Decoder[Path] = Decoder.decodeString.map(s => Paths.get(s))
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")

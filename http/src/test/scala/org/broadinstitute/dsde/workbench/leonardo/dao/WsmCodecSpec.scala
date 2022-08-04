@@ -252,18 +252,18 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "decode getRelayNamespace response" in {
-    val expected = GetRelayNamespace(
+    val expected = GetWsmResourceResponse(
       List(
         WsmResource(
-          ResourceAttributes(
-            WsmRelayNamespace(RelayNamespace("qi-relay-ns-5-2-1"),
-                              region = com.azure.core.management.Region.US_WEST_CENTRAL
-            )
+          WsmResourceMetadata(WsmControlledResourceId(UUID.fromString("5f22f3ce-63d7-4790-aa98-fb5b4e5b0430"))),
+          ResourceAttributes.RelayNamespaceResourceAttributes(
+            RelayNamespace("qi-relay-ns-5-2-1"),
+            region = com.azure.core.management.Region.US_WEST_CENTRAL
           )
         )
       )
     )
-    val decodedResp = decode[GetRelayNamespace](
+    val decodedResp = decode[GetWsmResourceResponse](
       s"""
          |{
          |    "resources":

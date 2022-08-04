@@ -64,13 +64,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
       createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
-      _ <- createRuntime(CreateAzureRuntimeParams(msg.workspaceId,
-                                                  runtime,
-                                                  msg.relayNamespace,
-                                                  azureConfig,
-                                                  config.runtimeDefaults.image
-                         ),
-                         WsmJobControl(createVmJobId)
+      _ <- createRuntime(
+        CreateAzureRuntimeParams(msg.workspaceId,
+                                 runtime,
+                                 msg.relayNamespace,
+                                 msg.storageContainerResourceId,
+                                 azureConfig,
+                                 config.runtimeDefaults.image
+        ),
+        WsmJobControl(createVmJobId)
       )
       _ <- monitorCreateRuntime(
         PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
@@ -119,7 +121,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.listenerImage,
           config.samUrl.renderString,
           samResourceId.value.toString,
-          "csp.txt"
+          "csp.txt",
+          config.wsmUrl.renderString,
+          params.workspaceId.value.toString,
+          params.storageContainerResourceId.value.toString,
+          config.welderImage,
+          params.runtime.auditInfo.creator.value
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
