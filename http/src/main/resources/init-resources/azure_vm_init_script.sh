@@ -98,4 +98,4 @@ docker run -d --restart always --network host --name welder \
 --env type="azure" \
 --env STAGING_BUCKET="dummy" \
 --env IS_RSTUDIO_RUNTIME="false" \
-$WELDER_DOCKER_IMAGE
+$WELDER_WELDER_DOCKER_IMAGE
