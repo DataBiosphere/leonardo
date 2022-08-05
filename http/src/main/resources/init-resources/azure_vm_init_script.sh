@@ -24,10 +24,10 @@ sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 sudo systemctl disable --now jupyterhub.service
 
 #Read script arguments
-echo $# arguments
-if [$# -ne 13];
-    then echo "illegal number of parameters"
-fi
+#echo $# arguments
+#if [$# -ne 13];
+#    then echo "illegal number of parameters"
+#fi
 RELAY_NAME=$1
 RELAY_CONNECTION_NAME=$2
 RELAY_TARGET_HOST=$3
