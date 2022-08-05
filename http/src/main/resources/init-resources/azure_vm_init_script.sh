@@ -28,6 +28,8 @@ sudo systemctl disable --now jupyterhub.service
 #if [$# -ne 13];
 #    then echo "illegal number of parameters"
 #fi
+
+echo "reading input $@"
 RELAY_NAME=$1
 RELAY_CONNECTION_NAME=$2
 RELAY_TARGET_HOST=$3
