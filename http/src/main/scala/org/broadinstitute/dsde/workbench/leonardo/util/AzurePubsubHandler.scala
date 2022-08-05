@@ -116,7 +116,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.relayeNamespace.value,
           hcName.value,
           "localhost",
-          "listener",
           primaryKey.value,
           config.runtimeDefaults.listenerImage,
           config.samUrl.renderString,
