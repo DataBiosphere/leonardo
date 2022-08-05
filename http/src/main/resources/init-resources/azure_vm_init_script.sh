@@ -97,7 +97,7 @@ docker run -d --restart always --network host --name welder \
 --env WORKSPACE_ID=$WELDER_WORKSPACE_ID \
 --env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
 --env OWNER_EMAIL=$WELDER_OWNER_EMAIL \
---env type="azure" \
+--env CLOUD_PROVIDER="azure" \
 --env STAGING_BUCKET="dummy" \
 --env IS_RSTUDIO_RUNTIME="false" \
 $WELDER_WELDER_DOCKER_IMAGE
