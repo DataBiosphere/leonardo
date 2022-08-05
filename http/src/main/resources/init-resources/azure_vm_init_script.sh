@@ -23,13 +23,12 @@ sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
 sudo systemctl disable --now jupyterhub.service
 
-#Read script arguments
-#echo $# arguments
-#if [$# -ne 13];
-#    then echo "illegal number of parameters"
-#fi
+Read script arguments
+echo $# arguments
+if [$# -ne 13];
+    then echo "illegal number of parameters"
+fi
 
-echo "reading input $@"
 RELAY_NAME=$1
 RELAY_CONNECTION_NAME=$2
 RELAY_TARGET_HOST=$3
@@ -91,14 +90,14 @@ docker run -d --restart always --network host --name listener \
 --env LISTENER_CORSSUPPORTPROPERTIES_CONTENTSECURITYPOLICY="$(cat $CONTENTSECURITYPOLICY_FILE)" \
 --env LISTENER_TARGETPROPERTIES_TARGETHOST="http://${RELAY_TARGET_HOST}:8888" \
 $LISTENER_DOCKER_IMAGE
-#
-#docker run -d --restart always --network host --name welder \
-#--volume "/home/${VM_JUP_USER}":"/work" \
-#--env WSM_URL=$WELDER_WSM_URL \
-#--env WORKSPACE_ID=$WELDER_WORKSPACE_ID \
-#--env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
-#--env OWNER_EMAIL=$WELDER_OWNER_EMAIL \
-#--env type="azure" \
-#--env STAGING_BUCKET="dummy" \
-#--env IS_RSTUDIO_RUNTIME="false" \
-#$WELDER_WELDER_DOCKER_IMAGE
+
+docker run -d --restart always --network host --name welder \
+--volume "/home/${VM_JUP_USER}":"/work" \
+--env WSM_URL=$WELDER_WSM_URL \
+--env WORKSPACE_ID=$WELDER_WORKSPACE_ID \
+--env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
+--env OWNER_EMAIL=$WELDER_OWNER_EMAIL \
+--env type="azure" \
+--env STAGING_BUCKET="dummy" \
+--env IS_RSTUDIO_RUNTIME="false" \
+$WELDER_WELDER_DOCKER_IMAGE
