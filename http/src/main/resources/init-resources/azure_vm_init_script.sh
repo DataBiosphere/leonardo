@@ -90,7 +90,7 @@ docker run -d --restart always --network host --name listener \
 $LISTENER_DOCKER_IMAGE
 
 docker run -d --restart always --network host --name welder \
---volume "/home/${VM_JUP_USER}":/work \
+--volume "/home/${VM_JUP_USER}":"/work" \
 --env WSM_URL=$WELDER_WSM_URL \
 --env WORKSPACE_ID=$WELDER_WORKSPACE_ID \
 --env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
