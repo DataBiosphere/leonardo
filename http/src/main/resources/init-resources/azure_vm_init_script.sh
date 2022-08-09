@@ -44,6 +44,7 @@ WELDER_WORKSPACE_ID="${10:-dummy}"
 WELDER_STORAGE_CONTAINER_RESOURCE_ID="${11:-dummy}"
 WELDER_WELDER_DOCKER_IMAGE="${12:-dummy}"
 WELDER_OWNER_EMAIL="${13:-dummy}"
+WELDER_STAGING_BUCKET=$(stagingBucket)
 
 # Define environment variables for Jupyter Server customization
 
@@ -98,6 +99,6 @@ docker run -d --restart always --network host --name welder \
 --env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
 --env OWNER_EMAIL=$WELDER_OWNER_EMAIL \
 --env CLOUD_PROVIDER="azure" \
---env STAGING_BUCKET="dummy" \
+--env STAGING_BUCKET=$WELDER_STAGING_BUCKET \
 --env IS_RSTUDIO_RUNTIME="false" \
 $WELDER_WELDER_DOCKER_IMAGE
