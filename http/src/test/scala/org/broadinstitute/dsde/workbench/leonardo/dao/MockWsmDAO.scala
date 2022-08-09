@@ -261,5 +261,6 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
 
   override def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
-  ): IO[Option[StorageAccountResponse]] = IO.pure(None)
+  ): IO[Option[StorageAccountResponse]] =
+    IO.pure(Some(StorageAccountResponse(StorageAccountName("scn"), WsmControlledResourceId(UUID.randomUUID()))))
 }

@@ -46,9 +46,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         |    "managedBy" : "USER",
         |    "privateResourceUser" : {
         |      "userName" : "user1@example.com",
-        |      "privateResourceIamRole" : [
-        |        "EDITOR"
-        |      ]
+        |      "privateResourceIamRole" : "EDITOR"
         |    }
         |  },
         |  "azureIp" : {
@@ -83,9 +81,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         |    "managedBy" : "USER",
         |    "privateResourceUser" : {
         |      "userName" : "user1@example.com",
-        |      "privateResourceIamRole" : [
-        |        "EDITOR"
-        |      ]
+        |      "privateResourceIamRole" : "EDITOR"
         |    }
         |  },
         |  "azureNetwork" : {
@@ -121,9 +117,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         |    "managedBy" : "USER",
         |    "privateResourceUser" : {
         |      "userName" : "user1@example.com",
-        |      "privateResourceIamRole" : [
-        |        "EDITOR"
-        |      ]
+        |      "privateResourceIamRole" : "EDITOR"
         |    }
         |  },
         |  "azureDisk" : {
@@ -176,9 +170,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |    "managedBy" : "USER",
          |    "privateResourceUser" : {
          |      "userName" : "user1@example.com",
-         |      "privateResourceIamRole" : [
-         |        "EDITOR"
-         |      ]
+         |      "privateResourceIamRole" : "EDITOR"
          |    }
          |  },
          |  "azureVm" : {
@@ -199,7 +191,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/b1150ae08cadccea8ead69692631647367c478a5/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/b01e63af583a6107e37a59614ce4de1b5562a7fc/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
