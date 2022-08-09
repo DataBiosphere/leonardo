@@ -46,7 +46,7 @@ object Welder extends RestClient with LazyLogging {
     } yield body
   }
 
-  //use whatever pattern we are using in the UI
+  //The patterns for R/Rmd and Python are below:
   //.+(\\.R|\\.Rmd)$
   //.*.ipynb
   def postStorageLink(cluster: ClusterCopy, cloudStoragePath: GcsPath, pattern: String, isRStudio: Boolean)(implicit token: AuthToken): String = {

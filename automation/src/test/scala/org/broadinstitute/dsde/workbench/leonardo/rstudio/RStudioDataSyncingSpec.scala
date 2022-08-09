@@ -3,22 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.openqa.selenium.Keys
 import org.scalatest.DoNotDiscover
-import org.scalatest.tagobjects.Retryable
-import org.scalatest.time.{Minutes, Seconds, Span}
-
-import java.io.{ByteArrayInputStream, File}
-import java.math.BigInteger
-import java.nio.file.Files
-import java.security.MessageDigest
-import java.time.Instant
-import scala.concurrent.duration._
 
 /**
  * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
