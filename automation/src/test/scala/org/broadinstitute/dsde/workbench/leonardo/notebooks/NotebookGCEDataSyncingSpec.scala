@@ -47,10 +47,11 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
 
-              val localContent: NotebookContentItem = Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
-                                                                               runtimeFixture.runtime.clusterName,
-                                                                               Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
-              )
+              val localContent: NotebookContentItem =
+                Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
+                                         runtimeFixture.runtime.clusterName,
+                                         Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
+                )
               logger.info(s"[edit mode] local content is ${localContent}")
               val localContentSize: Int = localContent.size
 

@@ -185,7 +185,12 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   // initializes storageLinks/ and localizes the file to the passed gcsPath
-  def withWelderInitialized[T](cluster: ClusterCopy, gcsPath: GcsPath, pattern: String, shouldLocalizeFileInEditMode: Boolean, isRStudio: Boolean)(
+  def withWelderInitialized[T](cluster: ClusterCopy,
+                               gcsPath: GcsPath,
+                               pattern: String,
+                               shouldLocalizeFileInEditMode: Boolean,
+                               isRStudio: Boolean
+  )(
     testCode: File => T
   )(implicit token: AuthToken): T = {
     Welder.postStorageLink(cluster, gcsPath, pattern, isRStudio)

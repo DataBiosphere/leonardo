@@ -14,7 +14,7 @@ import org.scalatest.DoNotDiscover
  * and welder localization/delocalization.
  */
 @DoNotDiscover
-class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudioTestUtils{
+class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudioTestUtils {
   override def enableWelder: Boolean = true
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl)
@@ -28,12 +28,12 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
       resp.attempt.unsafeRunSync().isRight shouldBe true
     }
 
- // Create file make sure it syncs to bucket
- // Update file with out saving, wait for auto save, and verify file has update (content size changes)
+    // Create file make sure it syncs to bucket
+    // Update file with out saving, wait for auto save, and verify file has update (content size changes)
 
     "test Rmd file syncing" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.Rmd")
-      val isEditMode= false
+      val isEditMode = false
       val isRStudio = true
       withResourceFileInBucket(runtimeFixture.runtime.googleProject, sampleNotebook, "text/plain") { gcsPath =>
         withWelderInitialized(runtimeFixture.runtime, gcsPath, ".+(.R|.Rmd)$", isEditMode, isRStudio) { localizedFile =>
@@ -42,12 +42,12 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
               rstudioPage.pressKeys("install.packages('markdown')")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-              //Test to make sure that a file created in RStudio syncs properly
+              // Test to make sure that a file created in RStudio syncs properly
               rstudioPage.pressKeys("system(\"touch tests.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
               await visible cssSelector("[title~='tests.Rmd']")
 
-              //Sleep is used to give time for background syncing to take place
+              // Sleep is used to give time for background syncing to take place
               Thread.sleep(30000)
 
               logger.info(s"gcsPath ${gcsPath}")
@@ -63,7 +63,6 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
               rstudioPage.pressKeys("system(\"cat tests.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-
               Thread.sleep(30000)
 
               val newCreatedContentSize: Int =
@@ -73,13 +72,11 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
 
               newCreatedContentSize should be > oldCreatedContentSize
 
-              //Verify that a File in a bucket can be selected, updated, and synced
+              // Verify that a File in a bucket can be selected, updated, and synced
               val oldRemoteContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
               logger.info(s"Resource File's original size is ${oldRemoteContentSize}")
-
-
 
               rstudioPage.pressKeys("system(\"echo 'teterererrdffsfsfsfafafafafafafafafaffwewew' >> gcsFile.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
@@ -92,7 +89,7 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
 
               newRemoteContentSize should be > oldRemoteContentSize
 
-              //Verify that a File with an incorrect extension is not picked up
+              // Verify that a File with an incorrect extension is not picked up
               rstudioPage.pressKeys("system(\"touch tested.lmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
               await visible cssSelector("[title~='tested.lmd']")

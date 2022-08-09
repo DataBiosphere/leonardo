@@ -46,27 +46,28 @@ object Welder extends RestClient with LazyLogging {
     } yield body
   }
 
-  //The patterns for R/Rmd and Python are below:
-  //.+(\\.R|\\.Rmd)$
-  //.*.ipynb
-  def postStorageLink(cluster: ClusterCopy, cloudStoragePath: GcsPath, pattern: String, isRStudio: Boolean)(implicit token: AuthToken): String = {
+  def postStorageLink(cluster: ClusterCopy, cloudStoragePath: GcsPath, pattern: String, isRStudio: Boolean)(implicit
+    token: AuthToken
+  ): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
     val referer = Referer(Uri(refererUrl))
 
     val payload = isRStudio match {
-      case true => Map(
-        "localBaseDirectory" -> "",
-        "localSafeModeBaseDirectory" -> "",
-        "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
-        "pattern" -> s"${pattern}"
-      )
+      case true =>
+        Map(
+          "localBaseDirectory" -> "",
+          "localSafeModeBaseDirectory" -> "",
+          "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
+          "pattern" -> s"${pattern}"
+        )
 
-      case false =>  Map(
-        "localBaseDirectory" -> localBaseDirectory,
-        "localSafeModeBaseDirectory" -> localSafeModeBaseDirectory,
-        "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
-        "pattern" -> s"${pattern}"
-      )
+      case false =>
+        Map(
+          "localBaseDirectory" -> localBaseDirectory,
+          "localSafeModeBaseDirectory" -> localSafeModeBaseDirectory,
+          "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
+          "pattern" -> s"${pattern}"
+        )
     }
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
@@ -117,17 +118,16 @@ object Welder extends RestClient with LazyLogging {
   def parseMetadataResponse(response: String): Metadata =
     mapper.readValue(response, classOf[Metadata])
 
-  def getLocalPath(cloudStoragePath: GcsPath,  isEditMode: Boolean, isRStudio: Boolean): String =
+  def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean, isRStudio: Boolean): String =
     (if (!isRStudio) {
-      (if (isEditMode) {
-        localBaseDirectory
-      } else {
-        localSafeModeBaseDirectory
-      }) + "/"
-    }
-    else {
-      ""
-    }) + cloudStoragePath.objectName.value
+       (if (isEditMode) {
+          localBaseDirectory
+        } else {
+          localSafeModeBaseDirectory
+        }) + "/"
+     } else {
+       ""
+     }) + cloudStoragePath.objectName.value
 }
 
 object WelderJsonCodec {
