@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   googleProjectDecoder,
   relayNamespaceDecoder,
   runtimeNameEncoder,
+  storageAccountNameDecoder,
   storageContainerNameDecoder,
   storageContainerNameEncoder,
   workspaceIdDecoder,
@@ -103,7 +104,6 @@ trait WsmDao[F[_]] {
   ): F[Option[StorageAccountResponse]]
 }
 
-final case class StorageAccountName(value: String) extends AnyVal
 final case class StorageContainerRequest(storageAccountId: WsmControlledResourceId,
                                          storageContainerName: StorageContainerName
 )
@@ -226,7 +226,7 @@ final case class ControlledResourceCommonFields(name: ControlledResourceName,
 
 final case class ControlledResourceName(value: String) extends AnyVal
 final case class ControlledResourceDescription(value: String) extends AnyVal
-final case class PrivateResourceUser(userName: WorkbenchEmail, privateResourceIamRoles: List[ControlledResourceIamRole])
+final case class PrivateResourceUser(userName: WorkbenchEmail, privateResourceIamRoles: ControlledResourceIamRole)
 
 final case class WsmErrorReport(message: String, statusCode: Int, causes: List[String])
 final case class WsmJobReport(id: WsmJobId,
@@ -421,13 +421,17 @@ object WsmDecoders {
   implicit val storageContainerResourceAttributesDecoder
     : Decoder[ResourceAttributes.StorageContainerResourceAttributes] =
     Decoder.forProduct1("storageContainerName")(ResourceAttributes.StorageContainerResourceAttributes.apply)
+  implicit val storageAccountResourceAttributesDecoder: Decoder[ResourceAttributes.StorageAccountResourceAttributes] =
+    Decoder.forProduct2("storageAccountName", "region")(ResourceAttributes.StorageAccountResourceAttributes.apply)
   implicit val resourceAttributesDecoder: Decoder[ResourceAttributes] =
     Decoder.instance { x =>
       val decodeAsRelayNamespace =
         x.downField("azureRelayNamespace").as[ResourceAttributes.RelayNamespaceResourceAttributes]
       val decodeAsStorageContainer =
         x.downField("azureStorageContainer").as[ResourceAttributes.StorageContainerResourceAttributes]
-      decodeAsRelayNamespace orElse decodeAsStorageContainer
+      val decodeAsStorageAccount =
+        x.downField("azureStorage").as[ResourceAttributes.StorageAccountResourceAttributes]
+      decodeAsRelayNamespace orElse decodeAsStorageContainer orElse decodeAsStorageAccount
     }
   implicit val wsmResourceMetadataDecoder: Decoder[WsmResourceMetadata] =
     Decoder.forProduct1("resourceId")(WsmResourceMetadata.apply)
@@ -446,7 +450,7 @@ object WsmEncoders {
   implicit val controlledResourceIamRoleEncoder: Encoder[ControlledResourceIamRole] =
     Encoder.encodeString.contramap(x => x.toString)
   implicit val privateResourceUserEncoder: Encoder[PrivateResourceUser] =
-    Encoder.forProduct2("userName", "privateResourceIamRoles")(x => (x.userName.value, x.privateResourceIamRoles))
+    Encoder.forProduct2("userName", "privateResourceIamRole")(x => (x.userName.value, x.privateResourceIamRoles))
   implicit val wsmCommonFieldsEncoder: Encoder[ControlledResourceCommonFields] =
     Encoder.forProduct7("name",
                         "description",

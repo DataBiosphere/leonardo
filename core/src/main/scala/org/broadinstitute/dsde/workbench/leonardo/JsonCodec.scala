@@ -72,6 +72,8 @@ object JsonCodec {
   implicit val runtimeSamResourceIdEncoder: Encoder[RuntimeSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val storageContainerNameEncoder: Encoder[StorageContainerName] =
     Encoder.encodeString.contramap(_.value)
+  implicit val storageAccountNameEncoder: Encoder[StorageAccountName] =
+    Encoder.encodeString.contramap(_.value)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
   implicit val regionNameEncoder: Encoder[RegionName] = Encoder.encodeString.contramap(_.value)
@@ -325,6 +327,8 @@ object JsonCodec {
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val storageContainerNameDecoder: Decoder[StorageContainerName] =
     Decoder.decodeString.map(StorageContainerName)
+  implicit val storageAccountNameDecoder: Decoder[StorageAccountName] =
+    Decoder.decodeString.map(StorageAccountName)
   implicit val pathDecoder: Decoder[Path] = Decoder.decodeString.map(s => Paths.get(s))
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")

@@ -44,7 +44,7 @@ WELDER_WORKSPACE_ID="${10:-dummy}"
 WELDER_STORAGE_CONTAINER_RESOURCE_ID="${11:-dummy}"
 WELDER_WELDER_DOCKER_IMAGE="${12:-dummy}"
 WELDER_OWNER_EMAIL="${13:-dummy}"
-WELDER_STAGING_BUCKET=$(stagingBucket)
+WELDER_STAGING_BUCKET="${14:-dummy}"
 
 # Define environment variables for Jupyter Server customization
 

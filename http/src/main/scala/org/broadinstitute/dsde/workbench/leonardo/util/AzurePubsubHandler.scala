@@ -253,7 +253,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       Some(
         PrivateResourceUser(
           userEmail,
-          List(ControlledResourceIamRole.Writer)
+          ControlledResourceIamRole.Writer
         )
       ),
       resourceId
