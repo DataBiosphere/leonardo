@@ -329,7 +329,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, ""))
+        else
+          F.raiseError[Unit](
+            AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, "no read permission")
+          )
 
       // throw 403 if no DeleteApp permission
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
@@ -398,7 +401,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, ""))
+        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission"))
 
       // throw 403 if no StopStartApp permission
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
@@ -443,7 +446,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, ""))
+        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission"))
 
       // throw 403 if no StopStartApp permission
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
