@@ -35,7 +35,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import java.util.UUID
 import cats.mtl.Ask
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.http4s.headers.Authorization
 
@@ -87,7 +87,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
-        IO.pure(Some(StorageContainerResponse(StorageContainerName("dummy"), storageContainerResourceId)))
+        IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
     }
     val azureService = makeInterp(publisherQueue, wsmDao)
