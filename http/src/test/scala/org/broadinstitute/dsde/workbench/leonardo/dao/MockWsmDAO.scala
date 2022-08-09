@@ -5,7 +5,7 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -252,7 +252,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[StorageContainerResponse]] =
-    IO.pure(Some(StorageContainerResponse(StorageContainerName("dummy"), WsmControlledResourceId(UUID.randomUUID()))))
+    IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), WsmControlledResourceId(UUID.randomUUID()))))
 
   override def createStorageContainer(request: CreateStorageContainerRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]

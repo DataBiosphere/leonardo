@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.azure.{
   AzureCloudContext,
+  ContainerName,
   ManagedResourceGroupName,
   RelayNamespace,
   SubscriptionId,
@@ -104,9 +105,7 @@ trait WsmDao[F[_]] {
   ): F[Option[StorageAccountResponse]]
 }
 
-final case class StorageContainerRequest(storageAccountId: WsmControlledResourceId,
-                                         storageContainerName: StorageContainerName
-)
+final case class StorageContainerRequest(storageAccountId: WsmControlledResourceId, storageContainerName: ContainerName)
 final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
                                                commonFields: ControlledResourceCommonFields,
                                                storageContainerReq: StorageContainerRequest
@@ -133,7 +132,7 @@ final case class CustomScriptExtension(name: String,
                                        minorVersionAutoUpgrade: Boolean,
                                        protectedSettings: ProtectedSettings
 )
-final case class StorageContainerResponse(name: StorageContainerName, resourceId: WsmControlledResourceId)
+final case class StorageContainerResponse(name: ContainerName, resourceId: WsmControlledResourceId)
 final case class StorageAccountResponse(name: StorageAccountName, resourceId: WsmControlledResourceId)
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
@@ -161,7 +160,7 @@ object ResourceAttributes {
   final case class RelayNamespaceResourceAttributes(namespaceName: RelayNamespace,
                                                     region: com.azure.core.management.Region
   ) extends ResourceAttributes
-  final case class StorageContainerResourceAttributes(name: StorageContainerName) extends ResourceAttributes
+  final case class StorageContainerResourceAttributes(name: ContainerName) extends ResourceAttributes
   final case class StorageAccountResourceAttributes(storageAccountName: StorageAccountName,
                                                     region: com.azure.core.management.Region
   ) extends ResourceAttributes

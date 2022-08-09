@@ -50,8 +50,9 @@ object StagingBucket {
   final case class Gcp(value: GcsBucketName) extends StagingBucket {
     override def asString: String = value.value
   }
-  final case class Azure(storageAccount: StorageAccountName, storageContainerName: StorageContainerName)
-      extends StagingBucket {
+  final case class Azure(storageAccount: StorageAccountName,
+                         storageContainerName: org.broadinstitute.dsde.workbench.azure.ContainerName
+  ) extends StagingBucket {
     override def asString: String = s"${storageAccount.value}/${storageContainerName.value}"
   }
 }

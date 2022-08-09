@@ -8,7 +8,12 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineSizeTypes}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, RelayHybridConnectionName}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureCloudContext,
+  AzureRelayService,
+  ContainerName,
+  RelayHybridConnectionName
+}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
@@ -164,8 +169,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[StorageContainerName] = {
-    val stagingContainerName = StorageContainerName(s"ls-${params.runtime.runtimeName.asString}")
+  ): F[ContainerName] = {
+    val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
     val storageContainerCommonFields = getCommonFields(
       ControlledResourceName(s"c-${stagingContainerName}"),
       "leonardo staging bucket",
@@ -173,7 +178,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       None
     )
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       storageAccountOpt <- wsmDao.getWorkspaceStorageAccount(params.workspaceId, auth)
       storageAccount <- F.fromOption(
         storageAccountOpt,

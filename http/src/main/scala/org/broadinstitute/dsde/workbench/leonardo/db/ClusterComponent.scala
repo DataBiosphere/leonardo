@@ -3,7 +3,7 @@ package db
 
 import cats.data.Chain
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName}
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -481,7 +481,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                 val res = for {
                   splitted <- Either.catchNonFatal(s.split("/"))
                   storageAccountName <- Either.catchNonFatal(splitted(0)).map(StorageAccountName)
-                  storageContainerName <- Either.catchNonFatal(splitted(1)).map(StorageContainerName)
+                  storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
                 } yield StagingBucket.Azure(storageAccountName, storageContainerName)
                 res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
               }
