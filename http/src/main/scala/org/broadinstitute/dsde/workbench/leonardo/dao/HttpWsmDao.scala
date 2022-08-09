@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
+import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
@@ -112,6 +113,26 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
+  def createStorageContainer(request: CreateStorageContainerRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreateStorageContainerResult] = for {
+    ctx <- ev.ask
+    res <- httpClient.expectOr[CreateStorageContainerResult](
+      Request[F](
+        method = Method.POST,
+        uri = config.uri
+          .withPath(
+            Uri.Path
+              .unsafeFromString(
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/storageContainer"
+              )
+          ),
+        entity = request,
+        headers = headers(authorization, ctx.traceId, true)
+      )
+    )(onError)
+  } yield res
+
   override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]] =
@@ -197,21 +218,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[RelayNamespace]] =
     for {
-      ctx <- ev.ask
-      resp <- httpClient.expectOr[GetWsmResourceResponse](
-        Request[F](
-          method = Method.GET,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${workspaceId.value}/resources"
-                )
-            )
-            .withMultiValueQueryParams(Map("resource" -> List("AZURE_RELAY_NAMESPACE"))),
-          headers = headers(authorization, ctx.traceId, false)
-        )
-      )(onError)
+      resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureRelayNamespace)
     } yield resp.resources.collect {
       case r
           if r.resourceAttributes
@@ -224,6 +231,45 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]] = for {
+    resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureStorageContainer)
+    res = resp.resources.collect {
+      case r
+          if r.resourceAttributes
+            .isInstanceOf[ResourceAttributes.StorageContainerResourceAttributes] && r.resourceAttributes
+            .asInstanceOf[ResourceAttributes.StorageContainerResourceAttributes]
+            .name
+            .value
+            .startsWith("sc-") => // by WSM workspace storage container naming convention
+        val rr = r.resourceAttributes
+          .asInstanceOf[ResourceAttributes.StorageContainerResourceAttributes]
+        StorageContainerResponse(rr.name, r.metadata.resourceId)
+    }.headOption
+  } yield res
+
+  override def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[StorageAccountResponse]] = for {
+    resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureStorageAccount)
+    res <- resp.resources.headOption.traverse { resource =>
+      resource.resourceAttributes match {
+        case x: ResourceAttributes.StorageAccountResourceAttributes =>
+          F.pure(StorageAccountResponse(x.storageAccountName, resource.metadata.resourceId))
+        case _ =>
+          F.raiseError[StorageAccountResponse](
+            new RuntimeException(
+              "WSM bug. Trying to retrieve AZURE_STORAGE_ACCOUNT but none found"
+            )
+          )
+      }
+    }
+  } yield res
+
+  private def getWorkspaceResourceHelper(workspaceId: WorkspaceId,
+                                         authorization: Authorization,
+                                         wsmResourceType: WsmResourceType
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[GetWsmResourceResponse] = for {
     ctx <- ev.ask
     resp <- httpClient.expectOr[GetWsmResourceResponse](
       Request[F](
@@ -235,23 +281,11 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                 s"/api/workspaces/v1/${workspaceId.value}/resources"
               )
           )
-          .withMultiValueQueryParams(Map("resource" -> List("AZURE_STORAGE_CONTAINER"))),
+          .withMultiValueQueryParams(Map("resource" -> List(wsmResourceType.toString))),
         headers = headers(authorization, ctx.traceId, false)
       )
     )(onError)
-    res <- resp.resources.headOption.traverse { resource =>
-      resource.resourceAttributes match {
-        case ResourceAttributes.RelayNamespaceResourceAttributes(_, _) =>
-          F.raiseError[StorageContainerResponse](
-            new RuntimeException(
-              "WSM bug. Trying to retrieve AZURE_STORAGE_CONTAINER but getting back AZURE_RELAY_NAMESPACE"
-            )
-          )
-        case ResourceAttributes.StorageContainerResourceAttributes(name) =>
-          F.pure(StorageContainerResponse(name, resource.metadata.resourceId))
-      }
-    }
-  } yield res
+  } yield resp
 
   private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(implicit
     ev: Ask[F, AppContext]

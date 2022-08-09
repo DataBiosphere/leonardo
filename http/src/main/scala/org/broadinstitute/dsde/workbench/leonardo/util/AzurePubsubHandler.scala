@@ -104,6 +104,28 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createDiskAction = createDisk(params, auth)
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
+      // Creating staging container
+      stagingContainerName = s"ls-${params.runtime.runtimeName.asString}"
+      storageContainerCommonFields = getCommonFields(
+        ControlledResourceName(s"c-${stagingContainerName}"),
+        "leonardo staging bucket",
+        params.runtime.auditInfo.creator,
+        None
+      )
+      storageAccountOpt <- wsmDao.getWorkspaceStorageAccount(params.workspaceId, auth)
+      storageAccount <- F.fromOption(
+        storageAccountOpt,
+        new RuntimeException(s"${params.workspaceId} doesn't have a storage account provisioned properly")
+      )
+      _ <- wsmDao.createStorageContainer(
+        CreateStorageContainerRequest(
+          params.workspaceId,
+          storageContainerCommonFields,
+          StorageContainerRequest(storageAccount.resourceId, StorageContainerName(stagingContainerName))
+        ),
+        auth
+      )
+
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
         val vmCommon = getCommonFields(

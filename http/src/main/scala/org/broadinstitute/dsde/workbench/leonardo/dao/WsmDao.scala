@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   relayNamespaceDecoder,
   runtimeNameEncoder,
   storageContainerNameDecoder,
+  storageContainerNameEncoder,
   workspaceIdDecoder,
   wsmControlledResourceIdDecoder,
   wsmControlledResourceIdEncoder,
@@ -52,6 +53,10 @@ trait WsmDao[F[_]] {
   def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateVmResult]
+
+  def createStorageContainer(request: CreateStorageContainerRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreateStorageContainerResult]
 
   def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -92,8 +97,21 @@ trait WsmDao[F[_]] {
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
+
+  def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[StorageAccountResponse]]
 }
 
+final case class StorageAccountName(value: String) extends AnyVal
+final case class StorageContainerRequest(storageAccountId: WsmControlledResourceId,
+                                         storageContainerName: StorageContainerName
+)
+final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
+                                               commonFields: ControlledResourceCommonFields,
+                                               storageContainerReq: StorageContainerRequest
+)
+final case class CreateStorageContainerResult(resourceId: WsmControlledResourceId)
 final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
                                       azureContext: Option[AzureCloudContext],
@@ -116,6 +134,7 @@ final case class CustomScriptExtension(name: String,
                                        protectedSettings: ProtectedSettings
 )
 final case class StorageContainerResponse(name: StorageContainerName, resourceId: WsmControlledResourceId)
+final case class StorageAccountResponse(name: StorageAccountName, resourceId: WsmControlledResourceId)
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,
@@ -143,6 +162,9 @@ object ResourceAttributes {
                                                     region: com.azure.core.management.Region
   ) extends ResourceAttributes
   final case class StorageContainerResourceAttributes(name: StorageContainerName) extends ResourceAttributes
+  final case class StorageAccountResourceAttributes(storageAccountName: StorageAccountName,
+                                                    region: com.azure.core.management.Region
+  ) extends ResourceAttributes
 }
 
 final case class WsmResourceMetadata(resourceId: WsmControlledResourceId)
@@ -341,6 +363,8 @@ object WsmDecoders {
     } yield WsmVm(m)
   }
 
+  implicit val createStorageContainerResultDecoder: Decoder[CreateStorageContainerResult] =
+    Decoder.forProduct1("resourceId")(CreateStorageContainerResult.apply)
   implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
     for {
       tenantId <- c.downField("tenantId").as[String]
@@ -493,6 +517,12 @@ object WsmEncoders {
 
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =
     Encoder.forProduct3("common", "azureVm", "jobControl")(x => (x.common, x.vmData, x.jobControl))
+
+  implicit val storageContainerRequestEncoder: Encoder[StorageContainerRequest] =
+    Encoder.forProduct2("storageAccountId", "storageContainerName")(x => (x.storageAccountId, x.storageContainerName))
+
+  implicit val createStorageContainerRequestEncoder: Encoder[CreateStorageContainerRequest] =
+    Encoder.forProduct2("common", "azureStorageContainer")(x => (x.commonFields, x.storageContainerReq))
 
   implicit val deleteControlledAzureResourceRequestEncoder: Encoder[DeleteControlledAzureResourceRequest] =
     Encoder.forProduct1("jobControl")(x => x.jobControl)
