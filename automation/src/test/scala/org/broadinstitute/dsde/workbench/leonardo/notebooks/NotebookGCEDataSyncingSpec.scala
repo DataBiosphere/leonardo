@@ -36,9 +36,10 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     "open notebook in edit mode should work" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
+      val isRStudio = false
 
       withResourceFileInBucket(runtimeFixture.runtime.googleProject, sampleNotebook, "text/plain") { gcsPath =>
-        withWelderInitialized(runtimeFixture.runtime, gcsPath, isEditMode) { localizedFile =>
+        withWelderInitialized(runtimeFixture.runtime, gcsPath, ".*.ipynb", isEditMode, isRStudio) { localizedFile =>
           withWebDriver { implicit driver =>
             withOpenNotebook(runtimeFixture.runtime, localizedFile, 5.minutes) { notebookPage =>
               notebookPage.modeExists() shouldBe true
@@ -48,7 +49,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
               val localContent: NotebookContentItem = Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
                                                                                runtimeFixture.runtime.clusterName,
-                                                                               Welder.getLocalPath(gcsPath, isEditMode)
+                                                                               Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
               )
               logger.info(s"[edit mode] local content is ${localContent}")
               val localContentSize: Int = localContent.size
@@ -71,7 +72,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                 val gcsLockedBy: Option[String] =
                   getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()
                 val welderLockedBy: Option[String] =
-                  Welder.getMetadata(runtimeFixture.runtime, gcsPath, isEditMode).lastLockedBy
+                  Welder.getMetadata(runtimeFixture.runtime, gcsPath, isEditMode, isRStudio).lastLockedBy
 
                 gcsLockedBy should not be None
                 welderLockedBy should not be None
@@ -87,9 +88,10 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     "open notebook in playground mode should work" taggedAs Retryable in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile2.ipynb")
       val isEditMode = false
+      val isRStudio = false
 
       withResourceFileInBucket(runtimeFixture.runtime.googleProject, sampleNotebook, "text/plain") { gcsPath =>
-        withWelderInitialized(runtimeFixture.runtime, gcsPath, isEditMode) { localizedFile =>
+        withWelderInitialized(runtimeFixture.runtime, gcsPath, ".*.ipynb", isEditMode, isRStudio) { localizedFile =>
           withWebDriver { implicit driver =>
             withOpenNotebook(runtimeFixture.runtime, localizedFile, 5.minutes) { notebookPage =>
               val originalRemoteContentSize: Int =
@@ -100,7 +102,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               val originalLocalContent: NotebookContentItem =
                 Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
                                          runtimeFixture.runtime.clusterName,
-                                         Welder.getLocalPath(gcsPath, isEditMode)
+                                         Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
                 )
               logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
@@ -121,7 +123,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                 val newLocalContent: NotebookContentItem =
                   Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
                                            runtimeFixture.runtime.clusterName,
-                                           Welder.getLocalPath(gcsPath, isEditMode)
+                                           Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
                   )
                 val newLocalContentSize: Int = newLocalContent.size
                 logger.info(s"[playground mode] new local content is ${newLocalContent}")
@@ -150,7 +152,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               val gcsLockedBy: Option[String] =
                 getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()
               val welderLockedBy: Option[String] =
-                Welder.getMetadata(runtimeFixture.runtime, gcsPath, isEditMode).lastLockedBy
+                Welder.getMetadata(runtimeFixture.runtime, gcsPath, isEditMode, isRStudio).lastLockedBy
 
               gcsLockedBy shouldBe None
               welderLockedBy shouldBe None
@@ -164,9 +166,10 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
       val fileName = "gcsFile3" // we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
+      val isRStudio = false
 
       withResourceFileInBucket(runtimeFixture.runtime.googleProject, sampleNotebook, "text/plain") { gcsPath =>
-        withWelderInitialized(runtimeFixture.runtime, gcsPath, isEditMode) { localizedFile =>
+        withWelderInitialized(runtimeFixture.runtime, gcsPath, ".*.ipynb", isEditMode, isRStudio) { localizedFile =>
           withWebDriver { implicit driver =>
             withOpenNotebook(runtimeFixture.runtime, localizedFile, 5.minutes) { notebookPage =>
               val contents =
@@ -201,6 +204,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     "Locked by another user and playground mode transition handled correctly" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile4.ipynb")
       val isEditMode = true
+      val isRStudio = false
 
       withResourceFileInBucket(runtimeFixture.runtime.googleProject, sampleNotebook, "text/plain") { gcsPath =>
         // we set the lock before the notebook is open to cause a conflict
@@ -209,7 +213,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
         )
         setObjectMetadata(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), newMeta).unsafeRunSync
 
-        withWelderInitialized(runtimeFixture.runtime, gcsPath, isEditMode) { localizedFile =>
+        withWelderInitialized(runtimeFixture.runtime, gcsPath, ".*.ipynb", isEditMode, isRStudio) { localizedFile =>
           withWebDriver { implicit driver =>
             withOpenNotebook(runtimeFixture.runtime, localizedFile, 5.minutes) { notebookPage =>
               eventually(timeout(Span(2, Minutes))) { // wait for checkMeta tick

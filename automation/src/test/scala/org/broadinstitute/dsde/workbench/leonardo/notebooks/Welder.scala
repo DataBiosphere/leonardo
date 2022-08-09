@@ -46,16 +46,28 @@ object Welder extends RestClient with LazyLogging {
     } yield body
   }
 
-  def postStorageLink(cluster: ClusterCopy, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
+  //use whatever pattern we are using in the UI
+  //.+(\\.R|\\.Rmd)$
+  //.*.ipynb
+  def postStorageLink(cluster: ClusterCopy, cloudStoragePath: GcsPath, pattern: String, isRStudio: Boolean)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
     val referer = Referer(Uri(refererUrl))
 
-    val payload = Map(
-      "localBaseDirectory" -> localBaseDirectory,
-      "localSafeModeBaseDirectory" -> localSafeModeBaseDirectory,
-      "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
-      "pattern" -> ".*.ipynb"
-    )
+    val payload = isRStudio match {
+      case true => Map(
+        "localBaseDirectory" -> "",
+        "localSafeModeBaseDirectory" -> "",
+        "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
+        "pattern" -> s"${pattern}"
+      )
+
+      case false =>  Map(
+        "localBaseDirectory" -> localBaseDirectory,
+        "localSafeModeBaseDirectory" -> localSafeModeBaseDirectory,
+        "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
+        "pattern" -> s"${pattern}"
+      )
+    }
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
@@ -64,7 +76,7 @@ object Welder extends RestClient with LazyLogging {
     postRequest(path, payload, httpHeaders = List(cookie, referer))
   }
 
-  def localize(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit
+  def localize(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean, isRStudio: Boolean)(implicit
     token: AuthToken
   ): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
@@ -75,7 +87,7 @@ object Welder extends RestClient with LazyLogging {
       "entries" -> Array(
         Map(
           "sourceUri" -> cloudStoragePath.toUri,
-          "localDestinationPath" -> getLocalPath(cloudStoragePath, isEditMode)
+          "localDestinationPath" -> getLocalPath(cloudStoragePath, isEditMode, isRStudio)
         )
       )
     )
@@ -86,14 +98,14 @@ object Welder extends RestClient with LazyLogging {
     postRequest(path, payload, httpHeaders = List(cookie, referer))
   }
 
-  def getMetadata(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit
+  def getMetadata(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean, isRStudio: Boolean)(implicit
     token: AuthToken
   ): Metadata = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects/metadata"
     val referer = Referer(Uri(refererUrl))
 
     val payload = Map(
-      "localPath" -> getLocalPath(cloudStoragePath, isEditMode)
+      "localPath" -> getLocalPath(cloudStoragePath, isEditMode, isRStudio)
     )
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
@@ -105,12 +117,17 @@ object Welder extends RestClient with LazyLogging {
   def parseMetadataResponse(response: String): Metadata =
     mapper.readValue(response, classOf[Metadata])
 
-  def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean): String =
-    (if (isEditMode) {
-       localBaseDirectory
-     } else {
-       localSafeModeBaseDirectory
-     }) + "/" + cloudStoragePath.objectName.value
+  def getLocalPath(cloudStoragePath: GcsPath,  isEditMode: Boolean, isRStudio: Boolean): String =
+    (if (!isRStudio) {
+      (if (isEditMode) {
+        localBaseDirectory
+      } else {
+        localSafeModeBaseDirectory
+      }) + "/"
+    }
+    else {
+      ""
+    }) + cloudStoragePath.objectName.value
 }
 
 object WelderJsonCodec {

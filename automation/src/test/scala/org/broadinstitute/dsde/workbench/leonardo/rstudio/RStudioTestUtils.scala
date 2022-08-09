@@ -2,9 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Welder
+import org.broadinstitute.dsde.workbench.model.google.GcsPath
 import org.openqa.selenium.WebDriver
 import org.scalatest.TestSuite
 
+import java.io.File
 import scala.concurrent._
 import scala.concurrent.duration._
 
