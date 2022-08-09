@@ -201,13 +201,12 @@ class ProxyService(
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
-          loggerIO.error(ctx.loggingCtx)(
-            s"Unable to look up sam resource for ${key.toString}"
-          ) >> IO.raiseError(
+          IO.raiseError(
             AppNotFoundException(
               CloudContext.Gcp(key.googleProject),
               key.name,
-              ctx.traceId
+              ctx.traceId,
+              s"Unable to look up sam resource for ${key.toString}"
             )
           )
       }
@@ -296,7 +295,9 @@ class ProxyService(
       hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
       _ <-
         if (!hasViewPermission) {
-          IO.raiseError(AppNotFoundException(CloudContext.Gcp(googleProject), appName, ctx.traceId))
+          IO.raiseError(
+            AppNotFoundException(CloudContext.Gcp(googleProject), appName, ctx.traceId, "no view permission")
+          )
         } else IO.unit
       hasConnectPermission <- authProvider.hasPermission(samResource, AppAction.ConnectToApp, userInfo)
       _ <-

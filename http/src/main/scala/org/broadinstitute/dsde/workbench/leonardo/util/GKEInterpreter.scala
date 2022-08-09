@@ -307,7 +307,11 @@ class GKEInterpreter[F[_]](
         .getActiveFullAppByName(CloudContext.Gcp(params.googleProject), params.appName)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
-                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject),
+                                                 params.appName,
+                                                 ctx.traceId,
+                                                 "No active app found in DB"
+                            )
       )
 
       app = dbApp.app
@@ -597,7 +601,11 @@ class GKEInterpreter[F[_]](
         .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
-                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject),
+                                                 params.appName,
+                                                 ctx.traceId,
+                                                 "No active app found in DB"
+                            )
       )
 
       app = dbApp.app
@@ -692,7 +700,11 @@ class GKEInterpreter[F[_]](
         .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
-                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject),
+                                                 params.appName,
+                                                 ctx.traceId,
+                                                 "No active app found in DB"
+                            )
       )
       dbNodepool = dbApp.nodepool
       dbCluster = dbApp.cluster
@@ -777,7 +789,11 @@ class GKEInterpreter[F[_]](
         .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
-                            AppNotFoundException(CloudContext.Gcp(params.googleProject), params.appName, ctx.traceId)
+                            AppNotFoundException(CloudContext.Gcp(params.googleProject),
+                                                 params.appName,
+                                                 ctx.traceId,
+                                                 "No active app found in DB"
+                            )
       )
       dbNodepool = dbApp.nodepool
       dbCluster = dbApp.cluster

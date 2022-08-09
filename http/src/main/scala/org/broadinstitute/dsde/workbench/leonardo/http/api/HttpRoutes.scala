@@ -76,7 +76,7 @@ class HttpRoutes(
       case leoException: LeoException =>
         logger
           .error(leoException.getLoggingContext, leoException)(
-            s"request failed due to: ${leoException.getMessage}"
+            s"request failed due to: ${leoException.getLoggingMessage}"
           )
           .unsafeToFuture()
         complete(leoException.statusCode, leoException.toErrorReport)

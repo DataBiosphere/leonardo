@@ -388,7 +388,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       AppNotFoundException(
         savedCluster1.cloudContext,
         AppName("non-existent"),
-        ctx.traceId
+        ctx.traceId,
+        "No active app found in DB"
       )
     ))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

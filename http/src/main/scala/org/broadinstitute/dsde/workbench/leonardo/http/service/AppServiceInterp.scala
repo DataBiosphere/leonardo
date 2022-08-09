@@ -257,7 +257,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- as.ask
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
-      app <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId))
+      app <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB"))
 
       hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
       _ <-
@@ -266,7 +266,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           log.info(ctx.loggingCtx)(
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
-            .raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId))
+            .raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "permission denied"))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
@@ -318,7 +318,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appOpt <- KubernetesServiceDbQueries
         .getActiveFullAppByName(request.cloudContext, request.appName)
         .transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(request.cloudContext, request.appName, ctx.traceId))
+      appResult <- F.fromOption(
+        appOpt,
+        AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, "No active app found in DB")
+      )
 
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, request.userInfo)
 
@@ -326,7 +329,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(request.cloudContext, request.appName, ctx.traceId))
+        else F.raiseError[Unit](AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, ""))
 
       // throw 403 if no DeleteApp permission
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
@@ -385,7 +388,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- as.ask
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId))
+      appResult <- F.fromOption(appOpt,
+                                AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+      )
 
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
@@ -393,7 +398,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId))
+        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, ""))
 
       // throw 403 if no StopStartApp permission
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
@@ -428,7 +433,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- as.ask
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
-      appResult <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId))
+      appResult <- F.fromOption(appOpt,
+                                AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+      )
 
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
@@ -436,7 +443,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
       _ <-
         if (hasReadPermission) F.unit
-        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId))
+        else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, ""))
 
       // throw 403 if no StopStartApp permission
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
@@ -732,10 +739,12 @@ object LeoAppServiceInterp {
     aSplited(0) == bSplited(0) && aSplited(1) == bSplited(1)
   }
 }
-case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId)
+case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
     extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} not found.",
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
       StatusCodes.NotFound,
+      null,
+      extraMsg,
       traceId = Some(traceId)
     )
 

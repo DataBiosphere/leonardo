@@ -13,9 +13,12 @@ import scala.util.control.NoStackTrace
 class LeoException(val message: String = null,
                    val statusCode: StatusCode = StatusCodes.InternalServerError,
                    val cause: Throwable = null,
+                   extraMessageInLogging: String = "",
                    traceId: Option[TraceId]
 ) extends WorkbenchException(message, cause) {
   override def getMessage: String = if (message != null) message else super.getMessage
+
+  def getLoggingMessage: String = s"${getMessage}. ${extraMessageInLogging}"
   def getLoggingContext: Map[String, String] = traceId match {
     case Some(value) => Map("traceId" -> value.asString)
     case None        => Map.empty
