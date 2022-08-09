@@ -29,7 +29,7 @@ ENV TERRA_APP_VERSION 0.3.0
 ENV GALAXY_VERSION 1.6.1
 ENV NGINX_VERSION 3.23.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.39
+ENV CROMWELL_CHART_VERSION 0.2.67
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
