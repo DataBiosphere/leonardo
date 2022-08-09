@@ -313,9 +313,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   ): F[Unit] =
     // Get the staging bucket path for this cluster, then set the age for it to be deleted the specified number of days after the deletion of the cluster.
     clusterQuery.getStagingBucket(runtime.cloudContext, runtime.runtimeName).transaction.flatMap {
-      case None =>
+      case None | Some(StagingBucket.Azure(_, _)) =>
         logger.warn(s"Could not lookup staging bucket for cluster ${runtime.projectNameString}: cluster not in db")
-      case Some(bucketPath) =>
+      case Some(StagingBucket.Gcp(bucketName)) =>
         val res = for {
           ctx <- ev.ask
           ageToDelete =
@@ -324,7 +324,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           action = BucketInfo.LifecycleRule.LifecycleAction.newDeleteAction()
           rule = new BucketInfo.LifecycleRule(action, condition)
           _ <- googleStorage
-            .setBucketLifecycle(bucketPath.bucketName, List(rule), Some(ctx.traceId))
+            .setBucketLifecycle(bucketName, List(rule), Some(ctx.traceId))
             .compile
             .drain
             .recoverWith { case e: com.google.cloud.storage.StorageException =>
@@ -333,7 +333,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               else logger.error(ctx.loggingCtx)("Fail to delete storage bucket")
             }
           _ <- logger.debug(
-            s"Set staging bucket $bucketPath for cluster ${runtime.projectNameString} to be deleted in fake days."
+            s"Set staging bucket $bucketName for cluster ${runtime.projectNameString} to be deleted in fake days."
           )
         } yield ()
 

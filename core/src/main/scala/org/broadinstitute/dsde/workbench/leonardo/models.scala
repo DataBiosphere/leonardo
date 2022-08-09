@@ -1,9 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.util.UUID
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+
+import java.util.UUID
 
 final case class WorkspaceId(value: UUID) extends AnyVal
 
@@ -40,4 +41,17 @@ object CloudProvider {
   }
 
   val stringToCloudProvider = sealerate.values[CloudProvider].map(p => (p.asString, p)).toMap
+}
+
+sealed abstract class StagingBucket extends Product with Serializable {
+  def asString: String
+}
+object StagingBucket {
+  final case class Gcp(value: GcsBucketName) extends StagingBucket {
+    override def asString: String = value.value
+  }
+  final case class Azure(storageAccount: StorageAccountName, storageContainerName: StorageContainerName)
+      extends StagingBucket {
+    override def asString: String = s"${storageAccount.value}/${storageContainerName.value}"
+  }
 }

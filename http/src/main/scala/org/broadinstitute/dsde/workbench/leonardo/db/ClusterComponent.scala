@@ -465,14 +465,29 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def getStagingBucket(cloudContext: CloudContext, name: RuntimeName)(implicit
     ec: ExecutionContext
-  ): DBIO[Option[GcsPath]] =
+  ): DBIO[Option[StagingBucket]] =
     clusterQuery
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
-      .map(_.stagingBucket)
+      .map(x => (x.cloudProvider, x.stagingBucket))
       .result
       // staging bucket is saved as a bucket name rather than a path
-      .map(recs => recs.headOption.flatten.flatMap(head => parseGcsPath("gs://" + head + "/").toOption))
+      .map(recs =>
+        recs.headOption.flatMap { head =>
+          head._1 match {
+            case CloudProvider.Gcp => head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
+            case CloudProvider.Azure =>
+              head._2.map { s =>
+                val res = for {
+                  splitted <- Either.catchNonFatal(s.split("/"))
+                  storageAccountName <- Either.catchNonFatal(splitted(0)).map(StorageAccountName)
+                  storageContainerName <- Either.catchNonFatal(splitted(1)).map(StorageContainerName)
+                } yield StagingBucket.Azure(storageAccountName, storageContainerName)
+                res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
+              }
+          }
+        }
+      )
 
   def getClusterStatus(id: Long): DBIO[Option[RuntimeStatus]] =
     findByIdQuery(id).map(_.status).result.headOption
@@ -551,6 +566,12 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter(x => x.id === id)
       .map(c => (c.hostIp, c.dateAccessed))
       .update((hostIp, dateAccessed))
+
+  def updateStagingBucket(id: Long, stagingBucket: Option[StagingBucket], dateAccessed: Instant): DBIO[Int] =
+    clusterQuery
+      .filter(x => x.id === id)
+      .map(c => (c.stagingBucket, c.dateAccessed))
+      .update((stagingBucket.map(_.asString), dateAccessed))
 
   def updateAsyncClusterCreationFields(updateAsyncClusterCreationFields: UpdateAsyncClusterCreationFields): DBIO[Int] =
     findByIdQuery(updateAsyncClusterCreationFields.clusterId)
