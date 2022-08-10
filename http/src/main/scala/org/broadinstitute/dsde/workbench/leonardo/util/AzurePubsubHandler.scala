@@ -110,7 +110,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
-      stagingContainerName = createStorageContainer(params, auth)
+      stagingContainerName <- createStorageContainer(params, auth)
 
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
@@ -134,7 +134,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.storageContainerResourceId.value.toString,
           config.welderImage,
           params.runtime.auditInfo.creator.value,
-          stagingContainerName
+          stagingContainerName.value
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
@@ -172,7 +172,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   ): F[ContainerName] = {
     val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
     val storageContainerCommonFields = getCommonFields(
-      ControlledResourceName(s"c-${stagingContainerName}"),
+      ControlledResourceName(s"c-${stagingContainerName.value}"),
       "leonardo staging bucket",
       params.runtime.auditInfo.creator,
       None

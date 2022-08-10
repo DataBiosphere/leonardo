@@ -101,11 +101,12 @@ class AzurePubsubHandlerSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
         controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
       } yield {
-        controlledResources.length shouldBe 3
+        controlledResources.length shouldBe 4
         val resourceTypes = controlledResources.map(_.resourceType)
         resourceTypes.contains(WsmResourceType.AzureVm) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureNetwork) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
+        resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
         controlledResources.map(_.resourceId).contains(resourceId) shouldBe true
       }
 
