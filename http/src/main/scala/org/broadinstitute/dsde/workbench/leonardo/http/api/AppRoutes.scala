@@ -247,7 +247,7 @@ object AppRoutes {
       "labels"
     )(x =>
       (x.cloudContext,
-       x.cloudContext,
+       x.cloudContext.asString,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,
