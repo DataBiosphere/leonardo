@@ -10,8 +10,7 @@ import org.openqa.selenium.Keys
 import org.scalatest.DoNotDiscover
 
 /**
- * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
- * and welder localization/delocalization.
+ * This spec verifies Rmd data syncing functionality with welder
  */
 @DoNotDiscover
 class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudioTestUtils {
@@ -27,10 +26,7 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
       val resp = Welder.getWelderStatus(runtimeFixture.runtime)
       resp.attempt.unsafeRunSync().isRight shouldBe true
     }
-
-    // Create file make sure it syncs to bucket
-    // Update file with out saving, wait for auto save, and verify file has update (content size changes)
-
+    
     "test Rmd file syncing" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.Rmd")
       val isEditMode = false
@@ -46,9 +42,6 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
               rstudioPage.pressKeys("system(\"touch tests.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
               await visible cssSelector("[title~='tests.Rmd']")
-
-              // Sleep is used to give time for background syncing to take place
-              logger.info(s"gcsPath ${gcsPath}")
 
               val oldCreatedContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName("tests.Rmd"))
