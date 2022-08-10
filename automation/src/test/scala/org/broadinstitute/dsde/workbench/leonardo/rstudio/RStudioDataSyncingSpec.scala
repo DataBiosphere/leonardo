@@ -48,8 +48,6 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
               await visible cssSelector("[title~='tests.Rmd']")
 
               // Sleep is used to give time for background syncing to take place
-              Thread.sleep(30000)
-
               logger.info(s"gcsPath ${gcsPath}")
 
               val oldCreatedContentSize: Int =
@@ -63,7 +61,7 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
               rstudioPage.pressKeys("system(\"cat tests.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-              Thread.sleep(30000)
+              Thread.sleep(25000)
 
               val newCreatedContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName("tests.Rmd"))
@@ -81,7 +79,7 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
               rstudioPage.pressKeys("system(\"echo 'teterererrdffsfsfsfafafafafafafafafaffwewew' >> gcsFile.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-              Thread.sleep(30000)
+              Thread.sleep(25000)
               val newRemoteContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
@@ -94,12 +92,10 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
               rstudioPage.pressKeys(Keys.ENTER.toString)
               await visible cssSelector("[title~='tested.lmd']")
 
-              Thread.sleep(30000)
-
               rstudioPage.pressKeys("system(\"echo 'teterererrdffsfsfsfafafafafafafafafaffwewew' >> tested.lmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-              Thread.sleep(30000)
+              Thread.sleep(25000)
 
               val incorrectFileEndingContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName("tested.lmd"))
