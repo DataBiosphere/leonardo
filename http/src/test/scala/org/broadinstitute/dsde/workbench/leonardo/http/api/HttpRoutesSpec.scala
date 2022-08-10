@@ -656,7 +656,8 @@ class HttpRoutesSpec
     Get("/api/google/v1/apps/googleProject1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
-      responseAs[Vector[ListAppResponse]] shouldBe listAppResponse
+      val response = responseAs[Vector[ListAppResponse]]
+      response shouldBe listAppResponse
     }
   }
 
