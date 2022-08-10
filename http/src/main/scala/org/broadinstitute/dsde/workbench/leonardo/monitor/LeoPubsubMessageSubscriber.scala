@@ -986,7 +986,10 @@ class LeoPubsubMessageSubscriber[F[_]](
       dbAppOpt <- KubernetesServiceDbQueries
         .getFullAppByName(CloudContext.Gcp(msg.project), msg.appId)
         .transaction // TODO: support Azure
-      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(CloudContext.Gcp(msg.project), msg.appName, ctx.traceId))
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(CloudContext.Gcp(msg.project), msg.appName, ctx.traceId, "No active app found in DB")
+      )
       zone = ZoneName("us-central1-a")
 
       getPostgresDiskOp = dbApp.app.appResources.disk.flatTraverse { d =>
