@@ -26,7 +26,7 @@ class RStudioDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils w
       val resp = Welder.getWelderStatus(runtimeFixture.runtime)
       resp.attempt.unsafeRunSync().isRight shouldBe true
     }
-    
+
     "test Rmd file syncing" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.Rmd")
       val isEditMode = false
