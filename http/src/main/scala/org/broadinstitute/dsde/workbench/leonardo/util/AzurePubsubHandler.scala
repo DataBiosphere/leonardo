@@ -172,7 +172,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   ): F[ContainerName] = {
     val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
     val storageContainerCommonFields = getCommonFields(
-      ControlledResourceName(s"c-${stagingContainerName}"),
+      ControlledResourceName(s"c-${stagingContainerName.value}"),
       "leonardo staging bucket",
       params.runtime.auditInfo.creator,
       None
