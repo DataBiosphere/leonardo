@@ -183,7 +183,7 @@ class ProxyService(
             RuntimeNotFoundException(
               key.cloudContext,
               key.name,
-              s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.googleProject.value} / ${key.name.asString}. Request: ${ctx.requestUri}"
+              s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.cloudContext.asStringWithProvider} / ${key.name.asString}. Request: ${ctx.requestUri}"
             )
           )
       }

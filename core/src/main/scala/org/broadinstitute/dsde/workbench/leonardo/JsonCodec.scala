@@ -70,6 +70,10 @@ object JsonCodec {
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeSamResourceIdEncoder: Encoder[RuntimeSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
+  implicit val storageContainerNameEncoder: Encoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
+    Encoder.encodeString.contramap(_.value)
+  implicit val storageAccountNameEncoder: Encoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
+    Encoder.encodeString.contramap(_.value)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
   implicit val regionNameEncoder: Encoder[RegionName] = Encoder.encodeString.contramap(_.value)
@@ -321,6 +325,10 @@ object JsonCodec {
   implicit val blockSizeDecoder: Decoder[BlockSize] =
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
+  implicit val storageContainerNameDecoder: Decoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
+    Decoder.decodeString.map(org.broadinstitute.dsde.workbench.azure.ContainerName)
+  implicit val storageAccountNameDecoder: Decoder[StorageAccountName] =
+    Decoder.decodeString.map(StorageAccountName)
   implicit val pathDecoder: Decoder[Path] = Decoder.decodeString.map(s => Paths.get(s))
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")

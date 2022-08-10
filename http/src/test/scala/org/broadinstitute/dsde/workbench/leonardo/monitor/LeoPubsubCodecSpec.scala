@@ -22,6 +22,8 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
+  val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
+
   it should "encode/decode CreateRuntimeMessage.GceConfig properly" in {
     val now = Instant.now()
     val originalMessage = CreateRuntimeMessage(
@@ -120,7 +122,12 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
 
   it should "encode/decode CreateAzureRuntimeMessage properly" in {
     val originalMessage =
-      CreateAzureRuntimeMessage(1, WorkspaceId(UUID.randomUUID()), RelayNamespace("relay-ns"), None)
+      CreateAzureRuntimeMessage(1,
+                                WorkspaceId(UUID.randomUUID()),
+                                RelayNamespace("relay-ns"),
+                                storageContainerResourceId,
+                                None
+      )
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
 

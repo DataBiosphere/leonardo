@@ -8,7 +8,12 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineSizeTypes}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, RelayHybridConnectionName}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureCloudContext,
+  AzureRelayService,
+  ContainerName,
+  RelayHybridConnectionName
+}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
@@ -64,13 +69,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
       createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
-      _ <- createRuntime(CreateAzureRuntimeParams(msg.workspaceId,
-                                                  runtime,
-                                                  msg.relayNamespace,
-                                                  azureConfig,
-                                                  config.runtimeDefaults.image
-                         ),
-                         WsmJobControl(createVmJobId)
+      _ <- createRuntime(
+        CreateAzureRuntimeParams(msg.workspaceId,
+                                 runtime,
+                                 msg.relayNamespace,
+                                 msg.storageContainerResourceId,
+                                 azureConfig,
+                                 config.runtimeDefaults.image
+        ),
+        WsmJobControl(createVmJobId)
       )
       _ <- monitorCreateRuntime(
         PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
@@ -102,6 +109,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createDiskAction = createDisk(params, auth)
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
+      // Creating staging container
+      stagingContainerName = createStorageContainer(params, auth)
+
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
         val vmCommon = getCommonFields(
@@ -114,12 +124,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.relayeNamespace.value,
           hcName.value,
           "localhost",
-          "listener",
           primaryKey.value,
           config.runtimeDefaults.listenerImage,
           config.samUrl.renderString,
           samResourceId.value.toString,
-          "csp.txt"
+          "csp.txt",
+          config.wsmUrl.renderString,
+          params.workspaceId.value.toString,
+          params.storageContainerResourceId.value.toString,
+          config.welderImage,
+          params.runtime.auditInfo.creator.value,
+          stagingContainerName
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
@@ -151,6 +166,43 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
+
+  private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[ContainerName] = {
+    val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
+    val storageContainerCommonFields = getCommonFields(
+      ControlledResourceName(s"c-${stagingContainerName}"),
+      "leonardo staging bucket",
+      params.runtime.auditInfo.creator,
+      None
+    )
+    for {
+      ctx <- ev.ask[AppContext]
+      storageAccountOpt <- wsmDao.getWorkspaceStorageAccount(params.workspaceId, auth)
+      storageAccount <- F.fromOption(
+        storageAccountOpt,
+        new RuntimeException(s"${params.workspaceId} doesn't have a storage account provisioned properly")
+      )
+      resp <- wsmDao.createStorageContainer(
+        CreateStorageContainerRequest(
+          params.workspaceId,
+          storageContainerCommonFields,
+          StorageContainerRequest(storageAccount.resourceId, stagingContainerName)
+        ),
+        auth
+      )
+      _ <- controlledResourceQuery
+        .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
+        .transaction
+      _ <- clusterQuery
+        .updateStagingBucket(params.runtime.id,
+                             Some(StagingBucket.Azure(storageAccount.name, stagingContainerName)),
+                             ctx.now
+        )
+        .transaction
+    } yield stagingContainerName
+  }
 
   private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -224,7 +276,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       Some(
         PrivateResourceUser(
           userEmail,
-          List(ControlledResourceIamRole.Writer)
+          ControlledResourceIamRole.Writer
         )
       ),
       resourceId
@@ -352,6 +404,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
           .void
       }
+
+      // TODO: delete staging container. Currently WSM doesn't expose delete API yet
 
       // Delete hybrid connection for this VM
       leoAuth <- samDAO.getLeoAuthToken
