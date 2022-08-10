@@ -78,6 +78,7 @@ class LeoPubsubMessageSubscriberSpec
     with MockitoSugar
     with Eventually
     with LeonardoTestSuite {
+  val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   val mockWelderDAO = mock[WelderDAO[IO]]
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO() {
@@ -1720,7 +1721,12 @@ class LeoPubsubMessageSubscriberSpec
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
         jobId <- IO.delay(UUID.randomUUID())
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        RelayNamespace("relay-ns"),
+                                        storageContainerResourceId,
+                                        None
+        )
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 

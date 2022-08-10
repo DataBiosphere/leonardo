@@ -505,7 +505,7 @@ object CommonTestData {
     Some(
       PrivateResourceUser(
         userEmail,
-        List(ControlledResourceIamRole.Editor)
+        ControlledResourceIamRole.Editor
       )
     ),
     None

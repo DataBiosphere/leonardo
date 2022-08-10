@@ -6,10 +6,11 @@ import com.google.cloud.Identity
 import jdk.jshell.spi.ExecutionControl.NotImplementedException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.StorageRole.ObjectAdmin
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, RemoveObjectResult, StorageRole}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.Sam
+import org.broadinstitute.dsde.workbench.util2.RemoveObjectResult
 import org.http4s.headers.Authorization
 import org.openqa.selenium.WebDriver
 import org.scalatest.TestSuite
