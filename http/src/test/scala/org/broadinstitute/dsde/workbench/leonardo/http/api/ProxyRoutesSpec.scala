@@ -187,15 +187,16 @@ class ProxyRoutesSpec
   it should s"pass through paths in runtime proxy requests" in {
     val queue = Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val proxyService =
-      new MockProxyService(proxyConfig,
-                           MockJupyterDAO,
-                           whitelistAuthProvider,
-                           runtimeDnsCache,
-                           kubernetesDnsCache,
-                           googleTokenCache,
-                           samResourceCache,
-                           MockGoogleOAuth2Service,
-                           queue = Some(queue)
+      new MockProxyService(
+        proxyConfig,
+        MockJupyterDAO,
+        whitelistAuthProvider,
+        runtimeDnsCache,
+        kubernetesDnsCache,
+        googleTokenCache,
+        samResourceCache,
+        MockGoogleOAuth2Service,
+        queue = Some(queue)
       )
     samResourceCache.put(
       RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
@@ -465,15 +466,16 @@ class ProxyRoutesSpec
         IO.pure(None)
     }
     val proxyService =
-      new MockProxyService(proxyConfig,
-                           MockJupyterDAO,
-                           whitelistAuthProvider,
-                           runtimeDnsCache,
-                           kubernetesDnsCache,
-                           googleTokenCache,
-                           samResourceCache,
-                           MockGoogleOAuth2Service,
-                           samDAO = Some(samDao)
+      new MockProxyService(
+        proxyConfig,
+        MockJupyterDAO,
+        whitelistAuthProvider,
+        runtimeDnsCache,
+        kubernetesDnsCache,
+        googleTokenCache,
+        samResourceCache,
+        MockGoogleOAuth2Service,
+        samDAO = Some(samDao)
       )
     val httpRoutes = new HttpRoutes(
       openIdConnectionConfiguration,

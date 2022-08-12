@@ -39,16 +39,17 @@ class HttpRoutesSpec
   val googleProject = "dsp-leo-test"
 
   val routes =
-    new HttpRoutes(openIdConnectionConfiguration,
-                   statusService,
-                   proxyService,
-                   MockRuntimeServiceInterp,
-                   MockDiskServiceInterp,
-                   MockAppService,
-                   new MockRuntimeV2Interp,
-                   timedUserInfoDirectives,
-                   contentSecurityPolicy,
-                   refererConfig
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      refererConfig
     )
 
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
