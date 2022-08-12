@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.effect.{IO, Ref}
+import cats.effect.{IO, Resource}
 import cats.implicits._
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.proxyRedirectServerPortKey
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.client.Client
 import org.http4s.dsl.io._
-import org.http4s.headers.{`Content-Type`, Referer}
+import org.http4s.headers.{Referer, `Content-Type`}
 import org.http4s.implicits._
 import org.http4s.server.Server
 import org.http4s._
@@ -25,8 +25,8 @@ object ProxyRedirectClient {
   //
   // There might be more than one server running if there's more than one test using
   // `NewBillingProjectAndWorkspaceBeforeAndAfterAll`
-  private val serverRef: Ref[IO, Map[Int, (Server, IO[Unit])]] =
-    Ref.of[IO, Map[Int, (Server, IO[Unit])]](Map.empty).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//  private val serverRef: Ref[IO, Map[Int, (Server, IO[Unit])]] =
+//    Ref.of[IO, Map[Int, (Server, IO[Unit])]](Map.empty).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   // If test is running in headless mode, hostname needs to work in a docker container
   val host = sys.props.get("headless") match {
@@ -34,18 +34,21 @@ object ProxyRedirectClient {
     case _            => "localhost"
   }
 
-  def startServer(): IO[Int] =
-    for {
-      serverAndShutDown <- ProxyRedirectClient.server
-      port = serverAndShutDown._1.address.port.value
-      _ <- serverRef.modify(mp => (mp, mp + (port -> serverAndShutDown)))
-    } yield port
-
-  def stopServer(port: Int): IO[Unit] =
-    for {
-      ref <- serverRef.get
-      _ <- ref.get(port).traverse(_._2)
-    } yield ()
+//  def startServer(): IO[Int] = ProxyRedirectClient.server.use(
+//    server =>
+//      IO.pure(server.address.port.value)
+//  )
+////    for {
+////      serverAndShutDown <- ProxyRedirectClient.server
+////      port = serverAndShutDown._1.address.port.value
+////      _ <- serverRef.modify(mp => (mp, mp + (port -> serverAndShutDown)))
+////    } yield port
+//
+//  def stopServer(port: Int): IO[Unit] =
+//    for {
+//      ref <- serverRef.get
+//      _ <- ref.get(port).traverse(_._2)
+//    } yield ()
 
   def baseUri: Uri =
     Uri.unsafeFromString(s"http://${host}:${sys.props.get(proxyRedirectServerPortKey).get.toInt}")
@@ -90,10 +93,10 @@ object ProxyRedirectClient {
       .intersperse("\n")
       .through(text.utf8.encode)
 
-  private def server: IO[(Server, IO[Unit])] =
+  def server: Resource[IO, Server] =
     for {
       // Instantiate a dedicated execution context for this server
-      blockingEc <- IO(Executors.newCachedThreadPool).map(ExecutionContext.fromExecutor)
+      blockingEc <- Resource.eval(IO(Executors.newCachedThreadPool).map(ExecutionContext.fromExecutor))
       route = HttpRoutes
         .of[IO] { case GET -> Root / "proxyRedirectClient" :? Rurl(rurl) =>
           Ok(getContent(rurl), `Content-Type`(MediaType.text.html))
@@ -101,7 +104,7 @@ object ProxyRedirectClient {
         .orNotFound
       // Note this uses `bindAny` which will bind to an arbitrary port. We can't use a dedicated port
       // because multiple test suites may be running on the same host in different class loaders.
-      server <- BlazeServerBuilder[IO](blockingEc).bindAny("0.0.0.0").withHttpApp(route).allocated
+      server <- BlazeServerBuilder[IO].withExecutionContext(blockingEc).bindAny("0.0.0.0").withHttpApp(route).resource
     } yield server
 
   private object Rurl extends QueryParamDecoderMatcher[String]("rurl")

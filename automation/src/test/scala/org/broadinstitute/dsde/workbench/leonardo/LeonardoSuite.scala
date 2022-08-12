@@ -36,10 +36,15 @@ trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with
       case None => throw new RuntimeException("leonardo.googleProject system property is not set")
       case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
-        if (isRetryable(test))
-          withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
-        else
-          runTestAndCheckOutcome(GoogleProject(googleProjectId))
+        import cats.effect.unsafe.implicits.global
+
+        val res = ProxyRedirectClient.server.use {_ =>
+          if (isRetryable(test))
+            IO(withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId))))
+          else
+            IO(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
+        }
+        res.unsafeRunSync()
     }
   }
 }
@@ -160,8 +165,8 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
             googleProjectAndWorkspaceName.googleProject
           )
       }
-      port <- ProxyRedirectClient.startServer()
-      _ <- IO(sys.props.put(proxyRedirectServerPortKey, port.toString))
+//      port <- ProxyRedirectClient.startServer()
+//      _ <- IO(sys.props.put(proxyRedirectServerPortKey, port.toString))
       _ <- loggerIO.info(s"Serving proxy redirect page at ${ProxyRedirectClient.baseUri.renderString}")
     } yield ()
 
@@ -185,7 +190,7 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
           }
         } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
       _ <- IO(sys.props.subtractAll(List(googleProjectKey, workspaceNamespaceKey, workspaceNameKey)))
-      _ <- ProxyRedirectClient.stopServer(sys.props.get(proxyRedirectServerPortKey).get.toInt)
+//      _ <- ProxyRedirectClient.stopServer(sys.props.get(proxyRedirectServerPortKey).get.toInt)
       _ <- loggerIO.info(s"Stopped proxy redirect server")
       _ <- IO(super.afterAll())
     } yield ()
