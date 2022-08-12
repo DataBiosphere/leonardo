@@ -168,11 +168,12 @@ object Boot extends IOApp {
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
-        new LeoAppServiceInterp(appServiceConfig,
-                                appDependencies.authProvider,
-                                appDependencies.serviceAccountProvider,
-                                appDependencies.publisherQueue,
-                                appDependencies.googleDependencies.googleComputeService
+        new LeoAppServiceInterp(
+          appServiceConfig,
+          appDependencies.authProvider,
+          appDependencies.serviceAccountProvider,
+          appDependencies.publisherQueue,
+          appDependencies.googleDependencies.googleComputeService
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -241,13 +242,14 @@ object Boot extends IOApp {
           )
 
           val nonLeoMessageSubscriber =
-            new NonLeoMessageSubscriber[IO](NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
-                                            appDependencies.gkeAlg,
-                                            googleDependencies.googleComputeService,
-                                            appDependencies.samDAO,
-                                            appDependencies.nonLeoMessageGoogleSubscriber,
-                                            googleDependencies.cryptoMiningUserPublisher,
-                                            appDependencies.asyncTasksQueue
+            new NonLeoMessageSubscriber[IO](
+              NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
+              appDependencies.gkeAlg,
+              googleDependencies.googleComputeService,
+              appDependencies.samDAO,
+              appDependencies.nonLeoMessageGoogleSubscriber,
+              googleDependencies.cryptoMiningUserPublisher,
+              appDependencies.asyncTasksQueue
             )
 
           List(

@@ -118,16 +118,17 @@ class LeoPubsubMessageSubscriberSpec
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, resourceService, FakeGoogleComputeService)
 
-  val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                                   bucketHelper,
-                                                   vpcInterp,
-                                                   FakeGoogleDataprocService,
-                                                   FakeGoogleComputeService,
-                                                   MockGoogleDiskService,
-                                                   mockGoogleDirectoryDAO,
-                                                   iamDAO,
-                                                   resourceService,
-                                                   mockWelderDAO
+  val dataprocInterp = new DataprocInterpreter[IO](
+    Config.dataprocInterpreterConfig,
+    bucketHelper,
+    vpcInterp,
+    FakeGoogleDataprocService,
+    FakeGoogleComputeService,
+    MockGoogleDiskService,
+    mockGoogleDirectoryDAO,
+    iamDAO,
+    resourceService,
+    mockWelderDAO
   )
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                          bucketHelper,
@@ -1104,18 +1105,19 @@ class LeoPubsubMessageSubscriberSpec
         namespace: KubernetesModels.KubernetesNamespace
       )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
     }
-    val gkeInter = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                          vpcInterp,
-                                          MockGKEService,
-                                          mockKubernetesService,
-                                          MockHelm,
-                                          MockAppDAO,
-                                          credentials,
-                                          iamDAOKubernetes,
-                                          makeDetachingDiskInterp(),
-                                          MockAppDescriptorDAO,
-                                          nodepoolLock,
-                                          resourceService
+    val gkeInter = new GKEInterpreter[IO](
+      Config.gkeInterpConfig,
+      vpcInterp,
+      MockGKEService,
+      mockKubernetesService,
+      MockHelm,
+      MockAppDAO,
+      credentials,
+      iamDAOKubernetes,
+      makeDetachingDiskInterp(),
+      MockAppDescriptorDAO,
+      nodepoolLock,
+      resourceService
     )
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeInter)
 
@@ -1267,18 +1269,19 @@ class LeoPubsubMessageSubscriberSpec
           deleteCalled = true
         }
     }
-    val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                           vpcInterp,
-                                           MockGKEService,
-                                           mockKubernetesService,
-                                           helmClient,
-                                           MockAppDAO,
-                                           credentials,
-                                           iamDAOKubernetes,
-                                           makeDetachingDiskInterp(),
-                                           MockAppDescriptorDAO,
-                                           nodepoolLock,
-                                           resourceService
+    val gkeInterp = new GKEInterpreter[IO](
+      Config.gkeInterpConfig,
+      vpcInterp,
+      MockGKEService,
+      mockKubernetesService,
+      helmClient,
+      MockAppDAO,
+      credentials,
+      iamDAOKubernetes,
+      makeDetachingDiskInterp(),
+      MockAppDescriptorDAO,
+      nodepoolLock,
+      resourceService
     )
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
@@ -1409,18 +1412,19 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                           vpcInterp,
-                                           mockGKEService,
-                                           new MockKubernetesService(PodStatus.Succeeded),
-                                           MockHelm,
-                                           MockAppDAO,
-                                           credentials,
-                                           iamDAO,
-                                           makeDetachingDiskInterp(),
-                                           MockAppDescriptorDAO,
-                                           nodepoolLock,
-                                           resourceService
+    val gkeInterp = new GKEInterpreter[IO](
+      Config.gkeInterpConfig,
+      vpcInterp,
+      mockGKEService,
+      new MockKubernetesService(PodStatus.Succeeded),
+      MockHelm,
+      MockAppDAO,
+      credentials,
+      iamDAO,
+      makeDetachingDiskInterp(),
+      MockAppDescriptorDAO,
+      nodepoolLock,
+      resourceService
     )
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
@@ -1508,18 +1512,19 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                           vpcInterp,
-                                           MockGKEService,
-                                           new MockKubernetesService(),
-                                           MockHelm,
-                                           new MockAppDAO(false),
-                                           credentials,
-                                           iamDAOKubernetes,
-                                           makeDetachingDiskInterp(),
-                                           MockAppDescriptorDAO,
-                                           nodepoolLock,
-                                           resourceService
+    val gkeInterp = new GKEInterpreter[IO](
+      Config.gkeInterpConfig,
+      vpcInterp,
+      MockGKEService,
+      new MockKubernetesService(),
+      MockHelm,
+      new MockAppDAO(false),
+      credentials,
+      iamDAOKubernetes,
+      makeDetachingDiskInterp(),
+      MockAppDescriptorDAO,
+      nodepoolLock,
+      resourceService
     )
 
     val leoSubscriber =
@@ -1748,18 +1753,19 @@ class LeoPubsubMessageSubscriberSpec
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty
   ): GKEInterpreter[IO] =
-    new GKEInterpreter[IO](Config.gkeInterpConfig,
-                           vpcInterp,
-                           MockGKEService,
-                           new MockKubernetesService(PodStatus.Succeeded, appRelease = appRelease),
-                           MockHelm,
-                           MockAppDAO,
-                           credentials,
-                           iamDAOKubernetes,
-                           makeDetachingDiskInterp(),
-                           MockAppDescriptorDAO,
-                           lock,
-                           resourceService
+    new GKEInterpreter[IO](
+      Config.gkeInterpConfig,
+      vpcInterp,
+      MockGKEService,
+      new MockKubernetesService(PodStatus.Succeeded, appRelease = appRelease),
+      MockHelm,
+      MockAppDAO,
+      credentials,
+      iamDAOKubernetes,
+      makeDetachingDiskInterp(),
+      MockAppDescriptorDAO,
+      lock,
+      resourceService
     )
 
   def makeLeoSubscriber(
