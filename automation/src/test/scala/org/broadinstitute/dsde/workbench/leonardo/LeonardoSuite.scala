@@ -38,7 +38,7 @@ trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with
       case Some(googleProjectId) =>
         import cats.effect.unsafe.implicits.global
 
-        val res = ProxyRedirectClient.server.use {_ =>
+        val res = ProxyRedirectClient.server.use { _ =>
           if (isRetryable(test))
             IO(withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId))))
           else

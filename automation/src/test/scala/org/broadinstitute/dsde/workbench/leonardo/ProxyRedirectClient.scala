@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.prox
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.client.Client
 import org.http4s.dsl.io._
-import org.http4s.headers.{Referer, `Content-Type`}
+import org.http4s.headers.{`Content-Type`, Referer}
 import org.http4s.implicits._
 import org.http4s.server.Server
 import org.http4s._
