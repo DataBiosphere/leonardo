@@ -25,13 +25,14 @@ import scala.jdk.CollectionConverters._
 class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   "VPCInterpreter" should "get a subnet from a project label" in {
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubResourceService(
-                                    Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
-                                        vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet"
-                                    )
-                                  ),
-                                  FakeGoogleComputeService
+    val test = new VPCInterpreter(
+      Config.vpcInterpreterConfig,
+      stubResourceService(
+        Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
+            vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet"
+        )
+      ),
+      FakeGoogleComputeService
     )
 
     test

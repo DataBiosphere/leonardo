@@ -41,18 +41,19 @@ class MockProxyService(
   dbRef: DbReference[IO],
   logger: StructuredLogger[IO],
   metrics: OpenTelemetryMetrics[IO]
-) extends ProxyService(TestUtils.sslContext(system),
-                       proxyConfig,
-                       jupyterDAO,
-                       runtimeDnsCache,
-                       kubernetesDnsCache,
-                       authProvider,
-                       queue.getOrElse(Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
-                       googleOauth2Service,
-                       LocalProxyResolver,
-                       samDAO.getOrElse(new MockSamDAO()),
-                       googleTokenCache,
-                       samResourceCache
+) extends ProxyService(
+      TestUtils.sslContext(system),
+      proxyConfig,
+      jupyterDAO,
+      runtimeDnsCache,
+      kubernetesDnsCache,
+      authProvider,
+      queue.getOrElse(Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
+      googleOauth2Service,
+      LocalProxyResolver,
+      samDAO.getOrElse(new MockSamDAO()),
+      googleTokenCache,
+      samResourceCache
     ) {
 
   override def getRuntimeTargetHost(cloudContext: CloudContext, clusterName: RuntimeName): IO[HostStatus] =

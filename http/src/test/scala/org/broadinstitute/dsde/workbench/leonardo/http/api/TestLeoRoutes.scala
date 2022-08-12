@@ -83,16 +83,17 @@ trait TestLeoRoutes {
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
   val dataprocInterp =
-    new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                bucketHelper,
-                                vpcInterp,
-                                FakeGoogleDataprocService,
-                                FakeGoogleComputeService,
-                                MockGoogleDiskService,
-                                mockGoogleDirectoryDAO,
-                                mockGoogleIamDAO,
-                                FakeGoogleResourceService,
-                                MockWelderDAO
+    new DataprocInterpreter[IO](
+      Config.dataprocInterpreterConfig,
+      bucketHelper,
+      vpcInterp,
+      FakeGoogleDataprocService,
+      FakeGoogleComputeService,
+      MockGoogleDiskService,
+      mockGoogleDirectoryDAO,
+      mockGoogleIamDAO,
+      FakeGoogleResourceService,
+      MockWelderDAO
     )
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
@@ -200,16 +201,17 @@ trait TestLeoRoutes {
     )
 
   val timedHttpRoutes =
-    new HttpRoutes(openIdConnectionConfiguration,
-                   statusService,
-                   proxyService,
-                   runtimeService,
-                   MockDiskServiceInterp,
-                   leoKubernetesService,
-                   runtimev2Service,
-                   timedUserInfoDirectives,
-                   contentSecurityPolicy,
-                   refererConfig
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      runtimeService,
+      MockDiskServiceInterp,
+      leoKubernetesService,
+      runtimev2Service,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      refererConfig
     )
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
