@@ -470,9 +470,8 @@ class GKEInterpreter[F[_]](
                                                              KubernetesNamespace(app.appResources.namespace.name)
               )
 
-              galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
-              cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
-              _ <- (galaxyPvc, cvmfsPvc).tupled
+              _ <- pvcs
+                .find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
                 .fold(
                   F.raiseError[Unit](
                     PubsubKubernetesError(AppError("Fail to retrieve pvc ids",
@@ -489,10 +488,9 @@ class GKEInterpreter[F[_]](
                                           None
                     )
                   )
-                ) { case (gp, cp) =>
+                ) { galaxyPvc =>
                   val galaxyDiskRestore = GalaxyRestore(
-                    PvcId(gp.getMetadata.getUid),
-                    PvcId(cp.getMetadata.getUid),
+                    PvcId(galaxyPvc.getMetadata.getUid),
                     app.id
                   )
                   persistentDiskQuery
@@ -688,7 +686,6 @@ class GKEInterpreter[F[_]](
       _ <- appRestore.traverse { restore =>
         for {
           _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
-          _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.cvmfsPvcId.asString}"))
         } yield ()
       }
       _ <-
@@ -1517,9 +1514,7 @@ class GKEInterpreter[F[_]](
     val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
       List(
         raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
-        raw"""restore.persistence.nfs.cvmfsCache.pvcID=${g.cvmfsPvcId.asString}""",
-        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-pvc""",
-        raw"""cvmfs.cache.alienCache.existingClaim=${release.asString}-cvmfs-alien-cache-pvc"""
+        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-pvc"""
       )
     )
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm

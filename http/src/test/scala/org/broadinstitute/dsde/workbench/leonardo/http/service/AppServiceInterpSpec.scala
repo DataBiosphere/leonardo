@@ -470,7 +470,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
-                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id))
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id))
     )
       .copy(cloudContext = cloudContextGcp)
       .save()
@@ -497,7 +497,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val nodepool = makeNodepool(1, cluster.id).save()
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
-                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)),
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id)),
                                   formattedBy = Some(FormattedBy.Galaxy)
     )
       .copy(cloudContext = cloudContextGcp)
@@ -724,7 +724,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
-                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id))
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id))
     )
       .copy(cloudContext = cloudContextGcp)
       .save()

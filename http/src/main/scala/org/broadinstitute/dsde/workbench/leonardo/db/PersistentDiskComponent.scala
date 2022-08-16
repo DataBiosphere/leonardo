@@ -53,7 +53,6 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def blockSize = column[BlockSize]("blockSizeBytes")
   def formattedBy = column[Option[FormattedBy]]("formattedBy", O.Length(255))
   def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
-  def cvmfsPvcId = column[Option[PvcId]]("cvmfsPvcId", O.Length(254))
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
   def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
 
@@ -73,7 +72,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      diskType,
      blockSize,
      formattedBy,
-     (galaxyPvcId, cvmfsPvcId, lastUsedBy),
+     (galaxyPvcId, lastUsedBy),
      sourceDisk
     ) <> ({
       case (id,
@@ -91,7 +90,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             diskType,
             blockSize,
             formattedBy,
-            (galaxyPvcId, cvmfsPvcId, lastUsedBy),
+            (galaxyPvcId, lastUsedBy),
             sourceDisk
           ) =>
         PersistentDiskRecord(
@@ -120,7 +119,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           formattedBy,
           formattedBy.flatMap {
             case FormattedBy.Galaxy =>
-              (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, lb) => GalaxyRestore(gp, cp, lb))
+              (galaxyPvcId, lastUsedBy).mapN((gp, lb) => GalaxyRestore(gp, lb))
             case FormattedBy.Cromwell                 => lastUsedBy.map(CromwellRestore)
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
@@ -149,9 +148,9 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
         record.blockSize,
         record.formattedBy,
         record.appRestore match {
-          case None                       => (None, None, None)
-          case Some(app: CromwellRestore) => (None, None, Some(app.lastUsedBy))
-          case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.cvmfsPvcId), Some(app.lastUsedBy))
+          case None                       => (None, None)
+          case Some(app: CromwellRestore) => (None, Some(app.lastUsedBy))
+          case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
         },
         record.sourceDisk
       )
@@ -185,9 +184,9 @@ object persistentDiskQuery {
 
   def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyRestore): DBIO[Int] =
     findByIdQuery(id)
-      .map(x => (x.galaxyPvcId, x.cvmfsPvcId, x.lastUsedBy))
+      .map(x => (x.galaxyPvcId, x.lastUsedBy))
       .update(
-        (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.cvmfsPvcId), Some(galaxyDiskRestore.lastUsedBy))
+        (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.lastUsedBy))
       )
 
   def updateLastUsedBy(id: DiskId, lastUsedBy: AppId): DBIO[Int] =

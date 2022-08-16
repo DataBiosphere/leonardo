@@ -201,7 +201,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
       )
       lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
-
       saveApp <- F.fromEither(
         getSavableApp(cloudContext,
                       appName,

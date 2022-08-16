@@ -146,7 +146,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         DiskName("disk1-gxy-postres"),
         AppMachineType(6, 4),
         Some(
-          GalaxyRestore(PvcId("galaxy-pvc-id"), PvcId("cvmfs-pvc-id"), AppId(123))
+          GalaxyRestore(PvcId("galaxy-pvc-id"), AppId(123))
         )
       )
     result.mkString(
