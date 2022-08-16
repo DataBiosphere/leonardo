@@ -97,13 +97,18 @@ object KubernetesTestData {
       extraArgs = List.empty
     )
 
-  def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId, prefix: String = "", isDefault: Boolean = false) = {
+  def makeNodepool(index: Int,
+                   clusterId: KubernetesClusterLeoId,
+                   prefix: String = "",
+                   isDefault: Boolean = false,
+                   status: NodepoolStatus = NodepoolStatus.Unspecified
+  ) = {
     val name = NodepoolName(prefix + "nodepoolname" + index)
     Nodepool(
       NodepoolLeoId(-1), // will be replaced
       clusterId,
       name,
-      NodepoolStatus.Unspecified,
+      status,
       auditInfo,
       MachineTypeName("n1-standard-4"),
       NumNodes(if (isDefault) 1 else 2),
@@ -114,7 +119,10 @@ object KubernetesTestData {
     )
   }
 
-  def makeKubeCluster(index: Int, withDefaultNodepool: Boolean = true): KubernetesCluster = {
+  def makeKubeCluster(index: Int,
+                      withDefaultNodepool: Boolean = true,
+                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
+  ): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueCloudContextGcp = CloudContext.Gcp(GoogleProject(project.value + index))
     KubernetesCluster(
@@ -123,7 +131,7 @@ object KubernetesTestData {
       name,
       location,
       region,
-      KubernetesClusterStatus.Unspecified,
+      status,
       ingressChart,
       auditInfo,
       None,
@@ -139,7 +147,8 @@ object KubernetesTestData {
 
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,
-              customEnvironmentVariables: Map[String, String] = Map.empty
+              customEnvironmentVariables: Map[String, String] = Map.empty,
+              status: AppStatus = AppStatus.Unspecified
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
@@ -148,7 +157,7 @@ object KubernetesTestData {
       nodepoolId,
       galaxyApp,
       name,
-      AppStatus.Unspecified,
+      status,
       galaxyChart,
       Release(galaxyReleasePrefix + index),
       appSamId,
