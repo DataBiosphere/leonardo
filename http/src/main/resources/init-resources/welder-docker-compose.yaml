@@ -23,6 +23,7 @@ services:
       WSM_URL: "dummy"
       WORKSPACE_ID: "dummy"
       STORAGE_CONTAINER_RESOURCE_ID: "dummy"
+      STAGING_STORAGE_CONTAINER_RESOURCE_ID: "dummy"
     volumes:
       # shared with jupyter
       - ${WORK_DIRECTORY}:/work

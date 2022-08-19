@@ -110,7 +110,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
-      stagingContainerName <- createStorageContainer(params, auth)
+//      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
@@ -134,7 +134,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.storageContainerResourceId.value.toString,
           config.welderImage,
           params.runtime.auditInfo.creator.value,
-          stagingContainerName.value
+// TODO: once staging bucket permission is fixed. Use actual staging bucket
+          params.storageContainerResourceId.value.toString,
+          s"sc-${params.workspaceId.value.toString}"
+          //          stagingContainerName.value,
+//          stagingContainerResourceId.value.toString
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
@@ -169,7 +173,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[ContainerName] = {
+  ): F[(ContainerName, WsmControlledResourceId)] = {
     val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
     val storageContainerCommonFields = getCommonFields(
       ControlledResourceName(s"c-${stagingContainerName.value}"),
@@ -201,7 +205,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                              ctx.now
         )
         .transaction
-    } yield stagingContainerName
+    } yield (stagingContainerName, resp.resourceId)
   }
 
   private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
