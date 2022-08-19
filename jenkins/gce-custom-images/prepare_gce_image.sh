@@ -19,7 +19,7 @@ set -e -x
 # The versions below don't matter; they are replaced by the Jenkins job
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.11"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.1.3"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.1.3"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.1.6"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.2.5"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.7"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
