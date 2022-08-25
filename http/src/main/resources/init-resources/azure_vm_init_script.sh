@@ -76,10 +76,10 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 #/anaconda/bin/jupyter server --generate-config
 
 # Start Jupyter server with custom parameters
-wget -qP ${HOME}/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py
+#wget -qP ${HOME}/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py
 wget -qP /usr/local/share/jupyter https://raw.githubusercontent.com/DataBiosphere/terra-docker/622ce501c10968aae26fdf5f5223bda3ffcba3a3/terra-jupyter-base/custom/jupyter_delocalize.py
 sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /usr/local/share/jupyter/jupyter_delocalize.py
-sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL--autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
+sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.quit_button=False --ServerApp.certfile='' --ServerApp.keyfile='' --ServerApp.port=8888 --ServerApp.token='' --ServerApp.ip='' --ServerApp.allow_origin=\"*\" --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL--autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
 
 # Store Jupyter Server parameters for reboot processls
 sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.quit_button=$QUIT_BUTTON_VISIBLE --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> ${HOME}/jupyter.log' >/dev/null 2>&1&") | crontab -
