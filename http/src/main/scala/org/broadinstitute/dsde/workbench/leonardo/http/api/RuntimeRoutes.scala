@@ -156,7 +156,7 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
       ctx <- ev.ask[AppContext]
       _ <- req.userJupyterExtensionConfig.traverse(uje =>
         uje.nbExtensions.get("saturn-iframe-extension").traverse { s =>
-          if (allValidSaturnIframeExtensions.contains(s)) IO.unit
+          if (allValidSaturnIframeExtensions.contains(s) || allValidSaturnIframeExtensions.contains("*")) IO.unit
           else IO.raiseError(BadRequestException(s"Invalid `saturn-iframe-extension` ${s}", Some(ctx.traceId)))
         }
       )
