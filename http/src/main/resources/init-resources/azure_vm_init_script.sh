@@ -77,7 +77,9 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 
 # Start Jupyter server with custom parameters
 #wget -qP ${HOME}/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py
-wget -qP /usr/local/share/jupyter https://raw.githubusercontent.com/DataBiosphere/terra-docker/622ce501c10968aae26fdf5f5223bda3ffcba3a3/terra-jupyter-base/custom/jupyter_delocalize.py
+wget -qP ${HOME}/.jupyter https://raw.githubusercontent.com/DataBiosphere/terra-docker/622ce501c10968aae26fdf5f5223bda3ffcba3a3/terra-jupyter-base/custom/jupyter_delocalize.py
+mkdir -p ${HOME}/.local/etc/jupyter
+cp ${HOME}/.jupyter/jupyter_delocalize.py ${HOME}/.local/etc/jupyter/jupyter_delocalize.py
 sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /usr/local/share/jupyter/jupyter_delocalize.py
 sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.quit_button=False --ServerApp.certfile='' --ServerApp.keyfile='' --ServerApp.port=8888 --ServerApp.token='' --ServerApp.ip='' --ServerApp.allow_origin=* --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
 
