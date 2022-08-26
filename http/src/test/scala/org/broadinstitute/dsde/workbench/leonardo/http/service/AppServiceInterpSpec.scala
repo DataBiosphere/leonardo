@@ -10,10 +10,21 @@ import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService,
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent, appQuery, kubernetesClusterQuery, persistentDiskQuery, _}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  KubernetesServiceDbQueries,
+  TestComponent,
+  appQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  _
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage, LeoPubsubMessageType}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  ClusterNodepoolAction,
+  LeoPubsubMessage,
+  LeoPubsubMessageType
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -39,8 +50,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                 serviceAccountProvider,
                                 queue,
                                 FakeGoogleComputeService,
-      FakeGoogleResourceService,
-      customAppSecurityConfig
+                                FakeGoogleResourceService,
+                                customAppSecurityConfig
 
     )
   val appServiceInterp = new LeoAppServiceInterp[IO](appServiceConfig,
@@ -48,8 +59,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                                      serviceAccountProvider,
                                                      QueueFactory.makePublisherQueue(),
                                                      FakeGoogleComputeService,
-    FakeGoogleResourceService,
-    customAppSecurityConfig
+                                                     FakeGoogleResourceService,
+                                                     customAppSecurityConfig
   )
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -93,24 +104,24 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                                      serviceAccountProvider,
                                                      QueueFactory.makePublisherQueue(),
                                                      passComputeService,
-      FakeGoogleResourceService,
-      customAppSecurityConfig
+                                                     FakeGoogleResourceService,
+                                                     customAppSecurityConfig
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](appServiceConfig,
                                                                 whitelistAuthProvider,
                                                                 serviceAccountProvider,
                                                                 QueueFactory.makePublisherQueue(),
                                                                 notEnoughMemoryComputeService,
-      FakeGoogleResourceService,
-      customAppSecurityConfig
+                                                                FakeGoogleResourceService,
+                                                                customAppSecurityConfig
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](appServiceConfig,
                                                              whitelistAuthProvider,
                                                              serviceAccountProvider,
                                                              QueueFactory.makePublisherQueue(),
                                                              notEnoughCpuComputeService,
-      FakeGoogleResourceService,
-      customAppSecurityConfig
+                                                             FakeGoogleResourceService,
+                                                             customAppSecurityConfig
     )
 
     for {
@@ -134,8 +145,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                              serviceAccountProvider,
                                              QueueFactory.makePublisherQueue(),
                                              FakeGoogleComputeService,
-      FakeGoogleResourceService,
-      customAppSecurityConfig
+                                             FakeGoogleResourceService,
+                                             customAppSecurityConfig
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -154,8 +165,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                              serviceAccountProvider,
                                              QueueFactory.makePublisherQueue(),
                                              FakeGoogleComputeService,
-      FakeGoogleResourceService,
-      customAppSecurityConfig
+                                             FakeGoogleResourceService,
+                                             customAppSecurityConfig
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))

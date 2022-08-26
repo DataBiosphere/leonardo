@@ -11,13 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.{
-  GoogleComputeService,
-  GoogleResourceService,
-  KubernetesName,
-  MachineTypeName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Cromwell, Custom, Galaxy}
@@ -34,7 +28,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.typelevel.log4cats.StructuredLogger
-
 import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppSecurityConfig
@@ -84,8 +77,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (customAppSecurityConfig.enableCustomAppCheck) {
           val appAllowList =
             if (projectLabels.contains(Some("security-group")) && projectLabels.get("security-group").equals("high"))
-              customAppSecurityConfig.customApplicationAllowList.get("high-security")
-            else customAppSecurityConfig.customApplicationAllowList.get("default")
+              customAppSecurityConfig.customApplicationAllowList.highSecurity
+            else customAppSecurityConfig.customApplicationAllowList.default
           if (appAllowList.contains(appName)) {
             F.raiseError[Unit](
               AppCreationException(
