@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
-import com.typesafe.config.{ Config => TypeSafeConfig, ConfigFactory}
+import com.typesafe.config.{Config => TypeSafeConfig, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
