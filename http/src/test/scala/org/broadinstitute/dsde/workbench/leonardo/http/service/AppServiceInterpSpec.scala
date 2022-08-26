@@ -6,16 +6,20 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleResourceService}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGooglePublisher,
+  FakeGoogleResourceService
+}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{
-  KubernetesServiceDbQueries,
-  TestComponent,
   appQuery,
   kubernetesClusterQuery,
   persistentDiskQuery,
+  KubernetesServiceDbQueries,
+  TestComponent,
   _
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError}
@@ -52,15 +56,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                 FakeGoogleComputeService,
                                 FakeGoogleResourceService,
                                 customAppSecurityConfig
-
     )
-  val appServiceInterp = new LeoAppServiceInterp[IO](appServiceConfig,
-                                                     whitelistAuthProvider,
-                                                     serviceAccountProvider,
-                                                     QueueFactory.makePublisherQueue(),
-                                                     FakeGoogleComputeService,
-                                                     FakeGoogleResourceService,
-                                                     customAppSecurityConfig
+  val appServiceInterp = new LeoAppServiceInterp[IO](
+    appServiceConfig,
+    whitelistAuthProvider,
+    serviceAccountProvider,
+    QueueFactory.makePublisherQueue(),
+    FakeGoogleComputeService,
+    FakeGoogleResourceService,
+    customAppSecurityConfig
   )
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -84,44 +88,47 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(6 * 1024).setGuestCpus(2).build()))
     }
 
-    val highSecurityGoogleResourceService = new FakeGoogleResourceService{
+    val highSecurityGoogleResourceService = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("security-group" -> "high")))
     }
 
-    val anySecurityGoogleResourceService = new FakeGoogleResourceService{
+    val anySecurityGoogleResourceService = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-        IO(Some(Map("security-group"-> "low")))
+        IO(Some(Map("security-group" -> "low")))
     }
 
-    val noSecurityGoogleResourceService = new FakeGoogleResourceService{
+    val noSecurityGoogleResourceService = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-        IO(Some(Map("unused-label"-> "unused-label-value")))
+        IO(Some(Map("unused-label" -> "unused-label-value")))
     }
 
-    val passAppService = new LeoAppServiceInterp[IO](appServiceConfig,
-                                                     whitelistAuthProvider,
-                                                     serviceAccountProvider,
-                                                     QueueFactory.makePublisherQueue(),
-                                                     passComputeService,
-                                                     FakeGoogleResourceService,
-                                                     customAppSecurityConfig
+    val passAppService = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      passComputeService,
+      FakeGoogleResourceService,
+      customAppSecurityConfig
     )
-    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](appServiceConfig,
-                                                                whitelistAuthProvider,
-                                                                serviceAccountProvider,
-                                                                QueueFactory.makePublisherQueue(),
-                                                                notEnoughMemoryComputeService,
-                                                                FakeGoogleResourceService,
-                                                                customAppSecurityConfig
+    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      notEnoughMemoryComputeService,
+      FakeGoogleResourceService,
+      customAppSecurityConfig
     )
-    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](appServiceConfig,
-                                                             whitelistAuthProvider,
-                                                             serviceAccountProvider,
-                                                             QueueFactory.makePublisherQueue(),
-                                                             notEnoughCpuComputeService,
-                                                             FakeGoogleResourceService,
-                                                             customAppSecurityConfig
+    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      notEnoughCpuComputeService,
+      FakeGoogleResourceService,
+      customAppSecurityConfig
     )
 
     for {
@@ -140,13 +147,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
-    val interp = new LeoAppServiceInterp[IO](appServiceConfig,
-                                             authProvider,
-                                             serviceAccountProvider,
-                                             QueueFactory.makePublisherQueue(),
-                                             FakeGoogleComputeService,
-                                             FakeGoogleResourceService,
-                                             customAppSecurityConfig
+    val interp = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      authProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      customAppSecurityConfig
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -160,13 +168,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
-    val interp = new LeoAppServiceInterp[IO](AppServiceConfig(false, leoKubernetesConfig),
-                                             authProvider,
-                                             serviceAccountProvider,
-                                             QueueFactory.makePublisherQueue(),
-                                             FakeGoogleComputeService,
-                                             FakeGoogleResourceService,
-                                             customAppSecurityConfig
+    val interp = new LeoAppServiceInterp[IO](
+      AppServiceConfig(false, leoKubernetesConfig),
+      authProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      customAppSecurityConfig
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))

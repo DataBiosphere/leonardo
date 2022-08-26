@@ -11,7 +11,13 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  GoogleComputeService,
+  GoogleResourceService,
+  KubernetesName,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Cromwell, Custom, Galaxy}

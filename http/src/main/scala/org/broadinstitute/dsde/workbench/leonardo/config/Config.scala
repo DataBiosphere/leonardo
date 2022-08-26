@@ -443,18 +443,20 @@ object Config {
       )
   }
 
-  implicit private val customApplicationAllowListConfigReader: ValueReader[CustomApplicationAllowListConfig] = ValueReader.relative {
-    config => CustomApplicationAllowListConfig(
-      config.getStringList("default").asScala.toList,
-      config.getStringList("highSecurity").asScala.toList
-    )
-  }
+  implicit private val customApplicationAllowListConfigReader: ValueReader[CustomApplicationAllowListConfig] =
+    ValueReader.relative { config =>
+      CustomApplicationAllowListConfig(
+        config.getStringList("default").asScala.toList,
+        config.getStringList("highSecurity").asScala.toList
+      )
+    }
 
   implicit private val customAppSecurityConfigReader: ValueReader[CustomAppSecurityConfig] = ValueReader.relative {
-    config => CustomAppSecurityConfig(
-      config.getBoolean("enableCustomAppCheck"),
-      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
-    )
+    config =>
+      CustomAppSecurityConfig(
+        config.getBoolean("enableCustomAppCheck"),
+        config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
+      )
   }
 
   val dateAccessUpdaterConfig = config.as[DateAccessedUpdaterConfig]("dateAccessedUpdater")
@@ -476,7 +478,7 @@ object Config {
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy")
   val refererConfig = config.as[RefererConfig]("refererConfig")
   val vpcConfig = config.as[VPCConfig]("vpc")
-  val customAppSecurityConfig = config.as[CustomAppSecurityConfig](path="customAppSecurityConfig")
+  val customAppSecurityConfig = config.as[CustomAppSecurityConfig](path = "customAppSecurityConfig")
 
   implicit private val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>
