@@ -78,7 +78,7 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 # Start Jupyter server with custom parameters
 #wget -qP ${HOME}/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py
 wget -qP /usr/local/share/jupyter https://raw.githubusercontent.com/DataBiosphere/terra-docker/622ce501c10968aae26fdf5f5223bda3ffcba3a3/terra-jupyter-base/custom/jupyter_delocalize.py
-sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /usr/local/share/jupyter/jupyter_delocalize.py
+sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /usr/local/share/jupyter/jupyter_delocalize.py
 sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.quit_button=False --ServerApp.certfile='' --ServerApp.keyfile='' --ServerApp.port=8888 --ServerApp.token='' --ServerApp.ip='' --ServerApp.allow_origin=* --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
 
 # Store Jupyter Server parameters for reboot processls
@@ -97,6 +97,7 @@ $LISTENER_DOCKER_IMAGE
 docker run -d --restart always --network host --name welder \
 --volume "/home/${VM_JUP_USER}":"/work" \
 --env WSM_URL=$WELDER_WSM_URL \
+--env PORT=8081 \
 --env WORKSPACE_ID=$WELDER_WORKSPACE_ID \
 --env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
 --env STAGING_STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID \
