@@ -27,6 +27,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   DeleteAzureRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.http4s.AuthScheme
+import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
@@ -40,19 +42,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
-  ec: ExecutionContext
+  ec: ExecutionContext,
+  logger: StructuredLogger[F]
 ) extends RuntimeV2Service[F] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
                              req: CreateAzureRuntimeRequest
-  )(implicit as: Ask[F, AppContext]): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
       ctx <- as.ask
 
-      leoAuth <- samDAO.getLeoAuthToken
+      userToken = org.http4s.headers.Authorization(
+        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
+      )
 
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
       // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
@@ -78,7 +83,14 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                             Some(ctx.traceId)
         )
       )
-
+      storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
+      storageContainer <- F.fromOption(
+        storageContainerOpt,
+        BadRequestException(s"Workspace ${workspaceId} doesn't have storage container provisioned appropriately",
+                            Some(ctx.traceId)
+        )
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"found ${storageContainer} for ${userInfo.userEmail}")
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
@@ -124,12 +136,17 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
             _ <- publisherQueue.offer(
-              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, relayNamespace, Some(ctx.traceId))
+              CreateAzureRuntimeMessage(savedRuntime.id,
+                                        workspaceId,
+                                        relayNamespace,
+                                        storageContainer.resourceId,
+                                        Some(ctx.traceId)
+              )
             )
           } yield ()
       }
 
-    } yield ()
+    } yield CreateRuntimeResponse(ctx.traceId)
 
   override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
     as: Ask[F, AppContext]

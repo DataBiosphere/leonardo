@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 # This is to avoid the error Ref BioC
@@ -23,18 +23,28 @@ sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
 sudo systemctl disable --now jupyterhub.service
 
-#Read script arguments
+# Read script arguments
+echo $# arguments
+if [$# -ne 13];
+    then echo "illegal number of parameters"
+fi
 
 RELAY_NAME=$1
 RELAY_CONNECTION_NAME=$2
 RELAY_TARGET_HOST=$3
-RELAY_CONNECTION_POLICY_NAME=$4
-RELAY_CONNECTION_POLICY_KEY=$5
-LISTENER_DOCKER_IMAGE=$6
-SAMURL=$7
-SAMRESOURCEID=$8
-CONTENTSECURITYPOLICY_FILE=$9
-#SAMRESOURCEID="${10}"
+RELAY_CONNECTION_POLICY_KEY=$4
+LISTENER_DOCKER_IMAGE=$5
+SAMURL=$6
+SAMRESOURCEID=$7
+CONTENTSECURITYPOLICY_FILE=$8
+
+# Envs for welder
+WELDER_WSM_URL=${9:-localhost}
+WELDER_WORKSPACE_ID="${10:-dummy}"
+WELDER_STORAGE_CONTAINER_RESOURCE_ID="${11:-dummy}"
+WELDER_WELDER_DOCKER_IMAGE="${12:-dummy}"
+WELDER_OWNER_EMAIL="${13:-dummy}"
+WELDER_STAGING_BUCKET="${14:-dummy}"
 
 # Define environment variables for Jupyter Server customization
 
@@ -52,7 +62,7 @@ HCVAR='\$hc'
 SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${HCVAR}/${RELAY_CONNECTION_NAME}"
 
 #Relay listener configuration
-RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;SharedAccessKeyName=${RELAY_CONNECTION_POLICY_NAME};SharedAccessKey=${RELAY_CONNECTION_POLICY_KEY};EntityPath=${RELAY_CONNECTION_NAME}"
+RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${RELAY_CONNECTION_POLICY_KEY};EntityPath=${RELAY_CONNECTION_NAME}"
 
 # Install relevant libraries
 
@@ -73,7 +83,6 @@ sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.quit_b
 sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.quit_button=$QUIT_BUTTON_VISIBLE --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --autoreload' >/dev/null 2>&1&") | crontab -
 
 #Run docker container with Relay Listener
-
 docker run -d --restart always --network host --name listener \
 --env LISTENER_RELAYCONNECTIONSTRING=$RELAY_CONNECTIONSTRING \
 --env LISTENER_RELAYCONNECTIONNAME=$RELAY_CONNECTION_NAME \
@@ -82,3 +91,14 @@ docker run -d --restart always --network host --name listener \
 --env LISTENER_CORSSUPPORTPROPERTIES_CONTENTSECURITYPOLICY="$(cat $CONTENTSECURITYPOLICY_FILE)" \
 --env LISTENER_TARGETPROPERTIES_TARGETHOST="http://${RELAY_TARGET_HOST}:8888" \
 $LISTENER_DOCKER_IMAGE
+
+docker run -d --restart always --network host --name welder \
+--volume "/home/${VM_JUP_USER}":"/work" \
+--env WSM_URL=$WELDER_WSM_URL \
+--env WORKSPACE_ID=$WELDER_WORKSPACE_ID \
+--env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
+--env OWNER_EMAIL=$WELDER_OWNER_EMAIL \
+--env CLOUD_PROVIDER="azure" \
+--env STAGING_BUCKET=$WELDER_STAGING_BUCKET \
+--env IS_RSTUDIO_RUNTIME="false" \
+$WELDER_WELDER_DOCKER_IMAGE

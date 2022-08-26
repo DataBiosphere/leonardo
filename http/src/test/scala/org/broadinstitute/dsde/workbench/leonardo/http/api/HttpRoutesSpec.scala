@@ -39,16 +39,17 @@ class HttpRoutesSpec
   val googleProject = "dsp-leo-test"
 
   val routes =
-    new HttpRoutes(openIdConnectionConfiguration,
-                   statusService,
-                   proxyService,
-                   MockRuntimeServiceInterp,
-                   MockDiskServiceInterp,
-                   MockAppService,
-                   new MockRuntimeV2Interp,
-                   timedUserInfoDirectives,
-                   contentSecurityPolicy,
-                   refererConfig
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      refererConfig
     )
 
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
@@ -288,7 +289,7 @@ class HttpRoutesSpec
         as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteApp =
-          DeleteAppRequest(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)
+          DeleteAppRequest(timedUserInfo, CloudContext.Gcp(GoogleProject("googleProject1")), AppName("app1"), false)
         request shouldBe expectedDeleteApp
       }
     }
@@ -656,7 +657,8 @@ class HttpRoutesSpec
     Get("/api/google/v1/apps/googleProject1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
-      responseAs[Vector[ListAppResponse]] shouldBe listAppResponse
+      val response = responseAs[Vector[ListAppResponse]]
+      response shouldBe listAppResponse
     }
   }
 

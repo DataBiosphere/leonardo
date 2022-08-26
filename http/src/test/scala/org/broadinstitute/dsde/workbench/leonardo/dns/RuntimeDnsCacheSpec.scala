@@ -75,7 +75,7 @@ class RuntimeDnsCacheSpec
         .getHostStatus(cacheKeyForRunningCluster)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostReady(
         runningClusterHost,
-        s"${cloudContext.asString}/${runningCluster.runtimeName.asString}",
+        s"${cloudContextGcp.asString}/${runningCluster.runtimeName.asString}",
         CloudProvider.Gcp
       )
     }

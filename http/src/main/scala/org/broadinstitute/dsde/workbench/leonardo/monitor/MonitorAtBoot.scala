@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -161,9 +161,15 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   )
                 )
             }
+            googleProject <- F.fromOption(
+              LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
+              new RuntimeException(
+                "trying to provision app on Azure during MonitorAtBoot. This is not supported yet"
+              ) // TODO: support azure
+            )
             machineType <- computeService
               .getMachineType(
-                cluster.googleProject,
+                googleProject,
                 ZoneName("us-central1-a"),
                 nodepool.machineType
               ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
@@ -176,7 +182,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
 
             diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
             msg = CreateAppMessage(
-              cluster.googleProject,
+              googleProject,
               action,
               app.id,
               app.appName,
@@ -190,14 +196,19 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           } yield msg
 
         case AppStatus.Deleting =>
-          F.pure(
-            DeleteAppMessage(
-              app.id,
-              app.appName,
-              cluster.googleProject,
-              None, // Assume we do not want to delete the disk, since we don't currently persist that information
-              Some(traceId)
+          for {
+            googleProject <- F.fromOption(
+              LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
+              new RuntimeException(
+                "trying to provision app on Azure during MonitorAtBoot. This is not supported yet"
+              ) // TODO: support azure
             )
+          } yield DeleteAppMessage(
+            app.id,
+            app.appName,
+            googleProject,
+            None, // Assume we do not want to delete the disk, since we don't currently persist that information
+            Some(traceId)
           )
 
         case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", traceId))
@@ -316,6 +327,13 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           }
           implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
           relayNamespaceOpt <- wsmDao.getRelayNamespace(wid, azureRuntimeConfig.region, leoAuth)
+          storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(wid, leoAuth)
+          storageContainer <- F.fromOption(
+            storageContainerOpt,
+            BadRequestException(s"Workspace ${wid} doesn't have storage container provisioned appropriately",
+                                Some(traceId)
+            )
+          )
           rns <- F.fromOption(relayNamespaceOpt,
                               MonitorAtBootException(s"no relay namespace found for ${wid}", traceId)
           )
@@ -323,6 +341,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           runtime.id,
           wid,
           rns,
+          storageContainer.resourceId,
           Some(traceId)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))

@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "1.3.3"
+  version: "1.3.5"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -36,9 +36,16 @@ security:
 ## PATHS
 ##########################################################################################
 paths:
+  /liveness:
+    get:
+      summary: Gets system liveness
+      responses:
+        "200":
+          description: System is up, other routes may not be ready yet. See status api for readiness
+      operationId: getLiveness
   /status:
     get:
-      summary: Gets system status
+      summary: Gets system readiness
       responses:
         "200":
           description: System ok
@@ -245,6 +252,10 @@ paths:
       responses:
         "202":
           description: Runtime creation request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -690,6 +701,10 @@ paths:
       responses:
         "202":
           description: Runtime creation request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -2451,7 +2466,10 @@ components:
           description: The user-supplied name for the runtime
         googleProject:
           type: string
-          description: The Google Project used to create the runtime
+          description: Deprecated. The Google Project used to create the runtime
+        cloudContext:
+          type: string
+          description: Google project this app is associated with if the app is created in GCP; Azure's tenantId/subscriptionId/managedResourceGroupId if the app is created in Azure
         serviceAccount:
           type: string
           description: The Google Service Account used to create the runtime
@@ -2555,7 +2573,10 @@ components:
           $ref: "#/components/schemas/AuditInfo"
         googleProject:
           type: string
-          description: The Google Project used to create the runtime
+          description: Deprecated. The Google Project used to create the runtime
+        cloudContext:
+          type: string
+          description: Google project this app is associated with if the app is created in GCP; Azure's tenantId/subscriptionId/managedResourceGroupId if the app is created in Azure
         runtimeConfig:
           $ref: "#/components/schemas/OneOfRuntimeConfig"
         proxyUrl:
@@ -3269,6 +3290,15 @@ components:
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
+    CreateRuntimeResponse:
+      description: response for create runtime APIs
+      required:
+        - traceId
+      type: object
+      properties:
+        traceId:
+          type: string
+          description: traceId that's useful for debugging.
 
     CreateAppRequest:
       description: the configuration of an app, used to create an app
@@ -3336,7 +3366,10 @@ components:
       properties:
         googleProject:
           type: string
-          description: the project this app is associated with
+          description: Deprecated. The project this app is associated with
+        cloudContext:
+          type: string
+          description: Google project this app is associated with if the app is created in GCP; Azure's tenantId/subscriptionId/managedResourceGroupId if the app is created in Azure
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         errors:

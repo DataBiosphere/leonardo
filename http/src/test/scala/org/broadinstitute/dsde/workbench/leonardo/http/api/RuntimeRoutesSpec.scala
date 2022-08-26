@@ -161,7 +161,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
 
     val decodeResult = for {
       json <- io.circe.parser.parse(inputJson)
-      r <- json.as[CreateRuntime2Request]
+      r <- json.as[CreateRuntimeRequest]
     } yield r
     decodeResult shouldBe (Right(expectedClusterRequest))
   }
@@ -286,8 +286,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |}
           """.stripMargin
 
-    val res = decode[CreateRuntime2Request](inputString)
-    val expected = CreateRuntime2Request(
+    val res = decode[CreateRuntimeRequest](inputString)
+    val expected = CreateRuntimeRequest(
       Map.empty,
       None,
       None,
@@ -333,7 +333,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(WorkspaceId(workspaceId)),
       runtimeSamResource,
       name1,
-      cloudContext,
+      cloudContextGcp,
       auditInfo.copy(createdDate = date, dateAccessed = date),
       gceRuntimeConfigWithGpu,
       new URL("https://leo.org/proxy"),
@@ -386,7 +386,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       -1,
       runtimeSamResource,
       name1,
-      cloudContext,
+      cloudContextGcp,
       serviceAccountEmail,
       Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
       auditInfo.copy(createdDate = date, dateAccessed = date),
@@ -610,7 +610,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       """
         |{}
         |""".stripMargin
-    val expectedResult = CreateRuntime2Request(
+    val expectedResult = CreateRuntimeRequest(
       Map.empty,
       None,
       None,
@@ -624,7 +624,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Set.empty,
       Map.empty
     )
-    decode[CreateRuntime2Request](jsonString) shouldBe Right(expectedResult)
+    decode[CreateRuntimeRequest](jsonString) shouldBe Right(expectedResult)
   }
 
   it should "decode CreateRuntime2Request correctly" in {
@@ -639,7 +639,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  }
         |}
         |""".stripMargin
-    val expectedResult = CreateRuntime2Request(
+    val expectedResult = CreateRuntimeRequest(
       Map.empty,
       None,
       None,
@@ -660,6 +660,6 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Set.empty,
       Map.empty
     )
-    decode[CreateRuntime2Request](jsonString) shouldBe Right(expectedResult)
+    decode[CreateRuntimeRequest](jsonString) shouldBe Right(expectedResult)
   }
 }

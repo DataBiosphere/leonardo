@@ -12,6 +12,8 @@ object Merging {
     case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
     case x if x.endsWith("/ModuleUtil.class")            => MergeStrategy.first
     case x if x.endsWith("/module-info.class")           => MergeStrategy.discard
+    case x if x.contains("bouncycastle") =>
+      MergeStrategy.first
     case "module-info.class" =>
       MergeStrategy.discard // JDK 8 does not use the file module-info.class so it is safe to discard the file.
     case "reference.conf" => MergeStrategy.concat

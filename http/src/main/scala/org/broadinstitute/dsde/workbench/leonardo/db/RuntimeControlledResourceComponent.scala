@@ -60,6 +60,18 @@ object WsmResourceType {
     override def toString: String = "AZURE_DISK"
   }
 
+  case object AzureStorageAccount extends WsmResourceType {
+    override def toString: String = "AZURE_STORAGE_ACCOUNT"
+  }
+
+  case object AzureStorageContainer extends WsmResourceType {
+    override def toString: String = "AZURE_STORAGE_CONTAINER"
+  }
+
+  case object AzureRelayNamespace extends WsmResourceType {
+    override def toString: String = "AZURE_RELAY_NAMESPACE"
+  }
+
   def values: Set[WsmResourceType] = sealerate.values[WsmResourceType]
 
   def stringToObject: Map[String, WsmResourceType] = values.map(v => v.toString -> v).toMap

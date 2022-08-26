@@ -1,24 +1,23 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.sql.SQLIntegrityConstraintViolationException
-import java.time.Instant
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import slick.lifted.Tag
-import LeoProfile.api._
-import LeoProfile.mappedColumnImplicits._
 import akka.http.scaladsl.model.StatusCodes
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsp.Release
-import DBIOInstances._
-import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsp.Release
 import org.http4s.Uri
+import slick.lifted.Tag
 
+import java.sql.SQLIntegrityConstraintViolationException
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 final case class AppRecord(id: AppId,
@@ -125,7 +124,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.extraArgs.getOrElse(List.empty)
     )
 
-  def save(saveApp: SaveApp)(implicit ec: ExecutionContext): DBIO[App] = {
+  def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
     val namespaceName = saveApp.app.appResources.namespace.name
     for {
       nodepool <- nodepoolQuery
@@ -153,9 +152,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         )
 
       // here, we enforce uniqueness on (AppName, GoogleProject) for active apps
-      getAppResult <- KubernetesServiceDbQueries.getActiveFullAppByName(cluster.googleProject, saveApp.app.appName)
+      getAppResult <- KubernetesServiceDbQueries.getActiveFullAppByName(cluster.cloudContext, saveApp.app.appName)
       _ <- getAppResult.fold[DBIO[Unit]](DBIO.successful(()))(appResult =>
-        DBIO.failed(AppExistsForProjectException(appResult.app.appName, cluster.googleProject))
+        DBIO.failed(AppExistsForCloudContextException(appResult.app.appName, cluster.cloudContext, traceId))
       )
 
       namespace <-
@@ -271,11 +270,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
 }
 
 case class SaveApp(app: App)
-case class AppExistsForProjectException(appName: AppName, googleProject: GoogleProject)
+case class AppExistsForCloudContextException(appName: AppName, cloudContext: CloudContext, traceId: Option[TraceId])
     extends LeoException(
-      s"An app with name ${appName} already exists for the project ${googleProject}.",
+      s"An app with name ${appName} already exists for the ${cloudContext.asStringWithProvider}.",
       StatusCodes.Conflict,
-      traceId = None
+      traceId = traceId
     )
 
 final case class WorkspaceName(asString: String) extends AnyVal

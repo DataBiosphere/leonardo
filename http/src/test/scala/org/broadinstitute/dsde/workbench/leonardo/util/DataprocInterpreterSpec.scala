@@ -78,16 +78,17 @@ class DataprocInterpreterSpec
   def dataprocInterp(computeService: GoogleComputeService[IO] = MockGoogleComputeService,
                      dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService
   ) =
-    new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                bucketHelper,
-                                vpcInterp,
-                                dataprocCluster,
-                                computeService,
-                                MockGoogleDiskService,
-                                mockGoogleDirectoryDAO,
-                                mockGoogleIamDAO,
-                                mockGoogleResourceService,
-                                MockWelderDAO
+    new DataprocInterpreter[IO](
+      Config.dataprocInterpreterConfig,
+      bucketHelper,
+      vpcInterp,
+      dataprocCluster,
+      computeService,
+      MockGoogleDiskService,
+      mockGoogleDirectoryDAO,
+      mockGoogleIamDAO,
+      mockGoogleResourceService,
+      MockWelderDAO
     )
 
   override def beforeAll(): Unit =
@@ -132,16 +133,17 @@ class DataprocInterpreterSpec
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
-    val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                                            bucketHelper,
-                                                            vpcInterp,
-                                                            FakeGoogleDataprocService,
-                                                            FakeGoogleComputeService,
-                                                            MockGoogleDiskService,
-                                                            mockGoogleDirectoryDAO,
-                                                            erroredIamDAO,
-                                                            MockGoogleResourceService,
-                                                            MockWelderDAO
+    val erroredDataprocInterp = new DataprocInterpreter[IO](
+      Config.dataprocInterpreterConfig,
+      bucketHelper,
+      vpcInterp,
+      FakeGoogleDataprocService,
+      FakeGoogleComputeService,
+      MockGoogleDiskService,
+      mockGoogleDirectoryDAO,
+      erroredIamDAO,
+      MockGoogleResourceService,
+      MockWelderDAO
     )
 
     val exception =

@@ -56,10 +56,13 @@ object DbReference extends LazyLogging {
 
     for {
       db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
-      dbConnection <- Resource.make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
       initLiquibase =
         if (config.initWithLiquibase)
-          Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
+          Resource
+            .make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
+            .use(dbConn =>
+              Async[F].delay(initWithLiquibase(dbConn, config)) >> Logger[F].info("Applied liquidbase changelog")
+            )
         else Async[F].unit
       _ <- Resource.eval(initLiquibase)
     } yield new DbRef[F](db, concurrentDbAccessPermits)

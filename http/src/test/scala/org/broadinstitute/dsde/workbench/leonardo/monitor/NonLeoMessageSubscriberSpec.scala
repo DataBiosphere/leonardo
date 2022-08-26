@@ -308,7 +308,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       savedCluster <- IO(makeKubeCluster(1).save())
       msg = DeleteKubernetesClusterMessage(
         savedCluster.id,
-        savedCluster.googleProject
+        savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value
       )
       _ <- subscriber.handleDeleteKubernetesClusterMessage(msg)
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster.id).transaction
@@ -324,7 +324,10 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       traceId <- traceId.ask[TraceId]
       savedCluster = makeKubeCluster(1).save()
       savedNodepool = makeNodepool(1, savedCluster.id).save()
-      msg = DeleteNodepoolMessage(savedNodepool.id, savedCluster.googleProject, Some(traceId))
+      msg = DeleteNodepoolMessage(savedNodepool.id,
+                                  savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                                  Some(traceId)
+      )
 
       attempt <- subscriber.messageResponder(msg).attempt
     } yield attempt shouldBe Right(())

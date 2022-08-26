@@ -160,8 +160,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(cloudContext)).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(cloudContext2)).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(cloudContextGcp)).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(cloudContext2Gcp)).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")

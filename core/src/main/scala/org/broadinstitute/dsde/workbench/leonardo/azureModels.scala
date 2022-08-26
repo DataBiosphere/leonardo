@@ -8,4 +8,6 @@ final case class AzureUnimplementedException(message: String) extends Exception 
   override def getMessage: String = message
 }
 
+final case class StorageAccountName(value: String) extends AnyVal
+
 final case class WsmJobId(value: String) extends AnyVal

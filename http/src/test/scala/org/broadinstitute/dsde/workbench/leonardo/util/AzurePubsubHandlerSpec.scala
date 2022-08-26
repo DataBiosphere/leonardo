@@ -37,6 +37,7 @@ class AzurePubsubHandlerSpec
     with MockitoSugar
     with Eventually
     with LeonardoTestSuite {
+  val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   it should "create azure vm properly" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
@@ -87,7 +88,12 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        RelayNamespace("relay-ns"),
+                                        storageContainerResourceId,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -95,11 +101,12 @@ class AzurePubsubHandlerSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
         controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
       } yield {
-        controlledResources.length shouldBe 3
+        controlledResources.length shouldBe 4
         val resourceTypes = controlledResources.map(_.resourceType)
         resourceTypes.contains(WsmResourceType.AzureVm) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureNetwork) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
+        resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
         controlledResources.map(_.resourceId).contains(resourceId) shouldBe true
       }
 
@@ -185,7 +192,12 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        RelayNamespace("relay-ns"),
+                                        storageContainerResourceId,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)

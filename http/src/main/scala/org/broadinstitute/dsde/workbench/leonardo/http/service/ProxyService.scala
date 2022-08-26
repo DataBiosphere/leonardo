@@ -158,11 +158,11 @@ class ProxyService(
 
   private[leonardo] def getSamResourceFromDb(samResourceCacheKey: SamResourceCacheKey): IO[Option[String]] =
     samResourceCacheKey match {
-      case RuntimeCacheKey(googleProject, name) =>
-        clusterQuery.getActiveClusterInternalIdByName(googleProject, name).map(_.map(_.resourceId)).transaction
+      case RuntimeCacheKey(cloudContext, name) =>
+        clusterQuery.getActiveClusterInternalIdByName(cloudContext, name).map(_.map(_.resourceId)).transaction
       case AppCacheKey(googleProject, name) =>
         KubernetesServiceDbQueries
-          .getActiveFullAppByName(googleProject, name)
+          .getActiveFullAppByName(CloudContext.Gcp(googleProject), name) // TODO: support Azure
           .map(_.map(_.app.samResourceId.resourceId))
           .transaction
     }
@@ -183,7 +183,7 @@ class ProxyService(
             RuntimeNotFoundException(
               key.cloudContext,
               key.name,
-              s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.googleProject.value} / ${key.name.asString}. Request: ${ctx.requestUri}"
+              s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.cloudContext.asStringWithProvider} / ${key.name.asString}. Request: ${ctx.requestUri}"
             )
           )
       }
@@ -201,13 +201,12 @@ class ProxyService(
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
-          loggerIO.error(ctx.loggingCtx)(
-            s"Unable to look up sam resource for ${key.toString}"
-          ) >> IO.raiseError(
+          IO.raiseError(
             AppNotFoundException(
-              key.googleProject,
+              CloudContext.Gcp(key.googleProject),
               key.name,
-              ctx.traceId
+              ctx.traceId,
+              s"Unable to look up sam resource for ${key.toString}"
             )
           )
       }
@@ -296,7 +295,9 @@ class ProxyService(
       hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
       _ <-
         if (!hasViewPermission) {
-          IO.raiseError(AppNotFoundException(googleProject, appName, ctx.traceId))
+          IO.raiseError(
+            AppNotFoundException(CloudContext.Gcp(googleProject), appName, ctx.traceId, "no view permission")
+          )
         } else IO.unit
       hasConnectPermission <- authProvider.hasPermission(samResource, AppAction.ConnectToApp, userInfo)
       _ <-

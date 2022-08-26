@@ -48,7 +48,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  BuildTimeVersion,
+  HttpRoutes,
+  LivenessRoutes,
+  StandardUserInfoDirectives
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -66,12 +71,13 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
-
 import java.net.InetSocketAddress
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+
 import javax.net.ssl.SSLContext
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -81,6 +87,7 @@ object Boot extends IOApp {
 
   private def startup(): IO[Unit] = {
     // We need an ActorSystem to host our application in
+
     implicit val system = ActorSystem(applicationConfig.applicationName)
     import system.dispatcher
     implicit val logger =
@@ -90,6 +97,21 @@ object Boot extends IOApp {
           "version" -> BuildTimeVersion.version.getOrElse("unknown")
         )
       )
+
+    val livenessRoutes = new LivenessRoutes
+
+    val liveness = logger
+      .info("Liveness server has been created, starting...")
+      .unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
+      .newServerAt("0.0.0.0", 9000)
+      .bindFlow(livenessRoutes.route)
+      .onError { case t: Throwable =>
+        logger
+          .error(t)("FATAL - failure starting liveness http server")
+          .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+      }
+
+    logger.info("Liveness server has been started").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
       val googleDependencies = appDependencies.googleDependencies
@@ -146,11 +168,12 @@ object Boot extends IOApp {
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
-        new LeoAppServiceInterp(appServiceConfig,
-                                appDependencies.authProvider,
-                                appDependencies.serviceAccountProvider,
-                                appDependencies.publisherQueue,
-                                appDependencies.googleDependencies.googleComputeService
+        new LeoAppServiceInterp(
+          appServiceConfig,
+          appDependencies.authProvider,
+          appDependencies.serviceAccountProvider,
+          appDependencies.publisherQueue,
+          appDependencies.googleDependencies.googleComputeService
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -186,6 +209,7 @@ object Boot extends IOApp {
           if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
             appDependencies.dataprocInterp.setupDataprocImageGoogleGroup
           } else IO.unit
+
         _ <- IO.fromFuture {
           IO {
             Http()
@@ -218,13 +242,14 @@ object Boot extends IOApp {
           )
 
           val nonLeoMessageSubscriber =
-            new NonLeoMessageSubscriber[IO](NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
-                                            appDependencies.gkeAlg,
-                                            googleDependencies.googleComputeService,
-                                            appDependencies.samDAO,
-                                            appDependencies.nonLeoMessageGoogleSubscriber,
-                                            googleDependencies.cryptoMiningUserPublisher,
-                                            appDependencies.asyncTasksQueue
+            new NonLeoMessageSubscriber[IO](
+              NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
+              appDependencies.gkeAlg,
+              googleDependencies.googleComputeService,
+              appDependencies.samDAO,
+              appDependencies.nonLeoMessageGoogleSubscriber,
+              googleDependencies.cryptoMiningUserPublisher,
+              appDependencies.asyncTasksQueue
             )
 
           List(
@@ -291,10 +316,10 @@ object Boot extends IOApp {
         runtimeDnsCacheConfig.cacheMaxSize,
         runtimeDnsCacheConfig.cacheExpiryTime
       )
-      runtimeDnsCaffineCache <- Resource.make(
+      runtimeDnsCaffeineCache <- Resource.make(
         F.delay(CaffeineCache[F, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache))
       )(_.close)
-      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffineCache)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffeineCache)
       underlyingKubernetesDnsCache = buildCache[KubernetesDnsCacheKey, scalacache.Entry[HostStatus]](
         kubernetesDnsCacheConfig.cacheMaxSize,
         kubernetesDnsCacheConfig.cacheExpiryTime

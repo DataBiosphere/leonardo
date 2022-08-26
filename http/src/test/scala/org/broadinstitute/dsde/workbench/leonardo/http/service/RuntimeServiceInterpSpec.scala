@@ -75,7 +75,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       publisherQueue
     )
   val runtimeService = makeRuntimeService(publisherQueue)
-  val emptyCreateRuntimeReq = CreateRuntime2Request(
+  val emptyCreateRuntimeReq = CreateRuntimeRequest(
     Map.empty,
     None,
     None,
@@ -98,7 +98,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          cloudContext,
+          cloudContextGcp,
           RuntimeName("clusterName1"),
           emptyCreateRuntimeReq
         )
@@ -120,10 +120,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
     runtimeService
-      .createRuntime(userInfo, cloudContext, name0, emptyCreateRuntimeReq)
+      .createRuntime(userInfo, cloudContextGcp, name0, emptyCreateRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val exc = runtimeService
-      .createRuntime(userInfo, cloudContext, name0, emptyCreateRuntimeReq)
+      .createRuntime(userInfo, cloudContextGcp, name0, emptyCreateRuntimeReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -143,7 +143,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     val response =
       runtimeService
-        .createRuntime(userInfo, cloudContext, name0, clusterRequest)
+        .createRuntime(userInfo, cloudContextGcp, name0, clusterRequest)
         .attempt
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         .swap
@@ -159,7 +159,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeService
         .createRuntime(
           userInfo,
-          cloudContext,
+          cloudContextGcp,
           name0,
           emptyCreateRuntimeReq.copy(userJupyterExtensionConfig =
             Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bogus/object.tar.gz")))
@@ -203,7 +203,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       gceRuntimeConfig = runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig]
       gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
     } yield {
-      r shouldBe Right(())
+      r shouldBe Right(CreateRuntimeResponse(context.traceId))
       runtimeConfig shouldBe (Config.gceConfig.runtimeConfigDefaults)
       cluster.cloudContext shouldBe cloudContext
       cluster.runtimeName shouldBe runtimeName
@@ -262,7 +262,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
         .attempt
       _ <- publisherQueue.take // dequeue the message so that it doesn't affect other tests
-    } yield r shouldBe Right(())
+    } yield r.isRight shouldBe true
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -291,7 +291,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtime <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName).transaction
       _ <- publisherQueue.take // dequeue the message so that it doesn't affect other tests
     } yield {
-      r shouldBe Right(())
+      r.isRight shouldBe true
       runtime.get.runtimeImages.map(_.imageType) contains (RuntimeImageType.RStudio)
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -503,17 +503,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       welder3 = runtime2Images.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
     } yield {
-      r1 shouldBe Right(())
+      r1.isRight shouldBe true
       runtime1.runtimeName shouldBe runtimeName1
       welder1 shouldBe defined
       welder1.get.imageUrl shouldBe Config.imageConfig.welderDockerHubImage.imageUrl
 
-      r2 shouldBe Right(())
+      r2.isRight shouldBe true
       runtime2.runtimeName shouldBe runtimeName2
       welder2 shouldBe defined
       welder2.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
 
-      r3 shouldBe Right(())
+      r3.isRight shouldBe true
       runtime3.runtimeName shouldBe runtimeName3
       welder3 shouldBe defined
       welder3.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
@@ -565,11 +565,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- publisherQueue.take
     } yield {
       // Crypto detector not supported on DockerHub
-      r1 shouldBe Right(())
+      r1.isRight shouldBe true
       runtime1.runtimeName shouldBe runtimeName1
       runtime1Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter, Welder, RuntimeImageType.Proxy)
 
-      r2 shouldBe Right(())
+      r2.isRight shouldBe true
       runtime2.runtimeName shouldBe runtimeName2
       runtime2Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter,
                                                                            Welder,
@@ -607,17 +607,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          cloudContext,
+          cloudContextGcp,
           name0,
           req
         )
         .attempt
       runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(cloudContext, name0)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContextGcp, name0)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime = runtimeOpt.get
       diskOpt <- persistentDiskQuery
-        .getActiveByName(cloudContext, diskName)(scala.concurrent.ExecutionContext.global)
+        .getActiveByName(cloudContextGcp, diskName)(scala.concurrent.ExecutionContext.global)
         .transaction
       disk = diskOpt.get
       runtimeConfig <- RuntimeConfigQueries
@@ -626,11 +626,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(runtimeConfig).get
       message <- publisherQueue.take
     } yield {
-      r shouldBe Right(())
-      runtime.cloudContext shouldBe cloudContext
+      r shouldBe Right(CreateRuntimeResponse(context.traceId))
+      runtime.cloudContext shouldBe cloudContextGcp
       runtime.runtimeName shouldBe name0
       runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(disk.id)
-      disk.cloudContext shouldBe cloudContext
+      disk.cloudContext shouldBe cloudContextGcp
       disk.name shouldBe diskName
       disk.size shouldBe DiskSize(500)
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
@@ -682,12 +682,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService
         .createRuntime(
           userInfo,
-          cloudContext,
+          cloudContextGcp,
           name0,
           emptyCreateRuntimeReq
         )
       r <- runtimeService
-        .deleteRuntime(DeleteRuntimeRequest(userInfo, GoogleProject(cloudContext.asString), name0, false))
+        .deleteRuntime(DeleteRuntimeRequest(userInfo, GoogleProject(cloudContextGcp.asString), name0, false))
         .attempt
     } yield r.swap.toOption.get.isInstanceOf[RuntimeCannotBeDeletedException] shouldBe true
 
@@ -717,13 +717,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          cloudContext,
+          cloudContextGcp,
           name0,
           req
         )
         .attempt
       runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(cloudContext, name0)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContextGcp, name0)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime = runtimeOpt.get
       runtimeConfig <- RuntimeConfigQueries
@@ -731,8 +731,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .transaction
       message <- publisherQueue.take
     } yield {
-      r shouldBe Right(())
-      runtime.cloudContext shouldBe cloudContext
+      r.isRight shouldBe true
+      runtime.cloudContext shouldBe cloudContextGcp
       runtime.runtimeName shouldBe name0
       runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].gpuConfig shouldBe gpuConfig
       message
@@ -801,7 +801,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContext), Map.empty)
+      listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -868,10 +868,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       autopauseThreshold = Some(30 minutes)
     )
     runtimeService
-      .createRuntime(userInfo, cloudContext, clusterName1, req)
+      .createRuntime(userInfo, cloudContextGcp, clusterName1, req)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime1 = runtimeService
-      .getRuntime(userInfo, cloudContext, clusterName1)
+      .getRuntime(userInfo, cloudContextGcp, clusterName1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse1 = ListRuntimeResponse2(
       runtime1.id,
@@ -889,10 +889,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
     val clusterName2 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     runtimeService
-      .createRuntime(userInfo, cloudContext, clusterName2, req.copy(labels = Map("a" -> "b", "foo" -> "bar")))
+      .createRuntime(userInfo, cloudContextGcp, clusterName2, req.copy(labels = Map("a" -> "b", "foo" -> "bar")))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime2 = runtimeService
-      .getRuntime(userInfo, cloudContext, clusterName2)
+      .getRuntime(userInfo, cloudContextGcp, clusterName2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse2 = ListRuntimeResponse2(
       runtime2.id,
@@ -1102,7 +1102,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       r <- runtimeService
         .deleteRuntime(
-          DeleteRuntimeRequest(userInfo, GoogleProject(cloudContext.asString), testRuntime.runtimeName, false)
+          DeleteRuntimeRequest(userInfo, GoogleProject(cloudContextGcp.asString), testRuntime.runtimeName, false)
         )
         .attempt
     } yield r.isRight shouldBe true
@@ -1820,7 +1820,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .transaction
     } yield {
       diskResult.creationNeeded shouldBe true
-      disk.cloudContext shouldBe cloudContext
+      disk.cloudContext shouldBe cloudContextGcp
       disk.zone shouldBe ConfigReader.appConfig.persistentDisk.defaultZone
       disk.name shouldBe diskName
       disk.status shouldBe DiskStatus.Creating
@@ -1831,7 +1831,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       disk.size shouldBe DiskSize(500)
       disk.diskType shouldBe ConfigReader.appConfig.persistentDisk.defaultDiskType
       disk.blockSize shouldBe ConfigReader.appConfig.persistentDisk.defaultBlockSizeBytes
-      disk.labels shouldBe DefaultDiskLabels(diskName, cloudContext, userInfo.userEmail, serviceAccount).toMap ++ Map(
+      disk.labels shouldBe DefaultDiskLabels(diskName,
+                                             cloudContextGcp,
+                                             userInfo.userEmail,
+                                             serviceAccount
+      ).toMap ++ Map(
         "foo" -> "bar"
       )
 
@@ -1846,7 +1850,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
       context <- appContext.ask[AppContext]
-      _ <- makePersistentDisk(Some(req.name), Some(FormattedBy.GCE), None, Some(zone), Some(cloudContext)).save()
+      _ <- makePersistentDisk(Some(req.name), Some(FormattedBy.GCE), None, Some(zone), Some(cloudContextGcp)).save()
       // save a PD with default zone
       targetZone = ZoneName("europe-west2-c")
       diskResult <- RuntimeServiceInterp

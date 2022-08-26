@@ -20,7 +20,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val app1 = makeApp(1, nodepool1.id).save()
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.googleProject, AppName("fakeApp"))
+      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.cloudContext, AppName("fakeApp"))
     }
     getApp shouldBe None
   }
@@ -37,34 +37,34 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val app4 = makeApp(4, nodepool3.id).save()
 
     val getApp1 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.googleProject, app1.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.cloudContext, app1.appName)
     }
     val getApp2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.googleProject, app2.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.cloudContext, app2.appName)
     }
     val getApp3 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.googleProject, app3.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.cloudContext, app3.appName)
     }
     val getApp4 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cluster2.googleProject, app4.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(cluster2.cloudContext, app4.appName)
     }
 
-    getApp1.get.cluster.googleProject shouldEqual cluster1.googleProject
+    getApp1.get.cluster.cloudContext shouldEqual cluster1.cloudContext
     getApp1.get.cluster.clusterName shouldEqual cluster1.clusterName
     getApp1.get.nodepool.copy(apps = List()) shouldEqual nodepool1
     getApp1.get.app shouldEqual app1
 
-    getApp2.get.cluster.googleProject shouldEqual cluster1.googleProject
+    getApp2.get.cluster.cloudContext shouldEqual cluster1.cloudContext
     getApp2.get.cluster.clusterName shouldEqual cluster1.clusterName
     getApp2.get.nodepool.copy(apps = List()) shouldEqual nodepool1
     getApp2.get.app shouldEqual app2
 
-    getApp3.get.cluster.googleProject shouldEqual cluster1.googleProject
+    getApp3.get.cluster.cloudContext shouldEqual cluster1.cloudContext
     getApp3.get.cluster.clusterName shouldEqual cluster1.clusterName
     getApp3.get.nodepool.copy(apps = List()) shouldEqual nodepool2
     getApp3.get.app shouldEqual app3
 
-    getApp4.get.cluster.googleProject shouldEqual cluster2.googleProject
+    getApp4.get.cluster.cloudContext shouldEqual cluster2.cloudContext
     getApp4.get.cluster.clusterName shouldEqual cluster2.clusterName
     getApp4.get.nodepool.copy(apps = List()) shouldEqual nodepool3
     getApp4.get.app shouldEqual app4
@@ -86,7 +86,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val savedApp = complexApp.save()
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, savedApp.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.cloudContext, savedApp.appName)
     }
     getApp.get.app shouldEqual savedApp
     getApp.get.app.appResources.services.size shouldBe 2
@@ -110,12 +110,12 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     listWithNoProject.flatMap(_.nodepools).length shouldEqual 3
     listWithNoProject.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 4
 
-    val listWithProject1 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster1.googleProject)))
+    val listWithProject1 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster1.cloudContext)))
     listWithProject1.length shouldEqual 1
     listWithProject1.flatMap(_.nodepools).length shouldEqual 2
     listWithProject1.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 3
 
-    val listWithProject2 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster2.googleProject)))
+    val listWithProject2 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster2.cloudContext)))
     listWithProject2.length shouldEqual 1
     listWithProject2.flatMap(_.nodepools).length shouldEqual 1
     listWithProject2.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
@@ -140,7 +140,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val cluster1 = makeKubeCluster(1).save()
     val nodepool1 = makeNodepool(1, cluster1.id).save()
 
-    val listApps1 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster1.googleProject)))
+    val listApps1 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster1.cloudContext)))
     listApps1.length shouldEqual 0
 
     val cluster2 = makeKubeCluster(2).save()
@@ -148,7 +148,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val nodepool3 = makeNodepool(3, cluster2.id).save()
     val app1 = makeApp(1, nodepool2.id).save()
 
-    val listApps2 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster2.googleProject)))
+    val listApps2 = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster2.cloudContext)))
     listApps2.length shouldEqual 1
     listApps2.flatMap(_.nodepools).length shouldEqual 1
   }
@@ -163,12 +163,12 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     dbFutureValue(appQuery.markAsDeleted(app1.id, destroyedDate)) shouldBe 1
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.googleProject, app1.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(cluster1.cloudContext, app1.appName)
     }
     getApp shouldBe None
 
     val listAppsWithDeleted = dbFutureValue {
-      KubernetesServiceDbQueries.listFullApps(Some(cluster1.googleProject), includeDeleted = true)
+      KubernetesServiceDbQueries.listFullApps(Some(cluster1.cloudContext), includeDeleted = true)
     }
     listAppsWithDeleted.length shouldEqual 1
     listAppsWithDeleted.head.nodepools.length shouldEqual 1
@@ -181,7 +181,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     // delete nodepool for deleted app
     dbFutureValue(nodepoolQuery.markAsDeleted(savedNodepool.id, destroyedDate)) shouldBe 1
     val listAppsWithDeleted2 = dbFutureValue {
-      KubernetesServiceDbQueries.listFullApps(Some(cluster1.googleProject), includeDeleted = true)
+      KubernetesServiceDbQueries.listFullApps(Some(cluster1.cloudContext), includeDeleted = true)
     }
     listAppsWithDeleted2.length shouldEqual 1
     listAppsWithDeleted2.head.nodepools.length shouldEqual 1
@@ -207,7 +207,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     dbFutureValue(appQuery.markAsDeleted(app1.id, destroyedDate)) shouldBe 1
 
     val listAppsWithoutDeleted = dbFutureValue {
-      KubernetesServiceDbQueries.listFullApps(Some(cluster1.googleProject), includeDeleted = false)
+      KubernetesServiceDbQueries.listFullApps(Some(cluster1.cloudContext), includeDeleted = false)
     }
     listAppsWithoutDeleted.length shouldEqual 1
     listAppsWithoutDeleted.head.nodepools.length shouldEqual 1
@@ -220,7 +220,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val makeCluster1 = makeKubeCluster(1)
     val saveCluster1 = Some(makeCluster1)
       .map(c =>
-        SaveKubernetesCluster(c.googleProject,
+        SaveKubernetesCluster(c.cloudContext,
                               c.clusterName,
                               c.location,
                               c.region,
@@ -251,7 +251,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
     val saveCluster1 = Some(makeCluster1)
       .map(c =>
-        SaveKubernetesCluster(c.googleProject,
+        SaveKubernetesCluster(c.cloudContext,
                               c.clusterName,
                               c.location,
                               c.region,
@@ -264,7 +264,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
       .get
     val saveCluster2 = Some(makeCluster2)
       .map(c =>
-        SaveKubernetesCluster(c.googleProject,
+        SaveKubernetesCluster(c.cloudContext,
                               c.clusterName,
                               c.location,
                               c.region,
@@ -294,7 +294,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
     val saveCluster2 = Some(makeCluster2)
       .map(c =>
-        SaveKubernetesCluster(c.googleProject,
+        SaveKubernetesCluster(c.cloudContext,
                               c.clusterName,
                               c.location,
                               c.region,
@@ -322,7 +322,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     makeCluster1.save()
     val saveCluster2 = Some(makeCluster2)
       .map(c =>
-        SaveKubernetesCluster(c.googleProject,
+        SaveKubernetesCluster(c.cloudContext,
                               c.clusterName,
                               c.location,
                               c.region,
@@ -351,7 +351,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val appName = AppName("test")
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(appName = appName).save()
 
-    the[AppExistsForProjectException] thrownBy {
+    the[AppExistsForCloudContextException] thrownBy {
       val savedApp2 = makeApp(2, savedNodepool2.id).copy(appName = appName).save()
     }
   }
@@ -368,7 +368,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     appErrorQuery.save(savedApp1.id, error2).transaction.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
     }.get
 
     getApp.app.errors should contain(error1)
@@ -407,23 +407,23 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     listWithNoProject.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     listWithNoProject.flatMap(_.nodepools).flatMap(_.apps).head shouldEqual app
 
-    val listWithProject = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster.googleProject)))
+    val listWithProject = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster.cloudContext)))
     listWithProject.length shouldEqual 1
     listWithProject.flatMap(_.nodepools).length shouldEqual 1
     listWithProject.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     listWithProject.flatMap(_.nodepools).flatMap(_.apps).head shouldEqual app
 
     val getActiveApp =
-      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(cluster.googleProject, app.appName))
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(cluster.cloudContext, app.appName))
     getActiveApp.isDefined shouldBe true
-    getActiveApp.get.cluster.googleProject shouldEqual cluster.googleProject
+    getActiveApp.get.cluster.cloudContext shouldEqual cluster.cloudContext
     getActiveApp.get.cluster.clusterName shouldEqual cluster.clusterName
     getActiveApp.get.nodepool.copy(apps = List()) shouldEqual nodepool
     getActiveApp.get.app shouldEqual app
 
-    val getFullApp = dbFutureValue(KubernetesServiceDbQueries.getFullAppByName(cluster.googleProject, app.id))
+    val getFullApp = dbFutureValue(KubernetesServiceDbQueries.getFullAppByName(cluster.cloudContext, app.id))
     getFullApp.isDefined shouldBe true
-    getFullApp.get.cluster.googleProject shouldEqual cluster.googleProject
+    getFullApp.get.cluster.cloudContext shouldEqual cluster.cloudContext
     getFullApp.get.cluster.clusterName shouldEqual cluster.clusterName
     getFullApp.get.nodepool.copy(apps = List()) shouldEqual nodepool
     getFullApp.get.app shouldEqual app

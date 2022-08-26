@@ -6,10 +6,11 @@ import com.google.cloud.Identity
 import jdk.jshell.spi.ExecutionControl.NotImplementedException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.StorageRole.ObjectAdmin
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, RemoveObjectResult, StorageRole}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.Sam
+import org.broadinstitute.dsde.workbench.util2.RemoveObjectResult
 import org.http4s.headers.Authorization
 import org.openqa.selenium.WebDriver
 import org.scalatest.TestSuite
@@ -184,13 +185,18 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   // initializes storageLinks/ and localizes the file to the passed gcsPath
-  def withWelderInitialized[T](cluster: ClusterCopy, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(
+  def withWelderInitialized[T](cluster: ClusterCopy,
+                               gcsPath: GcsPath,
+                               pattern: String,
+                               shouldLocalizeFileInEditMode: Boolean,
+                               isRStudio: Boolean
+  )(
     testCode: File => T
   )(implicit token: AuthToken): T = {
-    Welder.postStorageLink(cluster, gcsPath)
-    Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
+    Welder.postStorageLink(cluster, gcsPath, pattern, isRStudio)
+    Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode, isRStudio)
 
-    val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+    val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode, isRStudio)
     val localFile: File = new File(localPath)
 
     logger.info("Initialized welder via /storageLinks and /localize")

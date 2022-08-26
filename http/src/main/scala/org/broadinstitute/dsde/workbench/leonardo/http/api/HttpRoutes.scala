@@ -74,7 +74,11 @@ class HttpRoutes(
   implicit val myExceptionHandler =
     ExceptionHandler {
       case leoException: LeoException =>
-        logger.error(leoException)(s"request failed due to: ${leoException.getMessage}").unsafeToFuture()
+        logger
+          .error(leoException.getLoggingContext, leoException)(
+            s"request failed due to: ${leoException.getLoggingMessage}"
+          )
+          .unsafeToFuture()
         complete(leoException.statusCode, leoException.toErrorReport)
       case e: Throwable =>
         logger.error(e)(s"Unexpected error occurred processing route: ${e.getMessage}").unsafeToFuture()

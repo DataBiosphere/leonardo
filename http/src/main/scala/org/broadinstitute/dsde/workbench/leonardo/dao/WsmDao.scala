@@ -15,7 +15,11 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   googleProjectDecoder,
   relayNamespaceDecoder,
   runtimeNameEncoder,
+  storageAccountNameDecoder,
+  storageContainerNameDecoder,
+  storageContainerNameEncoder,
   workspaceIdDecoder,
+  wsmControlledResourceIdDecoder,
   wsmControlledResourceIdEncoder,
   wsmJobIdDecoder,
   wsmJobIdEncoder
@@ -24,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.azure.{
   AzureCloudContext,
+  ContainerName,
   ManagedResourceGroupName,
   RelayNamespace,
   SubscriptionId,
@@ -50,6 +55,10 @@ trait WsmDao[F[_]] {
   def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateVmResult]
+
+  def createStorageContainer(request: CreateStorageContainerRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreateStorageContainerResult]
 
   def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -86,8 +95,22 @@ trait WsmDao[F[_]] {
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Option[RelayNamespace]]
+
+  def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[StorageContainerResponse]]
+
+  def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[StorageAccountResponse]]
 }
 
+final case class StorageContainerRequest(storageAccountId: WsmControlledResourceId, storageContainerName: ContainerName)
+final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
+                                               commonFields: ControlledResourceCommonFields,
+                                               storageContainerReq: StorageContainerRequest
+)
+final case class CreateStorageContainerResult(resourceId: WsmControlledResourceId)
 final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
                                       azureContext: Option[AzureCloudContext],
@@ -109,6 +132,8 @@ final case class CustomScriptExtension(name: String,
                                        minorVersionAutoUpgrade: Boolean,
                                        protectedSettings: ProtectedSettings
 )
+final case class StorageContainerResponse(name: ContainerName, resourceId: WsmControlledResourceId)
+final case class StorageAccountResponse(name: StorageAccountName, resourceId: WsmControlledResourceId)
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,
@@ -126,14 +151,24 @@ final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
                                           resourceId: WsmControlledResourceId,
                                           deleteRequest: DeleteControlledAzureResourceRequest
 )
-
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetCreateVmJobResult(vm: Option[WsmVm], jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetDeleteJobResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
-final case class WsmRelayNamespace(namespaceName: RelayNamespace, region: com.azure.core.management.Region)
-final case class ResourceAttributes(relayNamespace: WsmRelayNamespace)
-final case class WsmResource(resourceAttributes: ResourceAttributes)
-final case class GetRelayNamespace(resources: List[WsmResource])
+
+sealed trait ResourceAttributes extends Serializable with Product
+object ResourceAttributes {
+  final case class RelayNamespaceResourceAttributes(namespaceName: RelayNamespace,
+                                                    region: com.azure.core.management.Region
+  ) extends ResourceAttributes
+  final case class StorageContainerResourceAttributes(name: ContainerName) extends ResourceAttributes
+  final case class StorageAccountResourceAttributes(storageAccountName: StorageAccountName,
+                                                    region: com.azure.core.management.Region
+  ) extends ResourceAttributes
+}
+
+final case class WsmResourceMetadata(resourceId: WsmControlledResourceId)
+final case class WsmResource(metadata: WsmResourceMetadata, resourceAttributes: ResourceAttributes)
+final case class GetWsmResourceResponse(resources: List[WsmResource])
 
 final case class GetJobResultRequest(workspaceId: WorkspaceId, jobId: WsmJobId)
 
@@ -190,7 +225,7 @@ final case class ControlledResourceCommonFields(name: ControlledResourceName,
 
 final case class ControlledResourceName(value: String) extends AnyVal
 final case class ControlledResourceDescription(value: String) extends AnyVal
-final case class PrivateResourceUser(userName: WorkbenchEmail, privateResourceIamRoles: List[ControlledResourceIamRole])
+final case class PrivateResourceUser(userName: WorkbenchEmail, privateResourceIamRoles: ControlledResourceIamRole)
 
 final case class WsmErrorReport(message: String, statusCode: Int, causes: List[String])
 final case class WsmJobReport(id: WsmJobId,
@@ -327,6 +362,8 @@ object WsmDecoders {
     } yield WsmVm(m)
   }
 
+  implicit val createStorageContainerResultDecoder: Decoder[CreateStorageContainerResult] =
+    Decoder.forProduct1("resourceId")(CreateStorageContainerResult.apply)
   implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
     for {
       tenantId <- c.downField("tenantId").as[String]
@@ -378,14 +415,29 @@ object WsmDecoders {
   implicit val createVmResultDecoder: Decoder[CreateVmResult] =
     Decoder.forProduct2("jobReport", "errorReport")(CreateVmResult.apply)
 
-  implicit val wsmRelayNamespaceDecoder: Decoder[WsmRelayNamespace] =
-    Decoder.forProduct2("namespaceName", "region")(WsmRelayNamespace.apply)
+  implicit val relayNamespaceResourceAttributesDecoder: Decoder[ResourceAttributes.RelayNamespaceResourceAttributes] =
+    Decoder.forProduct2("namespaceName", "region")(ResourceAttributes.RelayNamespaceResourceAttributes.apply)
+  implicit val storageContainerResourceAttributesDecoder
+    : Decoder[ResourceAttributes.StorageContainerResourceAttributes] =
+    Decoder.forProduct1("storageContainerName")(ResourceAttributes.StorageContainerResourceAttributes.apply)
+  implicit val storageAccountResourceAttributesDecoder: Decoder[ResourceAttributes.StorageAccountResourceAttributes] =
+    Decoder.forProduct2("storageAccountName", "region")(ResourceAttributes.StorageAccountResourceAttributes.apply)
   implicit val resourceAttributesDecoder: Decoder[ResourceAttributes] =
-    Decoder.forProduct1("azureRelayNamespace")(ResourceAttributes.apply)
+    Decoder.instance { x =>
+      val decodeAsRelayNamespace =
+        x.downField("azureRelayNamespace").as[ResourceAttributes.RelayNamespaceResourceAttributes]
+      val decodeAsStorageContainer =
+        x.downField("azureStorageContainer").as[ResourceAttributes.StorageContainerResourceAttributes]
+      val decodeAsStorageAccount =
+        x.downField("azureStorage").as[ResourceAttributes.StorageAccountResourceAttributes]
+      decodeAsRelayNamespace orElse decodeAsStorageContainer orElse decodeAsStorageAccount
+    }
+  implicit val wsmResourceMetadataDecoder: Decoder[WsmResourceMetadata] =
+    Decoder.forProduct1("resourceId")(WsmResourceMetadata.apply)
   implicit val wsmResourceeDecoder: Decoder[WsmResource] =
-    Decoder.forProduct1("resourceAttributes")(WsmResource.apply)
-  implicit val getRelayNamespaceDecoder: Decoder[GetRelayNamespace] =
-    Decoder.forProduct1("resources")(GetRelayNamespace.apply)
+    Decoder.forProduct2("metadata", "resourceAttributes")(WsmResource.apply)
+  implicit val getRelayNamespaceDecoder: Decoder[GetWsmResourceResponse] =
+    Decoder.forProduct1("resources")(GetWsmResourceResponse.apply)
 
   implicit val getCreateVmResultDecoder: Decoder[GetCreateVmJobResult] =
     Decoder.forProduct3("azureVm", "jobReport", "errorReport")(GetCreateVmJobResult.apply)
@@ -397,7 +449,7 @@ object WsmEncoders {
   implicit val controlledResourceIamRoleEncoder: Encoder[ControlledResourceIamRole] =
     Encoder.encodeString.contramap(x => x.toString)
   implicit val privateResourceUserEncoder: Encoder[PrivateResourceUser] =
-    Encoder.forProduct2("userName", "privateResourceIamRoles")(x => (x.userName.value, x.privateResourceIamRoles))
+    Encoder.forProduct2("userName", "privateResourceIamRole")(x => (x.userName.value, x.privateResourceIamRoles))
   implicit val wsmCommonFieldsEncoder: Encoder[ControlledResourceCommonFields] =
     Encoder.forProduct7("name",
                         "description",
@@ -468,6 +520,12 @@ object WsmEncoders {
 
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =
     Encoder.forProduct3("common", "azureVm", "jobControl")(x => (x.common, x.vmData, x.jobControl))
+
+  implicit val storageContainerRequestEncoder: Encoder[StorageContainerRequest] =
+    Encoder.forProduct2("storageAccountId", "storageContainerName")(x => (x.storageAccountId, x.storageContainerName))
+
+  implicit val createStorageContainerRequestEncoder: Encoder[CreateStorageContainerRequest] =
+    Encoder.forProduct2("common", "azureStorageContainer")(x => (x.commonFields, x.storageContainerReq))
 
   implicit val deleteControlledAzureResourceRequestEncoder: Encoder[DeleteControlledAzureResourceRequest] =
     Encoder.forProduct1("jobControl")(x => x.jobControl)

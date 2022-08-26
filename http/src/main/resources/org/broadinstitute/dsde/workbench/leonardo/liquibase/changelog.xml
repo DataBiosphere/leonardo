@@ -88,4 +88,6 @@
     <include file="changesets/20220428_add_service_path.xml" relativeToChangelogFile="true" />
     <include file="changesets/20220628_add_non_null_for_cloud_context.xml" relativeToChangelogFile="true" />
     <include file="changesets/20220626_add_disk_source.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20220726_support_azure_for_app.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20220804_add_non_null_for_cloud_context_app.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

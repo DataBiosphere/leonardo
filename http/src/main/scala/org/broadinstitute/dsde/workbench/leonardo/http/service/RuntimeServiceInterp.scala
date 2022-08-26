@@ -68,8 +68,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     userInfo: UserInfo,
     cloudContext: CloudContext,
     runtimeName: RuntimeName,
-    req: CreateRuntime2Request
-  )(implicit as: Ask[F, AppContext]): F[Unit] =
+    req: CreateRuntimeRequest
+  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
       context <- as.ask
       googleProject <- F.fromOption(
@@ -206,7 +206,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
           } yield ()
       }
-    } yield ()
+    } yield CreateRuntimeResponse(context.traceId)
 
   override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
     as: Ask[F, AppContext]
@@ -369,7 +369,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        new AzureUnimplementedException("Azure runtime is not supported yet")
+        AzureUnimplementedException("Azure runtime is not supported yet")
       )
       // throw 404 if not existent
       runtimeOpt <- clusterQuery
@@ -847,7 +847,7 @@ object RuntimeServiceInterp {
                                         clusterInternalId: RuntimeSamResourceId,
                                         clusterImages: Set[RuntimeImage],
                                         config: RuntimeServiceConfig,
-                                        req: CreateRuntime2Request,
+                                        req: CreateRuntimeRequest,
                                         now: Instant
   ): Runtime = {
     // create a LabelMap of default labels

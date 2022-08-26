@@ -2,8 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
 import org.broadinstitute.dsde.workbench.google2.{Location, NetworkName, RegionName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -14,10 +14,11 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import slick.lifted.Tag
 
+import java.sql.SQLDataException
 import scala.concurrent.ExecutionContext
 
 final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
-                                         googleProject: GoogleProject,
+                                         cloudContext: CloudContext,
                                          clusterName: KubernetesClusterName,
                                          location: Location,
                                          region: RegionName,
@@ -36,7 +37,8 @@ final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
 
 case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecord](tag, "KUBERNETES_CLUSTER") {
   def id = column[KubernetesClusterLeoId]("id", O.PrimaryKey, O.AutoInc)
-  def googleProject = column[GoogleProject]("googleProject", O.Length(254))
+  def cloudContextDb = column[CloudContextDb]("cloudContext", O.Length(254))
+  def cloudProvider = column[CloudProvider]("cloudProvider", O.Length(50))
   def clusterName = column[KubernetesClusterName]("clusterName", O.Length(254))
   def location = column[Location]("location", O.Length(254))
   def region = column[RegionName]("region", O.Length(254))
@@ -52,11 +54,9 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def subNetworkName = column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
   def subNetworkIpRange = column[Option[IpRange]]("subNetworkIpRange", O.Length(254))
 
-  def uniqueKey = index("IDX_KUBERNETES_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
-
   def * =
     (id,
-     googleProject,
+     (cloudProvider, cloudContextDb),
      clusterName,
      location,
      region,
@@ -71,10 +71,78 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      networkName,
      subNetworkName,
      subNetworkIpRange
-    ) <> (KubernetesClusterRecord.tupled, KubernetesClusterRecord.unapply)
+    ).shaped <> ({
+      case (id,
+            (cloudProvider, cloudContextDb),
+            clusterName,
+            location,
+            region,
+            status,
+            creator,
+            createdDate,
+            destroyedDate,
+            dateAccessed,
+            ingressChart,
+            loadBalancerIp,
+            apiServerIp,
+            networkName,
+            subNetworkName,
+            subNetworkIpRange
+          ) =>
+        KubernetesClusterRecord(
+          id,
+          cloudProvider match {
+            case CloudProvider.Gcp =>
+              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
+            case CloudProvider.Azure =>
+              val context =
+                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
+              CloudContext.Azure(context): CloudContext
+          },
+          clusterName,
+          location,
+          region,
+          status,
+          creator,
+          createdDate,
+          destroyedDate,
+          dateAccessed,
+          ingressChart,
+          loadBalancerIp,
+          apiServerIp,
+          networkName,
+          subNetworkName,
+          subNetworkIpRange
+        )
+    }, { r: KubernetesClusterRecord =>
+      Some(
+        (r.id,
+         r.cloudContext match {
+           case CloudContext.Gcp(value) =>
+             (CloudProvider.Gcp, CloudContextDb(value.value))
+           case CloudContext.Azure(value) =>
+             (CloudProvider.Azure, CloudContextDb(value.asString))
+         },
+         r.clusterName,
+         r.location,
+         r.region,
+         r.status,
+         r.creator,
+         r.createdDate,
+         r.destroyedDate,
+         r.dateAccessed,
+         r.ingressChart,
+         r.loadBalancerIp,
+         r.apiServerIp,
+         r.networkName,
+         r.subNetworkName,
+         r.subNetworkIpRange
+        )
+      )
+    })
 }
 
-object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) {
+object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
 
   // this retrieves the nodepool and namespaces associated with a cluster
   def getMinimalClusterById(id: KubernetesClusterLeoId, includeDeletedNodepool: Boolean = false)(implicit
@@ -90,10 +158,10 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
   // this retrieves the nodepool and namespaces associated with a cluster
   def getMinimalActiveClusterByName(
-    googleProject: GoogleProject
+    cloudContext: CloudContext
   )(implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
     joinMinimalClusterAndUnmarshal(
-      findActiveByNameQuery(googleProject),
+      findActiveByNameQuery(cloudContext),
       nodepoolQuery.filter(_.destroyedDate === dummyDate)
     ).map(_.headOption)
 
@@ -182,7 +250,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
   ): KubernetesCluster =
     KubernetesCluster(
       cr.id,
-      cr.googleProject,
+      cr.cloudContext,
       cr.clusterName,
       cr.location,
       cr.region,
@@ -210,10 +278,11 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       .filter(_.id === id)
 
   private[db] def findActiveByNameQuery(
-    googleProject: GoogleProject
+    cloudContext: CloudContext
   ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
     kubernetesClusterQuery
-      .filter(_.googleProject === googleProject)
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.destroyedDate === dummyDate)
 
   // all network fields should be set at the same time. We unmarshal the entire record as None if any fields are unset
@@ -226,7 +295,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
 }
 
-case class SaveKubernetesCluster(googleProject: GoogleProject,
+case class SaveKubernetesCluster(cloudContext: CloudContext,
                                  clusterName: KubernetesClusterName,
                                  location: Location,
                                  region: RegionName,
@@ -238,7 +307,7 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
   def toClusterRecord: KubernetesClusterRecord =
     KubernetesClusterRecord(
       KubernetesClusterLeoId(0),
-      googleProject,
+      cloudContext,
       clusterName,
       location,
       region,

@@ -3,11 +3,11 @@ package http
 
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+
 import java.net.URL
 import java.time.Instant
 import JsonCodec._
-
 import io.circe.Encoder
 
 import scala.concurrent.duration.FiniteDuration
@@ -51,7 +51,7 @@ object RuntimeConfigRequest {
   }
 }
 
-final case class CreateRuntime2Request(
+final case class CreateRuntimeRequest(
   labels: LabelMap,
   userScriptUri: Option[UserScriptPath],
   startUserScriptUri: Option[UserScriptPath],
@@ -65,6 +65,8 @@ final case class CreateRuntime2Request(
   scopes: Set[String],
   customEnvironmentVariables: Map[String, String]
 )
+
+final case class CreateRuntimeResponse(traceId: TraceId)
 
 sealed trait UpdateRuntimeConfigRequest extends Product with Serializable {
   def cloudService: CloudService

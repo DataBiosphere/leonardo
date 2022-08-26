@@ -50,7 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
   ConfigReader,
-  CreateRuntime2Request,
+  CreateRuntimeRequest,
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.model._
@@ -82,9 +82,9 @@ object CommonTestData {
   val name3 = RuntimeName("clustername3")
   val runtimeSamResource = RuntimeSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b287")
   val project = GoogleProject("dsp-leo-test")
-  val cloudContext = CloudContext.Gcp(project)
+  val cloudContextGcp = CloudContext.Gcp(project)
   val project2 = GoogleProject("dsp-leo-test-2")
-  val cloudContext2 = CloudContext.Gcp(project2)
+  val cloudContext2Gcp = CloudContext.Gcp(project2)
   val userEmail = WorkbenchEmail("user1@example.com")
   val userEmail2 = WorkbenchEmail("user2@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
@@ -244,7 +244,7 @@ object CommonTestData {
                                  true
     )
 
-  val defaultCreateRuntimeRequest = CreateRuntime2Request(
+  val defaultCreateRuntimeRequest = CreateRuntimeRequest(
     Map("lbl1" -> "true"),
     None,
     Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
@@ -312,12 +312,12 @@ object CommonTestData {
       workspaceId = Some(WorkspaceId(UUID.randomUUID())),
       samResource = runtimeSamResource,
       runtimeName = clusterName,
-      cloudContext = cloudContext,
+      cloudContext = cloudContextGcp,
       serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
       kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, clusterName, Set(jupyterImage), None, Map.empty),
+      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, clusterName, Set(jupyterImage), None, Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
       userScriptUri = None,
@@ -341,7 +341,7 @@ object CommonTestData {
     None,
     samResource = runtimeSamResource,
     runtimeName = name1,
-    cloudContext = cloudContext,
+    cloudContext = cloudContextGcp,
     serviceAccount = serviceAccount,
     asyncRuntimeFields = Some(
       AsyncRuntimeFields(ProxyHostName(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
@@ -352,7 +352,7 @@ object CommonTestData {
                           Instant.now().truncatedTo(ChronoUnit.MICROS)
     ),
     kernelFoundBusyDate = None,
-    proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, name1, Set(jupyterImage), None, Map.empty),
+    proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, name1, Set(jupyterImage), None, Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
     userScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
@@ -375,7 +375,7 @@ object CommonTestData {
     id = -1,
     runtimeName = name1,
     internalId = runtimeSamResource.resourceId,
-    cloudContext = cloudContext,
+    cloudContext = cloudContextGcp,
     googleId = testCluster.asyncRuntimeFields.map(_.proxyHostName),
     operationName = testCluster.asyncRuntimeFields.map(_.operationName.value),
     status = testCluster.status,
@@ -426,7 +426,7 @@ object CommonTestData {
   ): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
-      cloudContextOpt.getOrElse(cloudContext),
+      cloudContextOpt.getOrElse(cloudContextGcp),
       zoneName.getOrElse(zone),
       diskName.getOrElse(DiskName("disk")),
       serviceAccount,
@@ -505,7 +505,7 @@ object CommonTestData {
     Some(
       PrivateResourceUser(
         userEmail,
-        List(ControlledResourceIamRole.Editor)
+        ControlledResourceIamRole.Editor
       )
     ),
     None
