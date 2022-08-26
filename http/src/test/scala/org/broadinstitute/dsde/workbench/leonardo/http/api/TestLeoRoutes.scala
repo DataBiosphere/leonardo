@@ -110,7 +110,9 @@ trait TestLeoRoutes {
     whitelistAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService
+    FakeGoogleComputeService,
+    FakeGoogleResourceService,
+    Config.customAppSecurityConfig
   )
 
   val serviceConfig = RuntimeServiceConfig(

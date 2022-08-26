@@ -173,7 +173,9 @@ object Boot extends IOApp {
           appDependencies.authProvider,
           appDependencies.serviceAccountProvider,
           appDependencies.publisherQueue,
-          appDependencies.googleDependencies.googleComputeService
+          appDependencies.googleDependencies.googleComputeService,
+          googleDependencies.googleResourceService,
+          customAppSecurityConfig
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
