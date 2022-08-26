@@ -71,13 +71,9 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn
 
-# Create Jupyter Server config- Optional
-
-#/anaconda/bin/jupyter server --generate-config
-
 # Start Jupyter server with custom parameters
-sudo runuser -l $VM_JUP_USER -c "mkdir -p ${HOME}/.jupyter"
-sudo runuser -l $VM_JUP_USER -c "wget -qP ${HOME}/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py"
+sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
+sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py"
 sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.9/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/622ce501c10968aae26fdf5f5223bda3ffcba3a3/terra-jupyter-base/custom/jupyter_delocalize.py"
 sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /anaconda/lib/python3.9/site-packages/jupyter_delocalize.py"
 sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
