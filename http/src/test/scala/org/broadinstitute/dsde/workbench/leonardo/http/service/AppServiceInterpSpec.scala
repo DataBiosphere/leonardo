@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessage,
   LeoPubsubMessageType
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.ChartVersion
@@ -39,7 +39,13 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  Config,
+  CustomAppSecurityConfig,
+  CustomApplicationAllowListConfig
+}
+import org.http4s.Uri
+import org.http4s.implicits.http4sLiteralsSyntax
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -140,27 +146,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       error1 shouldBe (Left(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId))))
       error2 shouldBe (Left(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId))))
     }
-  }
-
-  it should "fail request if user is not in custom_app_users group" in {
-    val authProvider = new BaseMockAuthProvider {
-      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
-        IO.pure(false)
-    }
-    val interp = new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      authProvider,
-      serviceAccountProvider,
-      QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
-      customAppSecurityConfig
-    )
-    val res = interp
-      .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    res shouldBe (Left(ForbiddenError(userInfo.userEmail)))
   }
 
   it should "not fail customApp request if group check is not enabled" in {
@@ -1095,6 +1080,118 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "create a custom app with default security" in isolatedDbTest {
+    val appName = AppName("my_custom_app")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customApplicationAllowListConfig =
+      CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
+    val testInterp = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+    )
+    val appReq = createAppRequest.copy(
+      diskConfig = Some(createDiskConfig),
+      appType = AppType.Custom,
+      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+    )
+
+    testInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "throw an AppCreationException when trying to create a custom app with default security" in isolatedDbTest {
+    val appName = AppName("my_custom_app")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customApplicationAllowListConfig =
+      CustomApplicationAllowListConfig(List(), List())
+    val testInterp = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+    )
+    val appReq = createAppRequest.copy(
+      diskConfig = Some(createDiskConfig),
+      appType = AppType.Custom,
+      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+    )
+
+    an[AppCreationException] should be thrownBy {
+      testInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "create a custom app with high security" in isolatedDbTest {
+    val appName = AppName("my_custom_app")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customApplicationAllowListConfig =
+      CustomApplicationAllowListConfig(List(), List("https://www.myappdescriptor.com/finaldesc"))
+    val highSecurityGoogleResourceService = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO(Some(Map("security-group" -> "high")))
+    }
+    val testInterp = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      highSecurityGoogleResourceService,
+      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+    )
+    val appReq = createAppRequest.copy(
+      diskConfig = Some(createDiskConfig),
+      appType = AppType.Custom,
+      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+    )
+
+    testInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "throw an AppCreationException when trying to create a custom app with high security" in isolatedDbTest {
+    val appName = AppName("my_custom_app")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customApplicationAllowListConfig =
+      CustomApplicationAllowListConfig(List(), List())
+    val highSecurityGoogleResourceService = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO(Some(Map("security-group" -> "high")))
+    }
+    val testInterp = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      highSecurityGoogleResourceService,
+      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+    )
+    val appReq = createAppRequest.copy(
+      diskConfig = Some(createDiskConfig),
+      appType = AppType.Custom,
+      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+    )
+
+    an[AppCreationException] should be thrownBy {
+      testInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   private def withLeoPublisher(

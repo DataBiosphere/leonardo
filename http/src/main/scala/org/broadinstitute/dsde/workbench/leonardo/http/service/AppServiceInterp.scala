@@ -80,12 +80,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       projectLabels <- googleResourceService.getLabels(googleProject)
       _ <-
-        if (customAppSecurityConfig.enableCustomAppCheck) {
+        if (req.appType == Custom && customAppSecurityConfig.enableCustomAppCheck) {
           val appAllowList =
-            if (projectLabels.contains(Some("security-group")) && projectLabels.get("security-group").equals("high"))
+            if (projectLabels.getOrElse("security-group", "").canEqual("high"))
               customAppSecurityConfig.customApplicationAllowList.highSecurity
             else customAppSecurityConfig.customApplicationAllowList.default
-          if (appAllowList.contains(appName)) {
+          if (!appAllowList.contains(req.descriptorPath.getOrElse("None").toString)) {
             F.raiseError[Unit](
               AppCreationException(
                 s"App is not in app allow list."
@@ -555,8 +555,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       for {
         ctx <- ev.ask
         isUserAllowed <- appType match {
-          case AppType.Custom => authProvider.isCustomAppAllowed(userEmail)
-          case _              => F.pure(true)
+          case _ => F.pure(true)
         }
         _ <- F.whenA(!isUserAllowed)(log.info(Map("traceId" -> ctx.asString))("user is not in CUSTOM_APP_USERS group"))
         _ <- F.raiseWhen(!isUserAllowed)(ForbiddenError(userEmail))
