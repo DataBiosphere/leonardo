@@ -6,6 +6,7 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
@@ -32,7 +33,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsp.ChartVersion
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -41,8 +42,9 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   Config,
-  CustomAppSecurityConfig,
-  CustomApplicationAllowListConfig
+  CustomAppConfig,
+  CustomApplicationAllowListConfig,
+  GkeAppConfig
 }
 import org.http4s.Uri
 import org.http4s.implicits.http4sLiteralsSyntax
@@ -51,7 +53,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val appServiceConfig = Config.appServiceConfig
-  val customAppSecurityConfig = Config.customAppSecurityConfig
+  val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
@@ -61,7 +63,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                 queue,
                                 FakeGoogleComputeService,
                                 FakeGoogleResourceService,
-                                customAppSecurityConfig
+                                gkeCustomAppConfig
     )
   val appServiceInterp = new LeoAppServiceInterp[IO](
     appServiceConfig,
@@ -70,7 +72,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService,
     FakeGoogleResourceService,
-    customAppSecurityConfig
+    gkeCustomAppConfig
   )
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -116,7 +118,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       passComputeService,
       FakeGoogleResourceService,
-      customAppSecurityConfig
+      gkeCustomAppConfig
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -125,7 +127,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       notEnoughMemoryComputeService,
       FakeGoogleResourceService,
-      customAppSecurityConfig
+      gkeCustomAppConfig
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -134,7 +136,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       notEnoughCpuComputeService,
       FakeGoogleResourceService,
-      customAppSecurityConfig
+      gkeCustomAppConfig
     )
 
     for {
@@ -160,7 +162,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
       FakeGoogleResourceService,
-      customAppSecurityConfig
+      gkeCustomAppConfig
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -1085,7 +1087,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "create a custom app with default security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customApplicationAllowListConfig =
+    val customApplicationAllowList =
       CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
     val testInterp = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -1094,7 +1096,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
       FakeGoogleResourceService,
-      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+      CustomAppConfig(
+        ChartName(""),
+        ChartVersion(""),
+        ReleaseNameSuffix(""),
+        NamespaceNameSuffix(""),
+        ServiceAccountName(""),
+        enableCustomAppCheck = true,
+        customApplicationAllowList
+      )
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1110,7 +1120,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "throw an AppCreationException when trying to create a custom app with default security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customApplicationAllowListConfig =
+    val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
     val testInterp = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -1119,7 +1129,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
       FakeGoogleResourceService,
-      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+      CustomAppConfig(
+        ChartName(""),
+        ChartVersion(""),
+        ReleaseNameSuffix(""),
+        NamespaceNameSuffix(""),
+        ServiceAccountName(""),
+        enableCustomAppCheck = true,
+        customApplicationAllowList
+      )
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1137,7 +1155,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customApplicationAllowListConfig =
+    val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List("https://www.myappdescriptor.com/finaldesc"))
     val highSecurityGoogleResourceService = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
@@ -1150,7 +1168,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
       highSecurityGoogleResourceService,
-      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+      CustomAppConfig(
+        ChartName(""),
+        ChartVersion(""),
+        ReleaseNameSuffix(""),
+        NamespaceNameSuffix(""),
+        ServiceAccountName(""),
+        enableCustomAppCheck = true,
+        customApplicationAllowList
+      )
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1166,7 +1192,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "throw an AppCreationException when trying to create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customApplicationAllowListConfig =
+    val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
     val highSecurityGoogleResourceService = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
@@ -1179,7 +1205,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
       highSecurityGoogleResourceService,
-      CustomAppSecurityConfig(enableCustomAppCheck = true, customApplicationAllowListConfig)
+      CustomAppConfig(
+        ChartName(""),
+        ChartVersion(""),
+        ReleaseNameSuffix(""),
+        NamespaceNameSuffix(""),
+        ServiceAccountName(""),
+        enableCustomAppCheck = true,
+        customApplicationAllowList
+      )
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),

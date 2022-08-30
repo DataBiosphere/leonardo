@@ -36,7 +36,7 @@ import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
-import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppSecurityConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 
 import scala.concurrent.ExecutionContext
@@ -47,13 +47,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
-                                                customAppSecurityConfig: CustomAppSecurityConfig
+                                                customAppConfig: CustomAppConfig
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends AppService[F] {
+  def securityGroup = "security-group"
+  def securityGroupValueHigh = "high"
 
   override def createApp(
     userInfo: UserInfo,
@@ -80,16 +82,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       projectLabels <- googleResourceService.getLabels(googleProject)
       appAllowList =
-        if (projectLabels.getOrElse("security-group", "").canEqual("high"))
-          customAppSecurityConfig.customApplicationAllowList.highSecurity
-        else customAppSecurityConfig.customApplicationAllowList.default
+        if (projectLabels.getOrElse(securityGroup, "").canEqual(securityGroupValueHigh))
+          customAppConfig.customApplicationAllowList.highSecurity
+        else customAppConfig.customApplicationAllowList.default
 
       _ <- F
         .raiseError[Unit](AppCreationException(s"App is not in app allow list."))
         .whenA(
           !appAllowList.contains(
             req.descriptorPath.getOrElse("None").toString
-          ) && req.appType == Custom && customAppSecurityConfig.enableCustomAppCheck
+          ) && req.appType == Custom && customAppConfig.enableCustomAppCheck
         )
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(googleProject), appName).transaction
@@ -553,6 +555,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       for {
         ctx <- ev.ask
         isUserAllowed <- appType match {
+//          case AppType.Custom => authProvider.isCustomAppAllowed(userEmail)
           case _ => F.pure(true)
         }
         _ <- F.whenA(!isUserAllowed)(log.info(Map("traceId" -> ctx.asString))("user is not in CUSTOM_APP_USERS group"))

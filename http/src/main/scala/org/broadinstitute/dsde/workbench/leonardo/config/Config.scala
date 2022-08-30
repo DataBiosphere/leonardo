@@ -451,14 +451,6 @@ object Config {
       )
     }
 
-  implicit private val customAppSecurityConfigReader: ValueReader[CustomAppSecurityConfig] = ValueReader.relative {
-    config =>
-      CustomAppSecurityConfig(
-        config.getBoolean("enableCustomAppCheck"),
-        config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
-      )
-  }
-
   val dateAccessUpdaterConfig = config.as[DateAccessedUpdaterConfig]("dateAccessedUpdater")
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
@@ -478,7 +470,6 @@ object Config {
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy")
   val refererConfig = config.as[RefererConfig]("refererConfig")
   val vpcConfig = config.as[VPCConfig]("vpc")
-  val customAppSecurityConfig = config.as[CustomAppSecurityConfig](path = "customAppSecurityConfig")
 
   implicit private val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>
@@ -653,7 +644,9 @@ object Config {
       config.as[ChartVersion]("chartVersion"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
-      config.as[ServiceAccountName]("serviceAccountName")
+      config.as[ServiceAccountName]("serviceAccountName"),
+      config.getBoolean("enableCustomAppCheck"),
+      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
     )
   }
 
