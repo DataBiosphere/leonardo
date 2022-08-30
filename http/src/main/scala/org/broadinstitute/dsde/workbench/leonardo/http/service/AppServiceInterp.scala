@@ -79,20 +79,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- checkIfUserAllowed(req.appType, userInfo.userEmail)
 
       projectLabels <- googleResourceService.getLabels(googleProject)
-      _ <-
-        if (req.appType == Custom && customAppSecurityConfig.enableCustomAppCheck) {
-          val appAllowList =
-            if (projectLabels.getOrElse("security-group", "").canEqual("high"))
-              customAppSecurityConfig.customApplicationAllowList.highSecurity
-            else customAppSecurityConfig.customApplicationAllowList.default
-          if (!appAllowList.contains(req.descriptorPath.getOrElse("None").toString)) {
-            F.raiseError[Unit](
-              AppCreationException(
-                s"App is not in app allow list."
-              )
-            )
-          } else F.unit
-        } else F.unit
+      appAllowList =
+        if (projectLabels.getOrElse("security-group", "").canEqual("high"))
+          customAppSecurityConfig.customApplicationAllowList.highSecurity
+        else customAppSecurityConfig.customApplicationAllowList.default
+
+      _ <- F
+        .raiseError[Unit](AppCreationException(s"App is not in app allow list."))
+        .whenA(
+          !appAllowList.contains(
+            req.descriptorPath.getOrElse("None").toString
+          ) && req.appType == Custom && customAppSecurityConfig.enableCustomAppCheck
+        )
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(googleProject), appName).transaction
       _ <- appOpt.fold(F.unit)(c =>
