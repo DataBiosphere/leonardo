@@ -406,7 +406,21 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .void
       }
 
-      // TODO: delete staging container. Currently WSM doesn't expose delete API yet
+      stagingBucketResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageAccount)
+        .transaction
+      _ <- stagingBucketResourceOpt.traverse(stagingBucketResourceId =>
+        wsmDao.deleteStorageContainer(
+          DeleteWsmResourceRequest(
+            msg.workspaceId,
+            stagingBucketResourceId.resourceId,
+            DeleteControlledAzureResourceRequest(
+              WsmJobControl(WsmJobId(s"del-staging-${ctx.traceId.asString.take(10)}"))
+            )
+          ),
+          auth
+        )
+      )
 
       // Delete hybrid connection for this VM
       leoAuth <- samDAO.getLeoAuthToken
