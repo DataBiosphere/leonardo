@@ -9,7 +9,7 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.11"
-  val http4sVersion = "1.0.0-M34"
+  val http4sVersion = "1.0.0-M36"
   val slickV = "3.4.0"
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
