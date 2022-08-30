@@ -134,9 +134,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.storageContainerResourceId.value.toString,
           config.welderImage,
           params.runtime.auditInfo.creator.value,
-// TODO: once staging bucket permission is fixed. Use actual staging bucket
-//          s"sc-${params.workspaceId.value.toString}",
-//          params.storageContainerResourceId.value.toString
           stagingContainerName.value,
           stagingContainerResourceId.value.toString
         )
