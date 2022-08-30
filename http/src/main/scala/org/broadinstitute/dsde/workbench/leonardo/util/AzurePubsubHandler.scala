@@ -110,7 +110,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
-//      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
+      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
@@ -135,10 +135,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.welderImage,
           params.runtime.auditInfo.creator.value,
 // TODO: once staging bucket permission is fixed. Use actual staging bucket
-          s"sc-${params.workspaceId.value.toString}",
-          params.storageContainerResourceId.value.toString
-          //          stagingContainerName.value,
-//          stagingContainerResourceId.value.toString
+//          s"sc-${params.workspaceId.value.toString}",
+//          params.storageContainerResourceId.value.toString
+          stagingContainerName.value,
+          stagingContainerResourceId.value.toString
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
