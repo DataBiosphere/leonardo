@@ -36,7 +36,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Uri.unsafeFromString("https://sam.test.org:443"),
           Uri.unsafeFromString("https://localhost:8000"),
           "terradevacrpublic.azurecr.io/welder-server",
-          "fa58dbc",
+          "0797df3",
           PollMonitorConfig(1 seconds, 120, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           AzureRuntimeDefaults(
@@ -62,7 +62,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/c85f03f1c29d558a23563da7df9e92184fa8e84f/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/33fec3fb11c7c511349a47419f9a985a16f7f4b7/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a3ef8e0",

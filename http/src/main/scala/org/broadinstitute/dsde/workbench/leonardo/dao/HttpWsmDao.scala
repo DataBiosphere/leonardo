@@ -156,6 +156,11 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "vm")
 
+  override def deleteStorageContainer(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]] =
+    deleteHelper(request, authorization, "storageContainer")
+
   override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]] =

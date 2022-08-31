@@ -64,6 +64,10 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]]
 
+  def deleteStorageContainer(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]]
+
   def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]]
