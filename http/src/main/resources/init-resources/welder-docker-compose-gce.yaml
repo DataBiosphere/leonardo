@@ -22,10 +22,12 @@ services:
       OWNER_EMAIL: "${OWNER_EMAIL}"
       IS_RSTUDIO_RUNTIME: "${IS_RSTUDIO_RUNTIME}"
       CLOUD_PROVIDER: gcp
+      PORT: 8080
       # The following envs aren't needed for GCP. But use dummy values just so welder will be able to read config properly
       WSM_URL: "dummy"
       WORKSPACE_ID: "dummy"
       STORAGE_CONTAINER_RESOURCE_ID: "dummy"
+      STAGING_STORAGE_CONTAINER_RESOURCE_ID: "dummy"
     volumes:
       # shared with jupyter
       - ${WORK_DIRECTORY}:/work

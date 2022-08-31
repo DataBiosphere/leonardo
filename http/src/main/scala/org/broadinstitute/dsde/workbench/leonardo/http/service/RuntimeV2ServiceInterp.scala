@@ -240,13 +240,18 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // This is non-fatal, as we still want to allow users to clean up the db record if they have permission.
       // We must check if they have permission other ways if we did not get an ID back from WSM though
       (hasPermission, wsmResourceIdOpt) <- controlledResourceOpt.fold(
-        authProvider
-          .isUserWorkspaceOwner(workspaceId, WorkspaceResourceSamResourceId(workspaceId), userInfo)
-          .map(isOwner => isOwner || runtime.auditInfo.creator == userInfo.userEmail)
-          .map(hasPermission => (hasPermission, none[WsmControlledResourceId]))
+        if (runtime.auditInfo.creator == userInfo.userEmail)
+          F.pure((true, none[WsmControlledResourceId]))
+        else
+          authProvider
+            .isUserWorkspaceOwner(workspaceId, WorkspaceResourceSamResourceId(workspaceId), userInfo)
+            .map(isOwner => (isOwner, none[WsmControlledResourceId]))
       ) { controlledResource =>
-        checkSamPermission(controlledResource, userInfo, WsmResourceAction.Write)
-          .map(x => (x._1, Some(x._2)))
+        if (runtime.auditInfo.creator == userInfo.userEmail)
+          F.pure((true, Some(controlledResource.resourceId)))
+        else
+          checkSamPermission(controlledResource, userInfo, WsmResourceAction.Write)
+            .map(x => (x._1, Some(x._2)))
       }
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
