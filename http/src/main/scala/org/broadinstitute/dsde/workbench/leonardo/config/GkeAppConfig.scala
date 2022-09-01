@@ -58,7 +58,6 @@ final case class CustomAppConfig(chartName: ChartName,
                                  releaseNameSuffix: ReleaseNameSuffix,
                                  namespaceNameSuffix: NamespaceNameSuffix,
                                  serviceAccountName: ServiceAccountName,
-                                 enableCustomAppCheck: Boolean,
                                  customApplicationAllowList: CustomApplicationAllowListConfig
 ) extends GkeAppConfig {
   // Not known at config. Generated at runtime.

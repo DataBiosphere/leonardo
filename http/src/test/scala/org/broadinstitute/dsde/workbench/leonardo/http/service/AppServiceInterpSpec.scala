@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageType
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, QueueFactory}
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.scalatest.Assertion
@@ -40,6 +40,8 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   Config,
   CustomAppConfig,
@@ -1089,9 +1091,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
+    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(true)
+    }
     val testInterp = new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      whitelistAuthProvider,
+      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
@@ -1102,7 +1108,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        enableCustomAppCheck = true,
         customApplicationAllowList
       )
     )
@@ -1117,14 +1122,18 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "throw an AppCreationException when trying to create a custom app with default security" in isolatedDbTest {
+  it should "create a custom app with no security-group project labels" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
+    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(true)
+    }
     val testInterp = new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      whitelistAuthProvider,
+      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
@@ -1135,26 +1144,23 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        enableCustomAppCheck = true,
         customApplicationAllowList
       )
     )
-    val appReq = createAppRequest.copy(
+    createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
       appType = AppType.Custom,
-      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/defaultSec"))
     )
-
-    an[AppCreationException] should be thrownBy {
-      testInterp
-        .createApp(userInfo, cloudContextGcp, appName, appReq)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
   }
 
   it should "create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(true)
+    }
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List("https://www.myappdescriptor.com/finaldesc"))
     val highSecurityGoogleResourceService = new FakeGoogleResourceService {
@@ -1162,8 +1168,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      whitelistAuthProvider,
+      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
@@ -1174,7 +1180,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        enableCustomAppCheck = true,
         customApplicationAllowList
       )
     )
@@ -1189,7 +1194,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "throw an AppCreationException when trying to create a custom app with high security" in isolatedDbTest {
+  it should "throw a ForbiddenError when trying to create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
@@ -1199,7 +1204,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      appServiceConfig,
+      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
       whitelistAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1211,7 +1216,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        enableCustomAppCheck = true,
         customApplicationAllowList
       )
     )
@@ -1221,7 +1225,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
     )
 
-    an[AppCreationException] should be thrownBy {
+    an[ForbiddenError] should be thrownBy {
       testInterp
         .createApp(userInfo, cloudContextGcp, appName, appReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

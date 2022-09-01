@@ -645,7 +645,6 @@ object Config {
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.getBoolean("enableCustomAppCheck"),
       config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
     )
   }

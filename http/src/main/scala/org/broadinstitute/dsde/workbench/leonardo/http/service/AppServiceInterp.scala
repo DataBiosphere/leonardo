@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import org.http4s.Uri
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -37,7 +38,6 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppConfig
-import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 
 import scala.concurrent.ExecutionContext
 
@@ -54,8 +54,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends AppService[F] {
-  def securityGroup = "security-group"
-  def securityGroupValueHigh = "high"
+  val SECURITY_GROUP = "security-group"
+  val SECURITY_GROUP_HIGH = "high"
 
   override def createApp(
     userInfo: UserInfo,
@@ -78,21 +78,24 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      _ <- checkIfUserAllowed(req.appType, userInfo.userEmail)
-
-      projectLabels <- googleResourceService.getLabels(googleProject)
-      appAllowList =
-        if (projectLabels.getOrElse(securityGroup, "").canEqual(securityGroupValueHigh))
-          customAppConfig.customApplicationAllowList.highSecurity
-        else customAppConfig.customApplicationAllowList.default
-
-      _ <- F
-        .raiseError[Unit](AppCreationException(s"App is not in app allow list."))
-        .whenA(
-          !appAllowList.contains(
-            req.descriptorPath.getOrElse("None").toString
-          ) && req.appType == Custom && customAppConfig.enableCustomAppCheck
-        )
+      _ <- req.appType match {
+        case AppType.Custom =>
+          req.descriptorPath match {
+            case Some(descriptorPath) =>
+              checkIfAppCreationIsAllowed(req.appType, userInfo.userEmail, googleProject, descriptorPath)
+            case None =>
+              F.raiseError(
+                new LeoException(
+                  "DescriptorPath is undefined - when AppType is Custom, descriptorPath should be defined.",
+                  StatusCodes.BadRequest,
+                  null,
+                  "",
+                  Some(ctx.traceId)
+                )
+              )
+          }
+        case _ => F.unit
+      }
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(googleProject), appName).transaction
       _ <- appOpt.fold(F.unit)(c =>
@@ -550,16 +553,57 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def checkIfUserAllowed(appType: AppType, userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Unit] =
-    if (config.enableCustomAppGroupPermissionCheck)
+  private def checkIfAppCreationIsAllowed(appType: AppType,
+                                          userEmail: WorkbenchEmail,
+                                          googleProject: GoogleProject,
+                                          descriptorPath: Uri
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    if (config.enableCustomAppCheck)
       for {
         ctx <- ev.ask
-        isUserAllowed <- appType match {
-//          case AppType.Custom => authProvider.isCustomAppAllowed(userEmail)
-          case _ => F.pure(true)
+
+        allowedOrError <- appType match {
+          case AppType.Custom =>
+            for {
+              projectLabels <- googleResourceService.getLabels(googleProject)
+              isAppAllowed <- projectLabels match {
+                case Some(labels) =>
+                  labels.get(SECURITY_GROUP) match {
+                    case Some(securityGroupValue) =>
+                      val appAllowList =
+                        if (securityGroupValue == SECURITY_GROUP_HIGH)
+                          customAppConfig.customApplicationAllowList.highSecurity
+                        else customAppConfig.customApplicationAllowList.default
+                      val res =
+                        if (appAllowList.contains(descriptorPath.toString()))
+                          Right(())
+                        else
+                          Left(s"${descriptorPath.toString()} is not in app allow list.")
+                      F.pure(res)
+                    case None =>
+                      authProvider.isCustomAppAllowed(userEmail) map { res =>
+                        if (res) Right(())
+                        else Left("No security-group found for this project. User is not in CUSTOM_APP_USERS group")
+                      }
+                  }
+                case None =>
+                  authProvider.isCustomAppAllowed(userEmail) map { res =>
+                    if (res) Right(())
+                    else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
+                  }
+              }
+            } yield isAppAllowed
+
+          case _ => F.pure(Right(()))
         }
-        _ <- F.whenA(!isUserAllowed)(log.info(Map("traceId" -> ctx.asString))("user is not in CUSTOM_APP_USERS group"))
-        _ <- F.raiseWhen(!isUserAllowed)(ForbiddenError(userEmail))
+
+        _ <- allowedOrError match {
+          case Left(error) =>
+            log.info(Map("traceId" -> ctx.asString))(error) >> F.raiseError(ForbiddenError(userEmail, Some(ctx)))
+          case Right(_) => F.unit
+        }
       } yield ()
     else F.unit
 
