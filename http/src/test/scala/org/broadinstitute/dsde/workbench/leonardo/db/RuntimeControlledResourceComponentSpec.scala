@@ -29,12 +29,18 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       _ <- controlledResourceQuery
         .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
         .transaction
+      _ <- controlledResourceQuery
+        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
+        .transaction
       controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+      controlledStorageContainerResource <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
+        .transaction
     } yield {
-      controlledResources.length shouldBe 1
+      controlledResources.length shouldBe 2
       controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureNetwork)
+      controlledStorageContainerResource.isDefined shouldBe true
     }
-
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
