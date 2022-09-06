@@ -210,7 +210,7 @@ object Dependencies {
     scalaTest,
     scalaTestSelenium,
     scalaTestMockito,
-    http4sBlazeServer % Test,
-    wsmClient
+    http4sBlazeServer % Test//,
+//    wsmClient
   )
 }
