@@ -1276,7 +1276,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       CustomApplicationAllowListConfig(List(), List())
     val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
-        IO.pure(true)
+        IO.pure(false)
     }
     val noSecurityGroup = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
