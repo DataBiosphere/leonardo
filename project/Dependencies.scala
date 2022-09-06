@@ -4,18 +4,18 @@ object Dependencies {
   val scalaV = "2.13"
 
   val akkaV = "2.6.19"
-  val akkaHttpV = "10.2.7"
+  val akkaHttpV = "10.2.9"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
-  val scalaTestV = "3.2.11"
-  val http4sVersion = "1.0.0-M34"
+  val scalaTestV = "3.2.12"
+  val http4sVersion = "1.0.0-M35"
   val slickV = "3.4.0"
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "8cef579"
+  private val workbenchLibsHash = "0096bac"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
@@ -62,16 +62,17 @@ object Dependencies {
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
+  val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
   val akkaHttpSprayJson: ModuleID = "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV
   val akkaStream: ModuleID = "com.typesafe.akka" %% "akka-stream" % akkaV
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.44.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.44.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
-  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
+  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-16" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
@@ -124,7 +125,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.29"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.15.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.20" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.28" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
@@ -165,6 +166,7 @@ object Dependencies {
     scalaLogging,
     ficus,
     enumeratum,
+    akkaSlf4j,
     akkaHttp,
     akkaHttpSprayJson,
     akkaTestKit,
@@ -208,7 +210,7 @@ object Dependencies {
     scalaTest,
     scalaTestSelenium,
     scalaTestMockito,
-    http4sBlazeServer % Test//,
-//    wsmClient
+    http4sBlazeServer % Test,
+    wsmClient
   )
 }
