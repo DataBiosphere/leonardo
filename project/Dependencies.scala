@@ -8,7 +8,7 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
-  val scalaTestV = "3.2.12"
+  val scalaTestV = "3.2.13"
   val http4sVersion = "1.0.0-M35"
   val slickV = "3.4.0"
   val guavaV = "31.1-jre"
@@ -122,7 +122,7 @@ object Dependencies {
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
-  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.29"
+  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.30"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.15.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.28" % Test // brought in for FakeStorageInterpreter

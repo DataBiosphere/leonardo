@@ -12,9 +12,6 @@ import org.http4s.implicits._
 import org.http4s.server.Server
 import org.http4s._
 
-import java.util.concurrent.Executors
-import scala.concurrent.ExecutionContext
-
 // This is for setting `REFERER` header in automation tests
 object ProxyRedirectClient {
   // serverRef is Singleton http4s server to serve the proxy redirect page.
