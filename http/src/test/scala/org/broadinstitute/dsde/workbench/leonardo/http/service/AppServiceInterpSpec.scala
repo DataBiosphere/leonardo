@@ -1086,6 +1086,40 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "throw a leo exception if AppType is custom and descriptorPath is undefined." in isolatedDbTest {
+    val appName = AppName("my_custom_app")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customApplicationAllowList =
+      CustomApplicationAllowListConfig(List(), List())
+    val testInterp = new LeoAppServiceInterp[IO](
+      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      CustomAppConfig(
+        ChartName(""),
+        ChartVersion(""),
+        ReleaseNameSuffix(""),
+        NamespaceNameSuffix(""),
+        ServiceAccountName(""),
+        customApplicationAllowList
+      )
+    )
+    val appReq = createAppRequest.copy(
+      diskConfig = Some(createDiskConfig),
+      appType = AppType.Custom,
+      descriptorPath = None
+    )
+
+    an[LeoException] should be thrownBy {
+      testInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "create a custom app with default security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
@@ -1235,18 +1269,26 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "throw a leo exception if AppType is custom and descriptorPath is undefined." in isolatedDbTest {
+  it should "throw a ForbiddenError when trying to create a custom app with project labels but no security group label" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
+    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(true)
+    }
+    val noSecurityGroup = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO(Some(Map("not-security-group" -> "any-val")))
+    }
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
-      whitelistAuthProvider,
+      authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      noSecurityGroup,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1259,10 +1301,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
       appType = AppType.Custom,
-      descriptorPath = None
+      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
     )
 
-    an[LeoException] should be thrownBy {
+    an[ForbiddenError] should be thrownBy {
       testInterp
         .createApp(userInfo, cloudContextGcp, appName, appReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
