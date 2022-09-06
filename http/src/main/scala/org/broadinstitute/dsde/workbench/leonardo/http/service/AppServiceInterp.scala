@@ -564,40 +564,36 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       for {
         ctx <- ev.ask
 
-        allowedOrError <- appType match {
-          case AppType.Custom =>
-            for {
-              projectLabels <- googleResourceService.getLabels(googleProject)
-              isAppAllowed <- projectLabels match {
-                case Some(labels) =>
-                  labels.get(SECURITY_GROUP) match {
-                    case Some(securityGroupValue) =>
-                      val appAllowList =
-                        if (securityGroupValue == SECURITY_GROUP_HIGH)
-                          customAppConfig.customApplicationAllowList.highSecurity
-                        else customAppConfig.customApplicationAllowList.default
-                      val res =
-                        if (appAllowList.contains(descriptorPath.toString()))
-                          Right(())
-                        else
-                          Left(s"${descriptorPath.toString()} is not in app allow list.")
-                      F.pure(res)
-                    case None =>
-                      authProvider.isCustomAppAllowed(userEmail) map { res =>
-                        if (res) Right(())
-                        else Left("No security-group found for this project. User is not in CUSTOM_APP_USERS group")
-                      }
-                  }
-                case None =>
-                  authProvider.isCustomAppAllowed(userEmail) map { res =>
-                    if (res) Right(())
-                    else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
-                  }
-              }
-            } yield isAppAllowed
-
-          case _ => F.pure(Right(()))
-        }
+        allowedOrError <-
+          for {
+            projectLabels <- googleResourceService.getLabels(googleProject)
+            isAppAllowed <- projectLabels match {
+              case Some(labels) =>
+                labels.get(SECURITY_GROUP) match {
+                  case Some(securityGroupValue) =>
+                    val appAllowList =
+                      if (securityGroupValue == SECURITY_GROUP_HIGH)
+                        customAppConfig.customApplicationAllowList.highSecurity
+                      else customAppConfig.customApplicationAllowList.default
+                    val res =
+                      if (appAllowList.contains(descriptorPath.toString()))
+                        Right(())
+                      else
+                        Left(s"${descriptorPath.toString()} is not in app allow list.")
+                    F.pure(res)
+                  case None =>
+                    authProvider.isCustomAppAllowed(userEmail) map { res =>
+                      if (res) Right(())
+                      else Left("No security-group found for this project. User is not in CUSTOM_APP_USERS group")
+                    }
+                }
+              case None =>
+                authProvider.isCustomAppAllowed(userEmail) map { res =>
+                  if (res) Right(())
+                  else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
+                }
+            }
+          } yield isAppAllowed
 
         _ <- allowedOrError match {
           case Left(error) =>

@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   TestComponent,
   _
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError}
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
@@ -1147,11 +1147,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         customApplicationAllowList
       )
     )
-    createAppRequest.copy(
+    val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
       appType = AppType.Custom,
       descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/defaultSec"))
     )
+    testInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "create a custom app with high security" in isolatedDbTest {
@@ -1226,6 +1229,40 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     )
 
     an[ForbiddenError] should be thrownBy {
+      testInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "throw a leo exception if AppType is custom and descriptorPath is undefined." in isolatedDbTest {
+    val appName = AppName("my_custom_app")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customApplicationAllowList =
+      CustomApplicationAllowListConfig(List(), List())
+    val testInterp = new LeoAppServiceInterp[IO](
+      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      CustomAppConfig(
+        ChartName(""),
+        ChartVersion(""),
+        ReleaseNameSuffix(""),
+        NamespaceNameSuffix(""),
+        ServiceAccountName(""),
+        customApplicationAllowList
+      )
+    )
+    val appReq = createAppRequest.copy(
+      diskConfig = Some(createDiskConfig),
+      appType = AppType.Custom,
+      descriptorPath = None
+    )
+
+    an[LeoException] should be thrownBy {
       testInterp
         .createApp(userInfo, cloudContextGcp, appName, appReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
