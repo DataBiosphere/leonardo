@@ -12,9 +12,6 @@ import org.http4s.implicits._
 import org.http4s.server.Server
 import org.http4s._
 
-import java.util.concurrent.Executors
-import scala.concurrent.ExecutionContext
-
 // This is for setting `REFERER` header in automation tests
 object ProxyRedirectClient {
   // serverRef is Singleton http4s server to serve the proxy redirect page.
@@ -90,19 +87,18 @@ object ProxyRedirectClient {
       .intersperse("\n")
       .through(text.utf8.encode)
 
-  private def server: IO[(Server, IO[Unit])] =
+  private def server: IO[(Server, IO[Unit])] = {
+    val route = HttpRoutes
+      .of[IO] { case GET -> Root / "proxyRedirectClient" :? Rurl(rurl) =>
+        Ok(getContent(rurl), `Content-Type`(MediaType.text.html))
+      }
+      .orNotFound
     for {
-      // Instantiate a dedicated execution context for this server
-      blockingEc <- IO(Executors.newCachedThreadPool).map(ExecutionContext.fromExecutor)
-      route = HttpRoutes
-        .of[IO] { case GET -> Root / "proxyRedirectClient" :? Rurl(rurl) =>
-          Ok(getContent(rurl), `Content-Type`(MediaType.text.html))
-        }
-        .orNotFound
       // Note this uses `bindAny` which will bind to an arbitrary port. We can't use a dedicated port
       // because multiple test suites may be running on the same host in different class loaders.
-      server <- BlazeServerBuilder[IO](blockingEc).bindAny("0.0.0.0").withHttpApp(route).allocated
+      server <- BlazeServerBuilder[IO].bindAny("0.0.0.0").withHttpApp(route).resource.allocated
     } yield server
+  }
 
   private object Rurl extends QueryParamDecoderMatcher[String]("rurl")
 }
