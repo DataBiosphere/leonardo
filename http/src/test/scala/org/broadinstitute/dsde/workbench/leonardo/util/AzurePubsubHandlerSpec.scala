@@ -19,7 +19,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.http4s.headers.Authorization
-import org.mockito.Mockito.when
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.{times, verify, when}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -115,7 +116,46 @@ class AzurePubsubHandlerSpec
 
   it should "delete azure vm properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val azureInterp = makeAzureInterp(asyncTaskQueue = queue)
+    val mockWsmDao = mock[WsmDao[IO]]
+    when {
+      mockWsmDao.deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(None)
+    when {
+      mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(None)
+    when {
+      mockWsmDao.deleteNetworks(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(None)
+    when {
+      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(None)
+    when {
+      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(
+      Some(
+        GetDeleteJobResult(
+          WsmJobReport(
+            WsmJobId("job1"),
+            "desc",
+            WsmJobStatus.Succeeded,
+            200,
+            ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+            Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+            "resultUrl"
+          ),
+          None
+        )
+      )
+    )
+
+    val eqWorkspaceId: WorkspaceId = any[UUID].asInstanceOf[WorkspaceId]
+
+    when {
+      mockWsmDao.getRelayNamespace(eqWorkspaceId, any[com.azure.core.management.Region], any[Authorization])(
+        any[Ask[IO, AppContext]]
+      )
+    } thenReturn IO.pure(None)
+    val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
     val res =
       for {
@@ -137,12 +177,18 @@ class AzurePubsubHandlerSpec
           getRuntime = getRuntimeOpt.get
           controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
         } yield {
+          verify(mockWsmDao, times(1)).deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(
+            any[Ask[IO, AppContext]]
+          )
           getRuntime.status shouldBe RuntimeStatus.Deleted
-          controlledResources.length shouldBe 2
+          controlledResources.length shouldBe 3
         }
 
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
+          .transaction
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)

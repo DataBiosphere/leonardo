@@ -390,7 +390,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       deleteJobId = WsmJobId(s"delete-vm-${ctx.traceId.asString.take(10)}")
       _ <- msg.wsmResourceId.fold(
         logger
-          .info(ctx.loggingCtx)(s"No wsmResourceId found for delete azure runtime msg $msg. No-op for wsmDao.deleteVm.")
+          .info(ctx.loggingCtx)(
+            s"No VM wsmResourceId found for delete azure runtime msg $msg. No-op for wsmDao.deleteVm."
+          )
       ) { wsmResourceId =>
         wsmDao
           .deleteVm(
@@ -407,20 +409,27 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
 
       stagingBucketResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageAccount)
+        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
         .transaction
-      _ <- stagingBucketResourceOpt.traverse(stagingBucketResourceId =>
-        wsmDao.deleteStorageContainer(
-          DeleteWsmResourceRequest(
-            msg.workspaceId,
-            stagingBucketResourceId.resourceId,
-            DeleteControlledAzureResourceRequest(
-              WsmJobControl(WsmJobId(s"del-staging-${ctx.traceId.asString.take(10)}"))
-            )
-          ),
-          auth
-        )
-      )
+      _ <- stagingBucketResourceOpt.fold(
+        logger
+          .info(ctx.loggingCtx)(
+            s"No Storage Container wsmResourceId found for delete azure runtime msg $msg. No-op for wsmDao.deleteStorageContainer."
+          )
+      ) { stagingBucketResourceId =>
+        wsmDao
+          .deleteStorageContainer(
+            DeleteWsmResourceRequest(
+              msg.workspaceId,
+              stagingBucketResourceId.resourceId,
+              DeleteControlledAzureResourceRequest(
+                WsmJobControl(WsmJobId(s"del-staging-${ctx.traceId.asString.take(10)}"))
+              )
+            ),
+            auth
+          )
+          .void
+      }
 
       // Delete hybrid connection for this VM
       leoAuth <- samDAO.getLeoAuthToken
