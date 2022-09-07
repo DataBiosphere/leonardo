@@ -151,6 +151,38 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       error2 shouldBe (Left(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId))))
     }
   }
+  it should "fail request if user is not in custom_app_users group" in {
+    val authProvider = new BaseMockAuthProvider {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val noLabelsGoogleResourceService = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO(None)
+    }
+    val interp = new LeoAppServiceInterp[IO](
+      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      authProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      noLabelsGoogleResourceService,
+      gkeCustomAppConfig
+    )
+
+    an[ForbiddenError] should be thrownBy {
+      interp
+        .createApp(
+          userInfo,
+          cloudContextGcp,
+          AppName("foo"),
+          createAppRequest.copy(appType = AppType.Custom,
+                                descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+          )
+        )
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
 
   it should "not fail customApp request if group check is not enabled" in {
     val authProvider = new BaseMockAuthProvider {

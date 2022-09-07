@@ -82,7 +82,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>
-              checkIfAppCreationIsAllowed(req.appType, userInfo.userEmail, googleProject, descriptorPath)
+              checkIfAppCreationIsAllowed(userInfo.userEmail, googleProject, descriptorPath)
             case None =>
               F.raiseError(
                 new LeoException(
@@ -553,12 +553,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def checkIfAppCreationIsAllowed(appType: AppType,
-                                          userEmail: WorkbenchEmail,
-                                          googleProject: GoogleProject,
-                                          descriptorPath: Uri
-  )(implicit
-    ev: Ask[F, TraceId]
+  private def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject, descriptorPath: Uri)(
+    implicit ev: Ask[F, TraceId]
   ): F[Unit] =
     if (config.enableCustomAppCheck)
       for {

@@ -714,7 +714,7 @@ object Config {
   )
 
   val appServiceConfig = AppServiceConfig(
-    config.getBoolean("app-service.enable-custom-app-group-permission-check"),
+    config.getBoolean("app-service.enable-custom-app-check"),
     leoKubernetesConfig
   )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
