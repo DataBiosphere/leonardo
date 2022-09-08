@@ -85,11 +85,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               checkIfAppCreationIsAllowed(userInfo.userEmail, googleProject, descriptorPath)
             case None =>
               F.raiseError(
-                new LeoException(
+                BadRequestException(
                   "DescriptorPath is undefined - when AppType is Custom, descriptorPath should be defined.",
-                  StatusCodes.BadRequest,
-                  null,
-                  "",
                   Some(ctx.traceId)
                 )
               )

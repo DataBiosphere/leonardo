@@ -1377,11 +1377,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         customApplicationAllowList
       )
     )
-    createAppRequest.copy(
+    val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
       appType = AppType.Custom,
       descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
     )
+    testInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def withLeoPublisher(
