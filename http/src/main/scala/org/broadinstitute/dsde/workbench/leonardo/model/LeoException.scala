@@ -39,12 +39,12 @@ final case class AuthenticationError(email: Option[WorkbenchEmail] = None, extra
     )
     with NoStackTrace
 
-case class ForbiddenError(email: WorkbenchEmail)
+case class ForbiddenError(email: WorkbenchEmail, traceId: Option[TraceId] = None)
     extends LeoException(
       s"${email.value} is unauthorized. " +
         "If you have proper permissions to use the workspace, make sure you are also added to the billing account",
       StatusCodes.Forbidden,
-      traceId = None
+      traceId = traceId
     )
 
 final case class LeoInternalServerError(msg: String, traceId: Option[TraceId])

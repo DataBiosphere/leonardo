@@ -51,11 +51,14 @@ final case class CromwellAppConfig(chartName: ChartName,
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
+final case class CustomApplicationAllowListConfig(default: List[String], highSecurity: List[String])
+
 final case class CustomAppConfig(chartName: ChartName,
                                  chartVersion: ChartVersion,
                                  releaseNameSuffix: ReleaseNameSuffix,
                                  namespaceNameSuffix: NamespaceNameSuffix,
-                                 serviceAccountName: ServiceAccountName
+                                 serviceAccountName: ServiceAccountName,
+                                 customApplicationAllowList: CustomApplicationAllowListConfig
 ) extends GkeAppConfig {
   // Not known at config. Generated at runtime.
   override lazy val kubernetesServices: List[KubernetesService] = List.empty

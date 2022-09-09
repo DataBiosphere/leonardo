@@ -3,7 +3,11 @@ jenkins/gce-custom-images/application_default_credentials.json
 .idea/
 .metals
 /project/boot/
+/project/metals.sbt
+/project/project/
 /project/plugins/project
+log/
+.bloop/
 target/
 lib_managed/
 src_managed/

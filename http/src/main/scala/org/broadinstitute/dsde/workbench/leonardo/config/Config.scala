@@ -443,6 +443,14 @@ object Config {
       )
   }
 
+  implicit private val customApplicationAllowListConfigReader: ValueReader[CustomApplicationAllowListConfig] =
+    ValueReader.relative { config =>
+      CustomApplicationAllowListConfig(
+        config.getStringList("default").asScala.toList,
+        config.getStringList("highSecurity").asScala.toList
+      )
+    }
+
   val dateAccessUpdaterConfig = config.as[DateAccessedUpdaterConfig]("dateAccessedUpdater")
   val applicationConfig = config.as[ApplicationConfig]("application")
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
@@ -636,7 +644,8 @@ object Config {
       config.as[ChartVersion]("chartVersion"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
-      config.as[ServiceAccountName]("serviceAccountName")
+      config.as[ServiceAccountName]("serviceAccountName"),
+      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
     )
   }
 
@@ -705,7 +714,7 @@ object Config {
   )
 
   val appServiceConfig = AppServiceConfig(
-    config.getBoolean("app-service.enable-custom-app-group-permission-check"),
+    config.getBoolean("app-service.enable-custom-app-check"),
     leoKubernetesConfig
   )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
