@@ -36,7 +36,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       .parEvalMapUnordered(10) { r =>
         for {
           now <- F.realTimeInstant
-          implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitoring${now}"))
+          implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitor${now}"))
           _ <- handleRuntime(r)
           _ <- handleRuntimePatchInProgress(r)
         } yield ()
@@ -51,7 +51,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       .parEvalMapUnordered(10) { case (a, n, c) =>
         for {
           now <- F.realTimeInstant
-          implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitoring${now}"))
+          implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitor${now}"))
           _ <- handleApp(a, n, c)
         } yield ()
       }

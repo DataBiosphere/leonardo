@@ -472,6 +472,16 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' /etc/jupyter/custom/jupyter_delocalize.py"
 
+  # Copy gitignore into jupyter container
+
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
+
+  # Install nbstripout and set gitignore in Git Config
+
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
+        && nbstripout --install --global \
+        && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
+
   docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
