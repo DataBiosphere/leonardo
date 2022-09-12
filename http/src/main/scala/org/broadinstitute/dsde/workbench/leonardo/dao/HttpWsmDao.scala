@@ -286,7 +286,13 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                 s"/api/workspaces/v1/${workspaceId.value}/resources"
               )
           )
-          .withMultiValueQueryParams(Map("resource" -> List(wsmResourceType.toString))),
+          .withMultiValueQueryParams(
+            Map(
+              "resource" -> List(wsmResourceType.toString),
+              "stewardship" -> List("CONTROLLED"),
+              "limit" -> List("500")
+            )
+          ),
         headers = headers(authorization, ctx.traceId, false)
       )
     )(onError)
