@@ -3,7 +3,7 @@ import sbt._
 object Dependencies {
   val scalaV = "2.13"
 
-  val akkaV = "2.6.19"
+  val akkaV = "2.6.20"
   val akkaHttpV = "10.2.10"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
@@ -69,7 +69,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.44.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.49.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-16" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -123,9 +123,9 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.30"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.15.0"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.16.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.28" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.14" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
