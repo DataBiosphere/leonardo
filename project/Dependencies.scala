@@ -57,7 +57,7 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.0"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.1"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
@@ -123,7 +123,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.30"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.16.0"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.16.1"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.14" % Test // brought in for FakeStorageInterpreter
 
