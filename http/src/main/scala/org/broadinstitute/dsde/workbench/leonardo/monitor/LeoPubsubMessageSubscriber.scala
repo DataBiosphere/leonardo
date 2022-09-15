@@ -386,24 +386,35 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
-      bucketName <- F.fromOption(initBucket.map(_.bucketName),
-                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
-      )
-      _ <- runtimeConfig.cloudService.interpreter
-        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
-      _ <- asyncTasks.offer(
-        Task(
-          ctx.traceId,
-          runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
-          Some(
-            handleRuntimeMessageError(msg.runtimeId, ctx.now, s"starting runtime ${runtime.projectNameString} failed")
-          ),
-          ctx.now,
-          "startRuntime"
-        )
-      )
+      _ <- runtime.cloudContext.cloudProvider match {
+        case CloudProvider.Gcp =>
+          for {
+            runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+            initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
+            bucketName <- F.fromOption(
+              initBucket.map(_.bucketName),
+              new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
+            )
+            _ <- runtimeConfig.cloudService.interpreter
+              .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
+            _ <- asyncTasks.offer(
+              Task(
+                ctx.traceId,
+                runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
+                Some(
+                  handleRuntimeMessageError(msg.runtimeId,
+                                            ctx.now,
+                                            s"starting runtime ${runtime.projectNameString} failed"
+                  )
+                ),
+                ctx.now,
+                "startRuntime"
+              )
+            )
+          } yield ()
+        case CloudProvider.Azure => azurePubsubHandler.startAndPollRuntime(msg, runtime)
+      }
+
     } yield ()
 
   private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(implicit

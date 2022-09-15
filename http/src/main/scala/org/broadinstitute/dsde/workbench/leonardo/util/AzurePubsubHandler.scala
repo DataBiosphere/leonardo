@@ -11,6 +11,7 @@ import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineS
 import org.broadinstitute.dsde.workbench.azure.{
   AzureCloudContext,
   AzureRelayService,
+  AzureVmServiceInterp,
   ContainerName,
   RelayHybridConnectionName
 }
@@ -20,25 +21,25 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamRe
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceOps, ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, PubsubHandleMessageError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
   AzureRuntimeDeletionError,
   ClusterError
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
@@ -47,7 +48,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   wsmDao: WsmDao[F],
   samDAO: SamDAO[F],
   jupyterDAO: JupyterDAO[F],
-  azureRelay: AzureRelayService[F]
+  azureRelay: AzureRelayService[F],
+  azureVmServiceInterp: AzureVmServiceInterp[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
   implicit val wsmDeleteVmDoneCheckable: DoneCheckable[Option[GetDeleteJobResult]] = (v: Option[GetDeleteJobResult]) =>
@@ -167,6 +169,28 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
+
+  override def startAndPollRuntime(msg: LeoPubsubMessage.StartRuntimeMessage, runtime: Runtime)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+    runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+    runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+
+    op <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), runtime.cloudContext)
+
+    // TODO: Polling?
+    //    _ <- monitorCreateRuntime(
+    //      PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
+    //    )
+  } yield ()
+
+  override def stopAndPollRuntime(msg: LeoPubsubMessage.StopRuntimeMessage)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+  } yield ()
 
   private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
     ev: Ask[F, AppContext]

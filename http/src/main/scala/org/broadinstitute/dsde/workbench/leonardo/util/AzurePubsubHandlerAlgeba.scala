@@ -6,7 +6,9 @@ import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage
+  DeleteAzureRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
@@ -26,6 +28,10 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
+  def startAndPollRuntime(msg: StartRuntimeMessage, runtime: Runtime)(implicit ev: Ask[F, AppContext]): F[Unit]
+
+  def stopAndPollRuntime(msg: StopRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
+
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
@@ -43,6 +49,8 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           vmImage: AzureImage
 )
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
+
+final case class StartAzureRuntimeParams(runtime: Runtime, runtimeConfig: RuntimeConfig.AzureConfig)
 
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
