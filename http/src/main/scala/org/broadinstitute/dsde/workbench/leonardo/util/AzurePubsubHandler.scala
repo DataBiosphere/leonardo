@@ -11,7 +11,7 @@ import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineS
 import org.broadinstitute.dsde.workbench.azure.{
   AzureCloudContext,
   AzureRelayService,
-  AzureVmServiceInterp,
+  AzureVmService,
   ContainerName,
   RelayHybridConnectionName
 }
@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamRe
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceOps, ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
@@ -49,7 +49,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   samDAO: SamDAO[F],
   jupyterDAO: JupyterDAO[F],
   azureRelay: AzureRelayService[F],
-  azureVmServiceInterp: AzureVmServiceInterp[F]
+  azureVmServiceInterp: AzureVmService[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
   implicit val wsmDeleteVmDoneCheckable: DoneCheckable[Option[GetDeleteJobResult]] = (v: Option[GetDeleteJobResult]) =>
@@ -178,7 +178,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
     runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
 
-    op <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), runtime.cloudContext)
+    cloudContext = runtime.cloudContext match {
+      case _: CloudContext.Gcp =>
+        throw PubsubHandleMessageError.ClusterError(runtime.id,
+                                                    ctx.traceId,
+                                                    "Azure runtime should not have GCP cloud context"
+        )
+      case x: CloudContext.Azure => x
+    }
+    op <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), cloudContext.value)
 
     // TODO: Polling?
     //    _ <- monitorCreateRuntime(
