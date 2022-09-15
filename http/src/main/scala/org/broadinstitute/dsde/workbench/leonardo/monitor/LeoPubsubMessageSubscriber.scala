@@ -747,12 +747,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           if (sync) task
           else {
             asyncTasks.offer(
-              Task(ctx.traceId,
-                   task,
-                   Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
-                   ctx.now,
-                   "deleteDisk"
-              )
+              Task(ctx.traceId, task, Some(logError(s"${diskId.value}", "Deleting Disk")), ctx.now, "deleteDisk")
             )
           }
       }
