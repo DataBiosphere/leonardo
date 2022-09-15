@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInte
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  CreateDiskTimeout,
   DateAccessedUpdaterConfig,
   InterruptablePollMonitorConfig,
   LeoPubsubMessageSubscriberConfig,
@@ -285,10 +286,17 @@ object Config {
       )
     }
 
+  implicit private val createDiskTimeoutConfigReader: ValueReader[CreateDiskTimeout] = ValueReader.relative { c =>
+    CreateDiskTimeout(
+      c.getInt("timeoutInMinutes"),
+      c.getInt("timeoutWithSourceDiskCopyInMinutes")
+    )
+  }
+
   implicit private val persistentDiskMonitorConfigReader: ValueReader[PersistentDiskMonitorConfig] =
     ValueReader.relative { config =>
       PersistentDiskMonitorConfig(
-        config.as[PollMonitorConfig]("create"),
+        config.as[CreateDiskTimeout]("create"),
         config.as[PollMonitorConfig]("delete"),
         config.as[PollMonitorConfig]("update")
       )
