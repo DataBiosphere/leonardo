@@ -12,7 +12,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImpl
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.getRuntimeQueryByUniqueKey
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.model.{
+  RuntimeNotFoundByWorkspaceIdException,
+  RuntimeNotFoundException
+}
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 
 import scala.concurrent.ExecutionContext
@@ -65,6 +68,23 @@ object RuntimeServiceDbQueries {
         DBIO.failed(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
       )(r => DBIO.successful(r))
     }
+  }
+
+  def getActiveRuntime(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    executionContext: ExecutionContext
+  ): DBIO[ClusterRecord] = {
+    val activeRuntime = clusterQuery
+      .filterOpt(Some(workspaceId))(_.workspaceId === _)
+      .filter(_.runtimeName === runtimeName)
+      .filter(_.destroyedDate === dummyDate)
+
+    activeRuntime.result.flatMap(rec =>
+      rec.headOption match {
+        case Some(value) => DBIO.successful(value)
+        case None =>
+          DBIO.failed(RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database"))
+      }
+    )
   }
 
   def unmarshalGetRuntime(

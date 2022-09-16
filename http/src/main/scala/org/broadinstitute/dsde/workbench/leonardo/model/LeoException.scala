@@ -64,6 +64,16 @@ case class RuntimeNotFoundException(cloudContext: CloudContext,
       traceId = traceId
     )
 
+final case class RuntimeNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
+                                                       runtimeName: RuntimeName,
+                                                       msg: String,
+                                                       traceId: Option[TraceId] = None
+) extends LeoException(
+      s"Runtime ${workspaceId} ${runtimeName.asString} not found. Details: ${msg}",
+      StatusCodes.NotFound,
+      traceId = traceId
+    )
+
 case class RuntimeNotFoundByIdException(id: Long, msg: String)
     extends LeoException(s"Runtime with id ${id} not found. Details: ${msg}", StatusCodes.NotFound, traceId = None)
 
@@ -92,11 +102,9 @@ case class RuntimeCannotBeDeletedException(cloudContext: CloudContext,
       traceId = None
     )
 
-case class RuntimeCannotBeStartedException(googleProject: GoogleProject,
-                                           runtimeName: RuntimeName,
-                                           status: RuntimeStatus
-) extends LeoException(
-      s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be started in ${status.toString} status",
+case class RuntimeCannotBeStartedException(cloudContext: CloudContext, runtimeName: RuntimeName, status: RuntimeStatus)
+    extends LeoException(
+      s"Runtime ${cloudContext.asStringWithProvider} cannot be started in ${status.toString} status",
       StatusCodes.Conflict,
       traceId = None
     )
