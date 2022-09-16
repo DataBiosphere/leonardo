@@ -145,7 +145,9 @@ object Boot extends IOApp {
         AzureServiceConfig(
           // For now azure disks share same defaults as normal disks
           ConfigReader.appConfig.persistentDisk,
-          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+          ConfigReader.appConfig.azure.pubsubHandler.welderImage
         )
       )
       val runtimeService = RuntimeService(

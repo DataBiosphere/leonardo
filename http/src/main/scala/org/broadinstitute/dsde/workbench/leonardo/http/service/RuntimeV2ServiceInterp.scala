@@ -100,6 +100,18 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         None,
         ctx.now
       )
+      listenerImage: RuntimeImage = RuntimeImage(
+        RuntimeImageType.Listener,
+        config.azureConfig.listenerImage,
+        None,
+        ctx.now
+      )
+      welderImage: RuntimeImage = RuntimeImage(
+        RuntimeImageType.Welder,
+        config.azureConfig.welderImage,
+        None,
+        ctx.now
+      )
 
       _ <- runtimeOpt match {
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
@@ -116,15 +128,16 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
             )
 
-            runtime = convertToRuntime(workspaceId,
-                                       runtimeName,
-                                       cloudContext,
-                                       userInfo,
-                                       req,
-                                       RuntimeSamResourceId(samResource.resourceId),
-                                       Set(runtimeImage),
-                                       Set.empty,
-                                       ctx.now
+            runtime = convertToRuntime(
+              workspaceId,
+              runtimeName,
+              cloudContext,
+              userInfo,
+              req,
+              RuntimeSamResourceId(samResource.resourceId),
+              Set(runtimeImage, listenerImage, welderImage),
+              Set.empty,
+              ctx.now
             )
 
             disk <- persistentDiskQuery.save(diskToSave).transaction
