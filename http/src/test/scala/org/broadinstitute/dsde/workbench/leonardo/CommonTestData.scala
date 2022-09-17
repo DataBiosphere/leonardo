@@ -155,7 +155,9 @@ object CommonTestData {
   val azureServiceConfig = AzureServiceConfig(
     // For now azure disks share same defaults as normal disks
     ConfigReader.appConfig.persistentDisk,
-    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image
+    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
+    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+    ConfigReader.appConfig.azure.pubsubHandler.welderImageHash
   )
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
