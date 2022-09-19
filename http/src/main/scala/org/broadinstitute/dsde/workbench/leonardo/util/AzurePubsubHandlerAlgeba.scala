@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -13,7 +13,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
-  AzureRuntimeDeletionError
+  AzureRuntimeDeletionError,
+  AzureRuntimeStartingError
 }
 import org.http4s.Uri
 
@@ -28,9 +29,15 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  def startAndPollRuntime(msg: StartRuntimeMessage, runtime: Runtime)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def startAndPollRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
 
   def stopAndPollRuntime(msg: StopRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
+
+  def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
 
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant)(implicit
     ev: Ask[F, AppContext]

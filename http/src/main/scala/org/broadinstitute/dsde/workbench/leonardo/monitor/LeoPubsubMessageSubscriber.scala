@@ -386,8 +386,8 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
-      _ <- runtime.cloudContext.cloudProvider match {
-        case CloudProvider.Gcp =>
+      _ <- runtime.cloudContext match {
+        case CloudContext.Gcp(_) =>
           for {
             runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
             initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
@@ -412,7 +412,16 @@ class LeoPubsubMessageSubscriber[F[_]](
               )
             )
           } yield ()
-        case CloudProvider.Azure => azurePubsubHandler.startAndPollRuntime(msg, runtime)
+        // TODO: Add a .handleError
+        case CloudContext.Azure(azureContext) =>
+          azurePubsubHandler
+            .startAndPollRuntime(runtime, azureContext)
+            .handleErrorWith(e =>
+              azurePubsubHandler.handleAzureRuntimeStartError(
+                AzureRuntimeStartingError(runtime.id, s"starting runtime ${runtime.projectNameString} failed", e),
+                ctx.now
+              )
+            )
       }
 
     } yield ()

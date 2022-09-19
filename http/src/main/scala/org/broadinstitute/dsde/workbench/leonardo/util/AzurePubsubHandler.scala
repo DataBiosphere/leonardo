@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, Pub
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
   AzureRuntimeDeletionError,
+  AzureRuntimeStartingError,
   ClusterError
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
@@ -170,30 +171,58 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
 
-  override def startAndPollRuntime(msg: LeoPubsubMessage.StartRuntimeMessage, runtime: Runtime)(implicit
+  // TODO: Rename to startAndMonitorRuntime
+  override def startAndPollRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
-    runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
-    runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
-    runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+    monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
 
-    cloudContext = runtime.cloudContext match {
-      case _: CloudContext.Gcp =>
-        throw PubsubHandleMessageError.ClusterError(runtime.id,
-                                                    ctx.traceId,
-                                                    "Azure runtime should not have GCP cloud context"
+    _ <- monoOpt match {
+      case None =>
+        logger.error(ctx.loggingCtx)(
+          s"Cannot find runtime ${runtime.projectNameString}."
+        ) // Error? For now, log a message
+      case Some(mono) =>
+        implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
+        val task = for {
+          _ <- F.blocking(mono.block()) // TODO: Add timeout
+          // Once mono is complete means vm is running.
+          // Update DB once completed.
+          // Even when Mono completes, we can't assume it's running
+          // Need to check if JupyterLab is running
+          isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
+          _ <- streamUntilDoneOrTimeout(
+            isJupyterUp,
+            config.createVmPollConfig.maxAttempts,
+            config.createVmPollConfig.interval,
+            s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+          )
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
+          _ <- logger.info(ctx.loggingCtx)("runtime is ready")
+
+        } yield ()
+        asyncTasks.offer(
+          Task(
+            ctx.traceId,
+            task,
+            // Set status to error? Probably not, will get user stuck.
+            // Front leo will set to starting. If we don't change anything, status will stay starting.
+            //
+            Some(e =>
+              handleAzureRuntimeStartError(
+                AzureRuntimeStartingError(runtime.id, s"starting runtime ${runtime.projectNameString} failed", e),
+                ctx.now
+              )
+            ),
+            ctx.now,
+            "startRuntime"
+          )
         )
-      case x: CloudContext.Azure => x
     }
-    op <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), cloudContext.value)
-
-    // TODO: Polling?
-    //    _ <- monitorCreateRuntime(
-    //      PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
-    //    )
   } yield ()
 
+  // TODO: stopAndMonitorRuntime
   override def stopAndPollRuntime(msg: LeoPubsubMessage.StopRuntimeMessage)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
@@ -334,7 +363,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => x
       }
 
-      // TODO: this probably isn't super necessary...But we should add a check for pinging jupyter once proxy work is done
       isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
@@ -607,6 +635,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield ()
   }
 
+  <<<<<<< HEAD
   def handleAzureRuntimeDeletionError(e: AzureRuntimeDeletionError)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
@@ -617,6 +646,20 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       .transaction
     _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, ctx.now).transaction
   } yield ()
+
+  def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.error(ctx.loggingCtx, e.cause)(s"Failed to start Azure VM ${e.runtimeId}")
+      _ <- clusterErrorQuery
+        .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
+        .transaction
+      // TODO: What status do we want to update it to? Update to stopped. Is it actually in stopped?
+      // TODO: Then call stopVM (to make it truly stopped)
+      _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, now).transaction
+    } yield ()
 
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
     ev: Ask[F, AppContext]
