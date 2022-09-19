@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   AzureRuntimeCreationError,
   AzureRuntimeDeletionError,
   AzureRuntimeStartingError,
+  AzureRuntimeStoppingError,
   ClusterError
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
@@ -48,6 +49,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
   samDAO: SamDAO[F],
+  welderDao: WelderDAO[F],
   jupyterDAO: JupyterDAO[F],
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F]
@@ -172,7 +174,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield ()
 
   // TODO: Rename to startAndMonitorRuntime
-  override def startAndPollRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+  override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
@@ -184,9 +186,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           s"Cannot find runtime ${runtime.projectNameString}."
         ) // Error? For now, log a message
       case Some(mono) =>
+        // Move to top of file - reason being if composed with another same named variable it could cause confusion
         implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
         val task = for {
-          _ <- F.blocking(mono.block()) // TODO: Add timeout
+          // TODO: Add timeout. See how long it takes to start.
+          // 10 minutes tops. If startup script it may take longer
+          _ <- F.blocking(mono.block())
           // Once mono is complete means vm is running.
           // Update DB once completed.
           // Even when Mono completes, we can't assume it's running
@@ -200,7 +205,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
           _ <- logger.info(ctx.loggingCtx)("runtime is ready")
-
         } yield ()
         asyncTasks.offer(
           Task(
@@ -208,7 +212,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             task,
             // Set status to error? Probably not, will get user stuck.
             // Front leo will set to starting. If we don't change anything, status will stay starting.
-            //
             Some(e =>
               handleAzureRuntimeStartError(
                 AzureRuntimeStartingError(runtime.id, s"starting runtime ${runtime.projectNameString} failed", e),
@@ -222,11 +225,49 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     }
   } yield ()
 
-  // TODO: stopAndMonitorRuntime
-  override def stopAndPollRuntime(msg: LeoPubsubMessage.StopRuntimeMessage)(implicit
+  // TODO: Monitor?
+  // TODO: Flush welder cache?
+  override def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
+    monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+    _ <- monoOpt match {
+      case None =>
+        logger.error(ctx.loggingCtx)(
+          s"Cannot find runtime ${runtime.projectNameString}."
+        ) // Error? For now, log a message
+      case Some(mono) =>
+        val task = for {
+          _ <- F.blocking(mono.block()) // TODO: Add timeout
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
+          // TODO: Do we NONE the IP address like GCP?
+          // _ <- clusterQuery.updateClusterHostIp(params.runtime.id, None, ctx.now).transaction
+          _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
+          _ <- welderDao
+            .flushCache(runtime.cloudContext, runtime.runtimeName)
+            .handleErrorWith(e =>
+              logger.error(ctx.loggingCtx, e)(
+                s"Failed to flush welder cache for ${runtime.projectNameString}"
+              )
+            )
+            .whenA(runtime.welderEnabled)
+        } yield ()
+        asyncTasks.offer(
+          Task(
+            ctx.traceId,
+            task,
+            Some(e =>
+              handleAzureRuntimeStopError(
+                AzureRuntimeStoppingError(runtime.id, s"stopping runtime ${runtime.projectNameString} failed", e),
+                ctx.now
+              )
+            ),
+            ctx.now,
+            "startRuntime"
+          )
+        )
+    }
   } yield ()
 
   private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
@@ -406,6 +447,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 )
               }
               hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
+
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), ctx.now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(
@@ -658,7 +700,19 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
       // TODO: What status do we want to update it to? Update to stopped. Is it actually in stopped?
       // TODO: Then call stopVM (to make it truly stopped)
-      _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, now).transaction
+      // _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, now).transaction
+      // It seems like on the GCP side, the cluster status doesn't change from it's previous state (stopped)
+    } yield ()
+
+  def handleAzureRuntimeStopError(e: AzureRuntimeStartingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.error(ctx.loggingCtx, e.cause)(s"Failed to stop Azure VM ${e.runtimeId}")
+      _ <- clusterErrorQuery
+        .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
+        .transaction
     } yield ()
 
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit

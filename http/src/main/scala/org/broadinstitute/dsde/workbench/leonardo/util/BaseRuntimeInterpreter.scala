@@ -52,17 +52,16 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       ctx <- ev.ask
       // Flush the welder cache to disk
       _ <-
-        if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
-          welderDao
-            .flushCache(params.runtimeAndRuntimeConfig.runtime.cloudContext,
-                        params.runtimeAndRuntimeConfig.runtime.runtimeName
+        welderDao
+          .flushCache(params.runtimeAndRuntimeConfig.runtime.cloudContext,
+                      params.runtimeAndRuntimeConfig.runtime.runtimeName
+          )
+          .handleErrorWith(e =>
+            logger.error(ctx.loggingCtx, e)(
+              s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
             )
-            .handleErrorWith(e =>
-              logger.error(ctx.loggingCtx, e)(
-                s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
-              )
-            )
-        } else F.unit
+          )
+          .whenA(params.runtimeAndRuntimeConfig.runtime.welderEnabled)
 
       _ <- clusterQuery.updateClusterHostIp(params.runtimeAndRuntimeConfig.runtime.id, None, ctx.now).transaction
 

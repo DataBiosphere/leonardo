@@ -341,34 +341,53 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
         else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, true)
-      )
-      poll = op match {
-        case Some(o) =>
-          val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+      // Branch
+      _ <- runtime.cloudContext match {
+        case CloudContext.Gcp(_) =>
           for {
-            operation <- F.blocking(o.get())
-            _ <- operationFutureCache.put(runtime.id)(o, None)
-            _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
-              runtimeConfig.cloudService
-                .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+            op <- runtimeConfig.cloudService.interpreter.stopRuntime(
+              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, true)
+            )
+            poll = op match {
+              case Some(o) =>
+                val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+                for {
+                  operation <- F.blocking(o.get())
+                  _ <- operationFutureCache.put(runtime.id)(o, None)
+                  _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
+                    runtimeConfig.cloudService
+                      .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+                  )
+                } yield ()
+              case None =>
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+            }
+            _ <- asyncTasks.offer(
+              Task(
+                ctx.traceId,
+                poll,
+                Some(
+                  handleRuntimeMessageError(msg.runtimeId,
+                                            ctx.now,
+                                            s"stopping runtime ${runtime.projectNameString} failed"
+                  )
+                ),
+                ctx.now,
+                "stopRuntime"
+              )
             )
           } yield ()
-        case None =>
-          runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+        case CloudContext.Azure(azureContext) =>
+          azurePubsubHandler
+            .stopAndMonitorRuntime(runtime, azureContext)
+            .handleErrorWith(e =>
+              azurePubsubHandler.handleAzureRuntimeStopError(
+                AzureRuntimeStartingError(runtime.id, s"starting runtime ${runtime.projectNameString} failed", e),
+                ctx.now
+              )
+            )
       }
-      _ <- asyncTasks.offer(
-        Task(
-          ctx.traceId,
-          poll,
-          Some(
-            handleRuntimeMessageError(msg.runtimeId, ctx.now, s"stopping runtime ${runtime.projectNameString} failed")
-          ),
-          ctx.now,
-          "stopRuntime"
-        )
-      )
+
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(implicit
@@ -412,10 +431,9 @@ class LeoPubsubMessageSubscriber[F[_]](
               )
             )
           } yield ()
-        // TODO: Add a .handleError
         case CloudContext.Azure(azureContext) =>
           azurePubsubHandler
-            .startAndPollRuntime(runtime, azureContext)
+            .startAndMonitorRuntime(runtime, azureContext)
             .handleErrorWith(e =>
               azurePubsubHandler.handleAzureRuntimeStartError(
                 AzureRuntimeStartingError(runtime.id, s"starting runtime ${runtime.projectNameString} failed", e),

@@ -29,13 +29,19 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  def startAndPollRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+  def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def stopAndPollRuntime(msg: StopRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
 
   def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
+  def handleAzureRuntimeStopError(e: AzureRuntimeStartingError, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 
