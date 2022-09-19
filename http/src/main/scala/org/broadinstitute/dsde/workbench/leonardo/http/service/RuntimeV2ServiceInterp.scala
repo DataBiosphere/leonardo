@@ -310,7 +310,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     _ <-
       if (runtime.status.isStoppable) F.unit
       else
-        F.raiseError[Unit](RuntimeCannotBeStartedException(runtime.cloudContext, runtime.runtimeName, runtime.status))
+        F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.cloudContext, runtime.runtimeName, runtime.status))
     _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
     _ <- publisherQueue.offer(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
   } yield ()

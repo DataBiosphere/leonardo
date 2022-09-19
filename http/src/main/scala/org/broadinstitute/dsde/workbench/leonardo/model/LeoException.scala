@@ -1,12 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
-import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
-
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchEmail, WorkbenchException}
 import org.broadinstitute.dsde.workbench.leonardo.http.errorReportSource
+import org.broadinstitute.dsde.workbench.model.google.GcsPath
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchEmail, WorkbenchException}
 
 import scala.util.control.NoStackTrace
 
@@ -59,8 +57,9 @@ case class RuntimeNotFoundException(cloudContext: CloudContext,
                                     msg: String,
                                     traceId: Option[TraceId] = None
 ) extends LeoException(
-      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} not found. Details: ${msg}",
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} not found",
       StatusCodes.NotFound,
+      extraMessageInLogging = msg,
       traceId = traceId
     )
 
@@ -85,11 +84,9 @@ case class RuntimeAlreadyExistsException(cloudContext: CloudContext, runtimeName
       traceId = None
     )
 
-case class RuntimeCannotBeStoppedException(googleProject: GoogleProject,
-                                           runtimeName: RuntimeName,
-                                           status: RuntimeStatus
-) extends LeoException(
-      s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be stopped in ${status.toString} status",
+case class RuntimeCannotBeStoppedException(cloudContext: CloudContext, runtimeName: RuntimeName, status: RuntimeStatus)
+    extends LeoException(
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be stopped in ${status.toString} status",
       StatusCodes.Conflict,
       traceId = None
     )

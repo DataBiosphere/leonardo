@@ -634,7 +634,7 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
   "/api/v2/runtimes/{workspaceId}/{name}/start":
     post:
-      summary: Start runtime.
+      summary: Start runtime (WIP).
       description: >
         Returns information about an existing azure runtime managed by Leo.
         Poll this to find out when your runtime has finished starting up.
@@ -673,7 +673,7 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
   "/api/v2/runtimes/{workspaceId}/{name}/stop":
     post:
-      summary: Stop runtime.
+      summary: Stop runtime (WIP).
       description: >
         Returns information about an existing azure runtime managed by Leo.
         Poll this to find out when your runtime has finished starting up.

@@ -9,25 +9,24 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  MockWsmDAO,
-  StorageContainerResponse,
-  WorkspaceDescription,
-  WsmDao
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, StorageContainerResponse, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   ForbiddenError,
   ParseLabelsException,
   RuntimeAlreadyExistsException,
   RuntimeCannotBeDeletedException,
+  RuntimeCannotBeStartedException,
+  RuntimeCannotBeStoppedException,
   RuntimeNotFoundByWorkspaceIdException,
   RuntimeNotFoundException
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage
+  DeleteAzureRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
@@ -196,79 +195,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     exc shouldBe a[RuntimeAlreadyExistsException]
   }
 
-  it should "handle error if getWorkspace from WSM fails" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is white listed
-    val runtimeName = RuntimeName("clusterName1")
-    val workspaceId = WorkspaceId(UUID.randomUUID())
-
-    val azureService = new RuntimeV2ServiceInterp[IO](
-      serviceConfig,
-      whitelistAuthProvider,
-      new MockWsmDAO {
-        override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-          ev: Ask[IO, AppContext]
-        ): IO[Option[WorkspaceDescription]] = IO.pure(None)
-      },
-      mockSamDAO,
-      QueueFactory.makePublisherQueue()
-    )
-
-    val exc = azureService
-      .getRuntime(
-        userInfo,
-        runtimeName,
-        workspaceId
-      )
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-
-    exc shouldBe a[WorkspaceNotFoundException]
-  }
-
-  it should "handle error if getWorkspace from WSM returns a workspace with no cloud context" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is white listed
-    val runtimeName = RuntimeName("clusterName1")
-    val workspaceId = WorkspaceId(UUID.randomUUID())
-
-    val azureService = new RuntimeV2ServiceInterp[IO](
-      serviceConfig,
-      whitelistAuthProvider,
-      new MockWsmDAO {
-        override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-          ev: Ask[IO, AppContext]
-        ): IO[Option[WorkspaceDescription]] =
-          IO.pure(Some(WorkspaceDescription(workspaceId, "workspaceName", None, None)))
-      },
-      mockSamDAO,
-      QueueFactory.makePublisherQueue()
-    )
-
-    val exc = azureService
-      .getRuntime(
-        userInfo,
-        runtimeName,
-        workspaceId
-      )
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-
-    exc shouldBe a[CloudContextNotFoundException]
-  }
-
   it should "get a runtime" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
@@ -309,6 +235,55 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "publish start a runtime message properly" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Stopped,
+                workspaceId = Some(workspaceId),
+                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          )
+          .save()
+      )
+      _ <- azureService
+        .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
+      msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+
+    } yield msg shouldBe Some(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to start a runtime if permission denied" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val res = for {
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Running,
+                workspaceId = Some(workspaceId),
+                auditInfo = auditInfo.copy(creator = WorkbenchEmail("otherUser"))
+          )
+          .save()
+      )
+      _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureVm).transaction
+      r <- defaultAzureService
+        .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
+        .attempt
+    } yield {
+      val exception = r.swap.toOption.get
+      exception.getMessage shouldBe s"Runtime Gcp/dsp-leo-test/${runtime.runtimeName.asString} not found"
+      exception.asInstanceOf[RuntimeNotFoundException].msg shouldBe "permission denied"
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "fail to start a runtime when runtime doesn't exist in DB" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
     val runtimeName = RuntimeName("clusterName1")
@@ -323,6 +298,117 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val exception = res.swap.toOption.get
     exception.isInstanceOf[RuntimeNotFoundByWorkspaceIdException] shouldBe true
     exception.getMessage shouldBe s"Runtime ${workspaceId} clusterName1 not found"
+  }
+
+  it should "fail to start a runtime when runtime is not in startable statuses" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+
+    val res = for {
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Running,
+                workspaceId = Some(workspaceId),
+                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          )
+          .save()
+      )
+      res <- defaultAzureService
+        .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
+        .attempt
+    } yield {
+      val exception = res.swap.toOption.get
+      exception.isInstanceOf[RuntimeCannotBeStartedException] shouldBe true
+      exception.getMessage shouldBe "Runtime Gcp/dsp-leo-test cannot be started in Running status"
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "publish stop a runtime message properly" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Running,
+                workspaceId = Some(workspaceId),
+                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          )
+          .save()
+      )
+      _ <- azureService
+        .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
+      msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+
+    } yield msg shouldBe Some(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to stop a runtime if permission denied" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val res = for {
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Running,
+                workspaceId = Some(workspaceId),
+                auditInfo = auditInfo.copy(creator = WorkbenchEmail("otherUser"))
+          )
+          .save()
+      )
+      _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureVm).transaction
+      r <- defaultAzureService
+        .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
+        .attempt
+    } yield {
+      val exception = r.swap.toOption.get
+      exception.getMessage shouldBe s"Runtime Gcp/dsp-leo-test/${runtime.runtimeName.asString} not found"
+      exception.asInstanceOf[RuntimeNotFoundException].msg shouldBe "permission denied"
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to stop a runtime when runtime doesn't exist in DB" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val res =
+      defaultAzureService
+        .stopRuntime(userInfo, runtimeName, workspaceId)
+        .attempt
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val exception = res.swap.toOption.get
+    exception.isInstanceOf[RuntimeNotFoundByWorkspaceIdException] shouldBe true
+    exception.getMessage shouldBe s"Runtime ${workspaceId} clusterName1 not found"
+  }
+
+  it should "fail to stop a runtime when runtime is not in startable statuses" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+
+    val res = for {
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Stopped,
+                workspaceId = Some(workspaceId),
+                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          )
+          .save()
+      )
+      res <- defaultAzureService
+        .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
+        .attempt
+    } yield {
+      val exception = res.swap.toOption.get
+      exception.isInstanceOf[RuntimeCannotBeStoppedException] shouldBe true
+      exception.getMessage shouldBe s"Runtime Gcp/dsp-leo-test/${runtime.runtimeName.asString} cannot be stopped in Stopped status"
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {

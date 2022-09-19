@@ -418,7 +418,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
           } yield ()
         } else
-          F.raiseError[Unit](RuntimeCannotBeStoppedException(googleProject, runtime.runtimeName, runtime.status))
+          F.raiseError[Unit](RuntimeCannotBeStoppedException(cloudContext, runtime.runtimeName, runtime.status))
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
