@@ -382,12 +382,11 @@ class LeoPubsubMessageSubscriber[F[_]](
             .stopAndMonitorRuntime(runtime, azureContext)
             .handleErrorWith(e =>
               azurePubsubHandler.handleAzureRuntimeStopError(
-                AzureRuntimeStartingError(runtime.id, s"starting runtime ${runtime.projectNameString} failed", e),
+                AzureRuntimeStoppingError(runtime.id, s"stopping runtime ${runtime.projectNameString} failed", e),
                 ctx.now
               )
             )
       }
-
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(implicit

@@ -590,6 +590,7 @@ object Boot extends IOApp {
                                                      asyncTasksQueue,
                                                      wsmDao,
                                                      samDao,
+                                                     welderDao,
                                                      jupyterDao,
                                                      azureRelay,
                                                      azureVmService

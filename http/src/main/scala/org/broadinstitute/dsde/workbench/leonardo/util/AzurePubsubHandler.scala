@@ -26,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, PubsubHandleMessageError}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
   AzureRuntimeDeletionError,
@@ -704,7 +704,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       // It seems like on the GCP side, the cluster status doesn't change from it's previous state (stopped)
     } yield ()
 
-  def handleAzureRuntimeStopError(e: AzureRuntimeStartingError, now: Instant)(implicit
+  def handleAzureRuntimeStopError(e: AzureRuntimeStoppingError, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {

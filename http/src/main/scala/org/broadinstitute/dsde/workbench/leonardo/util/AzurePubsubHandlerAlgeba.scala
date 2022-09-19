@@ -6,15 +6,14 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespac
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage
+  DeleteAzureRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
   AzureRuntimeDeletionError,
-  AzureRuntimeStartingError
+  AzureRuntimeStartingError,
+  AzureRuntimeStoppingError
 }
 import org.http4s.Uri
 
@@ -41,7 +40,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def handleAzureRuntimeStopError(e: AzureRuntimeStartingError, now: Instant)(implicit
+  def handleAzureRuntimeStopError(e: AzureRuntimeStoppingError, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 
