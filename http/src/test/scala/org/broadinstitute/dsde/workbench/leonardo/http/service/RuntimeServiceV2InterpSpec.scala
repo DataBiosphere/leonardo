@@ -131,14 +131,28 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       azureRuntimeConfig.region shouldBe azureRegion
       disk.name.value shouldBe defaultCreateAzureRuntimeReq.azureDiskConfig.name.value
 
-      val expectedRuntimeImage = RuntimeImage(
-        RuntimeImageType.Azure,
-        "microsoft-dsvm, ubuntu-2004, 2004-gen2, 22.04.27",
-        None,
-        context.now
+      val expectedRuntimeImage = Set(
+        RuntimeImage(
+          RuntimeImageType.Azure,
+          "microsoft-dsvm, ubuntu-2004, 2004-gen2, 22.04.27",
+          None,
+          context.now
+        ),
+        RuntimeImage(
+          RuntimeImageType.Listener,
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+          None,
+          context.now
+        ),
+        RuntimeImage(
+          RuntimeImageType.Welder,
+          ConfigReader.appConfig.azure.pubsubHandler.welderImageHash,
+          None,
+          context.now
+        )
       )
 
-      fullClusterOpt.map(_.runtimeImages) shouldBe Some(Set(expectedRuntimeImage))
+      fullClusterOpt.map(_.runtimeImages) shouldBe Some(expectedRuntimeImage)
 
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,

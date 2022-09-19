@@ -48,7 +48,11 @@ final case class CustomScriptExtensionConfig(name: String,
                                              minorVersionAutoUpgrade: Boolean,
                                              fileUris: List[String]
 )
-final case class AzureServiceConfig(diskConfig: PersistentDiskConfig, image: AzureImage)
+final case class AzureServiceConfig(diskConfig: PersistentDiskConfig,
+                                    image: AzureImage,
+                                    listenerImage: String,
+                                    welderImage: String
+)
 final case class VMCredential(username: String, password: String)
 
 final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,

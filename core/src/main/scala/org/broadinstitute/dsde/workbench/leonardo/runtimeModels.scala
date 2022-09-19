@@ -345,6 +345,7 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Jupyter extends RuntimeImageType
   case object RStudio extends RuntimeImageType
   case object Welder extends RuntimeImageType
+  case object Listener extends RuntimeImageType
   // This is not strictly an image type. It can either be a custom VM image for dataproc,
   // or boot disk snapshot for GCE VMs
   case object BootSource extends RuntimeImageType
