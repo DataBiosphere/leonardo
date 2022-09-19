@@ -40,6 +40,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchE
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -592,9 +593,16 @@ class LeoPubsubMessageSubscriber[F[_]](
         .setPhysicalBlockSizeBytes(msg.blockSize.bytes)
         .putAllLabels(Map("leonardo" -> "true").asJava)
       msg.sourceDisk.foreach(sourceDisk => diskBuilder.setSourceDisk(sourceDisk.asString))
+      val (disk, timeout) = msg.sourceDisk match {
+        case Some(d) =>
+          (diskBuilder.setSourceDisk(d.asString).build(),
+           config.persistentDiskMonitorConfig.create.sourceDiskCopyInMinutes
+          )
+        case None => (diskBuilder.build(), config.persistentDiskMonitorConfig.create.defaultInMinutes)
+      }
+
       for {
         ctx <- ev.ask
-        disk = diskBuilder.build()
         operationFutureOpt <- googleDiskService
           .createDisk(
             msg.googleProject,
@@ -605,7 +613,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           case None => F.unit
           case Some(v) =>
             val task = for {
-              _ <- F.blocking(v.get())
+              _ <- F.blocking(v.get(timeout, TimeUnit.MINUTES))
               _ <- formattedBy match {
                 case Some(value) =>
                   persistentDiskQuery
@@ -619,13 +627,13 @@ class LeoPubsubMessageSubscriber[F[_]](
 
             if (sync) task
             else {
+              def errorHandler: Throwable => F[Unit] = e =>
+                for {
+                  _ <- logger.error(ctx.loggingCtx, e)(s"Fail to monitor disk(${msg.diskId.value}) creation")
+                  _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction
+                } yield ()
               asyncTasks.offer(
-                Task(ctx.traceId,
-                     task,
-                     Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
-                     ctx.now,
-                     "createDisk"
-                )
+                Task(ctx.traceId, task, Some(errorHandler), ctx.now, "createDisk")
               )
             }
         }
@@ -739,12 +747,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           if (sync) task
           else {
             asyncTasks.offer(
-              Task(ctx.traceId,
-                   task,
-                   Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
-                   ctx.now,
-                   "deleteDisk"
-              )
+              Task(ctx.traceId, task, Some(logError(s"${diskId.value}", "Deleting Disk")), ctx.now, "deleteDisk")
             )
           }
       }
@@ -831,6 +834,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               Some(msg.appId),
               false,
               None,
+              Some(diskId),
               None
             )
           )
@@ -865,6 +869,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
                   // The app will have the error so the user can see it, delete their app, and try again
                   None,
+                  None,
                   None
                 )
               }
@@ -886,6 +891,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                     // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
                     // The app will have the error so the user can see it, delete their app, and try again
                     None,
+                    None,
                     None
                   )
                 }
@@ -903,6 +909,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   Some(msg.appId),
                   false,
                   Some(nodepoolId),
+                  None,
                   None
                 )
               }
@@ -922,6 +929,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               Some(msg.appId),
               false,
               None,
+              disk.map(_.id),
               None
             )
           }
@@ -939,6 +947,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                   Some(msg.appId),
                   false,
+                  None,
                   None,
                   None
                 )
@@ -962,6 +971,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.App, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
+              None,
               None,
               None
             )
@@ -1038,6 +1048,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               Some(msg.appId),
               false,
               None,
+              None,
               None
             )
           }
@@ -1079,6 +1090,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 Some(msg.appId),
                 false,
                 None,
+                None,
                 None
               )
             }
@@ -1087,6 +1099,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
+                None,
                 None,
                 None
               )
@@ -1111,6 +1124,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                       ),
                       Some(msg.appId),
                       false,
+                      None,
                       None,
                       None
                     )
@@ -1209,6 +1223,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             Some(msg.appId),
             false,
             None,
+            None,
             None
           )
         }
@@ -1228,6 +1243,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             Some(msg.appId),
             false,
             None,
+            None,
             None
           )
         }
@@ -1243,6 +1259,9 @@ class LeoPubsubMessageSubscriber[F[_]](
           _ <- e.appId.traverse(id => appQuery.markAsErrored(id).transaction)
           _ <- e.clusterId.traverse(clusterId =>
             kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
+          )
+          _ <- e.diskId.traverse_(diskId =>
+            persistentDiskQuery.updateStatus(diskId, DiskStatus.Failed, ctx.now).transaction
           )
           _ <- e.nodepoolId.traverse(nodepoolId =>
             nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction

@@ -867,6 +867,7 @@ object PubsubHandleMessageError {
                                          appId: Option[AppId],
                                          isRetryable: Boolean,
                                          nodepoolId: Option[NodepoolLeoId],
+                                         diskId: Option[DiskId],
                                          clusterId: Option[KubernetesClusterLeoId]
   ) extends PubsubHandleMessageError {
     override def getMessage: String =
@@ -945,7 +946,8 @@ final case class InterruptablePollMonitorConfig(maxAttempts: Int,
                                                 interruptAfter: FiniteDuration
 )
 
-final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
+final case class CreateDiskTimeout(defaultInMinutes: Int, sourceDiskCopyInMinutes: Int)
+final case class PersistentDiskMonitorConfig(create: CreateDiskTimeout,
                                              delete: PollMonitorConfig,
                                              update: PollMonitorConfig
 )

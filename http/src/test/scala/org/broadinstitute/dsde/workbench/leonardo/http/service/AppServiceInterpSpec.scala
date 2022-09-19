@@ -13,16 +13,14 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleResourceService
 }
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  kubernetesClusterQuery,
-  persistentDiskQuery,
-  KubernetesServiceDbQueries,
-  TestComponent,
-  _
-}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -30,27 +28,15 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessage,
   LeoPubsubMessageType
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, QueueFactory}
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import org.http4s.Uri
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import java.time.Instant
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
-import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  Config,
-  CustomAppConfig,
-  CustomApplicationAllowListConfig,
-  GkeAppConfig
-}
-import org.http4s.Uri
-import org.http4s.implicits.http4sLiteralsSyntax
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {

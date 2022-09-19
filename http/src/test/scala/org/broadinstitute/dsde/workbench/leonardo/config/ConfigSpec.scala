@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{galaxyChartName, galaxyChartVersion}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  CreateDiskTimeout,
   InterruptablePollMonitorConfig,
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
@@ -22,7 +23,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       100,
       295 seconds,
       PersistentDiskMonitorConfig(
-        PollMonitorConfig(2 seconds, 5, 3 seconds),
+        CreateDiskTimeout(5, 20),
         PollMonitorConfig(2 seconds, 5, 3 seconds),
         PollMonitorConfig(2 seconds, 5, 3 seconds)
       ),

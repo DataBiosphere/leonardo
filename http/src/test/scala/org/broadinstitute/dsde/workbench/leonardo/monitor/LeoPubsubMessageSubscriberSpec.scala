@@ -322,7 +322,7 @@ class LeoPubsubMessageSubscriberSpec
         ev: Ask[IO, TraceId]
       ): IO[Option[OperationFuture[Operation, Operation]]] = IO.raiseError(new Exception(s"Fail to delete ${diskName}"))
     }
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = diskService)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = diskService)
     val res =
       for {
         disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
@@ -611,6 +611,37 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle createDisk timeout properly" in isolatedDbTest {
+    val operationFuture = new FakeComputeOperationFuture {
+      override def get(timeout: Long, unit: TimeUnit): Operation =
+        throw new java.util.concurrent.TimeoutException("fake")
+    }
+    val diskService = new MockGoogleDiskService {
+      override def createDisk(project: GoogleProject, zone: ZoneName, disk: Disk)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(Some(operationFuture))
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = diskService)
+    val res =
+      for {
+        disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
+        tr <- traceId.ask[TraceId]
+        _ <- leoSubscriber.messageResponder(CreateDiskMessage.fromDisk(disk, Some(tr)))
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          for {
+            updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
+          } yield updatedDisk.get.status shouldBe DiskStatus.Failed
+        )
+        updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
+      } yield updatedDisk shouldBe defined
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "handle DeleteDiskMessage and delete disk" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
     val res =
@@ -646,7 +677,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = diskService)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = diskService)
     val res =
       for {
         disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
@@ -960,7 +991,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1015,7 +1046,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
     val res = for {
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
@@ -1064,7 +1095,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
 
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -1284,7 +1315,7 @@ class LeoPubsubMessageSubscriberSpec
       resourceService
     )
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
     val res =
       for {
@@ -1348,7 +1379,7 @@ class LeoPubsubMessageSubscriberSpec
         IO.raiseError(new RuntimeException("app creation failed"))
     }
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeAlg)
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeAlg)
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1427,7 +1458,7 @@ class LeoPubsubMessageSubscriberSpec
       resourceService
     )
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
     val res =
       for {
@@ -1528,7 +1559,7 @@ class LeoPubsubMessageSubscriberSpec
     )
 
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
     val res =
       for {
@@ -1641,7 +1672,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.status shouldBe savedNodepool1.status
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1773,7 +1804,7 @@ class LeoPubsubMessageSubscriberSpec
     asyncTaskQueue: Queue[IO, Task[IO]] =
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global),
     gkeAlgebra: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService,
-    diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
+    diskService: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
     azureInterp: AzurePubsubHandlerInterp[IO] = makeAzureInterp()
@@ -1801,7 +1832,7 @@ class LeoPubsubMessageSubscriberSpec
       ),
       googleSubscriber,
       asyncTaskQueue,
-      diskInterp,
+      diskService,
       MockAuthProvider,
       gkeAlgebra,
       azureInterp,
