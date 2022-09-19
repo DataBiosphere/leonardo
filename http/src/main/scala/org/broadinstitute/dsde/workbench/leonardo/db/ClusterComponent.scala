@@ -277,6 +277,25 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, error, label, extension, image, scopes, patch)
   }
 
+  def getActiveRuntimeQueryByWorkspaceId(workspaceId: WorkspaceId, clusterName: RuntimeName) = {
+    val baseQuery = clusterQuery
+      .filterOpt(Some(workspaceId))(_.workspaceId === _)
+      .filter(_.runtimeName === clusterName)
+      .filter(_.destroyedDate === dummyDate)
+
+    for {
+      ((((((cluster, error), label), extension), image), scopes), patch) <- baseQuery joinLeft
+        clusterErrorQuery on (_.id === _.clusterId) joinLeft
+        labelQuery on { case (c, lbl) =>
+          lbl.resourceId === c._1.id && lbl.resourceType === LabelResourceType.runtime
+        } joinLeft
+        extensionQuery on (_._1._1.id === _.clusterId) joinLeft
+        clusterImageQuery on (_._1._1._1.id === _.clusterId) joinLeft
+        scopeQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
+        patchQuery on (_._1._1._1._1._1.id === _.clusterId)
+    } yield (cluster, error, label, extension, image, scopes, patch)
+  }
+
   def clusterRecordQueryByUniqueKey(cloudContext: CloudContext,
                                     clusterName: RuntimeName,
                                     destroyedDateOpt: Option[Instant]

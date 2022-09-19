@@ -67,7 +67,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                   path("stop") {
                     post {
                       complete(
-                        startRuntimeHandler(
+                        stopRuntimeHandler(
                           userInfo,
                           workspaceId,
                           runtimeName
@@ -78,7 +78,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                     path("start") {
                       post {
                         complete(
-                          stopRuntimeHandler(
+                          startRuntimeHandler(
                             userInfo,
                             workspaceId,
                             runtimeName
@@ -171,7 +171,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeV2Service.getRuntime(userInfo, runtimeName, workspaceId)
+      _ = println("111 starting runtime")
+      apiCall = runtimeV2Service.startRuntime(userInfo, runtimeName, workspaceId)
       _ <- metrics.incrementCounter("startRuntimeV2")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "startRuntimeV2")
@@ -184,7 +185,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeV2Service.getRuntime(userInfo, runtimeName, workspaceId)
+      apiCall = runtimeV2Service.stopRuntime(userInfo, runtimeName, workspaceId)
       _ <- metrics.incrementCounter("stopRuntimeV2")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "stopRuntimeV2")

@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   ParseLabelsException,
   RuntimeAlreadyExistsException,
   RuntimeCannotBeDeletedException,
+  RuntimeNotFoundByWorkspaceIdException,
   RuntimeNotFoundException
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -306,6 +307,22 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to start a runtime when runtime doesn't exist in DB" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val res =
+      defaultAzureService
+        .startRuntime(userInfo, runtimeName, workspaceId)
+        .attempt
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val exception = res.swap.toOption.get
+    exception.isInstanceOf[RuntimeNotFoundByWorkspaceIdException] shouldBe true
+    exception.getMessage shouldBe s"Runtime ${workspaceId} clusterName1 not found"
   }
 
   it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {

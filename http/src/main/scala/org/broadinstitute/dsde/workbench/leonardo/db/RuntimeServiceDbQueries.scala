@@ -10,7 +10,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
-import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.getRuntimeQueryByUniqueKey
+import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{
+  getActiveRuntimeQueryByWorkspaceId,
+  getRuntimeQueryByUniqueKey
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   RuntimeNotFoundByWorkspaceIdException,
@@ -71,6 +74,33 @@ object RuntimeServiceDbQueries {
   }
 
   def getActiveRuntime(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    executionContext: ExecutionContext
+  ): DBIO[GetRuntimeResponse] = {
+    val activeRuntime = getActiveRuntimeQueryByWorkspaceId(workspaceId, runtimeName)
+      .join(runtimeConfigs)
+      .on(_._1.runtimeConfigId === _.id)
+      .joinLeft(persistentDiskQuery.tableQuery)
+      .on { case (a, b) => a._2.persistentDiskId.isDefined && a._2.persistentDiskId === b.id }
+
+    activeRuntime.result.flatMap { recs =>
+      val runtimeRecs = recs.map(_._1._1)
+      val res = for {
+        runtimeConfig <- recs.headOption.map(_._1._2)
+        persistentDisk = recs.headOption
+          .flatMap(_._2)
+          .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
+        runtime <- unmarshalGetRuntime(runtimeRecs,
+                                       runtimeConfig.runtimeConfig,
+                                       persistentDisk.map(DiskConfig.fromPersistentDisk)
+        ).headOption
+      } yield runtime
+      res.fold[DBIO[GetRuntimeResponse]](
+        DBIO.failed(RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database"))
+      )(r => DBIO.successful(r))
+    }
+  }
+
+  def getActiveRuntimeRecord(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
     executionContext: ExecutionContext
   ): DBIO[ClusterRecord] = {
     val activeRuntime = clusterQuery

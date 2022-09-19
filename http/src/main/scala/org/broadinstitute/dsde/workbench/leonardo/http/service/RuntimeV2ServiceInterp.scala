@@ -209,7 +209,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+      runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
       _ <- F
         .raiseUnless(runtime.status.isDeletable)(
@@ -266,7 +266,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
-    runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
     // If user is creator of the runtime, they should definitely be able to see the runtime.
     hasPermission <- checkPermission(runtime.auditInfo.creator,
@@ -292,7 +292,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
-    runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
     // If user is creator of the runtime, they should definitely be able to see the runtime.
     hasPermission <- checkPermission(runtime.auditInfo.creator,
@@ -308,7 +308,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       .whenA(!hasPermission)
     _ <-
-      if (runtime.status.isStartable) F.unit
+      if (runtime.status.isStoppable) F.unit
       else
         F.raiseError[Unit](RuntimeCannotBeStartedException(runtime.cloudContext, runtime.runtimeName, runtime.status))
     _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
