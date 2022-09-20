@@ -1508,6 +1508,9 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.ingress.hosts[0].paths[0].path=${ingressPath}""",
       raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
+      // Tusd ingress configs
+      raw"""galaxy.tusd.ingress.hosts[0].paths[0].path=${ingressPath}/api/upload/resumable_upload""",
+      raw"""galaxy.tusd.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       // Galaxy configs
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
@@ -1515,6 +1518,8 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
       raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
       raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Set RabbitMQ storage class
+      raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
       // Set Machine Type specs
       raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
       raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
