@@ -636,8 +636,7 @@ paths:
     post:
       summary: Start runtime (WIP).
       description: >
-        Returns information about an existing azure runtime managed by Leo.
-        Poll this to find out when your runtime has finished starting up.
+        Start an existing Leonardo managed runtime
       operationId: startRuntimeV2
       tags:
         - runtimes
@@ -675,8 +674,7 @@ paths:
     post:
       summary: Stop runtime (WIP).
       description: >
-        Returns information about an existing azure runtime managed by Leo.
-        Poll this to find out when your runtime has finished starting up.
+        Stop an existing Leonardo managed runtime
       operationId: stopRuntimeV2
       tags:
         - runtimes
