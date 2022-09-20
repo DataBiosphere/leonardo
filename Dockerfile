@@ -26,7 +26,7 @@ ENV HELM_DEBUG 1
 ENV TERRA_APP_SETUP_VERSION 0.0.2
 ENV TERRA_APP_VERSION 0.3.0
 # This is galaxykubeman, which references Galaxy
-ENV GALAXY_VERSION 1.6.1
+ENV GALAXY_VERSION 2.1.0
 ENV NGINX_VERSION 3.23.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.84
