@@ -24,9 +24,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage
+  DeleteAzureRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
 
@@ -165,20 +167,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
-      leoAuth <- samDAO.getLeoAuthToken
       ctx <- as.ask
 
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
-      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
-
-      // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
-      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
-        case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
-      }
-
-      runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
+      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
 
       // If user is creator of the runtime, they should definitely be able to see the runtime.
       hasPermission <-
@@ -191,7 +182,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
             azureRuntimeControlledResource <- F.fromOption(
               controlledResourceOpt,
-              AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, ctx.traceId)
+              AzureRuntimeControlledResourceNotFoundException(runtime.cloudContext, runtimeName, ctx.traceId)
             )
             res <- checkSamPermission(azureRuntimeControlledResource, userInfo, WsmResourceAction.Read).map(_._1)
           } yield res
@@ -200,7 +191,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
         .raiseError[Unit](
-          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
+          RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
         )
         .whenA(!hasPermission)
 
@@ -217,31 +208,20 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      leoAuth <- samDAO.getLeoAuthToken
       ctx <- as.ask
-
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
-      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
-
-      // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
-      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
-        case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
-      }
-
-      runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
+      runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
       _ <- F
         .raiseUnless(runtime.status.isDeletable)(
-          RuntimeCannotBeDeletedException(cloudContext, runtime.clusterName, runtime.status)
+          RuntimeCannotBeDeletedException(runtime.cloudContext, runtime.runtimeName, runtime.status)
         )
 
-      diskId <- runtime.runtimeConfig match {
-        case config: RuntimeConfig.AzureConfig => F.pure(config.persistentDiskId)
+      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
+      diskId <- diskIdOpt match {
+        case Some(value) => F.pure(value)
         case _ =>
           F.raiseError[DiskId](
-            AzureRuntimeHasInvalidRuntimeConfig(cloudContext, runtime.clusterName, ctx.traceId)
+            AzureRuntimeHasInvalidRuntimeConfig(runtime.cloudContext, runtime.runtimeName, ctx.traceId)
           )
       }
 
@@ -269,7 +249,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
-        .raiseError[Unit](RuntimeNotFoundException(cloudContext, runtimeName, "permission denied"))
+        .raiseError[Unit](RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied"))
         .whenA(!hasPermission)
 
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
@@ -281,6 +261,59 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wsmResourceIdOpt, Some(ctx.traceId))
       )
     } yield ()
+
+  def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
+
+    // If user is creator of the runtime, they should definitely be able to see the runtime.
+    hasPermission <- checkPermission(runtime.auditInfo.creator,
+                                     userInfo,
+                                     runtime.cloudContext,
+                                     runtime.runtimeName,
+                                     runtime.id
+    )
+    _ <- F
+      .raiseError[Unit](
+        RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
+      )
+      .whenA(!hasPermission)
+    _ <-
+      if (runtime.status.isStartable) F.unit
+      else
+        F.raiseError[Unit](RuntimeCannotBeStartedException(runtime.cloudContext, runtime.runtimeName, runtime.status))
+    _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStarting, ctx.now).transaction
+    _ <- publisherQueue.offer(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
+  } yield ()
+
+  def stopRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
+
+    // If user is creator of the runtime, they should definitely be able to see the runtime.
+    hasPermission <- checkPermission(runtime.auditInfo.creator,
+                                     userInfo,
+                                     runtime.cloudContext,
+                                     runtime.runtimeName,
+                                     runtime.id
+    )
+
+    _ <- F
+      .raiseError[Unit](
+        RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
+      )
+      .whenA(!hasPermission)
+    _ <-
+      if (runtime.status.isStoppable) F.unit
+      else
+        F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.cloudContext, runtime.runtimeName, runtime.status))
+    _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
+    _ <- publisherQueue.offer(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
+  } yield ()
 
   override def listRuntimes(
     userInfo: UserInfo,
@@ -398,6 +431,30 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     )
   }
 
+  private def checkPermission(creator: WorkbenchEmail,
+                              userInfo: UserInfo,
+                              cloudContext: CloudContext,
+                              runtimeName: RuntimeName,
+                              runtimeId: Long
+  )(implicit
+    ev: Ask[F, AppContext]
+  ) = if (creator == userInfo.userEmail) F.pure(true)
+  else {
+    for {
+      ctx <- ev.ask
+      controlledResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtimeId, WsmResourceType.AzureVm)
+        .transaction
+
+      azureRuntimeControlledResource <- F.fromOption(
+        controlledResourceOpt,
+        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, ctx.traceId)
+      )
+      res <- checkSamPermission(azureRuntimeControlledResource, userInfo, WsmResourceAction.Read).map(_._1)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission check")))
+    } yield res
+  }
+
   private def checkSamPermission(azureRuntimeControlledResource: RuntimeControlledResourceRecord,
                                  userInfo: UserInfo,
                                  wsmResourceAction: WsmResourceAction
@@ -405,7 +462,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     ctx: Ask[F, AppContext]
   ): F[(Boolean, WsmControlledResourceId)] =
     for {
-      context <- ctx.ask
       // TODO: generalize for google
       res <- authProvider.hasPermission(
         WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),

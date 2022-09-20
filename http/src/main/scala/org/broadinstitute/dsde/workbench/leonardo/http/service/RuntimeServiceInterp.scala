@@ -418,7 +418,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
           } yield ()
         } else
-          F.raiseError[Unit](RuntimeCannotBeStoppedException(googleProject, runtime.runtimeName, runtime.status))
+          F.raiseError[Unit](RuntimeCannotBeStoppedException(cloudContext, runtime.runtimeName, runtime.status))
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
@@ -464,7 +464,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <-
         if (runtime.status.isStartable) F.unit
         else
-          F.raiseError[Unit](RuntimeCannotBeStartedException(googleProject, runtime.runtimeName, runtime.status))
+          F.raiseError[Unit](RuntimeCannotBeStartedException(cloudContext, runtime.runtimeName, runtime.status))
       // start the runtime
       ctx <- as.ask
       _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStarting, ctx.now).transaction

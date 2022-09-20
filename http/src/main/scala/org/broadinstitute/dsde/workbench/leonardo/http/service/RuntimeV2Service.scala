@@ -20,6 +20,14 @@ trait RuntimeV2Service[F[_]] {
     as: Ask[F, AppContext]
   ): F[GetRuntimeResponse]
 
+  def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def stopRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
   def updateRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
