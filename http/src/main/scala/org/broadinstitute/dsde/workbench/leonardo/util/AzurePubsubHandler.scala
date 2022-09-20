@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
@@ -173,7 +174,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
 
-  // TODO: Rename to startAndMonitorRuntime
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
@@ -181,10 +181,18 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
 
     _ <- monoOpt match {
+      // TODO: Check that fail returns none in unit test.
       case None =>
         logger.error(ctx.loggingCtx)(
           s"Cannot find runtime ${runtime.projectNameString}."
         ) // Error? For now, log a message
+        F.raiseError(
+          RuntimeNotFoundException(
+            runtime.cloudContext,
+            runtime.runtimeName,
+            s"${ctx.traceId} | Unable to find runtime on Azure with context ${azureCloudContext.asString} / ${runtime.projectNameString}. Request: ${ctx.requestUri}"
+          )
+        )
       case Some(mono) =>
         // Move to top of file - reason being if composed with another same named variable it could cause confusion
         implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
@@ -225,8 +233,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     }
   } yield ()
 
-  // TODO: Monitor?
-  // TODO: Flush welder cache?
   override def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
@@ -237,6 +243,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         logger.error(ctx.loggingCtx)(
           s"Cannot find runtime ${runtime.projectNameString}."
         ) // Error? For now, log a message
+        F.raiseError(
+          RuntimeNotFoundException(
+            runtime.cloudContext,
+            runtime.runtimeName,
+            s"${ctx.traceId} | Unable to find runtime on Azure with context ${azureCloudContext.asString} / ${runtime.projectNameString}. Request: ${ctx.requestUri}"
+          )
+        )
       case Some(mono) =>
         val task = for {
           _ <- F.blocking(mono.block()) // TODO: Add timeout
@@ -447,7 +460,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 )
               }
               hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
-
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), ctx.now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(

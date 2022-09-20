@@ -341,12 +341,11 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
         else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      // Branch
       _ <- runtime.cloudContext match {
         case CloudContext.Gcp(_) =>
           for {
             op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, true)
+              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, isDataprocFullStop = true)
             )
             poll = op match {
               case Some(o) =>
