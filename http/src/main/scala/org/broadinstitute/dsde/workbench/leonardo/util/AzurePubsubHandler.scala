@@ -64,6 +64,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         true
     }
 
+  implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
+
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -195,7 +197,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       case Some(mono) =>
         // Move to top of file - reason being if composed with another same named variable it could cause confusion
-        implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
         val task = for {
           // TODO: Add timeout. See how long it takes to start.
           // 10 minutes tops. If startup script it may take longer
@@ -254,8 +255,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         val task = for {
           _ <- F.blocking(mono.block()) // TODO: Add timeout
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
-          // TODO: Do we NONE the IP address like GCP?
-          // _ <- clusterQuery.updateClusterHostIp(params.runtime.id, None, ctx.now).transaction
           _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
           _ <- welderDao
             .flushCache(runtime.cloudContext, runtime.runtimeName)
@@ -399,7 +398,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
 
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
     implicit val wsmCreateVmDoneCheckable: DoneCheckable[GetCreateVmJobResult] = (v: GetCreateVmJobResult) =>
       v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
     for {
