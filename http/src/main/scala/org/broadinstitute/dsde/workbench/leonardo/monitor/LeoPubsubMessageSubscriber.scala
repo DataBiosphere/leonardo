@@ -147,6 +147,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                     )
                   case ee: AzureRuntimeCreationError =>
                     azurePubsubHandler.handleAzureRuntimeCreationError(ee, now)
+                  case ee: AzureRuntimeDeletionError =>
+                    azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
                   case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
                 }
                 _ <-

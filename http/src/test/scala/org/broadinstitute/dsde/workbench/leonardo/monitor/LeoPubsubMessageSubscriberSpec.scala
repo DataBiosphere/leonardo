@@ -1806,8 +1806,10 @@ class LeoPubsubMessageSubscriberSpec
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
+        vmResourceId = WsmControlledResourceId(UUID.randomUUID())
+        _ <- controlledResourceQuery.save(runtime.id, vmResourceId, WsmResourceType.AzureVm).transaction
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, None, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(vmResourceId), None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
@@ -1816,7 +1818,9 @@ class LeoPubsubMessageSubscriberSpec
       } yield {
         getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
         error.length shouldBe 1
-        error.map(_.errorMessage).head should include(exceptionMsg)
+        error.map(_.errorMessage).head should include(
+          "None | WSM call to delete runtime failed due to connection closed. Please retry delete again"
+        )
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
