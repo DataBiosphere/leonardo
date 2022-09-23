@@ -406,6 +406,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             auth
           )
           .void
+          .adaptError(e =>
+            AzureRuntimeDeletionError(
+              runtime.id,
+              msg.workspaceId,
+              s"${ctx.traceId.asString} | WSM call to delete runtime failed due to ${e.getMessage}. Please retry delete again"
+            )
+          )
       }
 
       stagingBucketResourceOpt <- controlledResourceQuery
@@ -553,21 +560,31 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         Task(
           ctx.traceId,
           taskToRun,
-          Some(e =>
-            dbRef
-              .inTransaction(
-                clusterErrorQuery
-                  .save(runtime.id, RuntimeError(e.getMessage, None, ctx.now, Some(ctx.traceId))) >>
-                  clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Error, ctx.now)
+          Some { e =>
+            handleAzureRuntimeDeletionError(
+              AzureRuntimeDeletionError(msg.runtimeId,
+                                        msg.workspaceId,
+                                        s"Fail to delete runtime due to ${e.getMessage}"
               )
-              .void
-          ),
+            )
+          },
           ctx.now,
           "deleteAzureRuntime"
         )
       )
     } yield ()
   }
+
+  def handleAzureRuntimeDeletionError(e: AzureRuntimeDeletionError)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    _ <- logger.error(ctx.loggingCtx, e)(s"Failed to delete Azure VM ${e.runtimeId}")
+    _ <- clusterErrorQuery
+      .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, ctx.now))
+      .transaction
+    _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, ctx.now).transaction
+  } yield ()
 
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
     ev: Ask[F, AppContext]

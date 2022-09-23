@@ -114,7 +114,13 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           }
         case msg: DeleteAzureRuntimeMessage =>
-          azurePubsubHandler.deleteAndPollRuntime(msg)
+          azurePubsubHandler.deleteAndPollRuntime(msg).adaptError { case e =>
+            PubsubHandleMessageError.AzureRuntimeDeletionError(
+              msg.runtimeId,
+              msg.workspaceId,
+              e.getMessage
+            )
+          }
       }
     } yield resp
 

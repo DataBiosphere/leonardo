@@ -1781,6 +1781,47 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle delete azure vm failure properly" in isolatedDbTest {
+    val exceptionMsg = "test exception"
+    val wsm = new MockWsmDAO {
+      override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[DeleteWsmResourceResult]] = IO.raiseError(new java.net.SocketException("connection closed"))
+    }
+    val mockAckConsumer = mock[AckReplyConsumer]
+    val queue = makeTaskQueue()
+    val leoSubscriber =
+      makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm), asyncTaskQueue = queue)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, None, None)
+
+        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+
+        error <- clusterErrorQuery.get(runtime.id).transaction
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+      } yield {
+        getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
+        error.length shouldBe 1
+        error.map(_.errorMessage).head should include(exceptionMsg)
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty
   ): GKEInterpreter[IO] =
