@@ -40,7 +40,7 @@ import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
-import java.time.Instant
+import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
 
@@ -183,7 +183,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
 
     _ <- monoOpt match {
-      // TODO: Check that fail returns none in unit test.
       case None =>
         logger.error(ctx.loggingCtx)(
           s"Cannot find runtime ${runtime.projectNameString}."
@@ -196,15 +195,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         )
       case Some(mono) =>
-        // Move to top of file - reason being if composed with another same named variable it could cause confusion
         val task = for {
-          // TODO: Add timeout. See how long it takes to start.
-          // 10 minutes tops. If startup script it may take longer
-          _ <- F.blocking(mono.block())
-          // Once mono is complete means vm is running.
-          // Update DB once completed.
-          // Even when Mono completes, we can't assume it's running
-          // Need to check if JupyterLab is running
+          _ <- F.blocking(mono.block(Duration.ofMinutes(10)))
           isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
           _ <- streamUntilDoneOrTimeout(
             isJupyterUp,
@@ -253,7 +245,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       case Some(mono) =>
         val task = for {
-          _ <- F.blocking(mono.block()) // TODO: Add timeout
+          _ <- F.blocking(mono.block(Duration.ofMinutes(10)))
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
           _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
           _ <- welderDao
@@ -708,10 +700,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- clusterErrorQuery
         .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
         .transaction
-      // TODO: What status do we want to update it to? Update to stopped. Is it actually in stopped?
-      // TODO: Then call stopVM (to make it truly stopped)
-      // _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, now).transaction
-      // It seems like on the GCP side, the cluster status doesn't change from it's previous state (stopped)
     } yield ()
 
   def handleAzureRuntimeStopError(e: AzureRuntimeStoppingError, now: Instant)(implicit
