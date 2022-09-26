@@ -196,7 +196,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       case Some(mono) =>
         val task = for {
-          _ <- F.blocking(mono.block(Duration.ofMinutes(10)))
+          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
           isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
           _ <- streamUntilDoneOrTimeout(
             isJupyterUp,
@@ -245,7 +245,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       case Some(mono) =>
         val task = for {
-          _ <- F.blocking(mono.block(Duration.ofMinutes(10)))
+          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
           _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
           _ <- welderDao
