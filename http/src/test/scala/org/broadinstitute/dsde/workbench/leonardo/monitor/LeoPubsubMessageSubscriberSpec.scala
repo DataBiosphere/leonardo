@@ -1826,7 +1826,60 @@ class LeoPubsubMessageSubscriberSpec
         )
         error.traceId shouldBe (Some(ctx.traceId))
       }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
 
+  it should "handle Azure StartRuntimeMessage and start runtime" in isolatedDbTest {
+    val azurePubSubHandler = makeAzureInterp()
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubSubHandler)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Starting, cloudContext = CloudContext.Azure(azureCloudContext))
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+      )
+      tr <- traceId.ask[TraceId]
+      _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr)))
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Starting
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle Azure StopRuntimeMessage and stop runtime" in isolatedDbTest {
+    val azurePubSubHandler = makeAzureInterp()
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubSubHandler)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Stopping, cloudContext = CloudContext.Azure(azureCloudContext))
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+      )
+      tr <- traceId.ask[TraceId]
+      _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr)))
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
+    }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
