@@ -15,8 +15,8 @@ import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
-import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, AzureVmService, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
@@ -1892,7 +1892,8 @@ class LeoPubsubMessageSubscriberSpec
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
                       relayService: AzureRelayService[IO] = FakeAzureRelayService,
-                      wsmDAO: MockWsmDAO = new MockWsmDAO
+                      wsmDAO: MockWsmDAO = new MockWsmDAO,
+                      azureVmService: AzureVmService[IO] = FakeAzureVmService
   ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -1900,8 +1901,10 @@ class LeoPubsubMessageSubscriberSpec
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
+      new MockWelderDAO(),
       new MockJupyterDAO(),
-      relayService
+      relayService,
+      azureVmService
     )
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =
