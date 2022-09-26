@@ -532,10 +532,7 @@ class AzurePubsubHandlerSpec
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
       // Mocked response, should succeed into the Some(mono) case
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
-
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
 
     } yield ()
 
