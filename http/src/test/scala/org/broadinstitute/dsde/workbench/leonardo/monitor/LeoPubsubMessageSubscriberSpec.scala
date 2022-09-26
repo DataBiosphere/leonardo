@@ -1782,7 +1782,6 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle delete azure vm failure properly" in isolatedDbTest {
-    val exceptionMsg = "test exception"
     val wsm = new MockWsmDAO {
       override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
@@ -1795,6 +1794,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res =
       for {
+        ctx <- appContext.ask[AppContext]
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
@@ -1811,16 +1811,18 @@ class LeoPubsubMessageSubscriberSpec
 
         msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(vmResourceId), None)
 
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
 
-        error <- clusterErrorQuery.get(runtime.id).transaction
+        errors <- clusterErrorQuery.get(runtime.id).transaction
         getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
         getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
-        error.length shouldBe 1
-        error.map(_.errorMessage).head should include(
-          "None | WSM call to delete runtime failed due to connection closed. Please retry delete again"
+        errors.length shouldBe 1
+        val error = errors.head
+        error.errorMessage should include(
+          s"WSM call to delete runtime failed due to connection closed. Please retry delete again"
         )
+        error.traceId shouldBe (Some(ctx.traceId))
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

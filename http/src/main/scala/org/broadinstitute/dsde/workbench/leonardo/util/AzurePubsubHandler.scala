@@ -581,7 +581,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     ctx <- ev.ask
     _ <- logger.error(ctx.loggingCtx, e)(s"Failed to delete Azure VM ${e.runtimeId}")
     _ <- clusterErrorQuery
-      .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, ctx.now))
+      .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, ctx.now, traceId = Some(ctx.traceId)))
       .transaction
     _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, ctx.now).transaction
   } yield ()

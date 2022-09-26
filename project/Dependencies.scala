@@ -158,11 +158,11 @@ object Dependencies {
     http4sDsl,
     scalaTestScalaCheck,
     workbenchAzure,
-    workbenchAzureTest
+    workbenchAzureTest,
+    logbackClassic,
   )
 
   val httpDependencies = Seq(
-    logbackClassic,
     scalaLogging,
     ficus,
     enumeratum,
