@@ -531,12 +531,6 @@ class AzurePubsubHandlerSpec
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
-      // Assertions for runtime
-      assertions = for {
-        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-        getRuntime = getRuntimeOpt.get
-      } yield getRuntime.status shouldBe RuntimeStatus.Stopped
-
       // Mocked response, should succeed into the Some(mono) case
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
