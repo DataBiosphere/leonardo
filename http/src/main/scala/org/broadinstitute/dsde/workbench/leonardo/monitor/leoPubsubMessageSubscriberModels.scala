@@ -934,17 +934,15 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeStartingError(runtimeId: Long, errorMsg: String, cause: Throwable)
-      extends PubsubHandleMessageError {
+  final case class AzureRuntimeStartingError(runtimeId: Long, errorMsg: String) extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, \n\tcause:${cause.getMessage})"
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}"
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeStoppingError(runtimeId: Long, errorMsg: String, cause: Throwable)
-      extends PubsubHandleMessageError {
+  final case class AzureRuntimeStoppingError(runtimeId: Long, errorMsg: String) extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, \n\tcause:${cause.getMessage})"
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}"
     val isRetryable: Boolean = false
   }
 }

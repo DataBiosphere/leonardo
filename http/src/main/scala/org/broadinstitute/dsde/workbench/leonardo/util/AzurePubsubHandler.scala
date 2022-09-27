@@ -184,14 +184,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
     _ <- monoOpt match {
       case None =>
-        logger.error(ctx.loggingCtx)(
-          s"Cannot find runtime ${runtime.projectNameString}."
-        ) // Error? For now, log a message
         F.raiseError(
-          RuntimeNotFoundException(
-            runtime.cloudContext,
-            runtime.runtimeName,
-            s"${ctx.traceId} | Unable to find runtime on Azure with context ${azureCloudContext.asString} / ${runtime.projectNameString}. Request: ${ctx.requestUri}"
+          AzureRuntimeStartingError(
+            runtime.id,
+            s"Starting runtime ${runtime.id} request to Azure failed. Request: ${ctx.requestUri}"
           )
         )
       case Some(mono) =>
@@ -211,11 +207,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           Task(
             ctx.traceId,
             task,
-            // Set status to error? Probably not, will get user stuck.
-            // Front leo will set to starting. If we don't change anything, status will stay starting.
             Some(e =>
               handleAzureRuntimeStartError(
-                AzureRuntimeStartingError(runtime.id, s"starting runtime ${runtime.projectNameString} failed", e),
+                AzureRuntimeStartingError(
+                  runtime.id,
+                  s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}"
+                ),
                 ctx.now
               )
             ),
@@ -233,14 +230,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
     _ <- monoOpt match {
       case None =>
-        logger.error(ctx.loggingCtx)(
-          s"Cannot find runtime ${runtime.projectNameString}."
-        ) // Error? For now, log a message
         F.raiseError(
-          RuntimeNotFoundException(
-            runtime.cloudContext,
-            runtime.runtimeName,
-            s"${ctx.traceId} | Unable to find runtime on Azure with context ${azureCloudContext.asString} / ${runtime.projectNameString}. Request: ${ctx.requestUri}"
+          AzureRuntimeStoppingError(
+            runtime.id,
+            s"Stopping runtime ${runtime.id} request to Azure failed. Request: ${ctx.requestUri}"
           )
         )
       case Some(mono) =>
@@ -263,7 +256,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             task,
             Some(e =>
               handleAzureRuntimeStopError(
-                AzureRuntimeStoppingError(runtime.id, s"stopping runtime ${runtime.projectNameString} failed", e),
+                AzureRuntimeStoppingError(
+                  runtime.id,
+                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}"
+                ),
                 ctx.now
               )
             ),
@@ -679,7 +675,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield ()
   }
 
-  <<<<<<< HEAD
   def handleAzureRuntimeDeletionError(e: AzureRuntimeDeletionError)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
