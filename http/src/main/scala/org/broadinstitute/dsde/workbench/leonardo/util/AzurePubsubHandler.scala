@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
@@ -691,7 +690,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.error(ctx.loggingCtx, e.cause)(s"Failed to start Azure VM ${e.runtimeId}")
+      _ <- logger.error(ctx.loggingCtx)(s"Failed to start Azure VM ${e.runtimeId}")
       _ <- clusterErrorQuery
         .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
         .transaction
@@ -702,7 +701,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.error(ctx.loggingCtx, e.cause)(s"Failed to stop Azure VM ${e.runtimeId}")
+      _ <- logger.error(ctx.loggingCtx)(s"Failed to stop Azure VM ${e.runtimeId}")
       _ <- clusterErrorQuery
         .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
         .transaction
