@@ -20,6 +20,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureRuntimeStartingError,
+  AzureRuntimeStoppingError
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.http4s.headers.Authorization
@@ -425,7 +429,7 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail on startAzureVm - no runtime found" in isolatedDbTest {
+  it should "fail on startAzureVm - Azure runtime starting error" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
     when(vmReturn.powerState()).thenReturn(PowerState.STOPPED)
 
@@ -455,7 +459,7 @@ class AzurePubsubHandlerSpec
       _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
 
     } yield ()
-    a[RuntimeNotFoundException] should be thrownBy {
+    a[AzureRuntimeStartingError] should be thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -504,7 +508,7 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail on stopAzureVm - no runtime found" in isolatedDbTest {
+  it should "fail on stopAzureVm - Azure runtime stopping error" in isolatedDbTest {
     // Set up virtual machine mock.
     val vmReturn = mock[VirtualMachine]
     when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
@@ -536,7 +540,7 @@ class AzurePubsubHandlerSpec
 
     } yield ()
 
-    a[RuntimeNotFoundException] should be thrownBy {
+    a[AzureRuntimeStoppingError] should be thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
