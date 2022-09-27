@@ -27,8 +27,6 @@ class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTE
 
   def timestamp = column[Timestamp]("timestamp", O.SqlType("TIMESTAMP(6)"))
 
-  def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
-
   def traceId = column[Option[TraceId]]("traceId")
 
   def * =
@@ -43,13 +41,13 @@ class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTE
 
 object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
 
-  def save(clusterId: Long, clusterError: RuntimeError): DBIO[Int] =
+  def save(clusterId: Long, runtimeError: RuntimeError): DBIO[Int] =
     clusterErrorQuery += ClusterErrorRecord(0,
                                             clusterId,
-                                            clusterError.errorMessage.take(1024),
-                                            clusterError.errorCode,
-                                            Timestamp.from(clusterError.timestamp),
-                                            clusterError.traceId
+                                            runtimeError.errorMessage.take(1024),
+                                            runtimeError.errorCode,
+                                            Timestamp.from(runtimeError.timestamp),
+                                            runtimeError.traceId
     )
 
   def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeError]] =
@@ -59,6 +57,10 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
     }
 
   def unmarshallClusterErrorRecord(clusterErrorRecord: ClusterErrorRecord): RuntimeError =
-    RuntimeError(clusterErrorRecord.errorMessage, clusterErrorRecord.errorCode, clusterErrorRecord.timestamp.toInstant)
+    RuntimeError(clusterErrorRecord.errorMessage,
+                 clusterErrorRecord.errorCode,
+                 clusterErrorRecord.timestamp.toInstant,
+                 clusterErrorRecord.traceId
+    )
 
 }

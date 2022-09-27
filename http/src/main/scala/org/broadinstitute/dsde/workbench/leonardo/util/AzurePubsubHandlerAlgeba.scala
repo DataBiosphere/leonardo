@@ -9,7 +9,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   DeleteAzureRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeCreationError
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureRuntimeCreationError,
+  AzureRuntimeDeletionError
+}
 import org.http4s.Uri
 
 import java.time.Instant
@@ -24,6 +27,10 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
+  def handleAzureRuntimeDeletionError(e: AzureRuntimeDeletionError)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 }

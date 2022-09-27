@@ -1781,6 +1781,53 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle delete azure vm failure properly" in isolatedDbTest {
+    val wsm = new MockWsmDAO {
+      override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[DeleteWsmResourceResult]] = IO.raiseError(new java.net.SocketException("connection closed"))
+    }
+    val mockAckConsumer = mock[AckReplyConsumer]
+    val queue = makeTaskQueue()
+    val leoSubscriber =
+      makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm), asyncTaskQueue = queue)
+
+    val res =
+      for {
+        ctx <- appContext.ask[AppContext]
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+        vmResourceId = WsmControlledResourceId(UUID.randomUUID())
+        _ <- controlledResourceQuery.save(runtime.id, vmResourceId, WsmResourceType.AzureVm).transaction
+
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(vmResourceId), None)
+
+        _ <- leoSubscriber.messageHandler(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
+
+        errors <- clusterErrorQuery.get(runtime.id).transaction
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+      } yield {
+        getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
+        errors.length shouldBe 1
+        val error = errors.head
+        error.errorMessage should include(
+          s"WSM call to delete runtime failed due to connection closed. Please retry delete again"
+        )
+        error.traceId shouldBe (Some(ctx.traceId))
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty
   ): GKEInterpreter[IO] =

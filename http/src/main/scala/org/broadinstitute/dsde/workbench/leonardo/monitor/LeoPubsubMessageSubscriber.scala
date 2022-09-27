@@ -114,7 +114,13 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           }
         case msg: DeleteAzureRuntimeMessage =>
-          azurePubsubHandler.deleteAndPollRuntime(msg)
+          azurePubsubHandler.deleteAndPollRuntime(msg).adaptError { case e =>
+            PubsubHandleMessageError.AzureRuntimeDeletionError(
+              msg.runtimeId,
+              msg.workspaceId,
+              e.getMessage
+            )
+          }
       }
     } yield resp
 
@@ -141,6 +147,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                     )
                   case ee: AzureRuntimeCreationError =>
                     azurePubsubHandler.handleAzureRuntimeCreationError(ee, now)
+                  case ee: AzureRuntimeDeletionError =>
+                    azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
                   case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
                 }
                 _ <-
