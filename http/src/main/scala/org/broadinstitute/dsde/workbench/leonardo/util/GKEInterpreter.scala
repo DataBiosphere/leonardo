@@ -66,6 +66,12 @@ class GKEInterpreter[F[_]](
   googleResourceService: GoogleResourceService[F]
 )(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
     extends GKEAlgebra[F] {
+  // DoneCheckable instances
+  implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
+  implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
+  implicit private def podDoneCheckable: DoneCheckable[List[KubernetesPodStatus]] =
+    (ps: List[KubernetesPodStatus]) => ps.forall(isPodDone)
+  implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
   override def createCluster(params: CreateClusterParams)(implicit
     ev: Ask[F, AppContext]
@@ -838,16 +844,22 @@ class GKEInterpreter[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
         new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
       )
-      // Poll galaxy until it starts up
-      // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
-      isDone <- streamFUntilDone(
-        appDao.isProxyAvailable(googleProject, dbApp.app.appName),
+      desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
+      descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
+        AppStartException(
+          s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}"
+        )
+      }
+      last <- streamFUntilDone(
+        descriptor.services.keys.toList.traverse(s =>
+          appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
+        ),
         config.monitorConfig.startApp.maxAttempts,
         config.monitorConfig.startApp.interval
       ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
 
       _ <-
-        if (!isDone) {
+        if (!last.isDone) {
           // If starting timed out, persist an error and attempt to stop the app again.
           // We don't want to move the app to Error status because that status is unrecoverable by the user.
           val msg =
@@ -1062,7 +1074,7 @@ class GKEInterpreter[F[_]](
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
       isDone <- streamFUntilDone(
-        appDao.isProxyAvailable(googleProject, appName),
+        appDao.isProxyAvailable(googleProject, appName, ServiceName("galaxy")),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1177,7 +1189,7 @@ class GKEInterpreter[F[_]](
       desc <- F.fromOption(descriptorOpt, AppRequiresDescriptorException(appId))
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"about to process descriptor for app ${appName.value} in cluster ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
+        s"about to process descriptor for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
       descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
@@ -1187,7 +1199,7 @@ class GKEInterpreter[F[_]](
       }
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Finished processing descriptor for app ${appName.value} in cluster ${dbCluster.getClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Finished processing descriptor for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
       // TODO we're only handling 1 service for now
@@ -1621,13 +1633,6 @@ class GKEInterpreter[F[_]](
 
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
-
-  // DoneCheckable instances
-  implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
-  implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
-  implicit private def podDoneCheckable: DoneCheckable[List[KubernetesPodStatus]] =
-    (ps: List[KubernetesPodStatus]) => ps.forall(isPodDone)
-  implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 }
 
 sealed trait AppProcessingException extends Exception {
