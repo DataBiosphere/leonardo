@@ -863,7 +863,7 @@ class GKEInterpreter[F[_]](
           // If starting timed out, persist an error and attempt to stop the app again.
           // We don't want to move the app to Error status because that status is unrecoverable by the user.
           val msg =
-            s"Galaxy startup has failed or timed out for app ${dbApp.app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
+            s"${dbApp.app.appType.toString} startup has failed or timed out for app ${dbApp.app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
           for {
             _ <- logger.error(ctx.loggingCtx)(msg)
             _ <- dbRef.inTransaction {
