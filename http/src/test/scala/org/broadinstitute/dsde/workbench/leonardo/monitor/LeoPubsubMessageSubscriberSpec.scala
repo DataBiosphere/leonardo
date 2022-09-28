@@ -34,7 +34,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, _}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeApp,
   makeKubeCluster,
@@ -50,7 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
-import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerInterp, _}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
@@ -81,6 +81,9 @@ class LeoPubsubMessageSubscriberSpec
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   val mockWelderDAO = mock[WelderDAO[IO]]
+
+  val mockAzurePubsubHandlerInterp = mock[AzurePubsubHandlerAlgebra[IO]]
+
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO() {
     override def isGroupMember(groupEmail: WorkbenchEmail,
                                memberEmail: WorkbenchEmail
@@ -1830,56 +1833,48 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle Azure StartRuntimeMessage and start runtime" in isolatedDbTest {
-    val azurePubSubHandler = makeAzureInterp()
-    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubSubHandler)
-
+    val azurePubsubHandlerInterp = mock[AzurePubsubHandlerInterp[IO]]
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubsubHandlerInterp)
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
                                                      azureRegion
       )
-
       runtime <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Starting, cloudContext = CloudContext.Azure(azureCloudContext))
           .saveWithRuntimeConfig(azureRuntimeConfig)
       )
       tr <- traceId.ask[TraceId]
-      _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr)))
+      _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr))).attempt
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-    } yield {
-      updatedRuntime shouldBe defined
-      updatedRuntime.get.status shouldBe RuntimeStatus.Starting
-    }
+
+    } yield verify(azurePubsubHandlerInterp, times(1)).startAndMonitorRuntime(updatedRuntime.get, azureCloudContext)
+
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle Azure StopRuntimeMessage and stop runtime" in isolatedDbTest {
-    val azurePubSubHandler = makeAzureInterp()
-    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubSubHandler)
-
+    val azurePubsubHandlerInterp = mock[AzurePubsubHandlerInterp[IO]]
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubsubHandlerInterp)
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
                                                      azureRegion
       )
-
       runtime <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Stopping, cloudContext = CloudContext.Azure(azureCloudContext))
           .saveWithRuntimeConfig(azureRuntimeConfig)
       )
       tr <- traceId.ask[TraceId]
-      _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr)))
+      _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr))).attempt
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-    } yield {
-      updatedRuntime shouldBe defined
-      updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
-    }
+
+    } yield verify(azurePubsubHandlerInterp, times(1)).stopAndMonitorRuntime(updatedRuntime.get, azureCloudContext)
+
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -1909,7 +1904,7 @@ class LeoPubsubMessageSubscriberSpec
     diskService: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
-    azureInterp: AzurePubsubHandlerInterp[IO] = makeAzureInterp()
+    azureInterp: AzurePubsubHandlerAlgebra[IO] = makeAzureInterp()
   ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
@@ -1947,7 +1942,7 @@ class LeoPubsubMessageSubscriberSpec
                       relayService: AzureRelayService[IO] = FakeAzureRelayService,
                       wsmDAO: MockWsmDAO = new MockWsmDAO,
                       azureVmService: AzureVmService[IO] = FakeAzureVmService
-  ): AzurePubsubHandlerInterp[IO] =
+  ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
       contentSecurityPolicy,
