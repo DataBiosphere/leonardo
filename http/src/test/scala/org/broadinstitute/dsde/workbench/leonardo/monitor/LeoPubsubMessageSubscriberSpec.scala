@@ -1534,7 +1534,9 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.head.errorMessage should include("Galaxy startup has failed or timed out for app")
+      getApp.app.errors.head.errorMessage should include(
+        "GALAXY startup has failed or timed out for app app1 in cluster"
+      )
       getApp.app.errors.head.action shouldBe ErrorAction.StartApp
       getApp.app.errors.head.source shouldBe ErrorSource.App
       getApp.app.status shouldBe AppStatus.Stopped

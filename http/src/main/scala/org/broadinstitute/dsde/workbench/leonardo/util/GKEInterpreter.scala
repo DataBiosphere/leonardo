@@ -844,22 +844,42 @@ class GKEInterpreter[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
         new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
       )
-      desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
-      descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
-        AppStartException(
-          s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}"
-        )
+
+      isUp <- dbApp.app.appType match {
+        case AppType.Galaxy =>
+          streamFUntilDone(
+            appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy")),
+            config.monitorConfig.startApp.maxAttempts,
+            config.monitorConfig.startApp.interval
+          ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
+        case AppType.Cromwell =>
+          streamFUntilDone(
+            config.cromwellAppConfig.services
+              .map(_.name)
+              .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+            config.monitorConfig.startApp.maxAttempts,
+            config.monitorConfig.startApp.interval
+          ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+        case AppType.Custom =>
+          for {
+            desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
+            descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
+              AppStartException(
+                s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}"
+              )
+            }
+            last <- streamFUntilDone(
+              descriptor.services.keys.toList.traverse(s =>
+                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
+              ),
+              config.monitorConfig.startApp.maxAttempts,
+              config.monitorConfig.startApp.interval
+            ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
+          } yield last.isDone
       }
-      last <- streamFUntilDone(
-        descriptor.services.keys.toList.traverse(s =>
-          appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
-        ),
-        config.monitorConfig.startApp.maxAttempts,
-        config.monitorConfig.startApp.interval
-      ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
 
       _ <-
-        if (!last.isDone) {
+        if (!isUp) {
           // If starting timed out, persist an error and attempt to stop the app again.
           // We don't want to move the app to Error status because that status is unrecoverable by the user.
           val msg =
