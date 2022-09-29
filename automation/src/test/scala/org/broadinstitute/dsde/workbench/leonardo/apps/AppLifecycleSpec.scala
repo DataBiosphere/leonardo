@@ -50,7 +50,7 @@ class AppLifecycleSpec
 
   private val appTestCases = Table(
     ("description", "createAppRequest", "testStartStop", "testPersistentDisk"),
-    ("create GALAXY app, delete it and re-create it with same disk",
+    ("create GALAXY app, start/stop, delete it and re-create it with same disk",
      createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None),
      true,
      true
@@ -60,7 +60,7 @@ class AppLifecycleSpec
      false,
      true
     ),
-    ("create CUSTOM app, delete it and re-create it with same disk",
+    ("create CUSTOM app, start/stop, delete it",
      createAppRequest(
        AppType.Custom,
        "custom-test-workspace",
@@ -80,7 +80,7 @@ class AppLifecycleSpec
       val appName = randomAppName
       val restoreAppName = AppName(s"restore-${appName.value}")
 
-      LeonardoApiClient.client.use { implicit client =>
+      val res = LeonardoApiClient.client.use { implicit client =>
         for {
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -222,6 +222,8 @@ class AppLifecycleSpec
             }
         } yield ()
       }
+
+      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
     }
   }
 }
