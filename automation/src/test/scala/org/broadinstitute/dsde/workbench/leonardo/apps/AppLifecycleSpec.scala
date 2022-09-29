@@ -76,153 +76,151 @@ class AppLifecycleSpec
   )
 
   forAll(appTestCases) { (description, createAppRequest, testStartStop, testPD) =>
-    description taggedAs (Tags.SmokeTest, Retryable) in { _ =>
-      withNewProject { googleProject =>
-        val appName = randomAppName
-        val restoreAppName = AppName(s"restore-${appName.value}")
+    description taggedAs (Tags.SmokeTest, Retryable) in { googleProject =>
+      val appName = randomAppName
+      val restoreAppName = AppName(s"restore-${appName.value}")
 
-        LeonardoApiClient.client.use { implicit client =>
-          for {
-            _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
+      LeonardoApiClient.client.use { implicit client =>
+        for {
+          _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
-            rat <- Ron.authToken()
-            implicit0(auth: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
+          rat <- Ron.authToken()
+          implicit0(auth: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
 
-            // Create the app
-            _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
+          // Create the app
+          _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
 
-            // Verify the initial getApp call
-            getApp = LeonardoApiClient.getApp(googleProject, appName)
-            getAppResponse <- getApp
-            _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
+          // Verify the initial getApp call
+          getApp = LeonardoApiClient.getApp(googleProject, appName)
+          getAppResponse <- getApp
+          _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-            // Verify the app eventually becomes Running
-            _ <- IO.sleep(120 seconds)
-            monitorCreateResult <- streamUntilDoneOrTimeout(
-              getApp,
-              120,
-              10 seconds,
-              s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
-            )(implicitly, appInStateOrError(AppStatus.Running))
-            _ <- loggerIO.info(
-              s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
-            )
-            _ = monitorCreateResult.status shouldBe AppStatus.Running
+          // Verify the app eventually becomes Running
+          _ <- IO.sleep(120 seconds)
+          monitorCreateResult <- streamUntilDoneOrTimeout(
+            getApp,
+            120,
+            10 seconds,
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
+          )(implicitly, appInStateOrError(AppStatus.Running))
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
+          )
+          _ = monitorCreateResult.status shouldBe AppStatus.Running
 
-            _ <- IO.sleep(1 minute)
+          _ <- IO.sleep(1 minute)
 
-            _ <-
-              if (!testStartStop) IO.unit
-              else {
-                for {
-                  // Stop the app
-                  _ <- LeonardoApiClient.stopApp(googleProject, appName)
+          _ <-
+            if (!testStartStop) IO.unit
+            else {
+              for {
+                // Stop the app
+                _ <- LeonardoApiClient.stopApp(googleProject, appName)
 
-                  // Verify getApp again
-                  getAppResponse <- getApp
-                  _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
+                // Verify getApp again
+                getAppResponse <- getApp
+                _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
 
-                  // Verify the app eventually becomes Stopped
-                  _ <- IO.sleep(60 seconds)
-                  monitorStopResult <- streamUntilDoneOrTimeout(
-                    getApp,
-                    180,
-                    10 seconds,
-                    s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
-                  )(implicitly, appInStateOrError(AppStatus.Stopped))
-                  _ <- loggerIO.info(
-                    s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
-                  )
-                  _ = monitorStopResult.status shouldBe AppStatus.Stopped
-
-                  // Start the app
-                  _ <- LeonardoApiClient.startApp(googleProject, appName)
-
-                  // Verify getApp again
-                  getAppResponse <- getApp
-                  _ = getAppResponse.status should (be(AppStatus.Starting) or be(AppStatus.PreStarting))
-
-                  // Verify the app eventually becomes Running
-                  _ <- IO.sleep(30 seconds)
-                  monitorStartResult <- streamUntilDoneOrTimeout(
-                    getApp,
-                    120,
-                    10 seconds,
-                    s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish starting after 20 minutes"
-                  )(implicitly, appInStateOrError(AppStatus.Running))
-                  _ <- loggerIO.info(
-                    s"AppCreationSpec: app ${googleProject.value}/${appName.value} start result: $monitorStartResult"
-                  )
-                  _ = monitorStartResult.status shouldBe AppStatus.Running
-                } yield ()
-              }
-
-            // Delete the app
-            _ <- LeonardoApiClient.deleteApp(googleProject, appName, !testPD)
-
-            // Verify getApp again
-            getAppResponse <- getApp
-            _ = getAppResponse.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
-
-            // Verify the app eventually becomes Deleted
-            // Don't fail the test if the deletion times out because the app pre-delete job can sporadically fail.
-            // See https://broadworkbench.atlassian.net/browse/IA-2471
-            listApps = LeonardoApiClient.listApps(googleProject, true)
-            implicit0(deletedDoneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
-            monitorDeleteResult <- streamFUntilDone(
-              listApps,
-              120,
-              10 seconds
-            ).compile.lastOrError
-            // TODO remove first case in below if statement when app deletion is reliable
-            _ <-
-              if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
-                loggerIO.warn(
-                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
+                // Verify the app eventually becomes Stopped
+                _ <- IO.sleep(60 seconds)
+                monitorStopResult <- streamUntilDoneOrTimeout(
+                  getApp,
+                  180,
+                  10 seconds,
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
+                )(implicitly, appInStateOrError(AppStatus.Stopped))
+                _ <- loggerIO.info(
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
                 )
-              } else {
-                // Verify creating another app with the same disk doesn't error out
-                for {
-                  _ <- loggerIO.info(
-                    s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
-                  )
-                  _ <-
-                    if (testPD)
-                      for {
-                        _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
-                          client,
-                          ronAuthorization,
-                          loggerIO
-                        )
-                        _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName, true)
-                        // Verify the app eventually becomes Deleted
-                        // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
-                        // See https://broadworkbench.atlassian.net/browse/IA-2471
-                        listApps = LeonardoApiClient.listApps(googleProject, true)
-                        monitorDeleteResult <- streamFUntilDone(listApps, 200, 10 seconds).compile.lastOrError
-                        // TODO remove first case in below if statement when Galaxy deletion is reliable
-                        _ <-
-                          if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
-                            loggerIO.warn(
-                              s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
+                _ = monitorStopResult.status shouldBe AppStatus.Stopped
+
+                // Start the app
+                _ <- LeonardoApiClient.startApp(googleProject, appName)
+
+                // Verify getApp again
+                getAppResponse <- getApp
+                _ = getAppResponse.status should (be(AppStatus.Starting) or be(AppStatus.PreStarting))
+
+                // Verify the app eventually becomes Running
+                _ <- IO.sleep(30 seconds)
+                monitorStartResult <- streamUntilDoneOrTimeout(
+                  getApp,
+                  120,
+                  10 seconds,
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish starting after 20 minutes"
+                )(implicitly, appInStateOrError(AppStatus.Running))
+                _ <- loggerIO.info(
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} start result: $monitorStartResult"
+                )
+                _ = monitorStartResult.status shouldBe AppStatus.Running
+              } yield ()
+            }
+
+          // Delete the app
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName, !testPD)
+
+          // Verify getApp again
+          getAppResponse <- getApp
+          _ = getAppResponse.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
+
+          // Verify the app eventually becomes Deleted
+          // Don't fail the test if the deletion times out because the app pre-delete job can sporadically fail.
+          // See https://broadworkbench.atlassian.net/browse/IA-2471
+          listApps = LeonardoApiClient.listApps(googleProject, true)
+          implicit0(deletedDoneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
+          monitorDeleteResult <- streamFUntilDone(
+            listApps,
+            120,
+            10 seconds
+          ).compile.lastOrError
+          // TODO remove first case in below if statement when app deletion is reliable
+          _ <-
+            if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
+              loggerIO.warn(
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
+              )
+            } else {
+              // Verify creating another app with the same disk doesn't error out
+              for {
+                _ <- loggerIO.info(
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+                )
+                _ <-
+                  if (testPD)
+                    for {
+                      _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
+                        client,
+                        ronAuthorization,
+                        loggerIO
+                      )
+                      _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName, true)
+                      // Verify the app eventually becomes Deleted
+                      // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
+                      // See https://broadworkbench.atlassian.net/browse/IA-2471
+                      listApps = LeonardoApiClient.listApps(googleProject, true)
+                      monitorDeleteResult <- streamFUntilDone(listApps, 200, 10 seconds).compile.lastOrError
+                      // TODO remove first case in below if statement when Galaxy deletion is reliable
+                      _ <-
+                        if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
+                          loggerIO.warn(
+                            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
+                          )
+                        } else {
+                          // verify disk is also deleted
+                          for {
+                            _ <- loggerIO.info(
+                              s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
                             )
-                          } else {
-                            // verify disk is also deleted
-                            for {
-                              _ <- loggerIO.info(
-                                s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
-                              )
-                              getDiskResp <- LeonardoApiClient
-                                .getDisk(googleProject, createAppRequest.diskConfig.get.name)
-                                .attempt
-                            } yield getDiskResp.toOption shouldBe None
-                          }
-                      } yield ()
-                    else IO.unit
-                } yield ()
-              }
-          } yield ()
-        }
+                            getDiskResp <- LeonardoApiClient
+                              .getDisk(googleProject, createAppRequest.diskConfig.get.name)
+                              .attempt
+                          } yield getDiskResp.toOption shouldBe None
+                        }
+                    } yield ()
+                  else IO.unit
+              } yield ()
+            }
+        } yield ()
       }
     }
   }
