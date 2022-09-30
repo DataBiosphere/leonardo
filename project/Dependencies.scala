@@ -15,7 +15,7 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "5c7738b"
+  private val workbenchLibsHash = "d49684f"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
@@ -54,6 +54,8 @@ object Dependencies {
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
+  val excludeOauth = ExclusionRule(organization = "com.google.apis", name = s"google-api-services-oauth2")
+  val excludeAdmin = ExclusionRule(organization = "com.google.apis", name = s"google-api-services-admin-directory")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
@@ -87,7 +89,8 @@ object Dependencies {
     excludeHttpComponent,
     excludeGuava,
     excludeStatsD,
-    excludeKms)
+    excludeKms,
+    excludeOauth)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
     excludeWorkbenchMetrics,
     excludeIoGrpc,
@@ -99,7 +102,7 @@ object Dependencies {
     excludeBigQuery,
     excludeCloudBilling,
     excludeSundrCodegen,
-    excludeGuava)
+    excludeGuava,excludeGoogleApiClient)
   val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
@@ -183,6 +186,7 @@ object Dependencies {
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
+    "com.google.api-client" % "google-api-client" % "1.32.1",
     "com.auth0" % "java-jwt" % "3.19.1",
     http4sBlazeServer % Test,
     scalaTestSelenium,

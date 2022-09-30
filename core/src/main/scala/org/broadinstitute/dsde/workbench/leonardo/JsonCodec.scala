@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, PersistentDiskRequest}
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -325,6 +325,7 @@ object JsonCodec {
   implicit val blockSizeDecoder: Decoder[BlockSize] =
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
+  implicit val workbenchUserIdDecoder: Decoder[WorkbenchUserId] = Decoder.decodeString.map(WorkbenchUserId)
   implicit val storageContainerNameDecoder: Decoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
     Decoder.decodeString.map(org.broadinstitute.dsde.workbench.azure.ContainerName)
   implicit val storageAccountNameDecoder: Decoder[StorageAccountName] =

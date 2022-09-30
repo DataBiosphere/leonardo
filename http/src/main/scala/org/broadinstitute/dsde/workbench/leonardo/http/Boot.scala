@@ -45,7 +45,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetCluster
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2Interpreter, GoogleOAuth2Service}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
@@ -71,13 +71,12 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.net.InetSocketAddress
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
 import javax.net.ssl.SSLContext
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -368,6 +367,8 @@ object Boot extends IOApp {
       wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
+      googleOauth2DAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_oauth_token_client"), true)
+        .map(client => new GoogleOAuth2Interpreter[F](client))
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
 
@@ -431,7 +432,7 @@ object Boot extends IOApp {
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
 
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
-      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
+
       underlyingNodepoolLockCache = buildCache[KubernetesClusterId, scalacache.Entry[Semaphore[F]]](
         gkeClusterConfig.nodepoolLockCacheMaxSize,
         gkeClusterConfig.nodepoolLockCacheExpiryTime
