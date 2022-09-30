@@ -22,7 +22,6 @@ class AppLifecycleSpec
     extends BillingProjectFixtureSpec
     with LeonardoTestUtils
     with BillingProjectUtils
-    with ParallelTestExecution
     with TableDrivenPropertyChecks {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
