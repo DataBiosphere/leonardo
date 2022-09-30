@@ -186,7 +186,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         F.raiseError(
           AzureRuntimeStartingError(
             runtime.id,
-            s"Starting runtime ${runtime.id} request to Azure failed. Request: ${ctx.requestUri}"
+            s"Starting runtime ${runtime.id} request to Azure failed.",
+            ctx.traceId
           )
         )
       case Some(mono) =>
@@ -210,7 +211,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               handleAzureRuntimeStartError(
                 AzureRuntimeStartingError(
                   runtime.id,
-                  s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}"
+                  s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
                 ),
                 ctx.now
               )
@@ -232,7 +234,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         F.raiseError(
           AzureRuntimeStoppingError(
             runtime.id,
-            s"Stopping runtime ${runtime.id} request to Azure failed. Request: ${ctx.requestUri}"
+            s"Stopping runtime ${runtime.id} request to Azure failed.",
+            ctx.traceId
           )
         )
       case Some(mono) =>
@@ -257,7 +260,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               handleAzureRuntimeStopError(
                 AzureRuntimeStoppingError(
                   runtime.id,
-                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}"
+                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
                 ),
                 ctx.now
               )

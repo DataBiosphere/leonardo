@@ -411,16 +411,13 @@ class AzurePubsubHandlerSpec
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
-      // Assertions for runtime
       assertions = for {
         getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
         getRuntime = getRuntimeOpt.get
       } yield getRuntime.status shouldBe RuntimeStatus.Running
 
-      // Mocked response, should succeed into the Some(mono) case
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
-
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
 
     } yield ()
@@ -444,6 +441,7 @@ class AzurePubsubHandlerSpec
       makeAzureInterp(asyncTaskQueue = queue, azureVmService = failAzureVmService)
 
     val res = for {
+      ctx <- appContext.ask[AppContext]
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
@@ -455,16 +453,15 @@ class AzurePubsubHandlerSpec
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
-      _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
+      startResult <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext).attempt
 
-    } yield ()
-    a[AzureRuntimeStartingError] should be thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
+    } yield startResult shouldBe Left(
+      AzureRuntimeStartingError(runtime.id, s"Starting runtime ${runtime.id} request to Azure failed.", ctx.traceId)
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "stop azure vm" in isolatedDbTest {
-    // Set up virtual machine mock.
     val vmReturn = mock[VirtualMachine]
     when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
 
@@ -490,16 +487,13 @@ class AzurePubsubHandlerSpec
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
-      // Assertions for runtime
       assertions = for {
         getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
         getRuntime = getRuntimeOpt.get
       } yield getRuntime.status shouldBe RuntimeStatus.Stopped
 
-      // Mocked response, should succeed into the Some(mono) case
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
-
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
 
     } yield ()
@@ -523,6 +517,7 @@ class AzurePubsubHandlerSpec
       makeAzureInterp(asyncTaskQueue = queue, azureVmService = failAzureVmService)
 
     val res = for {
+      ctx <- appContext.ask[AppContext]
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
@@ -534,14 +529,12 @@ class AzurePubsubHandlerSpec
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
-      // Mocked response, should succeed into the Some(mono) case
-      _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
+      stopResult <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext).attempt
 
-    } yield ()
-
-    a[AzureRuntimeStoppingError] should be thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
+    } yield stopResult shouldBe Left(
+      AzureRuntimeStoppingError(runtime.id, s"Stopping runtime ${runtime.id} request to Azure failed.", ctx.traceId)
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // Needs to be made for each test its used in, otherwise queue will overlap

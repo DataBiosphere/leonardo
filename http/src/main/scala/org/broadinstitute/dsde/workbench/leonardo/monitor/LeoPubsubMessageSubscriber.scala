@@ -383,7 +383,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               azurePubsubHandler.handleAzureRuntimeStopError(
                 AzureRuntimeStoppingError(
                   runtime.id,
-                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}"
+                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
                 ),
                 ctx.now
               )
@@ -439,7 +440,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               azurePubsubHandler.handleAzureRuntimeStartError(
                 AzureRuntimeStartingError(
                   runtime.id,
-                  s"starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}"
+                  s"starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
                 ),
                 ctx.now
               )
