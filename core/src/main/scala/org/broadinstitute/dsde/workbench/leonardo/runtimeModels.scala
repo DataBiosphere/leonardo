@@ -309,6 +309,7 @@ object UserScriptPath {
   }(identity)
 
   def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
+    // Validate?
     parseGcsPath(string) match {
       case Right(value) => Right(Gcs(value))
       case Left(_)      => Either.catchNonFatal(new URL(string)).map(url => Http(url))

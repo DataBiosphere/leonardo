@@ -64,6 +64,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   metrics: OpenTelemetryMetrics[F]
 ) extends RuntimeService[F] {
 
+  // TODO: N8 validate user script uri?
   override def createRuntime(
     userInfo: UserInfo,
     cloudContext: CloudContext,
