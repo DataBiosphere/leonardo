@@ -58,7 +58,7 @@ trait SamDAO[F[_]] {
   def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
-  ): F[List[sr.ActionCategory]]
+  ): F[List[A]]
 
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]

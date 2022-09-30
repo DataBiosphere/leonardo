@@ -65,66 +65,59 @@ object SamResource {
 
 // Typeclass representing an action on a Sam resource
 // Constrains at compile time which actions can be checked against which resource types
-sealed trait SamResourceAction[R, A] extends SamResource[R] {
-  type ActionCategory
+sealed trait SamResourceAction[R, ActionCategory] extends SamResource[R] {
   def decoder: Decoder[ActionCategory]
   def allActions: List[ActionCategory]
   def cacheableActions: List[ActionCategory]
-  def actionAsString(a: A): String
+  def actionAsString(a: ActionCategory): String
 }
 object SamResourceAction {
-  implicit def projectSamResourceAction[A <: ProjectAction] =
-    new ProjectSamResource with SamResourceAction[ProjectSamResourceId, A] {
-      type ActionCategory = ProjectAction
+  implicit def projectSamResourceAction =
+    new ProjectSamResource with SamResourceAction[ProjectSamResourceId, ProjectAction] {
       val decoder = Decoder[ProjectAction]
       val allActions = ProjectAction.allActions.toList
       val cacheableActions = List(ProjectAction.GetRuntimeStatus, ProjectAction.ReadPersistentDisk)
-      def actionAsString(a: A): String = a.asString
+      def actionAsString(a: ProjectAction): String = a.asString
     }
 
-  implicit def runtimeSamResourceAction[A <: RuntimeAction] =
-    new RuntimeSamResource with SamResourceAction[RuntimeSamResourceId, A] {
-      type ActionCategory = RuntimeAction
+  implicit def runtimeSamResourceAction =
+    new RuntimeSamResource with SamResourceAction[RuntimeSamResourceId, RuntimeAction] {
       val decoder = Decoder[RuntimeAction]
       val allActions = RuntimeAction.allActions.toList
       val cacheableActions = List(RuntimeAction.GetRuntimeStatus, RuntimeAction.ConnectToRuntime)
-      def actionAsString(a: A): String = a.asString
+      def actionAsString(a: RuntimeAction): String = a.asString
     }
 
-  implicit def persistentDiskSamResourceAction[A <: PersistentDiskAction] =
-    new PersistentDiskSamResource with SamResourceAction[PersistentDiskSamResourceId, A] {
-      type ActionCategory = PersistentDiskAction
+  implicit def persistentDiskSamResourceAction =
+    new PersistentDiskSamResource with SamResourceAction[PersistentDiskSamResourceId, PersistentDiskAction] {
       val decoder = Decoder[PersistentDiskAction]
       val allActions = PersistentDiskAction.allActions.toList
       val cacheableActions = List(PersistentDiskAction.ReadPersistentDisk)
-      def actionAsString(a: A): String = a.asString
+      def actionAsString(a: PersistentDiskAction): String = a.asString
     }
 
-  implicit def AppSamResourceAction[A <: AppAction] = new AppSamResource with SamResourceAction[AppSamResourceId, A] {
-    type ActionCategory = AppAction
+  implicit def AppSamResourceAction = new AppSamResource with SamResourceAction[AppSamResourceId, AppAction] {
     val decoder = Decoder[AppAction]
     val allActions = AppAction.allActions.toList
     val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
-    def actionAsString(a: A): String = a.asString
+    def actionAsString(a: AppAction): String = a.asString
   }
 
-  implicit def workspaceSamResourceAction[A <: WorkspaceAction] =
-    new WorkspaceResource with SamResourceAction[WorkspaceResourceSamResourceId, A] {
-      type ActionCategory = WorkspaceAction
+  implicit def workspaceSamResourceAction =
+    new WorkspaceResource with SamResourceAction[WorkspaceResourceSamResourceId, WorkspaceAction] {
       val decoder = Decoder[WorkspaceAction]
       val allActions = WorkspaceAction.allActions.toList
       val cacheableActions =
         List(WorkspaceAction.CreateControlledUserResource, WorkspaceAction.CreateControlledApplicationResource)
-      def actionAsString(a: A): String = a.asString
+      def actionAsString(a: WorkspaceAction): String = a.asString
     }
 
-  implicit def wsmResourceSamResourceAction[A <: WsmResourceAction] =
-    new WsmResource with SamResourceAction[WsmResourceSamResourceId, A] {
-      type ActionCategory = WsmResourceAction
+  implicit def wsmResourceSamResourceAction =
+    new WsmResource with SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] {
       val decoder = Decoder[WsmResourceAction]
       val allActions = WsmResourceAction.allActions.toList
       val cacheableActions = List(WsmResourceAction.Write)
-      def actionAsString(a: A): String = a.asString
+      def actionAsString(a: WsmResourceAction): String = a.asString
     }
 }
 
@@ -148,12 +141,12 @@ trait LeoAuthProvider[F[_]] {
   def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
-  ): F[List[sr.ActionCategory]]
+  ): F[List[A]]
 
   def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
-  ): F[(List[sr.ActionCategory], List[ProjectAction])]
+  ): F[(List[A], List[ProjectAction])]
 
   def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
     sr: SamResource[R],

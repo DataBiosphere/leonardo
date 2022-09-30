@@ -84,7 +84,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   override def getActions[R, A](
     samResource: R,
     userInfo: UserInfo
-  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[List[sr.ActionCategory]] = {
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[List[A]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
@@ -97,7 +97,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
-  ): F[(List[sr.ActionCategory], List[ProjectAction])] = {
+  ): F[(List[A], List[ProjectAction])] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao

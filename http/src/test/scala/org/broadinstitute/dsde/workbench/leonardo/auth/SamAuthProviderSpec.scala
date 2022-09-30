@@ -241,7 +241,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     }
     List(PersistentDiskAction.ReadPersistentDisk).foreach { a =>
       samAuthProviderWithCache
-        .hasPermission(diskSamResource, a, userInfo)
+        .hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](diskSamResource, a, userInfo)
         .unsafeRunSync() shouldBe true
     }
     List(AppAction.ConnectToApp, AppAction.GetAppStatus).foreach { a =>

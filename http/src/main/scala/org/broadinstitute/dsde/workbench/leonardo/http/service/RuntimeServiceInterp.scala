@@ -76,9 +76,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         AzureUnimplementedException("Azure runtime is not supported yet")
       )
-      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
-                                                  ProjectAction.CreateRuntime,
-                                                  userInfo
+      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
+        ProjectSamResourceId(googleProject),
+        ProjectAction.CreateRuntime,
+        userInfo
       )
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
@@ -191,7 +192,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
             _ <- authProvider
-              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
+              .notifyResourceCreated[RuntimeSamResourceId](samResource, userInfo.userEmail, googleProject)
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${context.traceId}] Failed to notify the AuthProvider for creation of runtime ${runtime.projectNameString}"
@@ -215,13 +216,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasPermissionWithProjectFallback(
+      hasPermission <- authProvider.hasPermissionWithProjectFallback[RuntimeSamResourceId, RuntimeAction](
         resp.samResource,
         RuntimeAction.GetRuntimeStatus,
         ProjectAction.GetRuntimeStatus,
         userInfo,
         GoogleProject(cloudContext.asString)
-      ) // TODO: support azure
+      )
       _ <-
         if (hasPermission) F.unit
         else
@@ -805,9 +806,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             DiskUpdate.Dataproc(d, mainInstance): DiskUpdate
           )
       }
+
       // if any of the above is defined, send a PubSub message
-      msg <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
-        .traverse { _ =>
+      msg <-
+        if (
+          List(targetNumWorkers, targetNumPreemptibles, targetMasterMachineType, targetMasterDiskSize).exists(
+            _.isDefined
+          )
+        ) {
           val requiresRestart = targetMasterMachineType.exists(x => x._2) || targetMasterDiskSize.isDefined
           val message = UpdateRuntimeMessage(
             runtime.id,
@@ -818,8 +824,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             targetNumPreemptibles,
             Some(context.traceId)
           )
-          publisherQueue.offer(message).as(message)
-        }
+          publisherQueue.offer(message).as(Some(message))
+        } else F.pure(none[UpdateRuntimeMessage])
     } yield msg
 
   private[service] def getTargetMachineType(curMachineType: MachineTypeName,
@@ -982,9 +988,10 @@ object RuntimeServiceInterp {
               if (isAttached)
                 F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
               else F.unit
-            hasPermission <- authProvider.hasPermission(pd.samResource,
-                                                        PersistentDiskAction.AttachPersistentDisk,
-                                                        userInfo
+            hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
+              pd.samResource,
+              PersistentDiskAction.AttachPersistentDisk,
+              userInfo
             )
 
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
@@ -992,9 +999,10 @@ object RuntimeServiceInterp {
 
         case None =>
           for {
-            hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
-                                                        ProjectAction.CreatePersistentDisk,
-                                                        userInfo
+            hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
+              ProjectSamResourceId(googleProject),
+              ProjectAction.CreatePersistentDisk,
+              userInfo
             )
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))

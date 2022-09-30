@@ -102,13 +102,13 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[List[sr.ActionCategory]] = ???
+  ): IO[List[A]] = ???
 
   override def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
     implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[(List[sr.ActionCategory], List[ProjectAction])] = ???
+  ): IO[(List[A], List[ProjectAction])] = ???
 
   override def filterUserVisible[R](
     resources: NonEmptyList[R],

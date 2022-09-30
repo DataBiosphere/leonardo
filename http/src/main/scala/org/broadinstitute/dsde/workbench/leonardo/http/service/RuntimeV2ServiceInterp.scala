@@ -71,7 +71,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       samResource = WorkspaceResourceSamResourceId(workspaceId)
 
-      hasPermission <- authProvider.hasPermission(samResource, WorkspaceAction.CreateControlledUserResource, userInfo)
+      hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
+        samResource,
+        WorkspaceAction.CreateControlledUserResource,
+        userInfo
+      )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
       _ <- F
