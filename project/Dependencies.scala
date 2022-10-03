@@ -149,6 +149,7 @@ object Dependencies {
     guava,
     workbenchModel,
     "com.google.cloud" % "google-cloud-storage" % "2.9.3", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
+    "com.google.cloud" % "google-cloud-resourcemanager" % "1.2.11", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
     workbenchGoogle2,
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
