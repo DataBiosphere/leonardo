@@ -15,10 +15,10 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "d49684f"
+  private val workbenchLibsHash = "982e088b-SNAP"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.21-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.22-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.25-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.3-$workbenchLibsHash"
   val workbenchOauth2V = s"0.2-$workbenchLibsHash"
@@ -36,7 +36,6 @@ object Dependencies {
   val excludeFindbugsJsr = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeGson = ExclusionRule(organization = "com.google.code.gson", name = "gson")
   val excludeGoogleApiClient = ExclusionRule(organization = "com.google.api-client", name = "google-api-client")
-  val excludeGoogleApiClientJackson2 = ExclusionRule(organization = "com.google.http-client", name = "google-http-client-jackson2")
   val excludeGoogleHttpClient = ExclusionRule(organization = "com.google.http-client", name = "google-http-client")
   val excludeJacksonCore = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-core")
   val excludeJacksonAnnotation = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-annotations")
@@ -54,9 +53,8 @@ object Dependencies {
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
-  val excludeCloudResourceManager = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-resourcemanager")
-  val excludeCloudStorage = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-storage")
-  val excludeOauth = ExclusionRule(organization = "com.google.apis", name = s"google-api-services-oauth2")
+//  val excludeCloudResourceManager = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-resourcemanager")
+//  val excludeCloudStorage = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-storage")
 //  val excludeAdmin = ExclusionRule(organization = "com.google.apis", name = s"google-api-services-admin-directory")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
@@ -91,8 +89,7 @@ object Dependencies {
     excludeHttpComponent,
     excludeGuava,
     excludeStatsD,
-    excludeKms,
-    excludeOauth)
+    excludeKms)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
     excludeWorkbenchMetrics,
     excludeIoGrpc,
@@ -105,9 +102,9 @@ object Dependencies {
     excludeCloudBilling,
     excludeSundrCodegen,
     excludeGuava,
-    excludeGoogleApiClient,
-    excludeCloudResourceManager,
-    excludeCloudStorage)
+//    excludeCloudResourceManager,
+//    excludeCloudStorage
+  )
   val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
@@ -148,8 +145,8 @@ object Dependencies {
     slick,
     guava,
     workbenchModel,
-    "com.google.cloud" % "google-cloud-storage" % "2.9.3", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
-    "com.google.cloud" % "google-cloud-resourcemanager" % "1.2.11", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
+//    "com.google.cloud" % "google-cloud-storage" % "2.9.3", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
+//    "com.google.cloud" % "google-cloud-resourcemanager" % "1.2.11", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
     workbenchGoogle2,
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
@@ -193,7 +190,7 @@ object Dependencies {
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
-    "com.google.api-client" % "google-api-client" % "1.32.1",
+//    "com.google.api-client" % "google-api-client" % "1.32.1",
     "com.auth0" % "java-jwt" % "3.19.1",
     http4sBlazeServer % Test,
     scalaTestSelenium,

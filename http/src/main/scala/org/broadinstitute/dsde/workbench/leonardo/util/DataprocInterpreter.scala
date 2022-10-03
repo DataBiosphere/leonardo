@@ -9,7 +9,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.api.gax.rpc.ApiException
-import com.google.api.services.admin.directory.model.Group
+import com.google.api.services.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging

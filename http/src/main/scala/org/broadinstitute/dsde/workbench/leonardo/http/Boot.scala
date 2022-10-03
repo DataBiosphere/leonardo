@@ -11,7 +11,6 @@ import cats.syntax.all._
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
-import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
@@ -45,7 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetCluster
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2Interpreter, GoogleOAuth2Service}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
@@ -99,7 +98,7 @@ object Boot extends IOApp {
 
     val livenessRoutes = new LivenessRoutes
 
-    val liveness = logger
+    logger
       .info("Liveness server has been created, starting...")
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
       .newServerAt("0.0.0.0", 9000)
@@ -383,7 +382,7 @@ object Boot extends IOApp {
 
       // Set up GCP credentials
       credential <- credentialResource(pathToCredentialJson)
-      scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
+      scopedCredential = credential.createScoped(Seq("https://www.googleapis.com/auth/compute").asJava)
       kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
       credentialJson <- Resource.eval(
         readFileToString(applicationConfig.leoServiceAccountJsonFile)
