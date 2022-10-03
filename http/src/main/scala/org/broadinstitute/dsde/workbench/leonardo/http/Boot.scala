@@ -367,8 +367,9 @@ object Boot extends IOApp {
       wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
-      googleOauth2DAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_oauth_token_client"), true)
-        .map(client => new GoogleOAuth2Interpreter[F](client))
+      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
+//        buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_oauth_token_client"), true)
+//        .map(client => new GoogleOAuth2Interpreter[F](client))
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
 
