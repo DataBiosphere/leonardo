@@ -150,12 +150,14 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
     val gcsPath = "gs://userscript_bucket/userscript.sh"
     val httpPath = "https://userscript_path"
     val invalidPath = "invalid_userscript_path"
+    val maliciousPath = "https://url.com|nslookup http://another-url.com"
 
     UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(
       UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
     )
     UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
     UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
+    UserScriptPath.stringToUserScriptPath(maliciousPath).left shouldBe a[MalformedURLException]
   }
 
   "DockerRegistry regex" should "match expected image url format" in {

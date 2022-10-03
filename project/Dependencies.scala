@@ -152,6 +152,7 @@ object Dependencies {
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
     "com.github.pureconfig" %% "pureconfig" % "0.17.1" % Provided,
+    "commons-validator" % "commons-validator" % "1.7",
     sealerate,
     enumeratum,
     circeYaml,

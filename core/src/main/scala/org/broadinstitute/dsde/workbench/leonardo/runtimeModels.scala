@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
+import java.net.{MalformedURLException, URL}
 import java.time.Instant
 import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
@@ -11,8 +11,10 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.Ju
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
+
 import java.nio.file.Path
 import scala.collection.immutable
+import org.apache.commons.validator.routines.UrlValidator
 
 /**
  * This file contains models for Leonardo runtimes.
@@ -309,10 +311,14 @@ object UserScriptPath {
   }(identity)
 
   def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
-    // Validate?
     parseGcsPath(string) match {
       case Right(value) => Right(Gcs(value))
-      case Left(_)      => Either.catchNonFatal(new URL(string)).map(url => Http(url))
+      case Left(_) =>
+        if (UrlValidator.getInstance().isValid(string)) {
+          Either.catchNonFatal(new URL(string)).map(url => Http(url))
+        } else {
+          Left(new MalformedURLException())
+        }
     }
 }
 

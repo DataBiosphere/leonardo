@@ -11,6 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
+import org.apache.commons.validator.routines.UrlValidator
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
@@ -44,6 +45,7 @@ import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.typelevel.log4cats.StructuredLogger
 import slick.dbio.DBIOAction
 
+import java.net.MalformedURLException
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
@@ -172,11 +174,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                        context.now
             )
 
+            // TODO validation required
             userScriptUriToValidate = req.userScriptUri
               .flatMap(x => UserScriptPath.gcsPrism.getOption(x).map(_.asString))
             userStartupScriptToValidate = req.startUserScriptUri.flatMap(x =>
               UserScriptPath.gcsPrism.getOption(x).map(_.asString)
             )
+            _ <- validateUserScriptPath(userScriptUriToValidate)
+            _ <- validateUserScriptPath(userStartupScriptToValidate)
 
             gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
               .map(config =>
@@ -586,6 +591,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case _ => Some(RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, None, now))
       }
     } yield Set(Some(toolImage), welderImage, Some(proxyImage), cryptoDetectorImageOpt).flatten
+
+  private[service] def validateUserScriptPath(userScriptPath: Option[String]): F[Unit] =
+    userScriptPath match {
+      case Some(value) =>
+        if (UrlValidator.getInstance().isValid(value))
+          F.pure(())
+        else {
+          F.raiseError(new MalformedURLException())
+        }
+      case None => F.pure(())
+    }
 
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,

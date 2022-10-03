@@ -242,12 +242,53 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val request = emptyCreateRuntimeReq.copy(
       userScriptUri = Some(
         UserScriptPath.Http(
-          new URL("https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh")
+          new URL(
+            "https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh"
+          )
         )
       ),
       startUserScriptUri = Some(
         UserScriptPath.Http(
           new URL("https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh")
+        )
+      )
+    )
+
+    val res = for {
+      r <- runtimeService
+        .createRuntime(
+          userInfo,
+          cloudContext,
+          runtimeName,
+          request
+        )
+        .attempt
+      _ <- publisherQueue.take // dequeue the message so that it doesn't affect other tests
+    } yield r.isRight shouldBe true
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail due to invalid user startup script" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
+    val cloudContext = CloudContext.Gcp(GoogleProject("project1"))
+    val runtimeName = RuntimeName("clusterName2")
+    val request = emptyCreateRuntimeReq.copy(
+      userScriptUri = Some(
+        UserScriptPath.Http(
+          new URL(
+            "https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh| nslookup www.mysite.com"
+          )
+        )
+      ),
+      startUserScriptUri = Some(
+        UserScriptPath.Http(
+          new URL(
+            "https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh| nslookup www.mysite.com"
+          )
         )
       )
     )
