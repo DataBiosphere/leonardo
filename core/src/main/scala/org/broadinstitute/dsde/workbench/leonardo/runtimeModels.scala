@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.Ju
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
-
 import java.nio.file.Path
 import scala.collection.immutable
 import org.apache.commons.validator.routines.UrlValidator
