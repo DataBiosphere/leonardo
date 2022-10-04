@@ -53,9 +53,6 @@ object Dependencies {
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
-//  val excludeCloudResourceManager = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-resourcemanager")
-//  val excludeCloudStorage = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-storage")
-//  val excludeAdmin = ExclusionRule(organization = "com.google.apis", name = s"google-api-services-admin-directory")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
@@ -101,9 +98,7 @@ object Dependencies {
     excludeBigQuery,
     excludeCloudBilling,
     excludeSundrCodegen,
-    excludeGuava,
-//    excludeCloudResourceManager,
-//    excludeCloudStorage
+    excludeGuava
   )
   val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
@@ -145,8 +140,6 @@ object Dependencies {
     slick,
     guava,
     workbenchModel,
-//    "com.google.cloud" % "google-cloud-storage" % "2.9.3", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
-//    "com.google.cloud" % "google-cloud-resourcemanager" % "1.2.11", //forcing 2.9.3 because higher version uses google-api-client 2.+, which isn't compatible with google-api-services-admin-directory
     workbenchGoogle2,
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
@@ -190,7 +183,6 @@ object Dependencies {
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
-//    "com.google.api-client" % "google-api-client" % "1.32.1",
     "com.auth0" % "java-jwt" % "3.19.1",
     http4sBlazeServer % Test,
     scalaTestSelenium,
