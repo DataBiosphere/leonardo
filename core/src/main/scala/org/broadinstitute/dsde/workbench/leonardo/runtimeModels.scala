@@ -317,7 +317,7 @@ object UserScriptPath {
         if (UrlValidator.getInstance().isValid(string)) {
           Either.catchNonFatal(new URL(string)).map(url => Http(url))
         } else {
-          Left(new MalformedURLException())
+          Left(new MalformedURLException("Startup script has invalid content."))
         }
     }
 }
