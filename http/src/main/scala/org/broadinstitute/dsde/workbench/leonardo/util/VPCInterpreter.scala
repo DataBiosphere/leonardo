@@ -46,11 +46,11 @@ final case class FirewallNotReadyException(project: GoogleProject, firewall: Fir
                          traceId = Some(traceId)
     )
 
-final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
+final class VPCInterpreter[F[_]: Parallel](
   config: VPCInterpreterConfig,
   googleResourceService: GoogleResourceService[F],
   googleComputeService: GoogleComputeService[F]
-)(implicit F: Async[F])
+)(implicit F: Async[F], logger: StructuredLogger[F])
     extends VPCAlgebra[F] {
 
   val defaultNetworkName = NetworkName("default")
@@ -95,7 +95,9 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             // See https://cloud.google.com/vpc/docs/vpc#subnet-ranges
             subnetworkName <-
               if (config.vpcConfig.autoCreateSubnetworks) {
-                F.pure(SubnetworkName(config.vpcConfig.networkName.value))
+                logger
+                  .info(s"autoCreateSubnetworks is false. Not going to create ${config.vpcConfig.subnetworkName}")
+                  .as(SubnetworkName(config.vpcConfig.networkName.value))
               } else {
                 // create the subnet
                 createIfAbsent(
