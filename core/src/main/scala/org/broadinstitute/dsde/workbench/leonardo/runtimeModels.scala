@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.{MalformedURLException, URL}
+import cats.implicits._
+import java.net.URL
 import java.time.Instant
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
@@ -12,7 +13,8 @@ import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketNa
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
 import java.nio.file.Path
 import scala.collection.immutable
-import org.apache.commons.validator.routines.UrlValidator
+
+import org.http4s.Uri
 
 /**
  * This file contains models for Leonardo runtimes.
@@ -308,16 +310,16 @@ object UserScriptPath {
     case UserScriptPath.Http(_) => None
   }(identity)
 
-  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
+  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] = {
     parseGcsPath(string) match {
       case Right(value) => Right(Gcs(value))
       case Left(_) =>
-        if (UrlValidator.getInstance().isValid(string)) {
-          Right(Http(new URL(string)))
-        } else {
-          Left(new MalformedURLException("Startup script has invalid content."))
-        }
+        for {
+          _ <- Uri.fromString(string)
+          res <- Either.catchNonFatal(new URL(string))
+        } yield UserScriptPath.Http(res)
     }
+  }
 }
 
 /** Jupyter extension configuration */

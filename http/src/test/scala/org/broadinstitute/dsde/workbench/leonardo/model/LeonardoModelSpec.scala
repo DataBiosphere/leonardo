@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.UserScriptPath.Gcs
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
+import org.http4s.ParseFailure
 import org.mockito.ArgumentMatchers.any
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -159,8 +160,10 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
     )
     UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
-    UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
-    UserScriptPath.stringToUserScriptPath(maliciousPath).left.get shouldBe a[MalformedURLException]
+    UserScriptPath.stringToUserScriptPath(invalidPath).swap.toOption.get shouldBe a[MalformedURLException]
+    UserScriptPath.stringToUserScriptPath(maliciousPath).swap.toOption.get shouldBe a[ParseFailure]
+    // Note: no exception for below assertion.
+    // However, when checking the bucket for the file, app creation will fail due to Google validation.
     UserScriptPath.stringToUserScriptPath(maliciousGcsPath) shouldBe Right(
       UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh | nslookup http://another-url.com")))
     )
