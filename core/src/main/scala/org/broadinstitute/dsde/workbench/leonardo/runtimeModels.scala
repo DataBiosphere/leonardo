@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.{MalformedURLException, URL}
 import java.time.Instant
-import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
@@ -315,7 +314,7 @@ object UserScriptPath {
       case Right(value) => Right(Gcs(value))
       case Left(_) =>
         if (UrlValidator.getInstance().isValid(string)) {
-          Either.catchNonFatal(new URL(string)).map(url => Http(url))
+          Right(Http(new URL(string)))
         } else {
           Left(new MalformedURLException("Startup script has invalid content."))
         }

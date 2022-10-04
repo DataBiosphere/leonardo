@@ -6,8 +6,10 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResour
 import java.net.{MalformedURLException, URL}
 import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.UserScriptPath.Gcs
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
+import org.mockito.ArgumentMatchers.any
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
@@ -148,16 +150,20 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
   it should "create UserScriptPath objects according to provided path" in {
     val gcsPath = "gs://userscript_bucket/userscript.sh"
-    val httpPath = "https://userscript_path"
+    val httpPath = "https://w3.org"
     val invalidPath = "invalid_userscript_path"
     val maliciousPath = "https://url.com|nslookup http://another-url.com"
+    val maliciousGcsPath = "gs://userscript_bucket/userscript.sh | nslookup http://another-url.com"
 
     UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(
       UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
     )
     UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
     UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
-    UserScriptPath.stringToUserScriptPath(maliciousPath).left shouldBe a[MalformedURLException]
+    UserScriptPath.stringToUserScriptPath(maliciousPath).left.get shouldBe a[MalformedURLException]
+    UserScriptPath.stringToUserScriptPath(maliciousGcsPath) shouldBe Right(
+      UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh | nslookup http://another-url.com")))
+    )
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
