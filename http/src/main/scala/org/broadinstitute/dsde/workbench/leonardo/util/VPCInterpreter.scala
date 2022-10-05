@@ -96,7 +96,9 @@ final class VPCInterpreter[F[_]: Parallel](
             subnetworkName <-
               if (config.vpcConfig.autoCreateSubnetworks) {
                 logger
-                  .info(s"autoCreateSubnetworks is false. Not going to create ${config.vpcConfig.subnetworkName}")
+                  .info(Map("traceId" -> ctx.asString))(
+                    s"autoCreateSubnetworks is false. Not going to create ${config.vpcConfig.subnetworkName}"
+                  )
                   .as(SubnetworkName(config.vpcConfig.networkName.value))
               } else {
                 // create the subnet
