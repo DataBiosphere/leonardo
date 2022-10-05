@@ -7,9 +7,11 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
+  streamUntilDoneOrTimeout,
   tracedRetryF,
   FirewallRuleName,
   GoogleComputeService,
@@ -25,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 
 final case class InvalidVPCSetupException(project: GoogleProject)
@@ -74,9 +77,64 @@ final class VPCInterpreter[F[_]: Parallel](
       (network, subnetwork) <- (networkFromLabel, subnetworkFromLabel) match {
         // If we found project labels, we're done
         case (Some(network), Some(subnet)) =>
-          logger
-            .info(Map("traceId" -> ctx.asString))("Using existing network and subnetwork")
-            .as(NetworkName(network), SubnetworkName(subnet))
+          val subnetworkName = SubnetworkName(subnet)
+          for {
+            _ <- logger
+              .info(Map("traceId" -> ctx.asString))("Trying to use existing network and subnetwork")
+            subnetOpt <- googleComputeService.getSubnetwork(params.project,
+                                                            params.region,
+                                                            config.vpcConfig.subnetworkName
+            )
+            _ <- subnetOpt match {
+              case Some(sn) =>
+                if (sn.getState == "READY") {
+                  F.unit
+                } else {
+                  val fa =
+                    googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName)
+
+                  implicit val doneCheckable: DoneCheckable[Option[com.google.cloud.compute.v1.Subnetwork]] =
+                    new DoneCheckable[Option[Subnetwork]] {
+                      override def isDone(a: Option[Subnetwork]): Boolean = a.exists(_.getState == "READY")
+                    }
+                  streamUntilDoneOrTimeout(
+                    fa,
+                    120,
+                    10 seconds,
+                    s"${subnet} is not ready in time"
+                  )
+                }
+              case None =>
+                for {
+                  _ <- logger
+                    .info(Map("traceId" -> ctx.asString))(
+                      "Creating subnetwork even though project has subnetwork label. This shouldn't happen in normal case"
+                    )
+                  regionalIpRange <- F.fromOption(
+                    config.vpcConfig.subnetworkRegionIpRangeMap.get(params.region),
+                    new LeoException(s"Unable to create subnetwork due to unsupported region ${params.region.value}",
+                                     traceId = Some(ctx)
+                    )
+                  )
+                  opFuture <- googleComputeService.createSubnetwork(
+                    params.project,
+                    params.region,
+                    buildSubnetwork(params.project, params.region, subnetworkName, regionalIpRange)
+                  )
+                  res <- F.blocking(opFuture.get())
+                  _ <-
+                    if (
+                      isSuccess(
+                        res.getHttpErrorStatusCode
+                      ) || res.getHttpErrorStatusCode == 409 && res.getHttpErrorMessage
+                        .contains("already exists")
+                    )
+                      F.unit
+                    else F.raiseError(SubnetworkNotReadyException(params.project, subnetworkName))
+                } yield ()
+            }
+          } yield (NetworkName(network), subnetworkName)
+
         // Otherwise, we potentially need to create the network and subnet
         case (None, None) =>
           for {
@@ -106,9 +164,10 @@ final class VPCInterpreter[F[_]: Parallel](
                 // create the subnet
                 createIfAbsent(
                   googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
-                  googleComputeService.createSubnetwork(params.project,
-                                                        params.region,
-                                                        buildSubnetwork(params.project, params.region, regionalIpRange)
+                  googleComputeService.createSubnetwork(
+                    params.project,
+                    params.region,
+                    buildSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName, regionalIpRange)
                   ),
                   SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
                   s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
@@ -224,11 +283,12 @@ final class VPCInterpreter[F[_]: Parallel](
 
   private[util] def buildSubnetwork(project: GoogleProject,
                                     region: RegionName,
+                                    name: SubnetworkName,
                                     subnetRegionIpRange: IpRange
   ): Subnetwork =
     Subnetwork
       .newBuilder()
-      .setName(config.vpcConfig.subnetworkName.value)
+      .setName(name.value)
       .setRegion(region.value)
       .setNetwork(buildNetworkUri(project, config.vpcConfig.networkName))
       .setIpCidrRange(
