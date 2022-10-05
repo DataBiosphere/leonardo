@@ -322,7 +322,7 @@ class GceInterpreter[F[_]](
               F.pure(none[String])
             case e: java.util.concurrent.ExecutionException if e.getMessage.contains("not ready") =>
               // we get error like "The resource 'projects/terra-quality-194ea94e/regions/us-central1/subnetworks/subnetwork' is not ready" when the subnetworks aren't ready in the project yet.
-              F.pure(none[String])
+              logger.warn(ctx.loggingCtx)(s"fail to get opName due to ${e.getMessage}").as(Some("unknown"))
           }
       }
 
