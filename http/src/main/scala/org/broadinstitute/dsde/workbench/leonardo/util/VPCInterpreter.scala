@@ -74,7 +74,9 @@ final class VPCInterpreter[F[_]: Parallel](
       (network, subnetwork) <- (networkFromLabel, subnetworkFromLabel) match {
         // If we found project labels, we're done
         case (Some(network), Some(subnet)) =>
-          F.pure((NetworkName(network), SubnetworkName(subnet)))
+          logger
+            .info(Map("traceId" -> ctx.asString))("Using existing network and subnetwork")
+            .as(NetworkName(network), SubnetworkName(subnet))
         // Otherwise, we potentially need to create the network and subnet
         case (None, None) =>
           for {
