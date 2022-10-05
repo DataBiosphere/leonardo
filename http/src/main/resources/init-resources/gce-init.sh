@@ -161,7 +161,7 @@ function apply_user_script() {
 
   log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
   USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
-  if [[ "${USER_SCRIPT_URI}" == 'gs://'* ]]; then
+  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
     $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var &> /var/user_script_copy_output.txt
   else
     curl "${USER_SCRIPT_URI}" -o /var/"${USER_SCRIPT}"
