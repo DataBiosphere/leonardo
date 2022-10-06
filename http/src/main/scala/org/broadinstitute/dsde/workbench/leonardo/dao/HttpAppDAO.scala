@@ -30,8 +30,5 @@ class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], cli
 }
 
 trait AppDAO[F[_]] {
-  def isProxyAvailable(googleProject: GoogleProject, appName: AppName): F[Boolean] =
-    isProxyAvailable(googleProject, appName, ServiceName("galaxy"))
-
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean]
 }

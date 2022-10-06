@@ -308,6 +308,25 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "start custom APP without descriptor will fail" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Custom).copy(status = AppStatus.Stopping).save()
+
+    val res = for {
+      result <- gkeInterp
+        .startAndPollApp(
+          StartAppParams(savedApp1.id,
+                         savedApp1.appName,
+                         savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value
+          )
+        )
+        .attempt
+    } yield result shouldBe Left(AppRequiresDescriptorException(savedApp1.id))
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "error during createCluster if cluster doesn't exist in database" in isolatedDbTest {
     val res = for {
       ctx <- appContext.ask[AppContext]
