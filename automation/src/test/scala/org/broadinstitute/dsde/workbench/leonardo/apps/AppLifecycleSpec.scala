@@ -22,7 +22,8 @@ class AppLifecycleSpec
     extends BillingProjectFixtureSpec
     with LeonardoTestUtils
     with BillingProjectUtils
-    with TableDrivenPropertyChecks {
+    with TableDrivenPropertyChecks
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =

@@ -246,7 +246,6 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 
 final class LeonardoSuite
     extends Suites(
-      new AppLifecycleSpec,
       new RuntimeCreationDiskSpec,
       new LabSpec,
       new LeoPubsubSpec,
