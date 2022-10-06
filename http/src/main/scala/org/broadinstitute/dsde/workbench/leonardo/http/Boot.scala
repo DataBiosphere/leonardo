@@ -17,7 +17,7 @@ import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.AzureRelayService
+import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{
   GoogleProjectDAO,
@@ -369,7 +369,7 @@ object Boot extends IOApp {
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
-
+      azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
@@ -590,8 +590,10 @@ object Boot extends IOApp {
                                                      asyncTasksQueue,
                                                      wsmDao,
                                                      samDao,
+                                                     welderDao,
                                                      jupyterDao,
-                                                     azureRelay
+                                                     azureRelay,
+                                                     azureVmService
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)

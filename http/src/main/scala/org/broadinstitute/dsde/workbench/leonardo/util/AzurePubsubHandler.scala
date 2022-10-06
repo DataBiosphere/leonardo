@@ -11,6 +11,7 @@ import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineS
 import org.broadinstitute.dsde.workbench.azure.{
   AzureCloudContext,
   AzureRelayService,
+  AzureVmService,
   ContainerName,
   RelayHybridConnectionName
 }
@@ -20,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamRe
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
@@ -29,16 +30,18 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
   AzureRuntimeDeletionError,
+  AzureRuntimeStartingError,
+  AzureRuntimeStoppingError,
   ClusterError
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
-import java.time.Instant
+import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
@@ -46,8 +49,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
   samDAO: SamDAO[F],
+  welderDao: WelderDAO[F],
   jupyterDAO: JupyterDAO[F],
-  azureRelay: AzureRelayService[F]
+  azureRelay: AzureRelayService[F],
+  azureVmServiceInterp: AzureVmService[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
   implicit val wsmDeleteVmDoneCheckable: DoneCheckable[Option[GetDeleteJobResult]] = (v: Option[GetDeleteJobResult]) =>
@@ -57,6 +62,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       case None =>
         true
     }
+
+  implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
 
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -167,6 +174,104 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
+
+  override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+
+    _ <- monoOpt match {
+      case None =>
+        F.raiseError(
+          AzureRuntimeStartingError(
+            runtime.id,
+            s"Starting runtime ${runtime.id} request to Azure failed.",
+            ctx.traceId
+          )
+        )
+      case Some(mono) =>
+        val task = for {
+          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
+          isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
+          _ <- streamUntilDoneOrTimeout(
+            isJupyterUp,
+            config.createVmPollConfig.maxAttempts,
+            config.createVmPollConfig.interval,
+            s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+          )
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
+          _ <- logger.info(ctx.loggingCtx)("runtime is ready")
+        } yield ()
+        asyncTasks.offer(
+          Task(
+            ctx.traceId,
+            task,
+            Some(e =>
+              handleAzureRuntimeStartError(
+                AzureRuntimeStartingError(
+                  runtime.id,
+                  s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
+                ),
+                ctx.now
+              )
+            ),
+            ctx.now,
+            "startRuntime"
+          )
+        )
+    }
+  } yield ()
+
+  override def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+    _ <- monoOpt match {
+      case None =>
+        F.raiseError(
+          AzureRuntimeStoppingError(
+            runtime.id,
+            s"Stopping runtime ${runtime.id} request to Azure failed.",
+            ctx.traceId
+          )
+        )
+      case Some(mono) =>
+        val task = for {
+          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
+          _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
+          _ <- welderDao
+            .flushCache(runtime.cloudContext, runtime.runtimeName)
+            .handleErrorWith(e =>
+              logger.error(ctx.loggingCtx, e)(
+                s"Failed to flush welder cache for ${runtime.projectNameString}"
+              )
+            )
+            .whenA(runtime.welderEnabled)
+        } yield ()
+        asyncTasks.offer(
+          Task(
+            ctx.traceId,
+            task,
+            Some(e =>
+              handleAzureRuntimeStopError(
+                AzureRuntimeStoppingError(
+                  runtime.id,
+                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
+                ),
+                ctx.now
+              )
+            ),
+            ctx.now,
+            "startRuntime"
+          )
+        )
+    }
+  } yield ()
 
   private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -284,7 +389,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
 
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
     implicit val wsmCreateVmDoneCheckable: DoneCheckable[GetCreateVmJobResult] = (v: GetCreateVmJobResult) =>
       v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
     for {
@@ -302,7 +406,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => x
       }
 
-      // TODO: this probably isn't super necessary...But we should add a check for pinging jupyter once proxy work is done
       isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
@@ -585,6 +688,28 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       .transaction
     _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, ctx.now).transaction
   } yield ()
+
+  def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.error(ctx.loggingCtx)(s"Failed to start Azure VM ${e.runtimeId}")
+      _ <- clusterErrorQuery
+        .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
+        .transaction
+    } yield ()
+
+  def handleAzureRuntimeStopError(e: AzureRuntimeStoppingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.error(ctx.loggingCtx)(s"Failed to stop Azure VM ${e.runtimeId}")
+      _ <- clusterErrorQuery
+        .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
+        .transaction
+    } yield ()
 
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
     ev: Ask[F, AppContext]
