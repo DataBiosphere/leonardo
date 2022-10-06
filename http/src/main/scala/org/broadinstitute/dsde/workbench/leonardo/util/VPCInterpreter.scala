@@ -7,11 +7,9 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
-  streamUntilDoneOrTimeout,
   tracedRetryF,
   FirewallRuleName,
   GoogleComputeService,
@@ -27,7 +25,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 
 final case class InvalidVPCSetupException(project: GoogleProject)
