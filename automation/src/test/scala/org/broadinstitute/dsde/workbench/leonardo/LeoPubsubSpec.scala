@@ -11,7 +11,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 @DoNotDiscover
 class LeoPubsubSpec extends AnyFlatSpec with LeonardoTestUtils {
 
-  "Google publisher" should "be able to auth" in {
+  "Google publisher" should "be able to auth" ignore {
     logger.info(s"publisher config is: ${LeonardoConfig.Leonardo.publisherConfig}")
 
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
