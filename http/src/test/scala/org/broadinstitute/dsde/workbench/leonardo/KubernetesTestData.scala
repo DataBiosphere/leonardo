@@ -148,14 +148,15 @@ object KubernetesTestData {
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,
               customEnvironmentVariables: Map[String, String] = Map.empty,
-              status: AppStatus = AppStatus.Unspecified
+              status: AppStatus = AppStatus.Unspecified,
+              appType: AppType = galaxyApp
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
     App(
       AppId(-1),
       nodepoolId,
-      galaxyApp,
+      appType,
       name,
       status,
       galaxyChart,
