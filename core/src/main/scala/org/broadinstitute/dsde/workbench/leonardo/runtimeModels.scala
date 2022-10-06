@@ -1,17 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
-import java.time.Instant
-import cats.syntax.all._
+import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
+import org.http4s.Uri
+
+import java.net.URL
 import java.nio.file.Path
+import java.time.Instant
 import scala.collection.immutable
 
 /**
@@ -311,7 +313,11 @@ object UserScriptPath {
   def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
     parseGcsPath(string) match {
       case Right(value) => Right(Gcs(value))
-      case Left(_)      => Either.catchNonFatal(new URL(string)).map(url => Http(url))
+      case Left(_) =>
+        for {
+          _ <- Uri.fromString(string)
+          res <- Either.catchNonFatal(new URL(string))
+        } yield UserScriptPath.Http(res)
     }
 }
 
