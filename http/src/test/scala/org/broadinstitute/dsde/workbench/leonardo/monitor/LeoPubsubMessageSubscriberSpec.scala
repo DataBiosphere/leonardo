@@ -15,8 +15,8 @@ import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
-import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
@@ -34,7 +34,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, _}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeApp,
   makeKubeCluster,
@@ -50,12 +50,13 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
-import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerInterp, _}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito._
 import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -81,6 +82,9 @@ class LeoPubsubMessageSubscriberSpec
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   val mockWelderDAO = mock[WelderDAO[IO]]
+
+  val mockAzurePubsubHandlerInterp = mock[AzurePubsubHandlerAlgebra[IO]]
+
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO() {
     override def isGroupMember(groupEmail: WorkbenchEmail,
                                memberEmail: WorkbenchEmail
@@ -1826,6 +1830,54 @@ class LeoPubsubMessageSubscriberSpec
         )
         error.traceId shouldBe (Some(ctx.traceId))
       }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle Azure StartRuntimeMessage and start runtime" in isolatedDbTest {
+    val azurePubsubHandlerMock = mock[AzurePubsubHandlerInterp[IO]]
+    when(azurePubsubHandlerMock.startAndMonitorRuntime(any[Runtime], any[AzureCloudContext])(any()))
+      .thenReturn(IO.unit)
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubsubHandlerMock)
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Starting, cloudContext = CloudContext.Azure(azureCloudContext))
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+      )
+      tr <- traceId.ask[TraceId]
+      _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr)))
+
+    } yield verify(azurePubsubHandlerMock, times(1))
+      .startAndMonitorRuntime(any[Runtime], any[AzureCloudContext])(any())
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle Azure StopRuntimeMessage and stop runtime" in isolatedDbTest {
+    val azurePubsubHandlerMock = mock[AzurePubsubHandlerInterp[IO]]
+    when(azurePubsubHandlerMock.stopAndMonitorRuntime(any[Runtime], any[AzureCloudContext])(any()))
+      .thenReturn(IO.unit)
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubsubHandlerMock)
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Stopping, cloudContext = CloudContext.Azure(azureCloudContext))
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+      )
+      tr <- traceId.ask[TraceId]
+      _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr)))
+
+    } yield verify(azurePubsubHandlerMock, times(1)).stopAndMonitorRuntime(any[Runtime], any[AzureCloudContext])(any())
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1856,7 +1908,7 @@ class LeoPubsubMessageSubscriberSpec
     diskService: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
-    azureInterp: AzurePubsubHandlerInterp[IO] = makeAzureInterp()
+    azureInterp: AzurePubsubHandlerAlgebra[IO] = makeAzureInterp()
   ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
@@ -1892,16 +1944,19 @@ class LeoPubsubMessageSubscriberSpec
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
                       relayService: AzureRelayService[IO] = FakeAzureRelayService,
-                      wsmDAO: MockWsmDAO = new MockWsmDAO
-  ): AzurePubsubHandlerInterp[IO] =
+                      wsmDAO: MockWsmDAO = new MockWsmDAO,
+                      azureVmService: AzureVmService[IO] = FakeAzureVmService
+  ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
       contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
+      new MockWelderDAO(),
       new MockJupyterDAO(),
-      relayService
+      relayService,
+      azureVmService
     )
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =
