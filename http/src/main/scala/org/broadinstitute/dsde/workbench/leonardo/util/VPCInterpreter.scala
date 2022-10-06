@@ -81,10 +81,7 @@ final class VPCInterpreter[F[_]: Parallel](
           for {
             _ <- logger
               .info(Map("traceId" -> ctx.asString))("Trying to use existing network and subnetwork")
-            subnetOpt <- googleComputeService.getSubnetwork(params.project,
-                                                            params.region,
-                                                            config.vpcConfig.subnetworkName
-            )
+            subnetOpt <- googleComputeService.getSubnetwork(params.project, params.region, subnetworkName)
             _ <- subnetOpt match {
               case Some(sn) =>
                 if (sn.getState == "READY") {
