@@ -247,7 +247,6 @@ final class LeonardoSuite
     extends Suites(
       new RuntimeCreationDiskSpec,
       new LabSpec,
-      new LeoPubsubSpec,
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
