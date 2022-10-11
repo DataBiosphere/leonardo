@@ -265,7 +265,15 @@ object JsonCodec {
   implicit val kubeSamIdEncoder: Encoder[AppSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val namespaceEncoder: Encoder[NamespaceName] = Encoder.encodeString.contramap(_.value)
   implicit val appNameEncoder: Encoder[AppName] = Encoder.encodeString.contramap(_.value)
-  implicit val appStatusEncoder: Encoder[AppStatus] = Encoder.encodeString.contramap(_.toString)
+  implicit val appStatusEncoder: Encoder[AppStatus] = Encoder.encodeString.contramap { x =>
+    x match {
+      case AppStatus.Precreating => AppStatus.Provisioning.toString
+      case AppStatus.PreStarting => AppStatus.Starting.toString
+      case AppStatus.PreStopping => AppStatus.Stopping.toString
+      case AppStatus.Predeleting => AppStatus.Deleting.toString
+      case _                     => x.toString
+    }
+  }
   implicit val appTypeEncoder: Encoder[AppType] = Encoder.encodeString.contramap(_.toString)
   implicit val serviceNameEncoder: Encoder[ServiceName] = Encoder.encodeString.contramap(_.value)
   implicit val serviceNameDecoder: Decoder[ServiceName] = Decoder.decodeString.map(s => ServiceName(s))
