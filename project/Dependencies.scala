@@ -123,7 +123,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.30"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.16.1"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.17.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.15" % Test // brought in for FakeStorageInterpreter
 
