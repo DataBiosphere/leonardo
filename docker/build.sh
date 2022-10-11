@@ -130,6 +130,7 @@ fi
 function make_jar()
 {
     echo "building jar..."
+    docker version
     # start test db
     bash ./docker/run-mysql.sh start ${TARGET} ${DB_CONTAINER}
 
