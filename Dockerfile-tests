@@ -1,4 +1,4 @@
-FROM sbtscala/scala-sbt:eclipse-temurin-17.0.4_1.7.1_3.2.0
+FROM sbtscala/scala-sbt:eclipse-temurin-17.0.4_1.7.2_2.13.9
 
 # This is only to make `sbt` work because `Version.scala` depends on `git` if this environment is not set
 ENV GIT_HASH="0.0.1"

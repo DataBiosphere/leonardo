@@ -143,7 +143,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          sbtscala/scala-sbt:eclipse-temurin-17.0.4_1.7.1_3.2.0 \
+                          sbtscala/scala-sbt:eclipse-temurin-17.0.4_1.7.2_2.13.9 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db
