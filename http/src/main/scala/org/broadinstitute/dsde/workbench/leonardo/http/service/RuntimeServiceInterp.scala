@@ -236,7 +236,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, cloudContext).transaction
+      runtimes <- RuntimeServiceDbQueries
+        .listRuntimes(paramMap._1, paramMap._2, cloudContext)
+        .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
       samVisibleRuntimesOpt <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>

@@ -422,6 +422,7 @@ class DataprocInterpreter[F[_]: Parallel](
     ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
+      ctx <- ev.ask
       region <- F.fromOption(
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
@@ -431,13 +432,19 @@ class DataprocInterpreter[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
       )
-      _ <- googleDataprocService.stopCluster(
-        googleProject,
-        region,
-        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
-        Some(metadata),
-        params.isDataprocFullStop
-      )
+      _ <- googleDataprocService
+        .stopCluster(
+          googleProject,
+          region,
+          DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+          Some(metadata),
+          params.isDataprocFullStop
+        )
+        .recoverWith { case _: com.google.api.gax.rpc.PermissionDeniedException =>
+          logger
+            .info(ctx.loggingCtx)(s"Leo SA can't access the project. ${googleProject} might've been deleted.")
+            .as(None)
+        }
     } yield None
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(implicit

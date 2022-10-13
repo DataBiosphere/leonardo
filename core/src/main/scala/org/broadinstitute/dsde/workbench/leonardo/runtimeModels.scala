@@ -310,12 +310,15 @@ object UserScriptPath {
     case UserScriptPath.Http(_) => None
   }(identity)
 
-  def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
+  /**
+   * @param additionalValidate: checking if the string is a valid URI with org.http4s.Uri.fromString
+   */
+  def stringToUserScriptPath(string: String, additionalValidate: Boolean = true): Either[Throwable, UserScriptPath] =
     parseGcsPath(string) match {
       case Right(value) => Right(Gcs(value))
       case Left(_) =>
         for {
-          _ <- Uri.fromString(string)
+          _ <- if (additionalValidate) Uri.fromString(string) else Right(())
           res <- Either.catchNonFatal(new URL(string))
         } yield UserScriptPath.Http(res)
     }
