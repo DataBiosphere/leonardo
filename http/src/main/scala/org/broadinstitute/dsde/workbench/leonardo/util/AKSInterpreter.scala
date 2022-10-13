@@ -11,6 +11,7 @@ import com.azure.identity.ClientSecretCredential
 import com.azure.resourcemanager.msi.MsiManager
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -66,11 +67,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Get resources from landing zone
       // TODO hardcoded!!!
       landingZoneResources = LandingZoneResources(
-        AKSClusterName("cluster"),
+        AKSClusterName("cluster-name"),
         BatchAccountName("batch-account"),
         RelayNamespace("relay-ns"),
         StorageAccountName("storage-account"),
-        SubnetName("batch-subnet")
+        SubnetName("BATCH_SUBNET")
       )
 
       // Resolve user-assigned managed identity in Azure
@@ -140,7 +141,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      cloudContext: AzureCloudContext,
                                                      ksaName: ServiceAccountName,
-                                                     samResourceId: SamResourceId,
+                                                     samResourceId: AppSamResourceId,
                                                      landingZoneResources: LandingZoneResources,
                                                      relayHcName: RelayHybridConnectionName,
                                                      relayPrimaryKey: PrimaryKey
@@ -157,11 +158,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
 
         // relay configs
-        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         raw"relaylistener.connectionString=Endpoint=sb://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
-        raw"relaylistener.hostIp=${landingZoneResources.relayNamespace.value}.servicebus.windows.net",
         raw"relaylistener.connectionName=${relayHcName.value}",
+        raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samUrl.renderString}",
+        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
+        // TODO: should we check kubernetes-app resource type instead of controlled-application-private-workspace-resource?
+        raw"relaylistener.samResourceType=controlled-application-private-workspace-resource",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",

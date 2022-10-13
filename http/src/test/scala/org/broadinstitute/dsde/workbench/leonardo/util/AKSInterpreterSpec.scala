@@ -6,13 +6,16 @@ import com.azure.identity.ClientSecretCredentialBuilder
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
   AppResources,
   AppStatus,
   AppType,
   Chart,
+  CloudContext,
   KubernetesClusterStatus,
   LeonardoTestSuite,
   ManagedIdentityName,
@@ -36,29 +39,39 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val appRegConfig = AzureAppRegistrationConfig(
     ClientId("client-id"),
     ClientSecret("client-secret"),
-    ManagedAppTenantId("tenant")
+    ManagedAppTenantId("tenant-id")
   )
 
   // This is attached to a workspace
   val cloudContext = AzureCloudContext(
-    TenantId("customer-tenant"),
-    SubscriptionId("customer-sub"),
-    ManagedResourceGroupName("customer-mrg")
+    TenantId("tenant-id"),
+    SubscriptionId("sub-id"),
+    ManagedResourceGroupName("mrg-name")
   )
 
   // This is retrieved from Sam
-  val uamiName = ManagedIdentityName("user-pet")
+  val uamiName = ManagedIdentityName("uami-name")
+
+  // This will be created by front Leo
+  val appSamResourceId = AppSamResourceId("sam-id")
 
   "AKSInterpreter" should "create an app" in {
     // Create resources in the DB
-    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
+    val savedCluster1 = makeKubeCluster(1)
+      .copy(
+        cloudContext = CloudContext.Azure(cloudContext),
+        status = KubernetesClusterStatus.Running
+      )
+      .save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val savedApp1 = makeApp(1, savedNodepool1.id)
       .copy(
+        appName = AppName("coa-app"),
         status = AppStatus.Running,
         appType = AppType.Cromwell,
-        chart = Chart(ChartName("coa-helm/cromwell-on-azure"), ChartVersion("0.2.114")),
+        chart = Chart(ChartName("/Users/rtitle/git/broadinstitute/cromwhelm/coa-helm"), ChartVersion("0.2.114")),
         release = Release("rel-1"),
+        samResourceId = appSamResourceId,
         appResources = AppResources(
           namespace = Namespace(NamespaceId(-1), NamespaceName("ns-1")),
           disk = None,
