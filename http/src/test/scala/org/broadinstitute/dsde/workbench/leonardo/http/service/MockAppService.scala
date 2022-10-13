@@ -41,6 +41,10 @@ class MockAppService extends AppService[IO] {
   override def startApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
+
+  override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Vector[ListAppV2Response]] = IO.pure(listAppV2Response)
 }
 
 object MockAppService extends MockAppService

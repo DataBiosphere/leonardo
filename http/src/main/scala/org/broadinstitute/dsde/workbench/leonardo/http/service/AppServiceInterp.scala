@@ -511,6 +511,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- publisherQueue.offer(message)
     } yield ()
 
+  override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[ListAppV2Response]] = ???
+
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,

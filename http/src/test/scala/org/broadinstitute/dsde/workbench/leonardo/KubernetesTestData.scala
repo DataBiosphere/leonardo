@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   GetAppResponse,
   GetAppResult,
   ListAppResponse,
+  ListAppV2Response,
   PersistentDiskRequest
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -80,6 +81,14 @@ object KubernetesTestData {
 
   val listAppResponse =
     ListAppResponse
+      .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
+                   "https://leo/proxy/",
+                   List.empty
+      )
+      .toVector
+
+  val listAppV2Response =
+    ListAppV2Response
       .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
                    "https://leo/proxy/",
                    List.empty
