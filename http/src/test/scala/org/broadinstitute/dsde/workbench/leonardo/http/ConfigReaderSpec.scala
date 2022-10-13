@@ -37,7 +37,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Uri.unsafeFromString("https://sam.test.org:443"),
           Uri.unsafeFromString("https://localhost:8000"),
           "terradevacrpublic.azurecr.io/welder-server",
-          "08b3633",
+          "f00465f",
           PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           AzureRuntimeDefaults(
