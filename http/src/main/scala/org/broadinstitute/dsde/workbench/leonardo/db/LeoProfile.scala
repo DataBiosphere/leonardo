@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-
 import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{
@@ -27,7 +26,9 @@ import org.broadinstitute.dsp.Release
 import org.http4s.Uri
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
+
 import java.nio.file.{Path, Paths}
+import java.sql.SQLDataException
 import java.util.UUID
 
 private[leonardo] object LeoProfile extends MySQLProfile {
@@ -54,8 +55,14 @@ private[leonardo] object LeoProfile extends MySQLProfile {
   object mappedColumnImplicits {
     implicit val userScriptPathMappedColumnType: BaseColumnType[UserScriptPath] =
       MappedColumnType
-        .base[UserScriptPath, String](_.asString,
-                                      s => UserScriptPath.stringToUserScriptPath(s).fold(e => throw e, identity)
+        .base[UserScriptPath, String](
+          _.asString,
+          s =>
+            UserScriptPath
+              .stringToUserScriptPath(s,
+                                      false
+              ) // We don't make additional check here becuz there're invalid data in DB already, which we need to tolerate for listRuntime API
+              .fold(e => throw new SQLDataException(s"${s} is invalid UserScriptPath due to ${e.getMessage}"), identity)
         )
     implicit val gsPathMappedColumnType: BaseColumnType[GcsPath] =
       MappedColumnType

@@ -295,7 +295,12 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
   private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
-        F.raiseError(MonitorAtBootException("Stopping Azure runtime is not supported yet", traceId))
+        F.pure(
+          LeoPubsubMessage.StopRuntimeMessage(
+            runtimeId = runtime.id,
+            traceId = Some(traceId)
+          )
+        )
       case RuntimeStatus.Deleting =>
         for {
           wid <- F.fromOption(runtime.workspaceId,

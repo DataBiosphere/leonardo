@@ -72,11 +72,17 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
       )
-      cluster <- googleDataprocService.getCluster(
-        googleProject,
-        dataprocConfig.region,
-        DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-      )
+      cluster <- googleDataprocService
+        .getCluster(
+          googleProject,
+          dataprocConfig.region,
+          DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+        )
+        .recoverWith { case _: com.google.api.gax.rpc.PermissionDeniedException =>
+          logger
+            .info(ctx.loggingCtx)(s"Leo SA can't access the project. ${googleProject} might've been deleted.")
+            .as(None)
+        }
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
           creatingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig.runtime, dataprocConfig)
