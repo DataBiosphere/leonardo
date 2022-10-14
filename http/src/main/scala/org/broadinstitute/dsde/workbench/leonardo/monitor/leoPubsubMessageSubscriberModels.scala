@@ -933,6 +933,20 @@ object PubsubHandleMessageError {
       s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false
   }
+
+  final case class AzureRuntimeStartingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureRuntimeStoppingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+    val isRetryable: Boolean = false
+  }
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)

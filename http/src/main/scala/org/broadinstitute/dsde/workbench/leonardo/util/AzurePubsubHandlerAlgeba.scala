@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -11,7 +11,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
-  AzureRuntimeDeletionError
+  AzureRuntimeDeletionError,
+  AzureRuntimeStartingError,
+  AzureRuntimeStoppingError
 }
 import org.http4s.Uri
 
@@ -25,6 +27,22 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
+
+  def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
+  def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
+  def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
+  def handleAzureRuntimeStopError(e: AzureRuntimeStoppingError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
 
   def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant)(implicit
     ev: Ask[F, AppContext]
@@ -43,6 +61,8 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           vmImage: AzureImage
 )
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
+
+final case class StartAzureRuntimeParams(runtime: Runtime, runtimeConfig: RuntimeConfig.AzureConfig)
 
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,

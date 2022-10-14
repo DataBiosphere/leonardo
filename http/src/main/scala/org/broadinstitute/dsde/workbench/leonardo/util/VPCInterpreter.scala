@@ -46,11 +46,11 @@ final case class FirewallNotReadyException(project: GoogleProject, firewall: Fir
                          traceId = Some(traceId)
     )
 
-final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
+final class VPCInterpreter[F[_]: Parallel](
   config: VPCInterpreterConfig,
   googleResourceService: GoogleResourceService[F],
   googleComputeService: GoogleComputeService[F]
-)(implicit F: Async[F])
+)(implicit F: Async[F], logger: StructuredLogger[F])
     extends VPCAlgebra[F] {
 
   val defaultNetworkName = NetworkName("default")
@@ -95,14 +95,19 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             // See https://cloud.google.com/vpc/docs/vpc#subnet-ranges
             subnetworkName <-
               if (config.vpcConfig.autoCreateSubnetworks) {
-                F.pure(SubnetworkName(config.vpcConfig.networkName.value))
+                logger
+                  .info(Map("traceId" -> ctx.asString))(
+                    s"autoCreateSubnetworks is false. Not going to create ${config.vpcConfig.subnetworkName}"
+                  )
+                  .as(SubnetworkName(config.vpcConfig.networkName.value))
               } else {
                 // create the subnet
                 createIfAbsent(
                   googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
-                  googleComputeService.createSubnetwork(params.project,
-                                                        params.region,
-                                                        buildSubnetwork(params.project, params.region, regionalIpRange)
+                  googleComputeService.createSubnetwork(
+                    params.project,
+                    params.region,
+                    buildSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName, regionalIpRange)
                   ),
                   SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
                   s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
@@ -218,11 +223,12 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
 
   private[util] def buildSubnetwork(project: GoogleProject,
                                     region: RegionName,
+                                    name: SubnetworkName,
                                     subnetRegionIpRange: IpRange
   ): Subnetwork =
     Subnetwork
       .newBuilder()
-      .setName(config.vpcConfig.subnetworkName.value)
+      .setName(name.value)
       .setRegion(region.value)
       .setNetwork(buildNetworkUri(project, config.vpcConfig.networkName))
       .setIpCidrRange(

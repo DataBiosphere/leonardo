@@ -11,14 +11,13 @@ import cats.syntax.all._
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
-import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.AzureRelayService
+import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{
   GoogleProjectDAO,
@@ -71,13 +70,12 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.net.InetSocketAddress
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
 import javax.net.ssl.SSLContext
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -100,7 +98,7 @@ object Boot extends IOApp {
 
     val livenessRoutes = new LivenessRoutes
 
-    val liveness = logger
+    logger
       .info("Liveness server has been created, starting...")
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
       .newServerAt("0.0.0.0", 9000)
@@ -368,9 +366,10 @@ object Boot extends IOApp {
       wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
+      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
-
+      azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
@@ -381,7 +380,7 @@ object Boot extends IOApp {
 
       // Set up GCP credentials
       credential <- credentialResource(pathToCredentialJson)
-      scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
+      scopedCredential = credential.createScoped(Seq("https://www.googleapis.com/auth/compute").asJava)
       kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
       credentialJson <- Resource.eval(
         readFileToString(applicationConfig.leoServiceAccountJsonFile)
@@ -431,7 +430,7 @@ object Boot extends IOApp {
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
 
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
-      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
+
       underlyingNodepoolLockCache = buildCache[KubernetesClusterId, scalacache.Entry[Semaphore[F]]](
         gkeClusterConfig.nodepoolLockCacheMaxSize,
         gkeClusterConfig.nodepoolLockCacheExpiryTime
@@ -591,8 +590,10 @@ object Boot extends IOApp {
                                                      asyncTasksQueue,
                                                      wsmDao,
                                                      samDao,
+                                                     welderDao,
                                                      jupyterDao,
-                                                     azureRelay
+                                                     azureRelay,
+                                                     azureVmService
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)

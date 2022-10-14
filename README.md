@@ -59,8 +59,9 @@ You can also run a particular test suite, e.g.
 sbt "testOnly *LeoAuthProviderHelperSpec"
 ```
 or a particular test within a suite, e.g.
+
 ```
-sbt "testOnly org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeCreationDiskSpec -- -z "create runtime and attach a persistent disk""
+sbt "testOnly *LeoPubsubMessageSubscriberSpec -- -z "handle Azure StopRuntimeMessage and stop runtime""
 ```
 where `map` is a substring within the test name.
 

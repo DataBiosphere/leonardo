@@ -8,8 +8,9 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
-import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
-import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
+import reactor.core.publisher.Mono
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -18,6 +19,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureRuntimeStartingError,
+  AzureRuntimeStoppingError
+}
+import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{times, verify, when}
@@ -375,10 +382,166 @@ class AzurePubsubHandlerSpec
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
+
+  it should "start azure vm" in isolatedDbTest {
+    // Set up virtual machine mock.
+    val vmReturn = mock[VirtualMachine]
+    when(vmReturn.powerState()).thenReturn(PowerState.STOPPED)
+
+    val passAzureVmService = new FakeAzureVmService {
+      override def startAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
+    }
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzureInterp(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield getRuntime.status shouldBe RuntimeStatus.Running
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on startAzureVm - Azure runtime starting error" in isolatedDbTest {
+    val vmReturn = mock[VirtualMachine]
+    when(vmReturn.powerState()).thenReturn(PowerState.STOPPED)
+
+    val failAzureVmService = new FakeAzureVmService {
+      override def startAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = IO.none
+    }
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzureInterp(asyncTaskQueue = queue, azureVmService = failAzureVmService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      startResult <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext).attempt
+
+    } yield startResult shouldBe Left(
+      AzureRuntimeStartingError(runtime.id, s"Starting runtime ${runtime.id} request to Azure failed.", ctx.traceId)
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "stop azure vm" in isolatedDbTest {
+    val vmReturn = mock[VirtualMachine]
+    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+
+    val passAzureVmService = new FakeAzureVmService {
+      override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
+    }
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzureInterp(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield getRuntime.status shouldBe RuntimeStatus.Stopped
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on stopAzureVm - Azure runtime stopping error" in isolatedDbTest {
+    // Set up virtual machine mock.
+    val vmReturn = mock[VirtualMachine]
+    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+
+    val failAzureVmService = new FakeAzureVmService {
+      override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = IO.none
+    }
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzureInterp(asyncTaskQueue = queue, azureVmService = failAzureVmService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      stopResult <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext).attempt
+
+    } yield stopResult shouldBe Left(
+      AzureRuntimeStoppingError(runtime.id, s"Stopping runtime ${runtime.id} request to Azure failed.", ctx.traceId)
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
                       relayService: AzureRelayService[IO] = FakeAzureRelayService,
-                      wsmDAO: WsmDao[IO] = new MockWsmDAO
+                      wsmDAO: WsmDao[IO] = new MockWsmDAO,
+                      azureVmService: AzureVmService[IO] = FakeAzureVmService
   ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -386,8 +549,10 @@ class AzurePubsubHandlerSpec
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
+      new MockWelderDAO(),
       new MockJupyterDAO(),
-      relayService
+      relayService,
+      azureVmService
     )
 
 }

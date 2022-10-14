@@ -9,7 +9,6 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.{Async, Ref}
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import org.broadinstitute.dsde.workbench.google2.credentialResource
@@ -46,7 +45,11 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends SamDAO[F]
     with Http4sClientDsl[F] {
-  private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
+  private val saScopes = Seq(
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    StorageScopes.DEVSTORAGE_READ_ONLY
+  )
   private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInteral)
 
   def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =

@@ -164,16 +164,16 @@ function apply_user_script() {
   if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
     $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var &> /var/user_script_copy_output.txt
   else
-    curl $USER_SCRIPT_URI -o /var/${USER_SCRIPT}
+    curl "${USER_SCRIPT_URI}" -o /var/"${USER_SCRIPT}"
   fi
-  docker cp /var/${USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${USER_SCRIPT}
-  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${USER_SCRIPT}
+  docker cp /var/"${USER_SCRIPT}" ${CONTAINER_NAME}:${TARGET_DIR}/"${USER_SCRIPT}"
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/"${USER_SCRIPT}"
 
   # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
   # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
   # can gain full access to the VM already, so using this flag is not a significant escalation.
   EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> /var/us_output.txt || EXIT_CODE=$?
+  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/"${USER_SCRIPT}" &> /var/us_output.txt || EXIT_CODE=$?
 
   if [ $EXIT_CODE -ne 0 ]; then
     log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
