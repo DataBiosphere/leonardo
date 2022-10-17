@@ -1623,7 +1623,7 @@ class GKEInterpreter[F[_]](
       case "/" =>
         List(
           raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
           raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
           raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}"""
         )
