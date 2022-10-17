@@ -9,7 +9,7 @@ import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, _}
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Encoder, KeyEncoder}
+import io.circe.{Decoder, Encoder, KeyEncoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s.Uri
 
 class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
@@ -37,7 +38,11 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
             } ~ pathPrefix(Segment) { appNameString =>
               RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
                 post {
-                  ???
+                  entity(as[CreateAppRequest]) { req =>
+                    complete(
+                      createAppV2Handler(userInfo, workspaceId, appName, req)
+                    )
+                  }
                 } ~
                   get {
                     complete(
@@ -45,7 +50,11 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
                     )
                   } ~
                   delete {
-                    ???
+                    parameterMap { params =>
+                      complete(
+                        deleteAppV2Handler(userInfo, workspaceId, appName, params)
+                      )
+                    }
                   }
               }
             }
@@ -54,6 +63,39 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
       }
     }
   }
+
+  private[api] def createAppV2Handler(userInfo: UserInfo,
+                                      workspaceId: WorkspaceId,
+                                      appName: AppName,
+                                      req: CreateAppRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = kubernetesService.createAppV2(
+        userInfo,
+        workspaceId,
+        appName,
+        req
+      )
+      _ <- metrics.incrementCounter("createAppV2")
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createAppV2").use(_ => apiCall))
+    } yield StatusCodes.Accepted
+
+  private[api] def getAppV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = kubernetesService.getAppV2(
+        userInfo,
+        workspaceId,
+        appName
+      )
+      _ <- metrics.incrementCounter("getAppV2")
+      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getAppV2").use(_ => apiCall))
+    } yield StatusCodes.OK -> resp
 
   private[api] def listAppV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
     ev: Ask[IO, AppContext]
@@ -69,22 +111,40 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listAppV2").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
-  private[api] def getAppV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
+  private[api] def deleteAppV2Handler(userInfo: UserInfo,
+                                      workspaceId: WorkspaceId,
+                                      appName: AppName,
+                                      params: Map[String, String]
+  )(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.getAppV2(
-        userInfo,
-        workspaceId,
-        appName
-      )
-      _ <- metrics.incrementCounter("getAppV2")
-      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getAppV2").use(_ => apiCall))
-    } yield StatusCodes.OK -> resp
+    } yield ()
+
 }
 
 object AppV2Routes {
+
+  implicit val createAppDecoder: Decoder[CreateAppRequest] =
+    Decoder.instance { x =>
+      for {
+        c <- x.downField("kubernetesRuntimeConfig").as[Option[KubernetesRuntimeConfig]]
+        a <- x.downField("appType").as[Option[AppType]]
+        d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
+        l <- x.downField("labels").as[Option[LabelMap]]
+        cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
+        dp <- x.downField("descriptorPath").as[Option[Uri]]
+        ea <- x.downField("extraArgs").as[Option[List[String]]]
+      } yield CreateAppRequest(c,
+                               a.getOrElse(AppType.Galaxy),
+                               d,
+                               l.getOrElse(Map.empty),
+                               cv.getOrElse(Map.empty),
+                               dp,
+                               ea.getOrElse(List.empty)
+      )
+    }
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
