@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.http.api
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package api
 
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
@@ -6,13 +8,13 @@ import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, _}
 import cats.effect.IO
 import cats.mtl.Ask
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Encoder, KeyEncoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
-import org.broadinstitute.dsde.workbench.leonardo.http.{serviceData, spanResource, ListAppV2Response}
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
@@ -60,18 +62,18 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
         workspaceId,
         params
       )
-      _ <- metrics.incrementCounter("listApp")
+      _ <- metrics.incrementCounter("listAppV2")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listAppV2").use(_ => apiCall))
-    } yield StatusCodes.OK
+    } yield StatusCodes.OK -> resp
 }
 
 object AppV2Routes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
-  implicit val listAppV2ResponseEncoder: Encoder[ListAppV2Response] =
+  implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
     Encoder.forProduct11(
-      "cloudProvider",
-      "workspaceId",
+      "cloudContext",
+      "googleProject",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -82,8 +84,8 @@ object AppV2Routes {
       "auditInfo",
       "labels"
     )(x =>
-      (x.cloudProvider,
-       x.workspaceId,
+      (x.cloudContext,
+       x.cloudContext.asString,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,

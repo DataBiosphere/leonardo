@@ -46,7 +46,9 @@ final case class GetAppResponse(appName: AppName,
                                 labels: LabelMap
 )
 
-final case class ListAppResponse(cloudContext: CloudContext,
+final case class ListAppResponse(cloudProvider: CloudProvider,
+                                 workspaceId: Option[WorkspaceId],
+                                 cloudContext: CloudContext,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
                                  status: AppStatus, // TODO: do we need some sort of aggregate status?
@@ -58,19 +60,6 @@ final case class ListAppResponse(cloudContext: CloudContext,
                                  labels: LabelMap
 )
 
-final case class ListAppV2Response(cloudProvider: Option[CloudProvider],
-                                   workspaceId: Option[WorkspaceId],
-                                   kubernetesRuntimeConfig: KubernetesRuntimeConfig,
-                                   errors: List[AppError],
-                                   status: AppStatus, // TODO: do we need some sort of aggregate status?
-                                   proxyUrls: Map[ServiceName, URL],
-                                   appName: AppName,
-                                   appType: AppType,
-                                   diskName: Option[DiskName],
-                                   auditInfo: AuditInfo,
-                                   labels: LabelMap
-)
-
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 
 object ListAppResponse {
@@ -78,36 +67,9 @@ object ListAppResponse {
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
+          c.cloudContext.cloudProvider,
+          c.workspaceId,
           c.cloudContext,
-          KubernetesRuntimeConfig(
-            n.numNodes,
-            n.machineType,
-            n.autoscalingEnabled
-          ),
-          a.errors,
-          a.status,
-          a.getProxyUrls(c.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                         proxyUrlBase
-          ), // TODO: refactor once we support proxying azure app
-          a.appName,
-          a.appType,
-          a.appResources.disk.map(_.name),
-          a.auditInfo,
-          a.labels.filter(l => labelsToReturn.contains(l._1))
-        )
-      }
-    )
-
-}
-
-object ListAppV2Response {
-  def fromCluster(c: KubernetesCluster, proxyUrlBase: String, labelsToReturn: List[String]): List[ListAppV2Response] =
-    c.nodepools.flatMap(n =>
-      n.apps.map { a =>
-        ListAppV2Response(
-          // TODO: WorkspaceId
-          None,
-          None,
           KubernetesRuntimeConfig(
             n.numNodes,
             n.machineType,

@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   GetAppResponse,
   GetAppResult,
   ListAppResponse,
-  ListAppV2Response,
   PersistentDiskRequest
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -87,14 +86,6 @@ object KubernetesTestData {
       )
       .toVector
 
-  val listAppV2Response =
-    ListAppV2Response
-      .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
-                   "https://leo/proxy/",
-                   List.empty
-      )
-      .toVector
-
   def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest], customEnvVars: Map[String, String]) =
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
@@ -145,7 +136,8 @@ object KubernetesTestData {
       auditInfo,
       None,
       List(),
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool)),
+      None // TODO: Update to use workspaceId
     )
   }
 

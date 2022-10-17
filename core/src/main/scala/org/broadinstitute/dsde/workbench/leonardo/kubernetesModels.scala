@@ -39,7 +39,8 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
-                             nodepools: List[Nodepool]
+                             nodepools: List[Nodepool],
+                             workspaceId: Option[WorkspaceId]
 ) {
 
   // TODO consider renaming this method and the KubernetesClusterId class

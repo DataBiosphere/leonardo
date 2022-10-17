@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -115,7 +115,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           ) >> F.raiseError[Unit](t)
         }
 
-      saveCluster <- F.fromEither(getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None))
+      saveCluster <- F.fromEither(getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None, None))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <-
@@ -513,14 +513,26 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
     as: Ask[F, AppContext]
-  ): F[Vector[ListAppV2Response]] = ???
+  ): F[Vector[ListAppResponse]] = for {
+    paramMap <- F.fromEither(processListParameters(params))
+    allClusters <- KubernetesServiceDbQueries
+      .listAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+      .transaction
+
+    res = allClusters
+      .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, paramMap._3))
+      .toVector
+    // TODO: Figure out permissions
+    // See listApp for old implementation.
+  } yield res
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
     now: Instant,
     numNodepools: Option[NumNodepools],
-    clusterName: Option[KubernetesClusterName] = None
+    clusterName: Option[KubernetesClusterName] = None,
+    workspaceId: Option[WorkspaceId]
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -560,7 +572,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       status = KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
-      defaultNodepool = nodepool
+      defaultNodepool = nodepool,
+      workspaceId = workspaceId
     )
   }
 

@@ -42,7 +42,7 @@ trait AppService[F[_]] {
     userInfo: UserInfo,
     workspaceId: WorkspaceId,
     params: Map[String, String]
-  )(implicit as: Ask[F, AppContext]): F[Vector[ListAppV2Response]]
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
 }
 
 final case class AppServiceConfig(enableCustomAppCheck: Boolean, leoKubernetesConfig: LeoKubernetesConfig)

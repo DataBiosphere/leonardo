@@ -44,7 +44,7 @@ class MockAppService extends AppService[IO] {
 
   override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
     as: Ask[IO, AppContext]
-  ): IO[Vector[ListAppV2Response]] = IO.pure(listAppV2Response)
+  ): IO[Vector[ListAppResponse]] = IO.pure(listAppResponse)
 }
 
 object MockAppService extends MockAppService
