@@ -39,6 +39,13 @@ trait AppService[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 
+  def createAppV2(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    appName: AppName,
+    req: CreateAppRequest
+  )(implicit as: Ask[F, AppContext]): F[Unit]
+
   def getAppV2(
     userInfo: UserInfo,
     workspaceId: WorkspaceId,
@@ -51,11 +58,11 @@ trait AppService[F[_]] {
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
 
-  def createAppV2(
+  def deleteAppV2(
     userInfo: UserInfo,
     workspaceId: WorkspaceId,
     appName: AppName,
-    req: CreateAppRequest
+    req: DeleteAppRequest
   )(implicit as: Ask[F, AppContext]): F[Unit]
 }
 

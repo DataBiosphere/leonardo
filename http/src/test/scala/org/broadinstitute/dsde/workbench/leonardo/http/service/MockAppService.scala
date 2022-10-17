@@ -59,6 +59,11 @@ class MockAppService extends AppService[IO] {
     implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
+  override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: DeleteAppRequest)(
+    implicit as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
 }
 
 object MockAppService extends MockAppService

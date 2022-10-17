@@ -580,6 +580,84 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
     } yield ()
 
+  override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: DeleteAppRequest)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+    appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
+    appResult <- F.fromOption(
+      appOpt,
+      AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
+    )
+    listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+    // throw 404 if no GetAppStatus permission
+    hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+
+    userToken = org.http4s.headers.Authorization(
+      org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
+    )
+
+    workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+    workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+
+    // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
+    cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
+      case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
+      case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+      case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+    }
+
+    _ <-
+      if (hasReadPermission) F.unit
+      else
+        F.raiseError[Unit](
+          AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission")
+        )
+
+    // throw 403 if no DeleteApp permission
+    hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
+    _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
+    canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
+    _ <-
+      if (canDelete) F.unit
+      else
+        F.raiseError[Unit](
+          AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId)
+        )
+
+    // Get the disk to delete if specified
+    diskOpt = if (req.deleteDisk) appResult.app.appResources.disk.map(_.id) else None
+
+    googleProjectOpt = LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext)
+    _ <-
+      if (appResult.app.status == AppStatus.Error) {
+        for {
+          // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
+          _ <- googleProjectOpt.traverse(g =>
+            authProvider.notifyResourceDeleted(appResult.app.samResourceId, appResult.app.auditInfo.creator, g)
+          )
+          _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
+        } yield ()
+      } else {
+        for {
+          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+          deleteMessage = appResult.cluster.cloudContext match {
+            case CloudContext.Gcp(value) =>
+              DeleteAppMessage(
+                appResult.app.id,
+                appResult.app.appName,
+                value,
+                diskOpt,
+                Some(ctx.traceId)
+              )
+            case CloudContext.Azure(_) => ???
+          }
+          _ <- publisherQueue.offer(deleteMessage)
+        } yield ()
+      }
+  } yield ()
+
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
