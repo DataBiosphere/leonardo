@@ -11,7 +11,8 @@ trait AppService[F[_]] {
     userInfo: UserInfo,
     cloudContext: CloudContext,
     appName: AppName,
-    req: CreateAppRequest
+    req: CreateAppRequest,
+    workspaceId: Option[WorkspaceId] = None
   )(implicit as: Ask[F, AppContext]): F[Unit]
 
   def getApp(
@@ -38,11 +39,24 @@ trait AppService[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 
+  def getAppV2(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    appName: AppName
+  )(implicit as: Ask[F, AppContext]): F[GetAppResponse]
+
   def listAppV2(
     userInfo: UserInfo,
     workspaceId: WorkspaceId,
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
+
+  def createAppV2(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    appName: AppName,
+    req: CreateAppRequest
+  )(implicit as: Ask[F, AppContext]): F[Unit]
 }
 
 final case class AppServiceConfig(enableCustomAppCheck: Boolean, leoKubernetesConfig: LeoKubernetesConfig)

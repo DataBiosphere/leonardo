@@ -83,6 +83,19 @@ object KubernetesServiceDbQueries {
       }
     } yield eitherClusterOrError
 
+  def getActiveFullAppByWorkspaceIdAndAppName(workspaceId: WorkspaceId,
+                                              appName: AppName,
+                                              labelFilter: LabelMap = Map()
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[GetAppResult]] =
+    getActiveFullApp(
+      listClustersByWorkspaceId(Some(workspaceId)),
+      nodepoolQuery,
+      appQuery.findActiveByNameQuery(appName),
+      labelFilter
+    )
+
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =

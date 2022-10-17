@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import org.http4s.Uri
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -12,6 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleResourceService,
@@ -19,12 +19,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Cromwell, Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
@@ -33,14 +34,13 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartVersion, Release}
+import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
-import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppConfig
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-
 import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
@@ -49,7 +49,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
-                                                customAppConfig: CustomAppConfig
+                                                customAppConfig: CustomAppConfig,
+                                                wsmDao: WsmDao[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -64,7 +65,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     userInfo: UserInfo,
     cloudContext: CloudContext,
     appName: AppName,
-    req: CreateAppRequest
+    req: CreateAppRequest,
+    workspaceId: Option[WorkspaceId] = None
   )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
@@ -115,7 +117,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           ) >> F.raiseError[Unit](t)
         }
 
-      saveCluster <- F.fromEither(getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None, None))
+      saveCluster <- F.fromEither(
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None, workspaceId)
+      )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <-
@@ -526,6 +530,56 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     // See listApp for old implementation.
   } yield res
 
+  override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
+    as: Ask[F, AppContext]
+  ): F[GetAppResponse] =
+    for {
+      ctx <- as.ask
+      appOpt <- getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
+      app <- F.fromOption(
+        appOpt,
+        AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
+      )
+      hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
+      _ <-
+        if (hasPermission) F.unit
+        else
+          log.info(ctx.loggingCtx)(
+            s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
+          ) >> F
+            .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
+
+  override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      userToken = org.http4s.headers.Authorization(
+        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
+      )
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+
+      hasPermission <- authProvider.hasPermission(
+        WorkspaceResourceSamResourceId(workspaceId),
+        WorkspaceAction.CreateControlledUserResource, // TODO: Correct action?
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
+
+      // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
+      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
+        case (Some(azureContext), _) =>
+          F.pure[CloudContext](CloudContext.Azure(azureContext)) // TODO: Azure app creation implementation
+        case (_, Some(gcpContext)) =>
+          createApp(userInfo, CloudContext.Gcp(gcpContext), appName, req)
+          F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+      }
+
+    } yield ()
+
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
@@ -831,6 +885,18 @@ object LeoAppServiceInterp {
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
     extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
+      StatusCodes.NotFound,
+      null,
+      extraMsg,
+      traceId = Some(traceId)
+    )
+
+case class AppNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
+                                             appName: AppName,
+                                             traceId: TraceId,
+                                             extraMsg: String
+) extends LeoException(
+      s"App ${workspaceId.toString}/${appName.value} not found",
       StatusCodes.NotFound,
       null,
       extraMsg,
