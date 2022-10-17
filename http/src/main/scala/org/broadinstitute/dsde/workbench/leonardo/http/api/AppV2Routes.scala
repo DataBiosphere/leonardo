@@ -35,16 +35,19 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
                 }
               }
             } ~ pathPrefix(Segment) { appNameString =>
-              post {
-                ???
-              } ~
-                get {
+              RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
+                post {
                   ???
                 } ~
-                delete {
-                  ???
-                }
-
+                  get {
+                    complete(
+                      getAppV2Handler(userInfo, workspaceId, appName)
+                    )
+                  } ~
+                  delete {
+                    ???
+                  }
+              }
             }
           }
         }
@@ -65,15 +68,30 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
       _ <- metrics.incrementCounter("listAppV2")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listAppV2").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
+
+  private[api] def getAppV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = kubernetesService.getAppV2(
+        userInfo,
+        workspaceId,
+        appName
+      )
+      _ <- metrics.incrementCounter("getAppV2")
+      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getAppV2").use(_ => apiCall))
+    } yield StatusCodes.OK -> resp
 }
 
 object AppV2Routes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct11(
+    Encoder.forProduct12(
+      "cloudProvider",
+      "workspaceId",
       "cloudContext",
-      "googleProject",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -84,8 +102,9 @@ object AppV2Routes {
       "auditInfo",
       "labels"
     )(x =>
-      (x.cloudContext,
-       x.cloudContext.asString,
+      (x.cloudProvider,
+       x.workspaceId,
+       x.cloudContext,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,
@@ -97,4 +116,15 @@ object AppV2Routes {
        x.labels
       )
     )
+
+  implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
+    Encoder.forProduct8("kubernetesRuntimeConfig",
+                        "errors",
+                        "status",
+                        "proxyUrls",
+                        "diskName",
+                        "customEnvironmentVariables",
+                        "auditInfo",
+                        "appType"
+    )(x => GetAppResponse.unapply(x).get)
 }
