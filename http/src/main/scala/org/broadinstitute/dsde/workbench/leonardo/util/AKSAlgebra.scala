@@ -9,7 +9,7 @@ trait AKSAlgebra[F[_]] {
   /** Creates an app and polls it for completion */
   def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  // TODO: delete, stop, start
+  // TODO (TOAZ-230): delete, stop, start
 
 }
 
