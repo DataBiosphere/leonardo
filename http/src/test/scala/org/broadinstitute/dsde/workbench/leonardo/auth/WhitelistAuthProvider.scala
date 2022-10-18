@@ -36,7 +36,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[List[sr.ActionCategory]] =
+  ): IO[List[A]] =
     checkWhitelist(userInfo).map {
       case true  => sr.allActions
       case false => List.empty
@@ -45,7 +45,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[(List[sr.ActionCategory], List[ProjectAction])] =
+  ): IO[(List[A], List[ProjectAction])] =
     checkWhitelist(userInfo).map {
       case true  => (sr.allActions, ProjectAction.allActions.toList)
       case false => (List.empty, List.empty)

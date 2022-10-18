@@ -222,12 +222,20 @@ class ProxyService(
       ctx <- ev.ask[AppContext]
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(cloudContext, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
-      hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
+      hasViewPermission <- authProvider.hasPermission[RuntimeSamResourceId, RuntimeAction](
+        samResource,
+        RuntimeAction.GetRuntimeStatus,
+        userInfo
+      )
       _ <-
         if (!hasViewPermission) {
           IO.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, ctx.traceId.asString))
         } else IO.unit
-      hasConnectPermission <- authProvider.hasPermission(samResource, RuntimeAction.ConnectToRuntime, userInfo)
+      hasConnectPermission <- authProvider.hasPermission[RuntimeSamResourceId, RuntimeAction](
+        samResource,
+        RuntimeAction.ConnectToRuntime,
+        userInfo
+      )
       _ <-
         if (!hasConnectPermission) {
           IO.raiseError(ForbiddenError(userInfo.userEmail))
@@ -292,14 +300,20 @@ class ProxyService(
       ctx <- ev.ask[AppContext]
       samResource <- getCachedAppSamResource(AppCacheKey(googleProject, appName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
-      hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
+      hasViewPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
+                                                                                   AppAction.GetAppStatus,
+                                                                                   userInfo
+      )
       _ <-
         if (!hasViewPermission) {
           IO.raiseError(
             AppNotFoundException(CloudContext.Gcp(googleProject), appName, ctx.traceId, "no view permission")
           )
         } else IO.unit
-      hasConnectPermission <- authProvider.hasPermission(samResource, AppAction.ConnectToApp, userInfo)
+      hasConnectPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
+                                                                                      AppAction.ConnectToApp,
+                                                                                      userInfo
+      )
       _ <-
         if (!hasConnectPermission) {
           IO.raiseError(ForbiddenError(userInfo.userEmail))

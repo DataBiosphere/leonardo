@@ -242,49 +242,49 @@ class MockSamDAO extends SamDAO[IO] {
   override def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[List[sr.ActionCategory]] =
+  ): IO[List[A]] =
     sr.resourceType match {
       case SamResourceType.Project =>
         val res = billingProjects
           .get((resource.asInstanceOf[ProjectSamResourceId], authHeader))
           .map(_.toList)
           .getOrElse(List.empty)
-          .asInstanceOf[List[sr.ActionCategory]]
+          .asInstanceOf[List[A]]
         IO.pure(res)
       case SamResourceType.Runtime =>
         val res = runtimes
           .get((resource.asInstanceOf[RuntimeSamResourceId], authHeader))
           .map(_.toList)
           .getOrElse(List.empty)
-          .asInstanceOf[List[sr.ActionCategory]]
+          .asInstanceOf[List[A]]
         IO.pure(res)
       case SamResourceType.PersistentDisk =>
         val res = persistentDisks
           .get((resource.asInstanceOf[PersistentDiskSamResourceId], authHeader))
           .map(_.toList)
           .getOrElse(List.empty)
-          .asInstanceOf[List[sr.ActionCategory]]
+          .asInstanceOf[List[A]]
         IO.pure(res)
       case SamResourceType.App =>
         val res = apps
           .get((resource.asInstanceOf[AppSamResourceId], authHeader))
           .map(_.toList)
           .getOrElse(List.empty)
-          .asInstanceOf[List[sr.ActionCategory]]
+          .asInstanceOf[List[A]]
         IO.pure(res)
       case SamResourceType.Workspace =>
         val res = workspaces
           .get((resource.asInstanceOf[WorkspaceResourceSamResourceId], authHeader))
           .map(_.toList)
           .getOrElse(List.empty)
-          .asInstanceOf[List[sr.ActionCategory]]
+          .asInstanceOf[List[A]]
         IO.pure(res)
       case SamResourceType.WsmResource =>
         val res = wsmResources
           .get((resource.asInstanceOf[WsmResourceSamResourceId], authHeader))
           .map(_.toList)
           .getOrElse(List.empty)
-          .asInstanceOf[List[sr.ActionCategory]]
+          .asInstanceOf[List[A]]
         IO.pure(res)
     }
 

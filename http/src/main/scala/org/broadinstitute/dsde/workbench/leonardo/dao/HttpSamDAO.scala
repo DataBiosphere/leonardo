@@ -107,10 +107,10 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
-  ): F[List[sr.ActionCategory]] = {
+  ): F[List[A]] = {
     implicit val d = sr.decoder
     metrics.incrementCounter(s"sam/getListOfResourcePermissions/${sr.resourceType.asString}") >>
-      httpClient.expectOr[List[sr.ActionCategory]](
+      httpClient.expectOr[List[A]](
         Request[F](
           method = Method.GET,
           uri = config.samUri
