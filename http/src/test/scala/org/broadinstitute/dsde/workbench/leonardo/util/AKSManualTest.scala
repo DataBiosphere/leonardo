@@ -46,23 +46,23 @@ import scala.concurrent.ExecutionContext
 object AKSManualTest {
   // Constants
   val appRegConfig = AzureAppRegistrationConfig(
-    ClientId("f075c9b3-7df8-4645-9ce3-21a798f8b03b"),
-    ClientSecret("2nR7Q~UoGsoa3l1BVd-lDxuCcF~AgVN.1e4D8"),
-    ManagedAppTenantId("fad90753-2022-4456-9b0a-c7e5b934e408")
+    ClientId("client-id"),
+    ClientSecret("client-secret"),
+    ManagedAppTenantId("tenant-id")
   )
   val cloudContext = AzureCloudContext(
-    TenantId("0cb7a640-45a2-4ed6-be9f-63519f86e04b"),
-    SubscriptionId("3efc5bdf-be0e-44e7-b1d7-c08931e3c16c"),
-    ManagedResourceGroupName("mrg-rtcromaks-20221011092807")
+    TenantId("tenant-id"),
+    SubscriptionId("subscription-id"),
+    ManagedResourceGroupName("mrg-name")
   )
-  val uamiName = ManagedIdentityName("pet-266437562972788b024f5")
-  val appSamResourceId = AppSamResourceId("8ab5833c-b4b3-450c-8f86-b404292a3c4c")
+  val uamiName = ManagedIdentityName("pet-uami")
+  val appSamResourceId = AppSamResourceId("sam-resource-id")
   val landingZoneResources = LandingZoneResources(
-    AKSClusterName("lz2e6dcd2d552ad623cd338a1"),
-    BatchAccountName("lzcfda4a58c8aee1f20396d8"),
-    RelayNamespace("lz90d831b04e4bc77a174535ec31929eb838b9e306404081a1"),
-    StorageAccountName("lzd8f8824b75a8148fb67dff"),
-    SubnetName("BATCH_SUBNET")
+    AKSClusterName("cluster"),
+    BatchAccountName("batch"),
+    RelayNamespace("relay"),
+    StorageAccountName("storage"),
+    SubnetName("subnet")
   )
   val appName = AppName("coa-app")
 
