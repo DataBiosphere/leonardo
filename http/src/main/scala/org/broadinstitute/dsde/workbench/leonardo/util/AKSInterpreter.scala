@@ -148,9 +148,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).mkString(",")
     )
 
-  private def getHelmAuthContext(clusterName: AKSClusterName,
-                                 cloudContext: AzureCloudContext,
-                                 namespaceName: NamespaceName
+  private[util] def getHelmAuthContext(clusterName: AKSClusterName,
+                                       cloudContext: AzureCloudContext,
+                                       namespaceName: NamespaceName
   )(implicit ev: Ask[F, AppContext]): F[AuthContext] =
     for {
       ctx <- ev.ask

@@ -159,7 +159,7 @@ object Dependencies {
     scalaTestScalaCheck,
     workbenchAzure,
     workbenchAzureTest,
-    logbackClassic,
+    logbackClassic
   )
 
   val httpDependencies = Seq(

@@ -7,13 +7,13 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
-  AppContext,
   AppName,
   AppResources,
   AppStatus,
@@ -69,17 +69,14 @@ object AKSManualTest {
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]
   implicit val executionContext = ExecutionContext.global
-  implicit val appContext = AppContext
-    .lift[IO](None, "")
-    .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-  // Initializes a DbReference
+  /** Initializes DbReference */
   def getDbRef: Resource[IO, DbReference[IO]] = for {
     concurrentDbAccessPermits <- Resource.eval(Semaphore[IO](dbConcurrency))
     dbRef <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits)
   } yield dbRef
 
-  // Populates the DB with a cluster, nodepool, and app
+  /** Populates the DB with a cluster, nodepool, and app */
   def populateDb(implicit dbRef: DbReference[IO]): IO[App] =
     for {
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(Azure(cloudContext), appName).transaction
@@ -127,7 +124,7 @@ object AKSManualTest {
       }
     } yield app
 
-  // Creates an AKSInterpreter
+  /** Creates an AKSInterpreter */
   def getAksInterp(implicit dbRef: DbReference[IO]): Resource[IO, AKSInterpreter[IO]] = for {
     containerService <- AzureContainerService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     relayService <- AzureRelayService.fromAzureAppRegistrationConfig[IO](appRegConfig)
@@ -140,7 +137,7 @@ object AKSManualTest {
     )
   } yield new AKSInterpreter(config, helmClient, containerService, relayService)
 
-  // Deploys a CoA app
+  /** Deploys a CoA app */
   def deployApp: IO[Unit] = {
     val deps = for {
       implicit0(dbRef: DbReference[IO]) <- getDbRef
