@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, ManagedIdentityName}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName}
 
 trait AKSAlgebra[F[_]] {
 
@@ -13,8 +13,4 @@ trait AKSAlgebra[F[_]] {
 
 }
 
-final case class CreateAKSAppParams(appId: AppId,
-                                    appName: AppName,
-                                    cloudContext: AzureCloudContext,
-                                    managedIdentityName: ManagedIdentityName
-)
+final case class CreateAKSAppParams(appId: AppId, appName: AppName, cloudContext: AzureCloudContext)

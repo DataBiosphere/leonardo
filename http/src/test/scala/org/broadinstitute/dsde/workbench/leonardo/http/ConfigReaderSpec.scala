@@ -3,7 +3,7 @@ package http
 
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.ZoneName
-import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AzureRuntimeDefaults,
   CustomScriptExtensionConfig,
@@ -70,7 +70,14 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
-        AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId(""))
+        AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
+        CoaAppConfig(
+          ChartName("/Users/rtitle/git/broadinstitute/cromwhelm/coa-helm"),
+          ChartVersion("0.2.125"),
+          ReleaseNameSuffix("coa-rls"),
+          NamespaceNameSuffix("coa-ns"),
+          KsaName("coa-ksa")
+        )
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

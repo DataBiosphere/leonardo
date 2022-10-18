@@ -680,7 +680,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userEmail, now, None, now)
-    val gkeAppConfig: GkeAppConfig = req.appType match {
+    val gkeAppConfig: KubernetesAppConfig = req.appType match {
       case Galaxy   => config.leoKubernetesConfig.galaxyAppConfig
       case Cromwell => config.leoKubernetesConfig.cromwellAppConfig
       case Custom   => config.leoKubernetesConfig.customAppConfig

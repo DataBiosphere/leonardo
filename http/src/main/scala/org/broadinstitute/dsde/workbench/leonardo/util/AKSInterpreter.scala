@@ -5,25 +5,20 @@ package util
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.azure.core.management.AzureEnvironment
-import com.azure.core.management.profile.AzureProfile
-import com.azure.identity.ClientSecretCredential
-import com.azure.resourcemanager.msi.MsiManager
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsp.{Release, _}
-import org.http4s.Uri
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.Base64
 import scala.concurrent.ExecutionContext
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
-                           clientSecretCredential: ClientSecretCredential,
                            helmClient: HelmAlgebra[F],
                            azureContainerService: AzureContainerService[F],
                            azureRelayService: AzureRelayService[F]
@@ -65,22 +60,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Get resources from landing zone
-      // TODO hardcoded!!!
-      landingZoneResources = LandingZoneResources(
-        AKSClusterName("cluster-name"),
-        BatchAccountName("batch-account"),
-        RelayNamespace("relay-ns"),
-        StorageAccountName("storage-account"),
-        SubnetName("BATCH_SUBNET")
-      )
+      landingZoneResources = getLandingZoneResources
 
-      // Resolve user-assigned managed identity in Azure
-      msiManager <- buildMsiManager(params.cloudContext)
-      uami <- F.delay(
-        msiManager
-          .identities()
-          .getByResourceGroup(params.cloudContext.managedResourceGroupName.value, params.managedIdentityName.value)
-      )
+      // TODO (TOAZ-228): Annotate managed identity and set up Workload Identity
 
       // Deploy setup chart
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
@@ -90,19 +72,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
           org.broadinstitute.dsp.Values(
-            s"cloud=azure,serviceAccount.annotations.azureManagedIdentityClientId=${uami.clientId},serviceAccount.name=${ksaName.value}"
+            s"cloud=azure,serviceAccount.name=${ksaName.value}"
           ),
           true
         )
         .run(authContext)
-
-      // Create federated identity
-      _ <- setUpFederatedIdentity(params.cloudContext,
-                                  landingZoneResources.clusterName,
-                                  params.managedIdentityName,
-                                  namespaceName,
-                                  ksaName
-      )
 
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(params.appName.value)
@@ -114,7 +88,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Build values and install chart
       values = buildCromwellChartOverrideValues(app.release,
                                                 params.cloudContext,
-                                                ksaName,
                                                 app.samResourceId,
                                                 landingZoneResources,
                                                 hcName,
@@ -134,13 +107,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      // TODO: poll app!!
+      // TODO (TOAZ-229): poll app for completion
 
     } yield ()
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      cloudContext: AzureCloudContext,
-                                                     ksaName: ServiceAccountName,
                                                      samResourceId: AppSamResourceId,
                                                      landingZoneResources: LandingZoneResources,
                                                      relayHcName: RelayHybridConnectionName,
@@ -150,7 +122,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        // TODO: missing, what are these?
+        // TODO (TOAZ-227): set up Application Insights
 //      raw"config.azureServicesAuthConnectionString=???",
 //      raw"config.applicationInsightsAccountName=???",
 //      raw"config.cosmosDbAccountName=???",
@@ -160,10 +132,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // relay configs
         raw"relaylistener.connectionString=Endpoint=sb://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
+        raw"relaylistener.endpoint=https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net",
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
-        raw"relaylistener.samUrl=${config.samUrl.renderString}",
+        raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        // TODO: should we check kubernetes-app resource type instead of controlled-application-private-workspace-resource?
+        // TODO (TOAZ-242): change to kubernetes-app resource type once listener supports it
         raw"relaylistener.samResourceType=controlled-application-private-workspace-resource",
 
         // persistence configs
@@ -172,7 +145,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}"
-        // TODO ksaNama
       ).mkString(",")
     )
 
@@ -208,45 +180,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield authContext
 
-  // TODO: the Java APIs don't exist so this is a no-op
-  // Investigate implementing with REST API calls or ARM templates
-  private def setUpFederatedIdentity(cloudContext: AzureCloudContext,
-                                     clusterName: AKSClusterName,
-                                     managedIdentityName: ManagedIdentityName,
-                                     namespace: NamespaceName,
-                                     ksaName: ServiceAccountName
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-
-      // Resolve cluster in Azure
-      // TODO ideally there'd be a way to get the oidc issuer
-      cluster <- azureContainerService.getCluster(clusterName, cloudContext)
-      oidcIssuer = "???"
-
-      // Create federated credential
-      // TODO this API doesn't exist, showing how it should look
-      msiManager <- buildMsiManager(cloudContext)
-//      _ <- F.delay(
-//        msiManager
-//          .federatedIdentities()
-//          .create(
-//            name = s"federated-${managedIdentityName.value}",
-//            uami = managedIdentityName.value,
-//            issuer = oidcIssuer,
-//            subject = s"system:serviceaccount:${namespace.asString}:${ksaName.value}"
-//          )
-//      )
-    } yield ()
-
-  private def buildMsiManager(azureCloudContext: AzureCloudContext): F[MsiManager] = {
-    val azureProfile =
-      new AzureProfile(azureCloudContext.tenantId.value, azureCloudContext.subscriptionId.value, AzureEnvironment.AZURE)
-    F.delay(MsiManager.authenticate(clientSecretCredential, azureProfile))
-  }
+  // TODO (TOAZ-232): replace hard-coded values with LZ API calls
+  private def getLandingZoneResources: LandingZoneResources =
+    LandingZoneResources(
+      AKSClusterName("lz2e6dcd2d552ad623cd338a1"),
+      BatchAccountName("lzcfda4a58c8aee1f20396d8"),
+      RelayNamespace("lz90d831b04e4bc77a174535ec31929eb838b9e306404081a1"),
+      StorageAccountName("lzd8f8824b75a8148fb67dff"),
+      SubnetName("BATCH_SUBNET")
+    )
 
 }
 
-final case class AKSInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig, samUrl: Uri)
+final case class AKSInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
+                                      coaAppConfig: CoaAppConfig,
+                                      samConfig: SamConfig
+)
