@@ -17,7 +17,7 @@ import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.{AzureRelayService, AzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{AzureContainerService, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{
   GoogleProjectDAO,
@@ -370,6 +370,9 @@ object Boot extends IOApp {
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
+      azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
+        ConfigReader.appConfig.azure.appRegistration
+      )
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
@@ -585,6 +588,17 @@ object Boot extends IOApp {
         googleDependencies.googleResourceService
       )
 
+      val aksAlg = new AKSInterpreter[F](
+        AKSInterpreterConfig(
+          ConfigReader.appConfig.terraAppSetupChart,
+          ConfigReader.appConfig.azure.coaAppConfig,
+          samConfig
+        ),
+        helmClient,
+        azureContainerService,
+        azureRelay
+      )
+
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
                                                      contentSecurityPolicy,
                                                      asyncTasksQueue,
@@ -654,7 +668,8 @@ object Boot extends IOApp {
         pubsubSubscriber,
         gkeAlg,
         dataprocInterp,
-        oidcConfig
+        oidcConfig,
+        aksAlg
       )
     }
 
@@ -753,5 +768,6 @@ final case class AppDependencies[F[_]](
   pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   gkeAlg: GKEAlgebra[F],
   dataprocInterp: DataprocInterpreter[F],
-  openIDConnectConfiguration: OpenIDConnectConfiguration
+  openIDConnectConfiguration: OpenIDConnectConfiguration,
+  aksInterp: AKSAlgebra[F]
 )

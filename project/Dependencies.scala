@@ -15,7 +15,7 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "982e088b-SNAP"
+  private val workbenchLibsHash = "fe4ec69"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.22-$workbenchLibsHash"
@@ -159,7 +159,7 @@ object Dependencies {
     scalaTestScalaCheck,
     workbenchAzure,
     workbenchAzureTest,
-    logbackClassic,
+    logbackClassic
   )
 
   val httpDependencies = Seq(
