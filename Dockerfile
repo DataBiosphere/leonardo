@@ -60,6 +60,7 @@ RUN cd /leonardo && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
+    helm repo update && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
