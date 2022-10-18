@@ -261,8 +261,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
-      // +++++++++++++++++++++
-
       clusterNodepoolAction = saveClusterResult match {
         case ClusterExists(_) =>
           // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
@@ -669,28 +667,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
     )
     listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+
     // throw 404 if no GetAppStatus permission
     hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
-
-    userToken = org.http4s.headers.Authorization(
-      org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-    )
-
-    workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
-    workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
-
-    // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
-    cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
-      case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-      case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-      case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
-    }
-
     _ <-
       if (hasReadPermission) F.unit
       else
         F.raiseError[Unit](
-          AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission")
+          AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "no read permission")
         )
 
     // throw 403 if no DeleteApp permission
@@ -702,7 +686,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       if (canDelete) F.unit
       else
         F.raiseError[Unit](
-          AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId)
+          AppCannotBeDeletedByWorkspaceIdException(workspaceId, appName, appResult.app.status, ctx.traceId)
         )
 
     // Get the disk to delete if specified
@@ -721,17 +705,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       } else {
         for {
           _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
-          deleteMessage = appResult.cluster.cloudContext match {
-            case CloudContext.Gcp(value) =>
-              DeleteAppMessage(
-                appResult.app.id,
-                appResult.app.appName,
-                value,
-                diskOpt,
-                Some(ctx.traceId)
-              )
-            case CloudContext.Azure(_) => ???
-          }
+          deleteMessage = DeleteAppV2Message(
+            appResult.app.id,
+            appResult.app.appName,
+            workspaceId,
+            diskOpt,
+            Some(ctx.traceId)
+          )
           _ <- publisherQueue.offer(deleteMessage)
         } yield ()
       }
@@ -1083,6 +1063,17 @@ case class AppCannotBeDeletedException(cloudContext: CloudContext,
                                        traceId: TraceId
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be deleted in ${status} status." +
+        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
+                                                    appName: AppName,
+                                                    status: AppStatus,
+                                                    traceId: TraceId
+) extends LeoException(
+      s"App ${workspaceId.toString}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
       traceId = Some(traceId)

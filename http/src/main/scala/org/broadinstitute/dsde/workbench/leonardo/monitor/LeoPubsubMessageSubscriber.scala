@@ -121,6 +121,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
+        case _: CreateAppV2Message => F.unit
+        case _: DeleteAppV2Message => F.unit
       }
     } yield resp
 
