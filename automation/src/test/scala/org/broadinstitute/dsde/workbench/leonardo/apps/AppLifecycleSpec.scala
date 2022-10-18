@@ -17,7 +17,6 @@ import org.scalatest.{Assertion, DoNotDiscover}
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
 class AppLifecycleSpec
     extends BillingProjectFixtureSpec
     with LeonardoTestUtils
