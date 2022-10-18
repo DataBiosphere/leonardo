@@ -110,12 +110,12 @@ object AKSManualTest {
                 status = AppStatus.Running,
                 appType = AppType.Cromwell,
                 chart = ConfigReader.appConfig.azure.coaAppConfig.chart,
-                release = Release(s"rel-1-${ConfigReader.appConfig.azure.coaAppConfig.releaseNameSuffix.value}"),
+                release = Release(s"manual-${ConfigReader.appConfig.azure.coaAppConfig.releaseNameSuffix.value}"),
                 samResourceId = appSamResourceId,
                 appResources = AppResources(
                   namespace = Namespace(
                     NamespaceId(-1),
-                    NamespaceName(s"ns-1-${ConfigReader.appConfig.azure.coaAppConfig.namespaceNameSuffix.value}")
+                    NamespaceName(s"manual-${ConfigReader.appConfig.azure.coaAppConfig.namespaceNameSuffix.value}")
                   ),
                   disk = None,
                   services = List.empty,
