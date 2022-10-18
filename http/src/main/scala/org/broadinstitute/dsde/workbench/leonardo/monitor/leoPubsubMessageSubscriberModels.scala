@@ -260,6 +260,22 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
 
+  final case class CreateAppV2Message(
+    workspace: WorkspaceId,
+    appId: AppId,
+    appName: AppName,
+    createDisk: Option[DiskId],
+    customEnvironmentVariables: Map[String, String],
+    appType: AppType,
+    namespaceName: NamespaceName,
+    machineType: Option[
+      AppMachineType
+    ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
+    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
+  }
+
   final case class DeleteAppMessage(appId: AppId,
                                     appName: AppName,
                                     project: GoogleProject,

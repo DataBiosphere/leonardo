@@ -234,18 +234,21 @@ final case class NumNodes(amount: Int) extends AnyVal
 final case class AutoscalingMin(amount: Int) extends AnyVal
 final case class AutoscalingMax(amount: Int) extends AnyVal
 
-final case class DefaultKubernetesLabels(googleProject: GoogleProject,
+final case class DefaultKubernetesLabels(cloudContext: CloudContext,
                                          appName: AppName,
                                          creator: WorkbenchEmail,
                                          serviceAccount: WorkbenchEmail
 ) {
+  val cloudContextList = cloudContext match {
+    case CloudContext.Gcp(value)   => List("googleProject" -> value.value)
+    case CloudContext.Azure(value) => List("cloudContext" -> value.asString)
+  }
   val toMap: LabelMap =
     Map(
       "appName" -> appName.value,
-      "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "clusterServiceAccount" -> serviceAccount.value
-    )
+    ) ++ cloudContextList
 }
 
 sealed abstract class ErrorAction
