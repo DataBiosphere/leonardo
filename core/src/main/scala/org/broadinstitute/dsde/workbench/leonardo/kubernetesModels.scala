@@ -480,3 +480,4 @@ final case class NamespaceNameSuffix(value: String) extends AnyVal
 final case class GalaxyOrchUrl(value: String) extends AnyVal
 final case class GalaxyDrsUrl(value: String) extends AnyVal
 final case class AppMachineType(memorySizeInGb: Int, numOfCpus: Int)
+final case class KsaName(value: String) extends AnyVal

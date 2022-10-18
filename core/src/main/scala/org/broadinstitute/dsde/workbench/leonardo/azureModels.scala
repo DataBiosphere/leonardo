@@ -17,7 +17,6 @@ final case class WsmJobId(value: String) extends AnyVal
 final case class ManagedIdentityName(value: String) extends AnyVal
 final case class BatchAccountName(value: String) extends AnyVal
 final case class SubnetName(value: String) extends AnyVal
-final case class KsaName(value: String) extends AnyVal
 
 final case class LandingZoneResources(clusterName: AKSClusterName,
                                       batchAccountName: BatchAccountName,
