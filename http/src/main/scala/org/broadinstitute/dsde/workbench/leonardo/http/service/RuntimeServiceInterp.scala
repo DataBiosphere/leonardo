@@ -85,7 +85,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       runtimeServiceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, googleProject)
+        .getClusterServiceAccount(userInfo, cloudContext)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
       petSA <- F.fromEither(
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))

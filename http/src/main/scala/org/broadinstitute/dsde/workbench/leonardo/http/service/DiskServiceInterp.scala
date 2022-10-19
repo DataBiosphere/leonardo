@@ -64,7 +64,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       serviceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, googleProject)
+        .getClusterServiceAccount(userInfo, CloudContext.Gcp(googleProject))
       petSA <- F.fromEither(
         serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )

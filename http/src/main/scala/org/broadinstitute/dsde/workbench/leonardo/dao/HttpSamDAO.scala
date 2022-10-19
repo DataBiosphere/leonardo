@@ -278,6 +278,19 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
 
+  def getPetManagedIdentity(authorization: Authorization)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkbenchEmail]] =
+    metrics.incrementCounter("sam/getPetServiceAccount") >>
+      httpClient.expectOptionOr[WorkbenchEmail](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri
+            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity/")),
+          headers = Headers(authorization)
+        )
+      )(onError)
+
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
     getLeoAuthToken.flatMap { leoToken =>
       metrics.incrementCounter("sam/getUserProxy") >>

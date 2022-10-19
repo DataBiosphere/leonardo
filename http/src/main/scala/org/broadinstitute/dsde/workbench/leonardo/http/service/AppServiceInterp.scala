@@ -166,7 +166,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       runtimeServiceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, googleProject)
+        .getClusterServiceAccount(userInfo, cloudContext)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
       petSA <- F.fromEither(
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
@@ -614,8 +614,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
         else F.unit
 
-      runtimeServiceAccountOpt = none[WorkbenchEmail] // TODO: Figure out how to get PET managed identity
-//        serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
+      runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
       petSA <- F.fromEither(
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))

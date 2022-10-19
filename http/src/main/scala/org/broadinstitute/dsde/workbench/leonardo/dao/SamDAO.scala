@@ -64,6 +64,10 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
+  def getPetManagedIdentity(authorization: Authorization)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkbenchEmail]]
+
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]]
 
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit

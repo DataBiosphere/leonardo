@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import cats.effect.IO
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.leonardo.CloudContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -16,13 +17,15 @@ import java.util.UUID
  */
 class MockPetClusterServiceAccountProvider extends ServiceAccountProvider[IO] {
   val samDao = new MockSamDAO
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+  override def getClusterServiceAccount(userInfo: UserInfo, cloudContext: CloudContext)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] = {
-    val auth = Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${userInfo.userEmail}"))
-
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${userInfo.userEmail}"))
     // Pretend we're asking Sam for the pet
-    samDao.getPetServiceAccount(auth, googleProject)
+    cloudContext match {
+      case CloudContext.Gcp(googleProject) => samDao.getPetServiceAccount(authHeader, googleProject)
+      case CloudContext.Azure(_)           => samDao.getPetManagedIdentity(authHeader)
+    }
   }
 
   override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit

@@ -227,6 +227,11 @@ class MockSamDAO extends SamDAO[IO] {
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(petSA))
 
+  override def getPetManagedIdentity(authorization: Authorization)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Option[WorkbenchEmail]] =
+    IO.pure(Some(petSA))
+
   override def getUserProxy(
     userEmail: WorkbenchEmail
   )(implicit ev: Ask[IO, TraceId]): IO[Option[WorkbenchEmail]] =
