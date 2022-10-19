@@ -208,8 +208,6 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     workspaceId: WorkspaceId,
     userInfo: UserInfo
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // TODO: consider using v2 for all existing entities if this works out for apps https://broadworkbench.atlassian.net/browse/IA-2569
-    // Apps are modeled different in SAM than other leo resources.
     if (sr.resourceType != SamResourceType.App)
       samDao.createResourceV2(samResource, creatorEmail, cloudContext, userInfo)
     else
