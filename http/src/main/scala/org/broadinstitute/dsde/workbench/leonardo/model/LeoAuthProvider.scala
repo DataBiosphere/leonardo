@@ -197,6 +197,13 @@ trait LeoAuthProvider[F[_]] {
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
 
+  def notifyResourceDeletedV2[R](
+    samResource: R,
+    creatorEmail: WorkbenchEmail,
+    cloudContext: CloudContext,
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
+
   def isUserWorkspaceOwner[R](
     workspaceId: WorkspaceId,
     workspaceResource: R,

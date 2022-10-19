@@ -222,6 +222,14 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, creatorEmail, googleProject)
 
+  override def notifyResourceDeletedV2[R](
+    samResource: R,
+    creatorEmail: WorkbenchEmail,
+    cloudContext: CloudContext,
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
+    samDao.deleteResourceV2(samResource, creatorEmail, cloudContext, userInfo)
+
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
     for {
       traceId <- ev.ask

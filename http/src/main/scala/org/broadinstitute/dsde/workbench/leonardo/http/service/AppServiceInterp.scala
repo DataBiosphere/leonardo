@@ -697,14 +697,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     // Get the disk to delete if specified
     diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
 
-    googleProjectOpt = LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext)
     _ <-
       if (appResult.app.status == AppStatus.Error) {
         for {
-          // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
-          // TODO: Notify for Azure?
-          _ <- googleProjectOpt.traverse(g =>
-            authProvider.notifyResourceDeleted(appResult.app.samResourceId, appResult.app.auditInfo.creator, g)
+          _ <- authProvider.notifyResourceDeletedV2(appResult.app.samResourceId,
+                                                    appResult.app.auditInfo.creator,
+                                                    appResult.cluster.cloudContext,
+                                                    userInfo
           )
           _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
         } yield ()

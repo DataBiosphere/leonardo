@@ -72,6 +72,12 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
+  def deleteResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, cloudContext: CloudContext, userInfo: UserInfo)(
+    implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
   def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]

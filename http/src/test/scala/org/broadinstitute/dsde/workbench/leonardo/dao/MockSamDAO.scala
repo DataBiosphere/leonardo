@@ -319,6 +319,12 @@ class MockSamDAO extends SamDAO[IO] {
                                              workspaceId: WorkspaceId,
                                              userInfo: UserInfo
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
+
+  override def deleteResourceV2[R](resource: R,
+                                   creatorEmail: WorkbenchEmail,
+                                   cloudContext: CloudContext,
+                                   userInfo: UserInfo
+  )(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
 }
 
 object MockSamDAO {

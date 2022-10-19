@@ -330,6 +330,38 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
+  override def deleteResourceV2[R](resource: R,
+                                   creatorEmail: WorkbenchEmail,
+                                   cloudContext: CloudContext,
+                                   userInfo: UserInfo
+  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] = for {
+    _ <- ev.ask
+    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType.asString}")
+    _ <- httpClient
+      .run(
+        Request[F](
+          method = Method.DELETE,
+          uri = config.samUri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+            ),
+          headers = Headers(authHeader)
+        )
+      )
+      .use { resp =>
+        resp.status match {
+          case Status.NotFound =>
+            logger.info(
+              s"Fail to delete ${cloudContext}/${sr.resourceIdAsString(resource)} because ${sr.resourceType.asString} doesn't exist in SAM"
+            )
+          case s if s.isSuccess => F.unit
+          case _                => onError(resp).flatMap(F.raiseError[Unit])
+        }
+      }
+  } yield ()
+
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
