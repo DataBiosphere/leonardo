@@ -72,9 +72,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case CloudContext.Gcp(value) => value
         case CloudContext.Azure(_)   => ???
       }
-      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
-                                                  ProjectAction.CreateApp,
-                                                  userInfo
+      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
+        ProjectSamResourceId(googleProject),
+        ProjectAction.CreateApp,
+        userInfo
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
@@ -285,7 +286,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
       app <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB"))
 
-      hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
+      hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
+                                                                               AppAction.GetAppStatus,
+                                                                               userInfo
+      )
       _ <-
         if (hasPermission) F.unit
         else
@@ -680,7 +684,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userEmail, now, None, now)
-    val gkeAppConfig: GkeAppConfig = req.appType match {
+    val gkeAppConfig: KubernetesAppConfig = req.appType match {
       case Galaxy   => config.leoKubernetesConfig.galaxyAppConfig
       case Cromwell => config.leoKubernetesConfig.cromwellAppConfig
       case Custom   => config.leoKubernetesConfig.customAppConfig

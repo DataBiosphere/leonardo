@@ -56,9 +56,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
 
-      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
-                                                  ProjectAction.CreatePersistentDisk,
-                                                  userInfo
+      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
+        ProjectSamResourceId(googleProject),
+        ProjectAction.CreatePersistentDisk,
+        userInfo
       )
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
@@ -173,7 +174,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(cloudContext, diskName, ctx.traceId).transaction
-      hasPermission <- authProvider.hasPermissionWithProjectFallback(
+      hasPermission <- authProvider.hasPermissionWithProjectFallback[PersistentDiskSamResourceId, PersistentDiskAction](
         resp.samResource,
         PersistentDiskAction.ReadPersistentDisk,
         ProjectAction.ReadPersistentDisk,
