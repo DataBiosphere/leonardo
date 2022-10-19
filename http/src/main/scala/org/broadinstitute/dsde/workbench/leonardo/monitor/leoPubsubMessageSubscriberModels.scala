@@ -268,9 +268,6 @@ object LeoPubsubMessage {
     customEnvironmentVariables: Map[String, String],
     appType: AppType,
     namespaceName: NamespaceName,
-    machineType: Option[
-      AppMachineType
-    ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
@@ -867,7 +864,7 @@ object LeoPubsubCodec {
     )
 
   implicit val createAppV2MessageEncoder: Encoder[CreateAppV2Message] =
-    Encoder.forProduct10(
+    Encoder.forProduct9(
       "messageType",
       "workspaceId",
       "appId",
@@ -876,7 +873,6 @@ object LeoPubsubCodec {
       "customEnvironmentVariables",
       "appType",
       "namespaceName",
-      "machineType",
       "traceId"
     )(x =>
       (x.messageType,
@@ -887,7 +883,6 @@ object LeoPubsubCodec {
        x.customEnvironmentVariables,
        x.appType,
        x.namespaceName,
-       x.machineType,
        x.traceId
       )
     )

@@ -317,35 +317,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2)
         .transaction
-      samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
-      samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
-        authProvider.filterUserVisible(apps, userInfo)
-      }
-      res = samVisibleAppsOpt match {
-        case None => Vector.empty
-        case Some(samVisibleApps) =>
-          val samVisibleAppsSet = samVisibleApps.toSet
-          // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
-          // then we build back up by filtering nodepools without apps and clusters without nodepools
-          allClusters
-            .map { c =>
-              c.copy(
-                nodepools = c.nodepools
-                  .map { n =>
-                    n.copy(apps = n.apps.filter { a =>
-                      // Making the assumption that users will always be able to access apps that they create
-                      // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                      samVisibleAppsSet
-                        .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
-                    })
-                  }
-                  .filterNot(_.apps.isEmpty)
-              )
-            }
-            .filterNot(_.nodepools.isEmpty)
-            .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, paramMap._3))
-            .toVector
-      }
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
     } yield res
 
   override def deleteApp(request: DeleteAppRequest)(implicit
@@ -524,11 +496,43 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .listAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
       .transaction
 
-    res = allClusters
-      .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, paramMap._3))
-      .toVector
-    // TODO: Figure out permissions
-    // See listApp for old implementation.
+    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
+  } yield res
+
+  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster], userInfo: UserInfo, labels: List[String])(
+    implicit as: Ask[F, AppContext]
+  ): F[Vector[ListAppResponse]] = for {
+    _ <- as.ask
+    samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
+    samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
+      authProvider.filterUserVisible(apps, userInfo)
+    }
+
+    res = samVisibleAppsOpt match {
+      case None => Vector.empty
+      case Some(samVisibleApps) =>
+        val samVisibleAppsSet = samVisibleApps.toSet
+        // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
+        // then we build back up by filtering nodepools without apps and clusters without nodepools
+        allClusters
+          .map { c =>
+            c.copy(
+              nodepools = c.nodepools
+                .map { n =>
+                  n.copy(apps = n.apps.filter { a =>
+                    // Making the assumption that users will always be able to access apps that they create
+                    // Fix for https://github.com/DataBiosphere/leonardo/issues/821
+                    samVisibleAppsSet
+                      .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
+                  })
+                }
+                .filterNot(_.apps.isEmpty)
+            )
+          }
+          .filterNot(_.nodepools.isEmpty)
+          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
+          .toVector
+    }
   } yield res
 
   override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
@@ -654,7 +658,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.customEnvironmentVariables,
         req.appType,
         app.appResources.namespace.name,
-        None, // appMachineType, // TODO: is this needed?
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
