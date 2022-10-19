@@ -150,6 +150,13 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   ): IO[WorkbenchEmail] = ???
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+
+  override def notifyResourceCreatedV2[R](samResource: R,
+                                          creatorEmail: WorkbenchEmail,
+                                          cloudContext: CloudContext,
+                                          workspaceId: WorkspaceId,
+                                          userInfo: UserInfo
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider

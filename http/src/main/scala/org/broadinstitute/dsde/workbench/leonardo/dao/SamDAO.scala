@@ -5,7 +5,7 @@ import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 
@@ -44,7 +44,24 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
+  def createResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, cloudContext: CloudContext, userInfo: UserInfo)(
+    implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
   def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
+  def createResourceWithParentV2[R](resource: R,
+                                    creatorEmail: WorkbenchEmail,
+                                    cloudContext: CloudContext,
+                                    workspaceId: WorkspaceId,
+                                    userInfo: UserInfo
+  )(implicit
     sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]

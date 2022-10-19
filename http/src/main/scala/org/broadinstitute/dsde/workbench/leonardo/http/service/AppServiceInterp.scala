@@ -583,21 +583,21 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
 
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
-      // TODO Verify managed identiy is covered by lookupOriginatingUserEmail
-//      originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
-//      _ <- authProvider
-//        .notifyResourceCreated(samResourceId, originatingUserEmail, googleProject)
-//        .handleErrorWith { t =>
-//          log.error(ctx.loggingCtx, t)(
-//            s"Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
-//          ) >> F.raiseError[Unit](t)
-//        }
 
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
         case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
         case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
+      // TODO Verify managed identiy is covered by lookupOriginatingUserEmail
+      originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
+      _ <- authProvider
+        .notifyResourceCreatedV2(samResourceId, originatingUserEmail, cloudContext, workspaceId, userInfo)
+        .handleErrorWith { t =>
+          log.error(ctx.loggingCtx, t)(
+            s"Failed to notify the AuthProvider for creation of kubernetes app ${cloudContext} / ${appName.value}"
+          ) >> F.raiseError[Unit](t)
+        }
 
       saveCluster <- F.fromEither(
         getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, None, None, Some(workspaceId))

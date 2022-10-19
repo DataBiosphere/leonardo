@@ -201,6 +201,20 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     else
       samDao.createResourceWithParent(samResource, creatorEmail, googleProject)
 
+  override def notifyResourceCreatedV2[R](
+    samResource: R,
+    creatorEmail: WorkbenchEmail,
+    cloudContext: CloudContext,
+    workspaceId: WorkspaceId,
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
+    // TODO: consider using v2 for all existing entities if this works out for apps https://broadworkbench.atlassian.net/browse/IA-2569
+    // Apps are modeled different in SAM than other leo resources.
+    if (sr.resourceType != SamResourceType.App)
+      samDao.createResourceV2(samResource, creatorEmail, cloudContext, userInfo)
+    else
+      samDao.createResourceWithParentV2(samResource, creatorEmail, cloudContext, workspaceId, userInfo)
+
   override def notifyResourceDeleted[R](
     samResource: R,
     creatorEmail: WorkbenchEmail,
