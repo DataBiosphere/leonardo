@@ -660,8 +660,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- publisherQueue.offer(createAppV2Message)
     } yield ()
 
-  override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: DeleteAppRequest)(
-    implicit as: Ask[F, AppContext]
+  override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
     appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
@@ -693,7 +693,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
 
     // Get the disk to delete if specified
-    diskOpt = if (req.deleteDisk) appResult.app.appResources.disk.map(_.id) else None
+    diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
 
     googleProjectOpt = LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext)
     _ <-

@@ -16,6 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
+import java.util.UUID
+
 object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
@@ -137,7 +139,7 @@ object KubernetesTestData {
       None,
       List(),
       List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool)),
-      None // TODO: Update to use workspaceId
+      Some(WorkspaceId(UUID.randomUUID()))
     )
   }
 

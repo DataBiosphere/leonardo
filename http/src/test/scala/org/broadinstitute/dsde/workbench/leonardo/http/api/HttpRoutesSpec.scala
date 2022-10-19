@@ -662,6 +662,47 @@ class HttpRoutesSpec
     }
   }
 
+  it should "list apps v2 with project" in {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      val response = responseAs[Vector[ListAppResponse]]
+      response shouldBe listAppResponse
+    }
+  }
+
+  it should "get app V2" in {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      responseAs[GetAppResponse] shouldBe getAppResponse
+    }
+  }
+
+  it should "delete app V2" in {
+    Delete(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "validate create appV2 request" in {
+    Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
+      .withEntity(
+        ContentTypes.`application/json`,
+        createAppRequest
+          .copy(kubernetesRuntimeConfig =
+            createAppRequest.kubernetesRuntimeConfig.map(c => c.copy(numNodes = NumNodes(-1)))
+          )
+          .asJson
+          .spaces2
+      ) ~> httpRoutes.route ~> check {
+      status shouldBe StatusCodes.BadRequest
+      val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
+      resp shouldBe "The request content was malformed:\nDecodingFailure at .kubernetesRuntimeConfig.numNodes: Minimum number of nodes is 1"
+    }
+  }
+
   it should "list apps with no project" in {
     Get("/api/google/v1/apps/") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK

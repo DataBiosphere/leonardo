@@ -120,7 +120,17 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-    } yield ()
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      apiCall = kubernetesService.deleteAppV2(
+        userInfo,
+        workspaceId,
+        appName,
+        deleteDisk
+      )
+      tags = Map("deleteDisk" -> deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteAppV2", 1, tags)
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteAppV2").use(_ => apiCall))
+    } yield StatusCodes.Accepted
 
 }
 

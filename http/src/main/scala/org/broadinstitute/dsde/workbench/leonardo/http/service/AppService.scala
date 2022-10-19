@@ -62,7 +62,7 @@ trait AppService[F[_]] {
     userInfo: UserInfo,
     workspaceId: WorkspaceId,
     appName: AppName,
-    req: DeleteAppRequest
+    deleteDisk: Boolean
   )(implicit as: Ask[F, AppContext]): F[Unit]
 }
 
