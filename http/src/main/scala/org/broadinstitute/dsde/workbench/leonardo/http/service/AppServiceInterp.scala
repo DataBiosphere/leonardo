@@ -541,7 +541,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         appOpt,
         AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
       )
-      hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
+      hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
+                                                                               AppAction.GetAppStatus,
+                                                                               userInfo
+      )
       _ <-
         if (hasPermission) F.unit
         else
@@ -562,7 +565,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
-      hasPermission <- authProvider.hasPermission(
+      hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
         WorkspaceResourceSamResourceId(workspaceId),
         WorkspaceAction.CreateControlledUserResource,
         userInfo
