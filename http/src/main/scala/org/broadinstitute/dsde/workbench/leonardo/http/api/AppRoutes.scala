@@ -265,12 +265,13 @@ object AppRoutes {
       "appName",
       "googleProject",
       "kubernetesRuntimeConfig",
-                        "errors",
-                        "status",
-                        "proxyUrls",
-                        "diskName",
-                        "customEnvironmentVariables",
-                        "auditInfo",
-                        "appType", "labels",
+      "errors",
+      "status",
+      "proxyUrls",
+      "diskName",
+      "customEnvironmentVariables",
+      "auditInfo",
+      "appType",
+      "labels"
     )(x => GetAppResponse.unapply(x).get)
 }
