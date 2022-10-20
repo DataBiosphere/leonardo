@@ -209,9 +209,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     userInfo: UserInfo
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
     if (sr.resourceType == SamResourceType.App && cloudContext.cloudProvider == CloudProvider.Gcp)
-      samDao.createResourceWithParentV2(samResource, creatorEmail, cloudContext, workspaceId, userInfo)
+      samDao.createResourceWithParent(samResource, creatorEmail, GoogleProject(cloudContext.asString))
     else
-      samDao.createResourceAsUser(samResource, userInfo)
+      samDao.createResourceWithUserInfo(samResource, userInfo)
 
   override def notifyResourceDeleted[R](
     samResource: R,
@@ -224,7 +224,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     samResource: R,
     userInfo: UserInfo
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
-    samDao.deleteResourceV2(samResource, userInfo)
+    samDao.deleteResourceWithUserInfo(samResource, userInfo)
 
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
     for {

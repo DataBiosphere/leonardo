@@ -42,4 +42,19 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
 
     res.isDefined shouldBe true
   }
+
+//  "listAppsByWorkspaceId" should "get list active app properly " in isolatedDbTest {
+//    val savedCluster1 = makeKubeCluster(1, status = KubernetesClusterStatus.Running).save()
+//    val savedNodepool1 = makeNodepool(1, savedCluster1.id, status = NodepoolStatus.Running).save()
+//    val savedApp1 = makeApp(1, savedNodepool1.id, status = AppStatus.Running).save()
+//    val res = KubernetesServiceDbQueries
+//      .listAppsByWorkspaceId(
+//        savedCluster1.workspaceId,
+//        Map.empty
+//      )
+//      .transaction
+//      .unsafeRunSync()(IORuntime.global)
+//
+//    res.isDefined shouldBe true
+//  }
 }

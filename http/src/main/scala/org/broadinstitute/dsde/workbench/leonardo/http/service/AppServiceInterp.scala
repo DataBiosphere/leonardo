@@ -620,18 +620,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
       // TODO: Adapt the following to support Azure disk
-//      diskResultOpt <- req.diskConfig.traverse(diskReq =>
-//        RuntimeServiceInterp.processPersistentDiskRequest(
-//          diskReq,
-//          config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
-//          googleProject,
-//          userInfo,
-//          petSA,
-//          appTypeToFormattedByType(req.appType),
-//          authProvider,
-//          config.leoKubernetesConfig.diskConfig
-//        )
-//      )
+
+      diskResultOpt <- cloudContext match {
+        case CloudContext.Gcp(googleProject) =>
+          req.diskConfig.traverse(diskReq =>
+            RuntimeServiceInterp.processPersistentDiskRequest(
+              diskReq,
+              config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
+              googleProject,
+              userInfo,
+              petSA,
+              appTypeToFormattedByType(req.appType),
+              authProvider,
+              config.leoKubernetesConfig.diskConfig
+            )
+          )
+        case CloudContext.Azure(_) => F.pure(None) // TODO: Implement disk for Azure.
+      }
 
       saveApp <- F.fromEither(
         getSavableApp(
@@ -640,7 +645,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           userInfo.userEmail,
           samResourceId,
           req,
-          None, // diskResultOpt.map(_.disk),
+          diskResultOpt.map(_.disk),
           None, // lastUsedApp,
           petSA,
           NodepoolLeoId(123123123), // TODO: Fix this //nodepool.id,
@@ -653,7 +658,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         workspaceId,
         app.id,
         app.appName,
-        None, // diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
+        diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
         req.customEnvironmentVariables,
         req.appType,
         app.appResources.namespace.name,

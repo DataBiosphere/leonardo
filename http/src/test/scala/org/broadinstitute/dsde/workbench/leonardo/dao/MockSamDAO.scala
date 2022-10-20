@@ -308,7 +308,7 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
 
-  override def createResourceAsUser[R](resource: R, userInfo: UserInfo)(implicit
+  override def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = ???

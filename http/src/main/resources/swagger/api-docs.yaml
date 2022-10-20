@@ -17,7 +17,7 @@ tags:
   - name: apps
     description: Experimental App API
   - name: appsV2
-    description: Apps API v2. Support for Google Dataproc, Google Compute Engine, and Azure.
+    description: Apps API v2. Support for Google Kubernetes Engine and Azure Kubernetes Service. Under active Development.
   - name: proxy
     description: Proxy API
   - name: notebooks

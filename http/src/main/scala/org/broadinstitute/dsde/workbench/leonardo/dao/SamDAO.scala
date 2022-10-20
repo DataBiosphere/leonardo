@@ -44,7 +44,7 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def createResourceAsUser[R](resource: R, userInfo: UserInfo)(implicit
+  def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
@@ -55,23 +55,12 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def createResourceWithParentV2[R](resource: R,
-                                    creatorEmail: WorkbenchEmail,
-                                    cloudContext: CloudContext,
-                                    workspaceId: WorkspaceId,
-                                    userInfo: UserInfo
-  )(implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
   def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def deleteResourceV2[R](resource: R, userInfo: UserInfo)(implicit
+  def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
