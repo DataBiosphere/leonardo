@@ -31,14 +31,17 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
 
 final case class DeleteAppRequest(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName, deleteDisk: Boolean)
 
-final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+final case class GetAppResponse(appName: AppName,
+                                cloudContext: CloudContext,
+                                kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[AppError],
                                 status: AppStatus, // TODO: do we need some sort of aggregate status?
                                 proxyUrls: Map[ServiceName, URL],
                                 diskName: Option[DiskName],
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo,
-                                appType: AppType
+                                appType: AppType,
+                                labels: LabelMap
 )
 
 final case class ListAppResponse(cloudContext: CloudContext,
@@ -86,6 +89,7 @@ object GetAppResponse {
   def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
       appResult.app.appName,
+      appResult.cluster.cloudContext,
       KubernetesRuntimeConfig(
         appResult.nodepool.numNodes,
         appResult.nodepool.machineType,

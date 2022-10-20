@@ -263,7 +263,7 @@ object AppRoutes {
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
     Encoder.forProduct11(
       "appName",
-      "googleProject",
+      "cloudContext",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
