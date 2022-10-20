@@ -2,19 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.{
-  App,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  CloudContext,
-  KubernetesCluster,
-  KubernetesRuntimeConfig,
-  LabelMap,
-  Nodepool
-}
+import org.broadinstitute.dsde.workbench.leonardo.{App, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, KubernetesCluster, KubernetesRuntimeConfig, LabelMap, Nodepool, autoPauseOffValue}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.http4s.Uri
 
@@ -85,6 +73,7 @@ object ListAppResponse {
 object GetAppResponse {
   def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
+      appResult.app.appName,
       KubernetesRuntimeConfig(
         appResult.nodepool.numNodes,
         appResult.nodepool.machineType,
@@ -98,6 +87,7 @@ object GetAppResponse {
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,
-      appResult.app.appType
+      appResult.app.appType,
+      appResult.app.labels,
     )
 }
