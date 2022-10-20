@@ -8,7 +8,7 @@ set -eux
 LEONARDO_DIR=$1
 cd $LEONARDO_DIR
 
-export SBT_OPTS="-Xmx2G -Xms2G -Xss4m -XX:ReservedCodeCacheSize=128m -XX:MaxMetaspaceSize=1g"
+export SBT_OPTS="-Xmx6G -Xms6G -Xss4m"
 echo "starting sbt clean assembly ..."
 
 sbt -v \
