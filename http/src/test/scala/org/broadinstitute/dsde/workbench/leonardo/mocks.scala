@@ -158,11 +158,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
                                           userInfo: UserInfo
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
 
-  override def notifyResourceDeletedV2[R](samResource: R,
-                                          creatorEmail: WorkbenchEmail,
-                                          cloudContext: CloudContext,
-                                          userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def notifyResourceDeletedV2[R](samResource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider

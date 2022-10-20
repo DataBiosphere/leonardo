@@ -313,18 +313,10 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Unit] = ???
 
-  override def createResourceWithParentV2[R](resource: R,
-                                             creatorEmail: WorkbenchEmail,
-                                             cloudContext: CloudContext,
-                                             workspaceId: WorkspaceId,
-                                             userInfo: UserInfo
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
-
-  override def deleteResourceV2[R](resource: R,
-                                   creatorEmail: WorkbenchEmail,
-                                   cloudContext: CloudContext,
-                                   userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
 }
 
 object MockSamDAO {
