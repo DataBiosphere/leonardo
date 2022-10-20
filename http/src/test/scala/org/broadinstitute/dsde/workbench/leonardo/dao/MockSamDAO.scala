@@ -116,7 +116,8 @@ class MockSamDAO extends SamDAO[IO] {
         )
     }
 
-  override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = {
@@ -307,11 +308,10 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
 
-  override def createResourceV2[R](resource: R,
-                                   creatorEmail: WorkbenchEmail,
-                                   cloudContext: CloudContext,
-                                   userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def createResourceAsUser[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
 
   override def createResourceWithParentV2[R](resource: R,
                                              creatorEmail: WorkbenchEmail,

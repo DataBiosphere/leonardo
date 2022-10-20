@@ -199,8 +199,6 @@ trait LeoAuthProvider[F[_]] {
 
   def notifyResourceDeletedV2[R](
     samResource: R,
-    creatorEmail: WorkbenchEmail,
-    cloudContext: CloudContext,
     userInfo: UserInfo
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
 

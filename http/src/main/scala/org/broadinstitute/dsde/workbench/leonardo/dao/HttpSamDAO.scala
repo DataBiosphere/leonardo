@@ -138,7 +138,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
-  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
@@ -179,15 +179,14 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
-  override def createResourceV2[R](resource: R,
-                                   creatorEmail: WorkbenchEmail,
-                                   cloudContext: CloudContext,
-                                   userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] = for {
+  override def createResourceAsUser[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] = for {
     traceId <- ev.ask
     authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     _ <- logger.info(
-      s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${cloudContext}/${sr.resourceIdAsString(resource)}"
+      s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${sr.resourceIdAsString(resource)}"
     )
     _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
     _ <- httpClient
@@ -330,11 +329,10 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
-  override def deleteResourceV2[R](resource: R,
-                                   creatorEmail: WorkbenchEmail,
-                                   cloudContext: CloudContext,
-                                   userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] = for {
+  override def deleteResourceV2[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] = for {
     _ <- ev.ask
     authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType.asString}")
@@ -354,7 +352,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         resp.status match {
           case Status.NotFound =>
             logger.info(
-              s"Fail to delete ${cloudContext}/${sr.resourceIdAsString(resource)} because ${sr.resourceType.asString} doesn't exist in SAM"
+              s"Fail to delete ${sr.resourceIdAsString(resource)} because ${sr.resourceType.asString} doesn't exist in SAM"
             )
           case s if s.isSuccess => F.unit
           case _                => onError(resp).flatMap(F.raiseError[Unit])
@@ -378,7 +376,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   def getPetManagedIdentity(authorization: Authorization)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
-    metrics.incrementCounter("sam/getPetServiceAccount") >>
+    metrics.incrementCounter("sam/getPetManagedIdentity") >>
       httpClient.expectOptionOr[WorkbenchEmail](
         Request[F](
           method = Method.GET,

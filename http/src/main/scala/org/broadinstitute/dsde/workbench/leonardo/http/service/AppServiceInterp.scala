@@ -700,12 +700,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     _ <-
       if (appResult.app.status == AppStatus.Error) {
         for {
-          _ <- authProvider.notifyResourceDeletedV2(appResult.app.samResourceId,
-                                                    appResult.app.auditInfo.creator,
-                                                    appResult.cluster.cloudContext,
-                                                    userInfo
-          )
-          _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
+          _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction >> authProvider
+            .notifyResourceDeletedV2(appResult.app.samResourceId, userInfo)
+            .void
         } yield ()
       } else {
         for {

@@ -39,13 +39,12 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[(R, SamPolicyName)]]
 
-  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def createResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, cloudContext: CloudContext, userInfo: UserInfo)(
-    implicit
+  def createResourceAsUser[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
@@ -72,8 +71,7 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def deleteResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, cloudContext: CloudContext, userInfo: UserInfo)(
-    implicit
+  def deleteResourceV2[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
