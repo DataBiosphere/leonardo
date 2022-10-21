@@ -1608,10 +1608,8 @@ class GKEInterpreter[F[_]](
     // Custom EVs
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
       List(
-        raw"""configs.$k=$v""",
         raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.asString}-${serviceName}-configs""",
-        raw"""extraEnv[$i].valueFrom.configMapKeyRef.key=$k"""
+        raw"""extraEnv[$i].value=$v"""
       )
     }
 
