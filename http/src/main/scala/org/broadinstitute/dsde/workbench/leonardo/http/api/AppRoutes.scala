@@ -121,7 +121,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
         appName,
         req
       )
-      _ <- metrics.incrementCounter("createApp")
+      tags = Map("appType" -> req.appType.toString)
+      _ <- metrics.incrementCounter("createApp", 1, tags)
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
