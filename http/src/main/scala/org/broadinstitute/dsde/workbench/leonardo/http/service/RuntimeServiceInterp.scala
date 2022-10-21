@@ -980,13 +980,13 @@ object RuntimeServiceInterp {
                   }
                 } else
                   F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, formattedBy)
+                    DiskAlreadyFormattedByOtherApp(CloudContext.Gcp(googleProject), req.name, ctx.traceId, formattedBy)
                   )
             }
             // throw 409 if the disk is attached to a runtime
             _ <-
               if (isAttached)
-                F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
+                F.raiseError[Unit](DiskAlreadyAttachedException(CloudContext.Gcp(googleProject), req.name, ctx.traceId))
               else F.unit
             hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
               pd.samResource,
@@ -1034,7 +1034,7 @@ object RuntimeServiceInterp {
       }
     } yield disk
 
-  def processPersistentDiskRequestV2[F[_]](
+  def processPersistentDiskRequestForWorkspace[F[_]](
     req: PersistentDiskRequest,
     targetZone: ZoneName,
     cloudContext: CloudContext,
@@ -1083,13 +1083,13 @@ object RuntimeServiceInterp {
                   }
                 } else
                   F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherAppV2(cloudContext, req.name, ctx.traceId, formattedBy)
+                    DiskAlreadyFormattedByOtherApp(cloudContext, req.name, ctx.traceId, formattedBy)
                   )
             }
             // throw 409 if the disk is attached to a runtime
             _ <-
               if (isAttached)
-                F.raiseError[Unit](DiskAlreadyAttachedExceptionV2(cloudContext, req.name, ctx.traceId))
+                F.raiseError[Unit](DiskAlreadyAttachedException(cloudContext, req.name, ctx.traceId))
               else F.unit
             hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
               pd.samResource,
@@ -1186,36 +1186,19 @@ final case class DiskNotSupportedException(traceId: TraceId)
       traceId = Some(traceId)
     )
 
-final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName, traceId: TraceId)
+final case class DiskAlreadyAttachedException(cloudContext: CloudContext, name: DiskName, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
+      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already attached to another runtime",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
 
-final case class DiskAlreadyFormattedByOtherApp(googleProject: GoogleProject,
+final case class DiskAlreadyFormattedByOtherApp(cloudContext: CloudContext,
                                                 name: DiskName,
                                                 traceId: TraceId,
                                                 formattedBy: FormattedBy
 ) extends LeoException(
-      s"Persistent disk ${googleProject.value}/${name.value} is already formatted by ${formattedBy.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-
-final case class DiskAlreadyFormattedByOtherAppV2(cloudContext: CloudContext,
-                                                  name: DiskName,
-                                                  traceId: TraceId,
-                                                  formattedBy: FormattedBy
-) extends LeoException(
-      s"Persistent disk ${cloudContext}/${name.value} is already formatted by ${formattedBy.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-
-final case class DiskAlreadyAttachedExceptionV2(cloudContext: CloudContext, name: DiskName, traceId: TraceId)
-    extends LeoException(
-      s"Persistent disk ${cloudContext}/${name.value} is already attached to another runtime",
+      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already formatted by ${formattedBy.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

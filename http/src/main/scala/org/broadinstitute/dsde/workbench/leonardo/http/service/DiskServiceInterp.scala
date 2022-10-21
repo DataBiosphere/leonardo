@@ -264,7 +264,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 409 if the disk is attached to a runtime
       attached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
       _ <-
-        if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, diskName, ctx.traceId))
+        if (attached)
+          F.raiseError[Unit](DiskAlreadyAttachedException(CloudContext.Gcp(googleProject), diskName, ctx.traceId))
         else F.unit
       // delete the disk
       _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction.void >> publisherQueue.offer(

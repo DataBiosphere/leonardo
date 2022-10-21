@@ -702,7 +702,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe "Persistent disk dsp-leo-test/disk is already formatted by CROMWELL"
+    res.swap.toOption.get.getMessage shouldBe "Persistent disk Gcp/dsp-leo-test/disk is already formatted by CROMWELL"
   }
 
   it should "error on creation of Cromwell app without a disk" in isolatedDbTest {
@@ -1437,7 +1437,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   // ----- App V2 tests -----
   // TODO: Need disk implementation in order to create app.
 
-  it should "create an app V2 and a new disk" in isolatedDbTest {
+  it should "V2 GCP - create an app V2 and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -1476,7 +1476,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   // TODO: Write test with existing disk
-  it should "create an app V2 and a new disk for Azure" in isolatedDbTest {
+  it should "V2 Azure - create an app V2 and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, Some(DiskSize(50)), Some(DiskType.Standard), Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -1514,7 +1514,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
-  it should "queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
+  it should "V2 GCP - queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -1537,7 +1537,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val defaultNodepools = getMinimalCluster.nodepools.filter(_.isDefault)
     defaultNodepools.length shouldBe 1
-    val defaultNodepool = defaultNodepools.head
 
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     message.messageType shouldBe LeoPubsubMessageType.CreateApp
@@ -1548,7 +1547,40 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     createAppMessage.customEnvironmentVariables shouldBe customEnvVars
   }
 
-  it should "delete a gcp app V2, update status appropriately, and queue a message" in isolatedDbTest {
+  it should "V2 Azure - queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val getApp = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }.get
+
+    val getMinimalCluster = dbFutureValue {
+      kubernetesClusterQuery.getMinimalClusterById(getApp.cluster.id)
+    }.get
+
+    val defaultNodepools = getMinimalCluster.nodepools.filter(_.isDefault)
+    defaultNodepools.length shouldBe 1
+
+    val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    message.messageType shouldBe LeoPubsubMessageType.CreateApp
+    val createAppMessage = message.asInstanceOf[CreateAppV2Message]
+    createAppMessage.appId shouldBe getApp.app.id
+    createAppMessage.workspaceId shouldBe workspaceId
+    createAppMessage.createDisk shouldBe getApp.app.appResources.disk.map(_.id)
+    createAppMessage.customEnvironmentVariables shouldBe customEnvVars
+  }
+
+  it should "V2 GCP - delete a gcp app V2, update status appropriately, and queue a message" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue) // TODO: Add test for Azure using makeInterp.
     val appName = AppName("app1")
@@ -1597,7 +1629,56 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.diskId shouldBe None
   }
 
-  it should "list apps V2 should return apps for workspace" in isolatedDbTest {
+  it should "V2 Azure - delete an Azure app V2, update status appropriately, and queue a message" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue) // TODO: Add test for Azure using makeInterp.
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+
+    // we can't delete while its creating, so set it to Running
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+
+    kubeServiceInterp
+      .deleteAppV2(userInfo, workspaceId, appName, false)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
+    }
+
+    clusterPostDelete.length shouldEqual 1
+    val nodepool = clusterPostDelete.head.nodepools.head
+    nodepool.status shouldEqual NodepoolStatus.Running
+    val app = nodepool.apps.head
+    app.status shouldEqual AppStatus.Predeleting
+
+    // throw away create message
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    message.messageType shouldBe LeoPubsubMessageType.DeleteApp
+    val deleteAppMessage = message.asInstanceOf[DeleteAppV2Message]
+    deleteAppMessage.appId shouldBe app.id
+    deleteAppMessage.workspaceId shouldBe workspaceId
+    deleteAppMessage.diskId shouldBe None
+  }
+
+  it should "V2 list apps V2 should return apps for workspace" in isolatedDbTest {
     val appName1 = AppName("app1")
     val diskName1 = DiskName("newDiskName1")
     val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
@@ -1646,7 +1727,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     listProject3Apps.length shouldBe 1
   }
 
-  it should "get app V2" in isolatedDbTest {
+  it should "V2 GCP - get app" in isolatedDbTest {
     val appName1 = AppName("app1")
     val diskName1 = DiskName("newDiskName1")
     val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)

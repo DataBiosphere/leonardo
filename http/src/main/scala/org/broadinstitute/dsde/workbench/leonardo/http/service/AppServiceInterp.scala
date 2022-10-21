@@ -193,17 +193,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           config.leoKubernetesConfig.diskConfig
         )
       )
-      lastUsedApp <- diskResultOpt match {
-        case Some(diskResult) =>
-          if (diskResult.creationNeeded) {
-            F.pure(none[LastUsedApp])
-          } else {
-            getLastUsedAppForDiskV2(req, diskResult.disk)
-          }
-        case None => F.pure(none[LastUsedApp])
-      }
-//      if (diskResult.creationNeeded) F.pure(none[LastUsedApp])
-//      lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
+      lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
 
       saveApp <- F.fromEither(
         getSavableApp(cloudContext,
@@ -554,7 +544,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         .notifyResourceCreatedV2(samResourceId, originatingUserEmail, cloudContext, workspaceId, userInfo)
         .handleErrorWith { t =>
           log.error(ctx.loggingCtx, t)(
-            s"Failed to notify the AuthProvider for creation of kubernetes app ${cloudContext} / ${appName.value}"
+            s"Failed to notify the AuthProvider for creation of kubernetes app ${cloudContext.asStringWithProvider} / ${appName.value}"
           ) >> F.raiseError[Unit](t)
         }
 
@@ -573,7 +563,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
         else F.unit
 
-      // ------
       clusterId = saveClusterResult.minimalCluster.id
 
       machineConfig = req.kubernetesRuntimeConfig.getOrElse(
@@ -604,17 +593,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           } yield savedNodepool
       }
 
-      // -----
-
       runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
       petSA <- F.fromEither(
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
-      // TODO: Adapt the following to support Azure disk
 
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
-        RuntimeServiceInterp.processPersistentDiskRequestV2(
+        RuntimeServiceInterp.processPersistentDiskRequestForWorkspace(
           diskReq,
           config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
           cloudContext,
@@ -817,11 +803,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     diskResultOpt: Option[PersistentDiskRequestResult]
   )(implicit as: Ask[F, AppContext]): F[Option[LastUsedApp]] = for {
     ctx <- as.ask
-
     lastUsedApp <- diskResultOpt match {
       case Some(diskResult) =>
-        if (diskResult.creationNeeded) F.pure(none[LastUsedApp])
-        else {
+        if (diskResult.creationNeeded) {
+          F.pure(none[LastUsedApp])
+        } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _, _))) |
                 (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
@@ -873,61 +859,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
       case None => F.pure(none[LastUsedApp])
     }
-  } yield lastUsedApp
 
-  private def getLastUsedAppForDiskV2(
-    req: CreateAppRequest,
-    persistentDisk: PersistentDisk
-  )(implicit as: Ask[F, AppContext]): F[Option[LastUsedApp]] = for {
-    ctx <- as.ask
-    lastUsedApp <- (persistentDisk.formattedBy, persistentDisk.appRestore) match {
-      case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _, _))) |
-          (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
-        val lastUsedBy = persistentDisk.appRestore.get.lastUsedBy
-        for {
-          lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
-          lastUsed <- F.fromOption(
-            lastUsedOpt,
-            new LeoException(s"last used app($lastUsedBy) not found", traceId = Some(ctx.traceId))
-          )
-          _ <- req.customEnvironmentVariables.get(WORKSPACE_NAME_KEY).traverse { s =>
-            if (lastUsed.workspace.asString == s) F.unit
-            else
-              F.raiseError[Unit](
-                BadRequestException(
-                  s"workspace name has to be the same as last used app in order to restore data from existing disk",
-                  Some(ctx.traceId)
-                )
-              )
-          }
-        } yield lastUsed.some
-      case (Some(FormattedBy.Galaxy), Some(CromwellRestore(_))) =>
-        F.raiseError[Option[LastUsedApp]](
-          DiskAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
-        )
-      case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
-        F.raiseError[Option[LastUsedApp]](
-          DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
-        )
-      case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
-        F.raiseError[Option[LastUsedApp]](
-          DiskAlreadyFormattedError(persistentDisk.formattedBy.get,
-                                    s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
-                                    ctx.traceId
-          )
-        )
-      case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
-        F.raiseError[Option[LastUsedApp]](
-          new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
-        )
-      case (None, _) =>
-        F.raiseError[Option[LastUsedApp]](
-          new LeoException(
-            "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app",
-            traceId = Some(ctx.traceId)
-          )
-        )
-    }
   } yield lastUsedApp
 
   private[service] def convertToDisk(userInfo: UserInfo,
