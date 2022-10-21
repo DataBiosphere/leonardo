@@ -1034,6 +1034,109 @@ object RuntimeServiceInterp {
       }
     } yield disk
 
+  def processPersistentDiskRequestV2[F[_]](
+    req: PersistentDiskRequest,
+    targetZone: ZoneName,
+    cloudContext: CloudContext,
+    workspaceId: WorkspaceId,
+    userInfo: UserInfo,
+    serviceAccount: WorkbenchEmail,
+    willBeUsedBy: FormattedBy,
+    authProvider: LeoAuthProvider[F],
+    diskConfig: PersistentDiskConfig
+  )(implicit
+    as: Ask[F, AppContext],
+    F: Async[F],
+    dbReference: DbReference[F],
+    ec: ExecutionContext,
+    log: StructuredLogger[F]
+  ): F[PersistentDiskRequestResult] =
+    for {
+      ctx <- as.ask
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, req.name).transaction
+      disk <- diskOpt match {
+        case Some(pd) =>
+          for {
+            _ <-
+              if (pd.zone == targetZone) F.unit
+              else
+                F.raiseError(
+                  BadRequestException(
+                    s"existing disk ${pd.projectNameString} is in zone ${pd.zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create your runtime in zone ${pd.zone.value} if you'd like to use this disk; or opt to use a new disk",
+                    Some(ctx.traceId)
+                  )
+                )
+            isAttached <- pd.formattedBy match {
+              case None =>
+                for {
+                  isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                  isAttached <-
+                    if (isAttachedToRuntime) F.pure(true)
+                    else appQuery.isDiskAttached(pd.id).transaction
+                } yield isAttached
+              case Some(formattedBy) =>
+                if (willBeUsedBy == formattedBy) {
+                  formattedBy match {
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                      appQuery.isDiskAttached(pd.id).transaction
+                    case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                  }
+                } else
+                  F.raiseError[Boolean](
+                    DiskAlreadyFormattedByOtherAppV2(cloudContext, req.name, ctx.traceId, formattedBy)
+                  )
+            }
+            // throw 409 if the disk is attached to a runtime
+            _ <-
+              if (isAttached)
+                F.raiseError[Unit](DiskAlreadyAttachedExceptionV2(cloudContext, req.name, ctx.traceId))
+              else F.unit
+            hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
+              pd.samResource,
+              PersistentDiskAction.AttachPersistentDisk,
+              userInfo
+            )
+
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+          } yield PersistentDiskRequestResult(pd, false)
+
+        case None =>
+          for {
+            hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
+              WorkspaceResourceSamResourceId(workspaceId),
+              WorkspaceAction.CreateControlledApplicationResource,
+              userInfo
+            ) // TODO: Correct check?
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+            samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
+            // Look up the original email in case this API was called by a pet SA
+            originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
+            diskBeforeSave <- F.fromEither(
+              DiskServiceInterp.convertToDisk(
+                originatingUserEmail,
+                serviceAccount,
+                cloudContext,
+                req.name,
+                samResource,
+                diskConfig,
+                CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
+                ctx.now,
+                willBeUsedBy == FormattedBy.Galaxy,
+                None
+              )
+            )
+            _ <- authProvider
+              .notifyResourceCreatedV2(samResource, originatingUserEmail, cloudContext, workspaceId, userInfo)
+              .handleErrorWith { t =>
+                log.error(t)(
+                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
+                ) >> F.raiseError(t)
+              }
+            pd <- persistentDiskQuery.save(diskBeforeSave).transaction
+          } yield PersistentDiskRequestResult(pd, true)
+      }
+    } yield disk
+
   private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
                                                    autopauseThreshold: Option[Int],
                                                    autoFreezeConfig: AutoFreezeConfig

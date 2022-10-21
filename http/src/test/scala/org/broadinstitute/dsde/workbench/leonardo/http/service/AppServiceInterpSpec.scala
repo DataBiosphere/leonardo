@@ -1475,6 +1475,45 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
+  // TODO: Write test with existing disk
+  it should "create an app V2 and a new disk for Azure" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, Some(DiskSize(50)), Some(DiskType.Standard), Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val clusters = dbFutureValue {
+      KubernetesServiceDbQueries.listAppsByWorkspaceId(Some(workspaceId))
+    }
+    clusters.length shouldEqual 1
+    clusters.flatMap(_.nodepools).length shouldEqual 1
+    val cluster = clusters.head
+    cluster.auditInfo.creator shouldEqual userInfo.userEmail
+    cluster.workspaceId shouldEqual Some(workspaceId)
+
+    val nodepool = clusters.flatMap(_.nodepools).head
+    nodepool.machineType shouldEqual appReq.kubernetesRuntimeConfig.get.machineType
+    nodepool.numNodes shouldEqual appReq.kubernetesRuntimeConfig.get.numNodes
+    nodepool.autoscalingEnabled shouldEqual appReq.kubernetesRuntimeConfig.get.autoscalingEnabled
+    nodepool.auditInfo.creator shouldEqual userInfo.userEmail
+
+    clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
+    val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
+    app.appName shouldEqual appName
+    app.chart shouldEqual galaxyChart
+    app.auditInfo.creator shouldEqual userInfo.userEmail
+    app.customEnvironmentVariables shouldEqual customEnvVars
+
+    val savedDisk = dbFutureValue {
+      persistentDiskQuery.getById(app.appResources.disk.get.id)
+    }
+    savedDisk.map(_.name) shouldEqual Some(diskName)
+  }
+
   it should "queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
