@@ -121,7 +121,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
         appName,
         req
       )
-      _ <- metrics.incrementCounter("createApp")
+      tags = Map("appType" -> req.appType.toString)
+      _ <- metrics.incrementCounter("createApp", 1, tags)
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -176,8 +177,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       apiCall = kubernetesService.deleteApp(
         deleteParams
       )
-      tags = Map("deleteDisk" -> deleteDisk.toString)
-      _ <- metrics.incrementCounter("deleteApp", 1, tags)
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -187,7 +186,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
     for {
       ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.stopApp(userInfo, CloudContext.Gcp(googleProject), appName)
-      _ <- metrics.incrementCounter("stopApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "stopApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -197,7 +195,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
     for {
       ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.startApp(userInfo, CloudContext.Gcp(googleProject), appName)
-      _ <- metrics.incrementCounter("startApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "startApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 }
