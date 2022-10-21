@@ -5,7 +5,14 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureCloudContext,
+  ContainerName,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -128,8 +135,13 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       Some(
         WorkspaceDescription(
           workspaceId,
-          "workspaceName",
-          Some(CommonTestData.azureCloudContext),
+          "workspaceName" + workspaceId,
+          Some(
+            AzureCloudContext(TenantId("testTenant" + workspaceId),
+                              SubscriptionId("testSubscription" + workspaceId),
+                              ManagedResourceGroupName("testMrg" + workspaceId)
+            )
+          ),
           None
         )
       )

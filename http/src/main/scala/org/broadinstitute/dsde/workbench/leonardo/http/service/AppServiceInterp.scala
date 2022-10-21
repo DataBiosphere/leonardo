@@ -254,7 +254,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
             .raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase, "v1")
 
   override def listApp(
     userInfo: UserInfo,
@@ -266,7 +266,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2)
         .transaction
-      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v1")
     } yield res
 
   override def deleteApp(request: DeleteAppRequest)(implicit
@@ -445,11 +445,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .listAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
       .transaction
 
-    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
+    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v2")
   } yield res
 
-  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster], userInfo: UserInfo, labels: List[String])(
-    implicit as: Ask[F, AppContext]
+  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
+                                        userInfo: UserInfo,
+                                        labels: List[String],
+                                        apiVersion: String
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] = for {
     _ <- as.ask
     samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
@@ -479,7 +483,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             )
           }
           .filterNot(_.nodepools.isEmpty)
-          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
+          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels, apiVersion))
           .toVector
     }
   } yield res
@@ -505,7 +509,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
             .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase, "v2")
 
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
     implicit as: Ask[F, AppContext]

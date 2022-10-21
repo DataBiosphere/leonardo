@@ -1678,7 +1678,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.diskId shouldBe None
   }
 
-  it should "V2 list apps V2 should return apps for workspace" in isolatedDbTest {
+  it should "V2 GCP - list apps V2 should return apps for workspace" in isolatedDbTest {
     val appName1 = AppName("app1")
     val diskName1 = DiskName("newDiskName1")
     val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
@@ -1722,6 +1722,56 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val listProject3Apps =
       gcpWorkspaceAppServiceInterp
+        .listAppV2(userInfo, workspaceId3, Map())
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    listProject3Apps.length shouldBe 1
+  }
+
+  it should "V2 Azure - list apps V2 should return apps for workspace" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val diskName1 = DiskName("newDiskName1")
+    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        diskConfig = Some(createDiskConfig1)
+    )
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    val appName2 = AppName("app2")
+    val diskName2 = DiskName("newDiskName2")
+    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
+    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
+
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId, appName2, appReq2)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appName3 = AppName("app3")
+    val diskName3 = DiskName("newDiskName3")
+    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
+    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
+
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val listProject1Apps =
+      appServiceInterp
+        .listAppV2(userInfo, workspaceId, Map())
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    listProject1Apps.map(_.appName) should contain(appName1)
+    listProject1Apps.map(_.appName) should contain(appName2)
+    listProject1Apps.length shouldBe 2
+
+    val listProject3Apps =
+      appServiceInterp
         .listAppV2(userInfo, workspaceId3, Map())
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listProject3Apps.length shouldBe 1
@@ -1773,6 +1823,33 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       appServiceInterp.getAppV2(userInfo, workspaceId3, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp3.diskName shouldBe Some(diskName3)
   }
+
+//TODO: Investigate why this test fails
+//  it should "V2 GCP - error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
+//    val cluster = makeKubeCluster(0).save()
+//    val nodepool = makeNodepool(1, cluster.id).save()
+//    val cromwellApp = makeApp(1, nodepool.id).save()
+//    val disk = makePersistentDisk(None,
+//                                  formattedBy = Some(FormattedBy.Cromwell),
+//                                  appRestore = Some(CromwellRestore(cromwellApp.id))
+//    )
+//      .copy(cloudContext = cloudContextGcp)
+//      .save()
+//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//
+//    val galaxyAppName = AppName("galaxy-app1")
+//    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+//    val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+//
+//    val publisherQueue = QueueFactory.makePublisherQueue()
+//    val kubeServiceInterp = makeInterp(publisherQueue)
+//    val res = kubeServiceInterp
+//      .createAppV2(userInfo, workspaceId, galaxyAppName, galaxyAppReq)
+//      .attempt
+//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//
+//    res.swap.toOption.get.getMessage shouldBe "Persistent disk Gcp/dsp-leo-test/disk is already formatted by CROMWELL"
+//  }
 
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
