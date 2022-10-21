@@ -1202,3 +1202,20 @@ final case class DiskAlreadyFormattedByOtherApp(googleProject: GoogleProject,
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
+
+final case class DiskAlreadyFormattedByOtherAppV2(cloudContext: CloudContext,
+                                                  name: DiskName,
+                                                  traceId: TraceId,
+                                                  formattedBy: FormattedBy
+) extends LeoException(
+      s"Persistent disk ${cloudContext}/${name.value} is already formatted by ${formattedBy.asString}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+final case class DiskAlreadyAttachedExceptionV2(cloudContext: CloudContext, name: DiskName, traceId: TraceId)
+    extends LeoException(
+      s"Persistent disk ${cloudContext}/${name.value} is already attached to another runtime",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
