@@ -3498,7 +3498,6 @@ components:
         cloudResource:
           type: string
           description: Cloud resource name. Google project if cloud provider is GCP OR Azure's tenantId/subscriptionId/managedResourceGroupId if in Azure
-          example: n1-standard-1
 
     KubernetesRuntimeConfig:
       description: configuration for a kubernetes app runtime
