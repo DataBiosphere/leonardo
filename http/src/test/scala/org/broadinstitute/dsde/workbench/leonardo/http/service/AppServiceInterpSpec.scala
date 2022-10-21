@@ -23,7 +23,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfi
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAppMessage,
+  CreateAppV2Message,
+  DeleteAppMessage,
+  DeleteAppV2Message
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
   LeoPubsubMessage,
@@ -55,9 +60,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         Some(
           WorkspaceDescription(
             workspaceId,
-            "someWorkspaceName",
+            "someWorkspaceName" + workspaceId,
             None,
-            Some(CommonTestData.project)
+            Some(GoogleProject(workspaceId.toString))
           )
         )
       )
@@ -1449,7 +1454,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     clusters.flatMap(_.nodepools).length shouldEqual 1
     val cluster = clusters.head
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
-    cluster.workspaceId shouldEqual workspaceId
+    cluster.workspaceId shouldEqual Some(workspaceId)
 
     val nodepool = clusters.flatMap(_.nodepools).head
     nodepool.machineType shouldEqual appReq.kubernetesRuntimeConfig.get.machineType
@@ -1470,7 +1475,41 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
-  it should "delete a gcp app V2 and update status appropriately" in isolatedDbTest {
+  it should "queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val getApp = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }.get
+
+    val getMinimalCluster = dbFutureValue {
+      kubernetesClusterQuery.getMinimalClusterById(getApp.cluster.id)
+    }.get
+
+    val defaultNodepools = getMinimalCluster.nodepools.filter(_.isDefault)
+    defaultNodepools.length shouldBe 1
+    val defaultNodepool = defaultNodepools.head
+
+    val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    message.messageType shouldBe LeoPubsubMessageType.CreateApp
+    val createAppMessage = message.asInstanceOf[CreateAppV2Message]
+    createAppMessage.appId shouldBe getApp.app.id
+    createAppMessage.workspaceId shouldBe workspaceId
+    createAppMessage.createDisk shouldBe getApp.app.appResources.disk.map(_.id)
+    createAppMessage.customEnvironmentVariables shouldBe customEnvVars
+  }
+
+  it should "delete a gcp app V2, update status appropriately, and queue a message" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue) // TODO: Add test for Azure using makeInterp.
     val appName = AppName("app1")
@@ -1482,7 +1521,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName)
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
     }
 
     // we can't delete while its creating, so set it to Running
@@ -1490,15 +1529,16 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
     val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName)
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
     }
     appResultPreDelete.get.app.status shouldEqual AppStatus.Running
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    val params = DeleteAppRequest(userInfo, cloudContextGcp, appName, false)
-    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    kubeServiceInterp
+      .deleteAppV2(userInfo, workspaceId, appName, false)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullApps(Some(cloudContextGcp), includeDeleted = true)
+      KubernetesServiceDbQueries.listAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
     }
 
     clusterPostDelete.length shouldEqual 1
@@ -1512,66 +1552,107 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     message.messageType shouldBe LeoPubsubMessageType.DeleteApp
-    val deleteAppMessage = message.asInstanceOf[DeleteAppMessage]
+    val deleteAppMessage = message.asInstanceOf[DeleteAppV2Message]
     deleteAppMessage.appId shouldBe app.id
-    deleteAppMessage.project shouldBe project
+    deleteAppMessage.workspaceId shouldBe workspaceId
     deleteAppMessage.diskId shouldBe None
   }
 
-//  it should "list apps V2" in isolatedDbTest {
-//    val appName1 = AppName("app1")
-//    val appName2 = AppName("app2")
-//    val appName3 = AppName("app3")
-//    val diskName1 = DiskName("newDiskName1")
-//    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
-//    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-//                                        diskConfig = Some(createDiskConfig1)
-//    )
-//    val diskName2 = DiskName("newDiskName2")
-//    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
-//    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
-//
-//    val diskName3 = DiskName("newDiskName3")
-//    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
-//    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
-//
-//    gcpWorkspaceAppServiceInterp
-//      .createAppV2(userInfo, workspaceId, appName1, appReq1)
-//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//
-//    val appResult = dbFutureValue {
-//      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
-//    }
-//    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-//
-//    gcpWorkspaceAppServiceInterp
-//      .createAppV2(userInfo, workspaceId2, appName2, appReq2)
-//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//    gcpWorkspaceAppServiceInterp
-//      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
-//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//
-//    val listProject1Apps =
-//      gcpWorkspaceAppServiceInterp
-//        .listAppV2(userInfo, workspaceId, Map())
-//        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//    listProject1Apps shouldBe 2
-//    listProject1Apps.map(_.appName) should contain(appName1)
-//    listProject1Apps.map(_.appName) should contain(appName2)
+  it should "list apps V2 should return apps for workspace" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val diskName1 = DiskName("newDiskName1")
+    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        diskConfig = Some(createDiskConfig1)
+    )
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-//    val listProject2Apps =
-//      gcpWorkspaceAppServiceInterp
-//        .listAppV2(userInfo, workspaceId2, Map())
-//        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//    listProject2Apps.length shouldBe 1
-//    listProject2Apps.map(_.appName) should contain(appName3)
-//
-//    val listProject3Apps =
-//      gcpWorkspaceAppServiceInterp
-//        .listAppV2(userInfo, workspaceId3, Map())
-//        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//    listProject3Apps.length shouldBe 0
-//  }
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    val appName2 = AppName("app2")
+    val diskName2 = DiskName("newDiskName2")
+    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
+    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
+
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId, appName2, appReq2)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appName3 = AppName("app3")
+    val diskName3 = DiskName("newDiskName3")
+    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
+    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
+
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val listProject1Apps =
+      gcpWorkspaceAppServiceInterp
+        .listAppV2(userInfo, workspaceId, Map())
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    listProject1Apps.length shouldBe 2
+    listProject1Apps.map(_.appName) should contain(appName1)
+    listProject1Apps.map(_.appName) should contain(appName2)
+
+    val listProject3Apps =
+      gcpWorkspaceAppServiceInterp
+        .listAppV2(userInfo, workspaceId3, Map())
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    listProject3Apps.length shouldBe 1
+  }
+
+  it should "get app V2" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val diskName1 = DiskName("newDiskName1")
+    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        diskConfig = Some(createDiskConfig1)
+    )
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    val appName2 = AppName("app2")
+    val diskName2 = DiskName("newDiskName2")
+    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
+    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
+
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId, appName2, appReq2)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appName3 = AppName("app3")
+    val diskName3 = DiskName("newDiskName3")
+    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
+    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
+
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val getApp1 =
+      appServiceInterp.getAppV2(userInfo, workspaceId, appName1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    getApp1.diskName shouldBe Some(diskName1)
+
+    val getApp2 =
+      appServiceInterp.getAppV2(userInfo, workspaceId, appName2).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    getApp2.diskName shouldBe Some(diskName2)
+
+    val getApp3 =
+      appServiceInterp.getAppV2(userInfo, workspaceId3, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    getApp3.diskName shouldBe Some(diskName3)
+  }
 
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
