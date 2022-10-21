@@ -123,7 +123,8 @@ object KubernetesTestData {
 
   def makeKubeCluster(index: Int,
                       withDefaultNodepool: Boolean = true,
-                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
+                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified,
+                      workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
   ): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueCloudContextGcp = CloudContext.Gcp(GoogleProject(project.value + index))
@@ -139,7 +140,7 @@ object KubernetesTestData {
       None,
       List(),
       List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool)),
-      Some(WorkspaceId(UUID.randomUUID()))
+      Some(workspaceId)
     )
   }
 

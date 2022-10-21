@@ -126,10 +126,10 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
                                           cloudContext: CloudContext,
                                           workspaceId: WorkspaceId,
                                           userInfo: UserInfo
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
 
   override def notifyResourceDeletedV2[R](samResource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
-  ): IO[Unit] = ???
+  ): IO[Unit] = IO.unit
 }
