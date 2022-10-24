@@ -19,26 +19,10 @@ import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure.{AzureContainerService, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleProjectDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO
-}
+import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{
-  credentialResource,
-  Event,
-  GKEService,
-  GoogleComputeService,
-  GoogleDataprocService,
-  GoogleDiskService,
-  GooglePublisher,
-  GoogleResourceService,
-  GoogleStorageService,
-  GoogleSubscriber
-}
+import org.broadinstitute.dsde.workbench.google2.{Event, GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GooglePublisher, GoogleResourceService, GoogleStorageService, GoogleSubscriber, credentialResource}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -47,12 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  BuildTimeVersion,
-  HttpRoutes,
-  LivenessRoutes,
-  StandardUserInfoDirectives
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, LivenessRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -66,7 +45,7 @@ import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
+import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
@@ -346,6 +325,9 @@ object Boot extends IOApp {
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
         HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
       )
+      cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
+        client => new HttpCromwellDAO[F](runtimeDnsCache, client, samDao)
+      )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -599,7 +581,8 @@ object Boot extends IOApp {
         ),
         helmClient,
         azureContainerService,
-        azureRelay
+        azureRelay,
+        cromwellDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,

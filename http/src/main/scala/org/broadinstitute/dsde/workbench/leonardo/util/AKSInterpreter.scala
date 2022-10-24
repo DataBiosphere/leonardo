@@ -44,6 +44,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   dbRef: DbReference[F],
   F: Async[F]
 ) extends AKSAlgebra[F] {
+  implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -143,7 +144,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-      // TODO (TOAZ-229): poll app for completion
+      // Poll app status
+      cromwellOk <- streamFUntilDone(
+        cromwellDao.getStatus(CloudContext.Azure(params.cloudContext), RuntimeName(params.appName.value)),
+        maxAttempts = config.pollingConfig.maxAttempts,
+        delay = config.pollingConfig.delay
+      ).interruptAfter(config.pollingConfig.interruptAfter).compile.lastOrError
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
@@ -353,3 +359,5 @@ final case class AKSInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupCha
                                       appRegistrationConfig: AzureAppRegistrationConfig,
                                       samConfig: SamConfig
 )
+
+final case class PollingConfig(maxAttempts: Int, delay: FiniteDuration, interruptAfter: FiniteDuration)

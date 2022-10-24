@@ -144,7 +144,7 @@ object AKSManualTest {
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/")
     )
-  } yield new AKSInterpreter(config, helmClient, containerService, relayService)
+  } yield new AKSInterpreter(config, helmClient, containerService, relayService, mock[CromwellDao[IO]])
 
   /** Deploys a CoA app */
   def deployApp: IO[Unit] = {

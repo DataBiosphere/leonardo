@@ -45,7 +45,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     config,
     MockHelm,
     setUpMockAzureContainerService,
-    FakeAzureRelayService
+    FakeAzureRelayService,
+    mock[CromwellDao[IO]]
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
