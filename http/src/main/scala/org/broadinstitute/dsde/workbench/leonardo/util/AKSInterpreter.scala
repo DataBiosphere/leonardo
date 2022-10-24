@@ -145,11 +145,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext)
 
       // Poll app status
-      cromwellOk <- streamFUntilDone(
-        cromwellDao.getStatus(CloudContext.Azure(params.cloudContext), RuntimeName(params.appName.value)),
-        maxAttempts = config.pollingConfig.maxAttempts,
-        delay = config.pollingConfig.delay
-      ).interruptAfter(config.pollingConfig.interruptAfter).compile.lastOrError
+      _ <- streamFUntilDone(
+          cromwellDao.getStatus(CloudContext.Azure(params.cloudContext), RuntimeName(params.appName.value)),
+        maxAttempts=6, delay=10 seconds).interruptAfter(1 minute).compile.lastOrError
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
