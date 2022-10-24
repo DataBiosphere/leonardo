@@ -40,4 +40,6 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
     Chart.fromString(invalidChartStr2) shouldBe None
     Chart.fromString(invalidChartStr3) shouldBe None
   }
+
+  // TODO: Add tests for V2 proxy URLs.
 }

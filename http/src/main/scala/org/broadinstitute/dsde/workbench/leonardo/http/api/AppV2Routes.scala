@@ -188,13 +188,17 @@ object AppV2Routes {
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct8("kubernetesRuntimeConfig",
-                        "errors",
-                        "status",
-                        "proxyUrls",
-                        "diskName",
-                        "customEnvironmentVariables",
-                        "auditInfo",
-                        "appType"
+    Encoder.forProduct11(
+      "appName",
+      "cloudContext",
+      "kubernetesRuntimeConfig",
+      "errors",
+      "status",
+      "proxyUrls",
+      "diskName",
+      "customEnvironmentVariables",
+      "auditInfo",
+      "appType",
+      "labels"
     )(x => GetAppResponse.unapply(x).get)
 }
