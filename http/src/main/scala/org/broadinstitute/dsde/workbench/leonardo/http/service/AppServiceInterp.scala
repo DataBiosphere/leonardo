@@ -35,9 +35,11 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.typelevel.log4cats.StructuredLogger
+
 import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppConfig
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 
@@ -52,6 +54,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
+  metrics: OpenTelemetryMetrics[F],
   ec: ExecutionContext
 ) extends AppService[F] {
   val SECURITY_GROUP = "security-group"
@@ -352,7 +355,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         appOpt,
         AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, "No active app found in DB")
       )
-
+      tags = Map("appType" -> appResult.app.appType.toString, "deleteDisk" -> request.deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteApp", 1, tags)
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, request.userInfo)
 
       // throw 404 if no GetAppStatus permission
@@ -424,7 +428,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appResult <- F.fromOption(appOpt,
                                 AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
-
+      tags = Map("appType" -> appResult.app.appType.toString)
+      _ <- metrics.incrementCounter("stopApp", 1, tags)
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no StopStartApp permission
@@ -469,7 +474,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appResult <- F.fromOption(appOpt,
                                 AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
-
+      tags = Map("appType" -> appResult.app.appType.toString)
+      _ <- metrics.incrementCounter("startApp", 1, tags)
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no StopStartApp permission
