@@ -63,7 +63,11 @@ final case class ListAppResponse(cloudProvider: CloudProvider,
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 
 object ListAppResponse {
-  def fromCluster(c: KubernetesCluster, proxyUrlBase: String, labelsToReturn: List[String]): List[ListAppResponse] =
+  def fromCluster(c: KubernetesCluster,
+                  proxyUrlBase: String,
+                  labelsToReturn: List[String],
+                  apiVersion: String
+  ): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
@@ -77,8 +81,10 @@ object ListAppResponse {
           ),
           a.errors,
           a.status,
-          a.getProxyUrls(c.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                         proxyUrlBase
+          a.getProxyUrls(c.cloudContext,
+                         c.workspaceId,
+                         proxyUrlBase,
+                         apiVersion
           ), // TODO: refactor once we support proxying azure app
           a.appName,
           a.appType,
@@ -88,11 +94,10 @@ object ListAppResponse {
         )
       }
     )
-
 }
 
 object GetAppResponse {
-  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
+  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String, apiVersion: String): GetAppResponse =
     GetAppResponse(
       appResult.app.appName,
       appResult.cluster.cloudContext,
@@ -103,8 +108,10 @@ object GetAppResponse {
       ),
       appResult.app.errors,
       appResult.app.status,
-      appResult.app.getProxyUrls(appResult.cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                                 proxyUrlBase
+      appResult.app.getProxyUrls(appResult.cluster.cloudContext,
+                                 appResult.cluster.workspaceId,
+                                 proxyUrlBase,
+                                 apiVersion
       ), // TODO: refactor once we support proxying azure app
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,

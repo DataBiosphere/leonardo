@@ -1824,32 +1824,31 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     getApp3.diskName shouldBe Some(diskName3)
   }
 
-//TODO: Investigate why this test fails
-//  it should "V2 GCP - error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
-//    val cluster = makeKubeCluster(0).save()
-//    val nodepool = makeNodepool(1, cluster.id).save()
-//    val cromwellApp = makeApp(1, nodepool.id).save()
-//    val disk = makePersistentDisk(None,
-//                                  formattedBy = Some(FormattedBy.Cromwell),
-//                                  appRestore = Some(CromwellRestore(cromwellApp.id))
-//    )
-//      .copy(cloudContext = cloudContextGcp)
-//      .save()
-//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//
-//    val galaxyAppName = AppName("galaxy-app1")
-//    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
-//    val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-//
-//    val publisherQueue = QueueFactory.makePublisherQueue()
-//    val kubeServiceInterp = makeInterp(publisherQueue)
-//    val res = kubeServiceInterp
-//      .createAppV2(userInfo, workspaceId, galaxyAppName, galaxyAppReq)
-//      .attempt
-//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//
-//    res.swap.toOption.get.getMessage shouldBe "Persistent disk Gcp/dsp-leo-test/disk is already formatted by CROMWELL"
-//  }
+  it should "V2 GCP - error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
+    val cluster = makeKubeCluster(0).save()
+    val nodepool = makeNodepool(1, cluster.id).save()
+    val cromwellApp = makeApp(1, nodepool.id).save()
+    val disk = makePersistentDisk(None,
+                                  formattedBy = Some(FormattedBy.Cromwell),
+                                  appRestore = Some(CromwellRestore(cromwellApp.id))
+    )
+      .copy(cloudContext = CloudContext.Gcp(GoogleProject(workspaceId.toString)))
+      .save()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val galaxyAppName = AppName("galaxy-app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+    val res = kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, galaxyAppName, galaxyAppReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    res.swap.toOption.get.getMessage shouldBe s"Persistent disk Gcp/${workspaceId}/disk is already formatted by CROMWELL"
+  }
 
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]

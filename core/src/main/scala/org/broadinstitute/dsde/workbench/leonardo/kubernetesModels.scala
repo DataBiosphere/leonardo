@@ -379,15 +379,50 @@ final case class App(id: AppId,
                      descriptorPath: Option[Uri],
                      extraArgs: List[String]
 ) {
-  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
+
+  def getProxyUrls(cloudContext: CloudContext,
+                   workspaceId: Option[WorkspaceId],
+                   proxyUrlBase: String,
+                   apiVersion: String
+  ): Map[ServiceName, URL] =
     appResources.services.map { service =>
-      val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
-      val servicePath = service.config.path match {
-        case Some(path) => path.value.replace("{proxyPath}", proxyPath)
-        case None       => ""
+      apiVersion match {
+        case "v1" =>
+          cloudContext match {
+            case CloudContext.Gcp(googleProject) => getProxyUrlsV1(googleProject, proxyUrlBase, service)
+            case CloudContext.Azure(_)           => ??? // TODO: Error
+          }
+        case "v2" =>
+          workspaceId match {
+            case Some(workspace) => getProxyUrlsV2(workspace, proxyUrlBase, service)
+            case None            => ??? // TODO: Error
+          }
       }
-      (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
     }.toMap
+
+  def getProxyUrlsV1(project: GoogleProject,
+                     proxyUrlBase: String,
+                     kubernetesService: KubernetesService
+  ): (ServiceName, URL) = {
+    val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${kubernetesService.config.name.value}"
+    val servicePath = kubernetesService.config.path match {
+      case Some(path) => path.value.replace("{proxyPath}", proxyPath)
+      case None       => ""
+    }
+    (kubernetesService.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
+  }
+
+  def getProxyUrlsV2(workspaceId: WorkspaceId,
+                     proxyUrlBase: String,
+                     kubernetesService: KubernetesService
+  ): (ServiceName, URL) = {
+    val proxyPath = s"apps/v2/${workspaceId.value}/${appName.value}/${kubernetesService.config.name.value}"
+    val servicePath = kubernetesService.config.path match {
+      case Some(path) => path.value.replace("{proxyPath}", proxyPath)
+      case None       => ""
+    }
+    (kubernetesService.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
+  }
 }
 
 sealed abstract class AppStatus
