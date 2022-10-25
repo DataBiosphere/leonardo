@@ -58,22 +58,23 @@ class AppLifecycleSpec
       test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
   }
 
-  "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
-    test(
-      googleProject,
-      createAppRequest(
-        AppType.Custom,
-        "custom-test-workspace",
-        Some(
-          org.http4s.Uri.unsafeFromString(
-            "https://raw.githubusercontent.com/DataBiosphere/terra-app/acb66d96045e199d2cae6876723e028296794292/apps/ucsc_genome_browser/app.yaml"
-          )
-        )
-      ),
-      true,
-      false
-    )
-  }
+// TODO: Add this back once we figure out why this is still running in alpha tests
+//  "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
+//    test(
+//      googleProject,
+//      createAppRequest(
+//        AppType.Custom,
+//        "custom-test-workspace",
+//        Some(
+//          org.http4s.Uri.unsafeFromString(
+//            "https://raw.githubusercontent.com/DataBiosphere/terra-app/acb66d96045e199d2cae6876723e028296794292/apps/ucsc_genome_browser/app.yaml"
+//          )
+//        )
+//      ),
+//      true,
+//      false
+//    )
+//  }
 
   def test(googleProject: GoogleProject,
            createAppRequest: CreateAppRequest,
