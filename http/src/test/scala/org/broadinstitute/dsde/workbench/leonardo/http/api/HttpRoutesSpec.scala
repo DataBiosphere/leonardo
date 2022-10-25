@@ -10,6 +10,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -467,6 +468,11 @@ class HttpRoutesSpec
   }
 
   it should "list runtimes v2 with labels" in isolatedDbTest {
+
+    def testAzureCloudContext = AzureCloudContext(TenantId(workspaceId.toString),
+                                                  SubscriptionId(workspaceId.toString),
+                                                  ManagedResourceGroupName(workspaceId.toString)
+    )
     def saLabels = Map("clusterServiceAccount" -> "user1@example.com")
     def runtimesWithLabels(i: Int) =
       defaultCreateAzureRuntimeReq
@@ -489,7 +495,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-6")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"azureruntime-6",
@@ -510,7 +516,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-4")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"azureruntime-4",

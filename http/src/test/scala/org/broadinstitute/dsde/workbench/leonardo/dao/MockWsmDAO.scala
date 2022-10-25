@@ -137,9 +137,9 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
           workspaceId,
           "workspaceName" + workspaceId,
           Some(
-            AzureCloudContext(TenantId("testTenant" + workspaceId),
-                              SubscriptionId("testSubscription" + workspaceId),
-                              ManagedResourceGroupName("testMrg" + workspaceId)
+            AzureCloudContext(TenantId(workspaceId.toString),
+                              SubscriptionId(workspaceId.toString),
+                              ManagedResourceGroupName(workspaceId.toString)
             )
           ),
           None
