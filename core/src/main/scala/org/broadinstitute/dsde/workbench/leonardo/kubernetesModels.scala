@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName
 }
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
@@ -385,44 +384,29 @@ final case class App(id: AppId,
                    proxyUrlBase: String,
                    apiVersion: String
   ): Map[ServiceName, URL] =
-    appResources.services.map { service =>
-      apiVersion match {
-        case "v1" =>
-          cloudContext match {
-            case CloudContext.Gcp(googleProject) => getProxyUrlsV1(googleProject, proxyUrlBase, service)
-            case CloudContext.Azure(_)           => ??? // TODO: Error
-          }
-        case "v2" =>
-          workspaceId match {
-            case Some(workspace) => getProxyUrlsV2(workspace, proxyUrlBase, service)
-            case None            => ??? // TODO: Error
-          }
+    appResources.services.flatMap { service =>
+      val proxyPathOpt = (apiVersion, cloudContext, workspaceId) match {
+        // v1 apis should always generate urls for google apps
+        case ("v1", CloudContext.Gcp(project), _) =>
+          Some(s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}")
+        // v2 apis should generate urls for apps on both clouds, but only if there's a workspace
+        case ("v2", _, Some(workspace)) =>
+          Some(s"apps/v2/${workspace.toString}/${appName.value}/${service.config.name.value}")
+        // otherwise don't generate a proxy url
+        case _ =>
+          None
+      }
+      proxyPathOpt match {
+        case Some(proxyPath) =>
+          Map(
+            service.config.name -> new URL(
+              s"${proxyUrlBase}${proxyPath}${service.config.path.getOrElse("")}"
+            )
+          )
+        case None =>
+          Map.empty
       }
     }.toMap
-
-  def getProxyUrlsV1(project: GoogleProject,
-                     proxyUrlBase: String,
-                     kubernetesService: KubernetesService
-  ): (ServiceName, URL) = {
-    val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${kubernetesService.config.name.value}"
-    val servicePath = kubernetesService.config.path match {
-      case Some(path) => path.value.replace("{proxyPath}", proxyPath)
-      case None       => ""
-    }
-    (kubernetesService.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
-  }
-
-  def getProxyUrlsV2(workspaceId: WorkspaceId,
-                     proxyUrlBase: String,
-                     kubernetesService: KubernetesService
-  ): (ServiceName, URL) = {
-    val proxyPath = s"apps/v2/${workspaceId.value}/${appName.value}/${kubernetesService.config.name.value}"
-    val servicePath = kubernetesService.config.path match {
-      case Some(path) => path.value.replace("{proxyPath}", proxyPath)
-      case None       => ""
-    }
-    (kubernetesService.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
-  }
 }
 
 sealed abstract class AppStatus

@@ -81,11 +81,7 @@ object ListAppResponse {
           ),
           a.errors,
           a.status,
-          a.getProxyUrls(c.cloudContext,
-                         c.workspaceId,
-                         proxyUrlBase,
-                         apiVersion
-          ), // TODO: refactor once we support proxying azure app
+          a.getProxyUrls(c.cloudContext, c.workspaceId, proxyUrlBase, apiVersion),
           a.appName,
           a.appType,
           a.appResources.disk.map(_.name),
@@ -112,7 +108,7 @@ object GetAppResponse {
                                  appResult.cluster.workspaceId,
                                  proxyUrlBase,
                                  apiVersion
-      ), // TODO: refactor once we support proxying azure app
+      ),
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,

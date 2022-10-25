@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
-  "App" should "generate valid proxy urls" in {
+  "App" should "generate valid proxy urls for v1 api" in {
     val services = (1 to 3).map(makeService).toList
     val app = LeoLenses.appToServices.modify(_ => services)(testApp)
     app.getProxyUrls(CloudContext.Gcp(project), None, proxyUrlBase, "v1") shouldBe Map(
@@ -41,5 +41,33 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
     Chart.fromString(invalidChartStr3) shouldBe None
   }
 
-  // TODO: Add tests for V2 proxy URLs.
+  "App" should "generate valid proxy urls for v2 api." in {
+    val services = (1 to 3).map(makeService).toList
+    val app = LeoLenses.appToServices.modify(_ => services)(testApp)
+
+    // GCP Project
+    app.getProxyUrls(CloudContext.Gcp(project), Some(workspaceId), proxyUrlBase, "v2") shouldBe Map(
+      ServiceName("service1") -> new URL(
+        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service1"
+      ),
+      ServiceName("service2") -> new URL(
+        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service2"
+      ),
+      ServiceName("service3") -> new URL(
+        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service3"
+      )
+    )
+
+    app.getProxyUrls(CloudContext.Azure(azureCloudContext), Some(workspaceId), proxyUrlBase, "v2") shouldBe Map(
+      ServiceName("service1") -> new URL(
+        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service1"
+      ),
+      ServiceName("service2") -> new URL(
+        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service2"
+      ),
+      ServiceName("service3") -> new URL(
+        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service3"
+      )
+    )
+  }
 }
