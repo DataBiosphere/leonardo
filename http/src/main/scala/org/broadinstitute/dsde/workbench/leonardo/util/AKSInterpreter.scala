@@ -81,7 +81,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
-      // Deploy aad-pod-identity chart in the kube-system namepsace
+      // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       _ <- helmClient
         .installChart(
