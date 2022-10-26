@@ -22,7 +22,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.2")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.3")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -73,13 +73,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/Users/rtitle/git/broadinstitute/cromwhelm/coa-helm"),
-          ChartVersion("0.2.125"),
+          ChartVersion("0.2.143"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa")
         ),
         AadPodIdentityConfig(
-          Namespace("kube-system"),
+          Namespace("aad-pod-identity"),
           Release("aad-pod-identity"),
           ChartName("aad-pod-identity/aad-pod-identity"),
           ChartVersion("4.1.14"),
