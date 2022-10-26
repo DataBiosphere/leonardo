@@ -18,18 +18,15 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppResources,
   AppStatus,
   AppType,
-  BatchAccountName,
   CloudContext,
   DefaultNodepool,
   KubernetesClusterStatus,
-  LandingZoneResources,
   ManagedIdentityName,
   Namespace,
   NamespaceId,
-  NodepoolStatus,
-  StorageAccountName,
-  SubnetName
+  NodepoolStatus
 }
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -45,26 +42,26 @@ import scala.concurrent.ExecutionContext
  */
 object AKSManualTest {
   // Constants
+
+  // vault read secret/dsde/terra/azure/dev/leonardo/managed-app-publisher
   val appRegConfig = AzureAppRegistrationConfig(
     ClientId("client-id"),
     ClientSecret("client-secret"),
     ManagedAppTenantId("tenant-id")
   )
+
+  // this is your MRG
   val cloudContext = AzureCloudContext(
     TenantId("tenant-id"),
     SubscriptionId("subscription-id"),
     ManagedResourceGroupName("mrg-name")
   )
-  val uamiName = ManagedIdentityName("pet-uami")
-  val appSamResourceId = AppSamResourceId("sam-resource-id")
-  val landingZoneResources = LandingZoneResources(
-    AKSClusterName("cluster"),
-    BatchAccountName("batch"),
-    RelayNamespace("relay"),
-    StorageAccountName("storage"),
-    SubnetName("subnet")
-  )
+
+  // This is your pet UAMI
+  val uamiName = ManagedIdentityName("uami-name")
+
   val appName = AppName("coa-app")
+  val appSamResourceId = AppSamResourceId("sam-id")
 
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]
@@ -110,6 +107,7 @@ object AKSManualTest {
                 chart = ConfigReader.appConfig.azure.coaAppConfig.chart,
                 release = Release(s"manual-${ConfigReader.appConfig.azure.coaAppConfig.releaseNameSuffix.value}"),
                 samResourceId = appSamResourceId,
+                googleServiceAccount = WorkbenchEmail(uamiName.value),
                 appResources = AppResources(
                   namespace = Namespace(
                     NamespaceId(-1),
@@ -134,6 +132,8 @@ object AKSManualTest {
     config = AKSInterpreterConfig(
       ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
+      ConfigReader.appConfig.azure.aadPodIdentityConfig,
+      appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/")
     )
   } yield new AKSInterpreter(config, helmClient, containerService, relayService)

@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -77,6 +77,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa")
+        ),
+        AadPodIdentityConfig(
+          Namespace("kube-system"),
+          Release("aad-pod-identity"),
+          ChartName("aad-pod-identity/aad-pod-identity"),
+          ChartVersion("4.1.14"),
+          Values("operationMode=managed")
         )
       ),
       OidcAuthConfig(
