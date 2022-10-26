@@ -208,7 +208,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .fromOption(
           vmScaleSets.iterator().asScala.nextOption(),
           AppCreationException(
-            s"VM Scale set not found for cluster ${cloudContext.managedResourceGroupName.value}/${clusterName.value}"
+            s"VM scale set not found for cluster ${cloudContext.managedResourceGroupName.value}/${clusterName.value}"
           )
         )
     } yield vmScaleSet
@@ -217,10 +217,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     retryConfig = RetryPredicates.retryAllConfig
     vmScaleSet <- tracedRetryF(retryConfig)(
       getFirstVmScaleSet,
-      s"Get VM Scale Set for cluster ${cloudContext.managedResourceGroupName.value}/${clusterName.value}"
+      s"Get VM scale set for cluster ${cloudContext.managedResourceGroupName.value}/${clusterName.value}"
     ).compile.lastOrError
 
-    // Assign VM scale set backing the node pool to the pet UAMI.
+    // Assign VM scale set to the pet UAMI (if not already assigned).
     //
     // Note: normally this is done behind the scenes by aad-pod-identity. However in our case the deny assignments
     // block it, so we need to use "Managed" mode handle the assignment ourselves. For more info see:
@@ -228,24 +228,32 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     //
     // Note also that we are using the service client instead of the fluent API to do this, because the fluent API
     // makes a POST request instead of a PATCH, leading to errors. (Possible Java SDK bug?)
-    newUamis = petManagedIdentity.id() :: vmScaleSet.userAssignedManagedServiceIdentityIds().asScala.toList
-    _ <- F.delay(
-      compute
-        .serviceClient()
-        .getVirtualMachineScaleSets
-        .update(
-          cluster.nodeResourceGroup,
-          vmScaleSet.name(),
-          new VirtualMachineScaleSetUpdate()
-            .withIdentity(
-              new VirtualMachineScaleSetIdentity()
-                .withType(ResourceIdentityType.USER_ASSIGNED)
-                .withUserAssignedIdentities(
-                  newUamis.map(_ -> new VirtualMachineIdentityUserAssignedIdentities()).toMap.asJava
+    existingUamis = vmScaleSet.userAssignedManagedServiceIdentityIds().asScala
+    _ <-
+      if (existingUamis.contains(petManagedIdentity.id)) {
+        F.unit
+      } else {
+        F.delay(
+          compute
+            .serviceClient()
+            .getVirtualMachineScaleSets
+            .update(
+              cluster.nodeResourceGroup,
+              vmScaleSet.name(),
+              new VirtualMachineScaleSetUpdate()
+                .withIdentity(
+                  new VirtualMachineScaleSetIdentity()
+                    .withType(ResourceIdentityType.USER_ASSIGNED)
+                    .withUserAssignedIdentities(
+                      (petManagedIdentity.id :: existingUamis.toList)
+                        .map(_ -> new VirtualMachineIdentityUserAssignedIdentities())
+                        .toMap
+                        .asJava
+                    )
                 )
             )
         )
-    )
+      }
   } yield ()
 
   private[util] def getHelmAuthContext(clusterName: AKSClusterName,
