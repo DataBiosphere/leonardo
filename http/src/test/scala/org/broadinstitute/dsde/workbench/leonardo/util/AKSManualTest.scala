@@ -104,7 +104,8 @@ object AKSManualTest {
                 appName = AppName("coa-app"),
                 status = AppStatus.Running,
                 appType = AppType.Cromwell,
-                chart = ConfigReader.appConfig.azure.coaAppConfig.chart,
+                chart = ConfigReader.appConfig.azure.coaAppConfig.chart
+                  .copy(name = ChartName("cromwell-helm/cromwell-on-azure")),
                 release = Release(s"manual-${ConfigReader.appConfig.azure.coaAppConfig.releaseNameSuffix.value}"),
                 samResourceId = appSamResourceId,
                 googleServiceAccount = WorkbenchEmail(uamiName.value),
