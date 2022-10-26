@@ -29,7 +29,8 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 1.6.1
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.148
+ENV CROMWELL_CHART_VERSION 0.2.149
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.149
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -60,6 +61,7 @@ RUN cd /leonardo && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
+    helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm repo update && \
     cd /
 
