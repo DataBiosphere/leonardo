@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCode
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, UserInfo}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -286,12 +286,12 @@ class HttpRoutesSpec
 
   it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in {
     val kubernetesService = new MockAppService {
-      override def deleteApp(request: DeleteAppRequest)(implicit
-        as: Ask[IO, AppContext]
+      override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
+        implicit as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
-        val expectedDeleteApp =
-          DeleteAppRequest(timedUserInfo, CloudContext.Gcp(GoogleProject("googleProject1")), AppName("app1"), false)
-        request shouldBe expectedDeleteApp
+        cloudContext shouldBe CloudContext.Gcp(GoogleProject("googleProject1"))
+        appName shouldBe AppName("app1")
+        deleteDisk shouldBe false
       }
     }
     Delete("/api/google/v1/apps/googleProject1/app1") ~> fakeRoutes(kubernetesService).route ~> check {
