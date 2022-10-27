@@ -95,7 +95,8 @@ object AKSManualTest {
             DefaultNodepool.fromNodepool(
               cluster.nodepools.headOption
                 .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
-            )
+            ),
+            None
           )
           for {
             saveClusterResult <- dbRef.inTransaction(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster))

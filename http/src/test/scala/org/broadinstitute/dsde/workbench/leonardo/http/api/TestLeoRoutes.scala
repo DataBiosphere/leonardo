@@ -62,6 +62,7 @@ trait TestLeoRoutes {
   }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
+  val wsmDao = new MockWsmDAO
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
     petMock.buckets += userScriptBucketName -> Set(
@@ -112,7 +113,8 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService,
     FakeGoogleResourceService,
-    Config.gkeCustomAppConfig
+    Config.gkeCustomAppConfig,
+    wsmDao
   )
 
   val serviceConfig = RuntimeServiceConfig(

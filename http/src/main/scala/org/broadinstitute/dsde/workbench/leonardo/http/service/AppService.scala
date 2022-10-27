@@ -3,7 +3,7 @@ package service
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, CloudContext}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, CloudContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 trait AppService[F[_]] {
@@ -11,7 +11,8 @@ trait AppService[F[_]] {
     userInfo: UserInfo,
     cloudContext: CloudContext,
     appName: AppName,
-    req: CreateAppRequest
+    req: CreateAppRequest,
+    workspaceId: Option[WorkspaceId] = None
   )(implicit as: Ask[F, AppContext]): F[Unit]
 
   def getApp(
@@ -37,6 +38,32 @@ trait AppService[F[_]] {
   def startApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
+
+  def createAppV2(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    appName: AppName,
+    req: CreateAppRequest
+  )(implicit as: Ask[F, AppContext]): F[Unit]
+
+  def getAppV2(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    appName: AppName
+  )(implicit as: Ask[F, AppContext]): F[GetAppResponse]
+
+  def listAppV2(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    params: Map[String, String]
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
+
+  def deleteAppV2(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    appName: AppName,
+    deleteDisk: Boolean
+  )(implicit as: Ask[F, AppContext]): F[Unit]
 }
 
 final case class AppServiceConfig(enableCustomAppCheck: Boolean, leoKubernetesConfig: LeoKubernetesConfig)

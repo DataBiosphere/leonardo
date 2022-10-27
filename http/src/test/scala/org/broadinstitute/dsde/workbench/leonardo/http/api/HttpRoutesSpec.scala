@@ -10,6 +10,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -467,6 +468,11 @@ class HttpRoutesSpec
   }
 
   it should "list runtimes v2 with labels" in isolatedDbTest {
+
+    def testAzureCloudContext = AzureCloudContext(TenantId(workspaceId.toString),
+                                                  SubscriptionId(workspaceId.toString),
+                                                  ManagedResourceGroupName(workspaceId.toString)
+    )
     def saLabels = Map("clusterServiceAccount" -> "user1@example.com")
     def runtimesWithLabels(i: Int) =
       defaultCreateAzureRuntimeReq
@@ -489,7 +495,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-6")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"azureruntime-6",
@@ -510,7 +516,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-4")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"azureruntime-4",
@@ -725,6 +731,47 @@ class HttpRoutesSpec
     Post("/api/google/v1/apps/googleProject1/app1/start") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list apps v2 with project" in {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      val response = responseAs[Vector[ListAppResponse]]
+      response shouldBe listAppResponse
+    }
+  }
+
+  it should "get app V2" in {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      responseAs[GetAppResponse] shouldBe getAppResponse
+    }
+  }
+
+  it should "delete app V2" in {
+    Delete(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "validate create appV2 request" in {
+    Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
+      .withEntity(
+        ContentTypes.`application/json`,
+        createAppRequest
+          .copy(kubernetesRuntimeConfig =
+            createAppRequest.kubernetesRuntimeConfig.map(c => c.copy(numNodes = NumNodes(-1)))
+          )
+          .asJson
+          .spaces2
+      ) ~> httpRoutes.route ~> check {
+      status shouldBe StatusCodes.BadRequest
+      val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
+      resp shouldBe "The request content was malformed:\nDecodingFailure at .kubernetesRuntimeConfig.numNodes: Minimum number of nodes is 1"
     }
   }
 

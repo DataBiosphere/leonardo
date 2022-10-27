@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResour
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
@@ -138,7 +138,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
-  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
@@ -178,6 +178,36 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             onError(resp).flatMap(F.raiseError[Unit])
         }
     } yield ()
+
+  override def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] = for {
+    traceId <- ev.ask
+    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    _ <- logger.info(
+      s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${sr.resourceIdAsString(resource)}"
+    )
+    _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
+    _ <- httpClient
+      .run(
+        Request[F](
+          method = Method.POST,
+          uri = config.samUri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+            ),
+          headers = Headers(authHeader)
+        )
+      )
+      .use { resp =>
+        if (resp.status.isSuccess)
+          F.unit
+        else
+          onError(resp).flatMap(F.raiseError[Unit])
+      }
+  } yield ()
 
   def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
@@ -265,6 +295,37 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
+  override def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] = for {
+    _ <- ev.ask
+    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType.asString}")
+    _ <- httpClient
+      .run(
+        Request[F](
+          method = Method.DELETE,
+          uri = config.samUri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+            ),
+          headers = Headers(authHeader)
+        )
+      )
+      .use { resp =>
+        resp.status match {
+          case Status.NotFound =>
+            logger.info(
+              s"Fail to delete ${sr.resourceIdAsString(resource)} because ${sr.resourceType.asString} doesn't exist in SAM"
+            )
+          case s if s.isSuccess => F.unit
+          case _                => onError(resp).flatMap(F.raiseError[Unit])
+        }
+      }
+  } yield ()
+
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
@@ -274,6 +335,19 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           method = Method.GET,
           uri = config.samUri
             .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/user/petServiceAccount/${googleProject.value}")),
+          headers = Headers(authorization)
+        )
+      )(onError)
+
+  def getPetManagedIdentity(authorization: Authorization)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkbenchEmail]] =
+    metrics.incrementCounter("sam/getPetManagedIdentity") >>
+      httpClient.expectOptionOr[WorkbenchEmail](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri
+            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity/")),
           headers = Headers(authorization)
         )
       )(onError)

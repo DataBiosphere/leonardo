@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -116,7 +116,8 @@ class MockSamDAO extends SamDAO[IO] {
         )
     }
 
-  override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = {
@@ -227,6 +228,11 @@ class MockSamDAO extends SamDAO[IO] {
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(petSA))
 
+  override def getPetManagedIdentity(authorization: Authorization)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Option[WorkbenchEmail]] =
+    IO.pure(Some(petSA))
+
   override def getUserProxy(
     userEmail: WorkbenchEmail
   )(implicit ev: Ask[IO, TraceId]): IO[Option[WorkbenchEmail]] =
@@ -301,6 +307,16 @@ class MockSamDAO extends SamDAO[IO] {
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
+
+  override def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
+
+  override def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
 }
 
 object MockSamDAO {

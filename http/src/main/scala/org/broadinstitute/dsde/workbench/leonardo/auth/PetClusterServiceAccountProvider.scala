@@ -12,11 +12,15 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 
 class PetClusterServiceAccountProvider[F[_]: Monad](sam: SamDAO[F]) extends ServiceAccountProvider[F] {
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+
+  override def getClusterServiceAccount(userInfo: UserInfo, cloudContext: CloudContext)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    sam.getPetServiceAccount(authHeader, googleProject)
+    cloudContext match {
+      case CloudContext.Gcp(googleProject) => sam.getPetServiceAccount(authHeader, googleProject)
+      case CloudContext.Azure(_)           => sam.getPetManagedIdentity(authHeader)
+    }
   }
 
   override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit

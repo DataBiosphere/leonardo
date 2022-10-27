@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName
 }
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
@@ -39,7 +38,8 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
-                             nodepools: List[Nodepool]
+                             nodepools: List[Nodepool],
+                             workspaceId: Option[WorkspaceId]
 ) {
 
   // TODO consider renaming this method and the KubernetesClusterId class
@@ -233,18 +233,21 @@ final case class NumNodes(amount: Int) extends AnyVal
 final case class AutoscalingMin(amount: Int) extends AnyVal
 final case class AutoscalingMax(amount: Int) extends AnyVal
 
-final case class DefaultKubernetesLabels(googleProject: GoogleProject,
+final case class DefaultKubernetesLabels(cloudContext: CloudContext,
                                          appName: AppName,
                                          creator: WorkbenchEmail,
                                          serviceAccount: WorkbenchEmail
 ) {
+  val cloudContextList = cloudContext match {
+    case CloudContext.Gcp(value)   => List("googleProject" -> value.value)
+    case CloudContext.Azure(value) => List("cloudContext" -> value.asString)
+  }
   val toMap: LabelMap =
     Map(
       "appName" -> appName.value,
-      "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "clusterServiceAccount" -> serviceAccount.value
-    )
+    ) ++ cloudContextList
 }
 
 sealed abstract class ErrorAction
@@ -375,14 +378,34 @@ final case class App(id: AppId,
                      descriptorPath: Option[Uri],
                      extraArgs: List[String]
 ) {
-  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
-    appResources.services.map { service =>
-      val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
-      val servicePath = service.config.path match {
-        case Some(path) => path.value.replace("{proxyPath}", proxyPath)
-        case None       => ""
+
+  def getProxyUrls(cloudContext: CloudContext,
+                   workspaceId: Option[WorkspaceId],
+                   proxyUrlBase: String,
+                   apiVersion: String
+  ): Map[ServiceName, URL] =
+    appResources.services.flatMap { service =>
+      val proxyPathOpt = (apiVersion, cloudContext, workspaceId) match {
+        // v1 apis should always generate urls for google apps
+        case ("v1", CloudContext.Gcp(project), _) =>
+          Some(s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}")
+        // v2 apis should generate urls for apps on both clouds, but only if there's a workspace
+        case ("v2", _, Some(workspace)) =>
+          Some(s"apps/v2/${workspace.toString}/${appName.value}/${service.config.name.value}")
+        // otherwise don't generate a proxy url
+        case _ =>
+          None
       }
-      (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
+      proxyPathOpt match {
+        case Some(proxyPath) =>
+          Map(
+            service.config.name -> new URL(
+              s"${proxyUrlBase}${proxyPath}${service.config.path.getOrElse("")}"
+            )
+          )
+        case None =>
+          Map.empty
+      }
     }.toMap
 }
 

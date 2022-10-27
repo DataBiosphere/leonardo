@@ -64,7 +64,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       serviceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, googleProject)
+        .getClusterServiceAccount(userInfo, CloudContext.Gcp(googleProject))
       petSA <- F.fromEither(
         serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
@@ -264,7 +264,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 409 if the disk is attached to a runtime
       attached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
       _ <-
-        if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, diskName, ctx.traceId))
+        if (attached)
+          F.raiseError[Unit](DiskAlreadyAttachedException(CloudContext.Gcp(googleProject), diskName, ctx.traceId))
         else F.unit
       // delete the disk
       _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction.void >> publisherQueue.offer(

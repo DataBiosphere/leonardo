@@ -16,6 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
+import java.util.UUID
+
 object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
@@ -75,14 +77,16 @@ object KubernetesTestData {
         testNodepool,
         testApp
       ),
-      "https://leo/proxy/"
+      "https://leo/proxy/",
+      "v1"
     )
 
   val listAppResponse =
     ListAppResponse
       .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
                    "https://leo/proxy/",
-                   List.empty
+                   List.empty,
+                   "v1"
       )
       .toVector
 
@@ -121,7 +125,8 @@ object KubernetesTestData {
 
   def makeKubeCluster(index: Int,
                       withDefaultNodepool: Boolean = true,
-                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
+                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified,
+                      workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
   ): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueCloudContextGcp = CloudContext.Gcp(GoogleProject(project.value + index))
@@ -136,7 +141,8 @@ object KubernetesTestData {
       auditInfo,
       None,
       List(),
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool)),
+      Some(workspaceId)
     )
   }
 

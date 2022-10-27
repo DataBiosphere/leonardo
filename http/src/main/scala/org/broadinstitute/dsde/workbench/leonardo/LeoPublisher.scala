@@ -120,6 +120,8 @@ final class LeoPublisher[F[_]](
           F.unit
         case _: LeoPubsubMessage.UpdateRuntimeMessage =>
           F.unit
+        case _: LeoPubsubMessage.CreateAppV2Message => F.unit
+        case _: LeoPubsubMessage.DeleteAppV2Message => F.unit
       }
     } yield ()
 }

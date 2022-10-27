@@ -230,9 +230,10 @@ object AppRoutes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct11(
+    Encoder.forProduct12(
+      "cloudProvider",
+      "workspaceId",
       "cloudContext",
-      "googleProject",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -243,8 +244,9 @@ object AppRoutes {
       "auditInfo",
       "labels"
     )(x =>
-      (x.cloudContext,
-       x.cloudContext.asString,
+      (x.cloudProvider,
+       x.workspaceId,
+       x.cloudContext,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,

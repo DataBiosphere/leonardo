@@ -10,10 +10,12 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   AuditInfo,
   CloudContext,
+  CloudProvider,
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,
-  Nodepool
+  Nodepool,
+  WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.http4s.Uri
@@ -44,7 +46,9 @@ final case class GetAppResponse(appName: AppName,
                                 labels: LabelMap
 )
 
-final case class ListAppResponse(cloudContext: CloudContext,
+final case class ListAppResponse(cloudProvider: CloudProvider,
+                                 workspaceId: Option[WorkspaceId],
+                                 cloudContext: CloudContext,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
                                  status: AppStatus, // TODO: do we need some sort of aggregate status?
@@ -59,10 +63,16 @@ final case class ListAppResponse(cloudContext: CloudContext,
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 
 object ListAppResponse {
-  def fromCluster(c: KubernetesCluster, proxyUrlBase: String, labelsToReturn: List[String]): List[ListAppResponse] =
+  def fromCluster(c: KubernetesCluster,
+                  proxyUrlBase: String,
+                  labelsToReturn: List[String],
+                  apiVersion: String
+  ): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
+          c.cloudContext.cloudProvider,
+          c.workspaceId,
           c.cloudContext,
           KubernetesRuntimeConfig(
             n.numNodes,
@@ -71,9 +81,7 @@ object ListAppResponse {
           ),
           a.errors,
           a.status,
-          a.getProxyUrls(c.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                         proxyUrlBase
-          ), // TODO: refactor once we support proxying azure app
+          a.getProxyUrls(c.cloudContext, c.workspaceId, proxyUrlBase, apiVersion),
           a.appName,
           a.appType,
           a.appResources.disk.map(_.name),
@@ -82,11 +90,10 @@ object ListAppResponse {
         )
       }
     )
-
 }
 
 object GetAppResponse {
-  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
+  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String, apiVersion: String): GetAppResponse =
     GetAppResponse(
       appResult.app.appName,
       appResult.cluster.cloudContext,
@@ -97,9 +104,11 @@ object GetAppResponse {
       ),
       appResult.app.errors,
       appResult.app.status,
-      appResult.app.getProxyUrls(appResult.cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                                 proxyUrlBase
-      ), // TODO: refactor once we support proxying azure app
+      appResult.app.getProxyUrls(appResult.cluster.cloudContext,
+                                 appResult.cluster.workspaceId,
+                                 proxyUrlBase,
+                                 apiVersion
+      ),
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,

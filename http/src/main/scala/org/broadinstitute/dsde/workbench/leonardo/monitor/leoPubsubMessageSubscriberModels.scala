@@ -260,11 +260,33 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
 
+  final case class CreateAppV2Message(
+    workspaceId: WorkspaceId,
+    appId: AppId,
+    appName: AppName,
+    createDisk: Option[DiskId],
+    customEnvironmentVariables: Map[String, String],
+    appType: AppType,
+    namespaceName: NamespaceName,
+    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
+  }
+
   final case class DeleteAppMessage(appId: AppId,
                                     appName: AppName,
                                     project: GoogleProject,
                                     diskId: Option[DiskId],
                                     traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
+  }
+
+  final case class DeleteAppV2Message(appId: AppId,
+                                      appName: AppName,
+                                      workspaceId: WorkspaceId,
+                                      diskId: Option[DiskId],
+                                      traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
   }
@@ -841,6 +863,35 @@ object LeoPubsubCodec {
       (x.messageType, x.runtimeId, x.diskId, x.workspaceId, x.wsmResourceId, x.traceId)
     )
 
+  implicit val createAppV2MessageEncoder: Encoder[CreateAppV2Message] =
+    Encoder.forProduct9(
+      "messageType",
+      "workspaceId",
+      "appId",
+      "appName",
+      "createDisk",
+      "customEnvironmentVariables",
+      "appType",
+      "namespaceName",
+      "traceId"
+    )(x =>
+      (x.messageType,
+       x.workspaceId,
+       x.appId,
+       x.appName,
+       x.createDisk,
+       x.customEnvironmentVariables,
+       x.appType,
+       x.namespaceName,
+       x.traceId
+      )
+    )
+
+  implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
+    Encoder.forProduct6("messageType", "appId", "appName", "workspaceId", "diskId", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.workspaceId, x.diskId, x.traceId)
+    )
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
     case m: CreateDiskMessage         => m.asJson
     case m: UpdateDiskMessage         => m.asJson
@@ -856,6 +907,8 @@ object LeoPubsubCodec {
     case m: StartAppMessage           => m.asJson
     case m: CreateAzureRuntimeMessage => m.asJson
     case m: DeleteAzureRuntimeMessage => m.asJson
+    case m: CreateAppV2Message        => m.asJson
+    case m: DeleteAppV2Message        => m.asJson
   }
 }
 

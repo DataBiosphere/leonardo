@@ -8,7 +8,7 @@ import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
-import org.broadinstitute.dsde.workbench.leonardo.{ProjectAction, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -120,4 +120,16 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   }
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+
+  override def notifyResourceCreatedV2[R](samResource: R,
+                                          creatorEmail: WorkbenchEmail,
+                                          cloudContext: CloudContext,
+                                          workspaceId: WorkspaceId,
+                                          userInfo: UserInfo
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
+
+  override def notifyResourceDeletedV2[R](samResource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = IO.unit
 }

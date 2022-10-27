@@ -31,6 +31,19 @@ object KubernetesServiceDbQueries {
       labelFilter
     )
 
+  def listAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
+                            labelFilter: LabelMap = Map(),
+                            includeDeleted: Boolean = false
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[List[KubernetesCluster]] =
+    joinFullAppAndUnmarshal(
+      listClustersByWorkspaceId(workspaceId),
+      nodepoolQuery,
+      if (includeDeleted) appQuery else nonDeletedAppQuery,
+      labelFilter
+    )
+
   // Called by MonitorAtBoot to determine which apps need monitoring
   def listMonitoredApps(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status
@@ -69,6 +82,19 @@ object KubernetesServiceDbQueries {
             .map(c => ClusterDoesNotExist(c, DefaultNodepool.fromNodepool(c.nodepools.head)))
       }
     } yield eitherClusterOrError
+
+  def getActiveFullAppByWorkspaceIdAndAppName(workspaceId: WorkspaceId,
+                                              appName: AppName,
+                                              labelFilter: LabelMap = Map()
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[GetAppResult]] =
+    getActiveFullApp(
+      listClustersByWorkspaceId(Some(workspaceId)),
+      nodepoolQuery,
+      appQuery.findActiveByNameQuery(appName),
+      labelFilter
+    )
 
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
@@ -212,6 +238,16 @@ object KubernetesServiceDbQueries {
         kubernetesClusterQuery
           .filter(_.cloudProvider === context.cloudProvider)
           .filter(_.cloudContextDb === context.asCloudContextDb)
+      case None => kubernetesClusterQuery
+    }
+
+  private[db] def listClustersByWorkspaceId(
+    workspaceId: Option[WorkspaceId]
+  ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
+    workspaceId match {
+      case Some(wid) =>
+        kubernetesClusterQuery
+          .filter(_.workspaceId === wid)
       case None => kubernetesClusterQuery
     }
 

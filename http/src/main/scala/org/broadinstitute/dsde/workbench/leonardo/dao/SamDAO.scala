@@ -5,7 +5,7 @@ import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 
@@ -39,7 +39,12 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[(R, SamPolicyName)]]
 
-  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
+  def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
@@ -55,12 +60,21 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
+  def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
   def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[List[A]]
 
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkbenchEmail]]
+
+  def getPetManagedIdentity(authorization: Authorization)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
