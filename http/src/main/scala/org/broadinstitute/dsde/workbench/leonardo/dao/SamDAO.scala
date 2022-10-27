@@ -3,6 +3,7 @@ package dao
 
 import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -74,7 +75,7 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
-  def getPetManagedIdentity(authorization: Authorization)(implicit
+  def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 

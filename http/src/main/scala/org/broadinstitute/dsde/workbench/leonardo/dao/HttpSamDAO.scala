@@ -11,6 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResourceId
@@ -339,16 +340,17 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
 
-  def getPetManagedIdentity(authorization: Authorization)(implicit
+  def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
     metrics.incrementCounter("sam/getPetManagedIdentity") >>
       httpClient.expectOptionOr[WorkbenchEmail](
         Request[F](
-          method = Method.GET,
+          method = Method.POST,
           uri = config.samUri
-            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity/")),
-          headers = Headers(authorization)
+            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity")),
+          headers = Headers(authorization),
+          entity = cloudContext
         )
       )(onError)
 
@@ -525,6 +527,10 @@ object HttpSamDAO {
   implicit def createSamResourceRequestEncoder[R: Encoder]: Encoder[CreateSamResourceRequest[R]] =
     Encoder.forProduct5("resourceId", "policies", "authDomain", "returnResource", "parent")(x =>
       (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
+    )
+  implicit val getPetManagedIdentityEncoder: Encoder[AzureCloudContext] =
+    Encoder.forProduct3("tenantId", "subscriptionId", "managedResourceGroupName")(x =>
+      (x.tenantId.value, x.subscriptionId.value, x.managedResourceGroupName.value)
     )
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
