@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -22,7 +22,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.2")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.3")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -72,11 +72,18 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
-          ChartName("/Users/rtitle/git/broadinstitute/cromwhelm/coa-helm"),
-          ChartVersion("0.2.125"),
+          ChartName("/leonardo/cromwell-on-azure"),
+          ChartVersion("0.2.154"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa")
+        ),
+        AadPodIdentityConfig(
+          Namespace("aad-pod-identity"),
+          Release("aad-pod-identity"),
+          ChartName("aad-pod-identity/aad-pod-identity"),
+          ChartVersion("4.1.14"),
+          Values("operationMode=managed")
         )
       ),
       OidcAuthConfig(

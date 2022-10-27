@@ -2,9 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.effect.IO
-import cats.mtl.Ask
+import com.azure.core.http.rest.PagedIterable
+import com.azure.resourcemanager.compute.ComputeManager
+import com.azure.resourcemanager.compute.fluent.{ComputeManagementClient, VirtualMachineScaleSetsClient}
+import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, VirtualMachineScaleSets}
+import com.azure.resourcemanager.containerservice.models.KubernetesCluster
+import com.azure.resourcemanager.msi.MsiManager
+import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureContainerService, FakeAzureRelayService}
+import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
@@ -12,29 +18,37 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
-import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
+import org.mockito.ArgumentMatchers.{any, anyString}
+import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatestplus.mockito.MockitoSugar
 
 import java.nio.file.Files
 import java.util.Base64
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.jdk.CollectionConverters.ListHasAsScala
+import scala.jdk.CollectionConverters._
 
-class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {
+class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite with MockitoSugar {
 
-  val config = AKSInterpreterConfig(ConfigReader.appConfig.terraAppSetupChart,
-                                    ConfigReader.appConfig.azure.coaAppConfig,
-                                    SamConfig("https://sam")
+  val config = AKSInterpreterConfig(
+    ConfigReader.appConfig.terraAppSetupChart,
+    ConfigReader.appConfig.azure.coaAppConfig,
+    ConfigReader.appConfig.azure.aadPodIdentityConfig,
+    ConfigReader.appConfig.azure.appRegistration,
+    SamConfig("https://sam")
   )
 
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
-    MockAzureContainerService,
+    setUpMockAzureContainerService,
     FakeAzureRelayService
-  )
+  ) {
+    override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
+    override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
+  }
 
   val cloudContext = AzureCloudContext(
     TenantId("tenant"),
@@ -69,7 +83,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                AppSamResourceId("sam"),
                                                                lzResources,
                                                                RelayHybridConnectionName("hc"),
-                                                               PrimaryKey("pk")
+                                                               PrimaryKey("pk"),
+                                                               setUpMockIdentity
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -83,6 +98,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "relaylistener.samResourceType=controlled-application-private-workspace-resource," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
       "fullnameOverride=coa-rel-1"
   }
 
@@ -111,16 +129,79 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-}
+  private def setUpMockIdentity: Identity = {
+    val identity = mock[Identity]
+    when {
+      identity.clientId()
+    } thenReturn "identity-client-id"
+    when {
+      identity.id()
+    } thenReturn "identity-id"
+    when {
+      identity.name()
+    } thenReturn "identity-name"
+    identity
+  }
 
-object MockAzureContainerService extends FakeAzureContainerService {
-  override def getClusterCredentials(name: AKSClusterName, cloudContext: AzureCloudContext)(implicit
-    ev: Ask[IO, TraceId]
-  ): IO[AKSCredentials] =
-    IO.pure(
+  private def setUpMockMsiManager: MsiManager = {
+    val msi = mock[MsiManager]
+    val identities = mock[Identities]
+    val identity = setUpMockIdentity
+    when {
+      identities.getByResourceGroup(anyString, anyString)
+    } thenReturn identity
+    when {
+      msi.identities()
+    } thenReturn identities
+    msi
+  }
+
+  private def setUpMockComputeManager: ComputeManager = {
+    val compute = mock[ComputeManager]
+    val vmss = mock[VirtualMachineScaleSets]
+    val pagedIterable = mock[PagedIterable[VirtualMachineScaleSet]]
+    val aVmss = mock[VirtualMachineScaleSet]
+    val serviceClient = mock[ComputeManagementClient]
+    val vmssServiceClient = mock[VirtualMachineScaleSetsClient]
+    when {
+      aVmss.userAssignedManagedServiceIdentityIds()
+    } thenReturn Set("agent-pool").asJava
+    when {
+      pagedIterable.iterator()
+    } thenReturn List(aVmss).iterator.asJava
+    when {
+      vmss.listByResourceGroup(anyString)
+    } thenReturn pagedIterable
+    when {
+      serviceClient.getVirtualMachineScaleSets
+    } thenReturn vmssServiceClient
+    when {
+      compute.virtualMachineScaleSets()
+    } thenReturn vmss
+    when {
+      compute.serviceClient()
+    } thenReturn serviceClient
+    compute
+  }
+
+  private def setUpMockAzureContainerService: AzureContainerService[IO] = {
+    val container = mock[AzureContainerService[IO]]
+    val cluster = mock[KubernetesCluster]
+    when {
+      cluster.nodeResourceGroup()
+    } thenReturn "node-rg"
+    when {
+      container.getCluster(any[String].asInstanceOf[AKSClusterName], any)(any)
+    } thenReturn IO.pure(cluster)
+    when {
+      container.getClusterCredentials(any[String].asInstanceOf[AKSClusterName], any)(any)
+    } thenReturn IO.pure(
       AKSCredentials(AKSServer("server"),
                      AKSToken("token"),
                      AKSCertificate(Base64.getEncoder.encodeToString("cert".getBytes()))
       )
     )
+    container
+  }
+
 }
