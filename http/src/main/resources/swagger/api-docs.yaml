@@ -1186,11 +1186,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
   "/api/google/v1/apps/{googleProject}":
     get:
       summary: List apps within a project
@@ -1254,11 +1249,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
   "/api/google/v1/apps/{googleProject}/{appName}":
     post:
       summary: Creates a new app in the given project with the given appName
@@ -1306,11 +1296,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     get:
       summary: Get details of an app
       description: >
@@ -1353,11 +1338,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     delete:
       summary: Deletes an existing app in the given project
       description: deletes an App
@@ -1538,11 +1518,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     get:
       summary:  Get details of an app
       description: >
@@ -1585,11 +1560,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
 
     delete:
       summary: Deletes an existing app in the given project
