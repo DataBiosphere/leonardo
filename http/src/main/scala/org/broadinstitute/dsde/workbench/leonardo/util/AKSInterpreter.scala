@@ -83,6 +83,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
+      // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
       _ <- helmClient
         .installChart(
           config.aadPodIdentityConfig.release,
