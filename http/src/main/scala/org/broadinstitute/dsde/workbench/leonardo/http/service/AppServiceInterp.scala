@@ -64,7 +64,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def createApp(
     userInfo: UserInfo,
-    cloudContext: CloudContext,
+    cloudContext: CloudContext.Gcp,
     appName: AppName,
     req: CreateAppRequest,
     workspaceId: Option[WorkspaceId] = None
@@ -73,11 +73,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      // TODO: add azure support
-      googleProject = cloudContext match {
-        case CloudContext.Gcp(value) => value
-        case CloudContext.Azure(_)   => ???
-      }
+      googleProject = cloudContext.value
       hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
         ProjectSamResourceId(googleProject),
         ProjectAction.CreateApp,
@@ -233,7 +229,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def getApp(
     userInfo: UserInfo,
-    cloudContext: CloudContext,
+    cloudContext: CloudContext.Gcp,
     appName: AppName
   )(implicit
     as: Ask[F, AppContext]
@@ -258,7 +254,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def listApp(
     userInfo: UserInfo,
-    cloudContext: Option[CloudContext],
+    cloudContext: Option[CloudContext.Gcp],
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]] =
     for {
@@ -269,21 +265,21 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v1")
     } yield res
 
-  override def deleteApp(request: DeleteAppRequest)(implicit
-    as: Ask[F, AppContext]
+  override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
       appOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(request.cloudContext, request.appName)
+        .getActiveFullAppByName(cloudContext, appName)
         .transaction
       appResult <- F.fromOption(
         appOpt,
-        AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, "No active app found in DB")
+        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
-      tags = Map("appType" -> appResult.app.appType.toString, "deleteDisk" -> request.deleteDisk.toString)
+      tags = Map("appType" -> appResult.app.appType.toString, "deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteApp", 1, tags)
-      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, request.userInfo)
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no GetAppStatus permission
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
@@ -291,23 +287,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (hasReadPermission) F.unit
         else
           F.raiseError[Unit](
-            AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, "no read permission")
+            AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission")
           )
 
       // throw 403 if no DeleteApp permission
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(request.userInfo.userEmail))
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <-
         if (canDelete) F.unit
         else
           F.raiseError[Unit](
-            AppCannotBeDeletedException(request.cloudContext, request.appName, appResult.app.status, ctx.traceId)
+            AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId)
           )
 
       // Get the disk to delete if specified
-      diskOpt = if (request.deleteDisk) appResult.app.appResources.disk.map(_.id) else None
+      diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
 
       // If the app status is Error, we can assume that the underlying app/nodepool
       // has already been deleted. So we just transition the app to Deleted status
@@ -316,36 +312,32 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Note this has the side effect of not deleting the disk if requested to do so. The
       // caller must manually delete the disk in this situation. We have the same behavior for
       // runtimes.
-      googleProjectOpt = LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext)
       _ <-
         if (appResult.app.status == AppStatus.Error) {
           for {
             // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
-            _ <- googleProjectOpt.traverse(g =>
-              authProvider.notifyResourceDeleted(appResult.app.samResourceId, appResult.app.auditInfo.creator, g)
+            _ <- authProvider.notifyResourceDeleted(appResult.app.samResourceId,
+                                                    appResult.app.auditInfo.creator,
+                                                    cloudContext.value
             )
             _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
           } yield ()
         } else {
           for {
             _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
-            deleteMessage = appResult.cluster.cloudContext match {
-              case CloudContext.Gcp(value) =>
-                DeleteAppMessage(
-                  appResult.app.id,
-                  appResult.app.appName,
-                  value,
-                  diskOpt,
-                  Some(ctx.traceId)
-                )
-              case CloudContext.Azure(_) => ???
-            }
+            deleteMessage = DeleteAppMessage(
+              appResult.app.id,
+              appResult.app.appName,
+              cloudContext.value,
+              diskOpt,
+              Some(ctx.traceId)
+            )
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
         }
     } yield ()
 
-  def stopApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
+  def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -377,21 +369,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
 
       _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStopping).transaction
-      // TODO: support Azure
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
-      )
       message = StopAppMessage(
         appResult.app.id,
         appResult.app.appName,
-        googleProject,
+        cloudContext.value,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(message)
     } yield ()
 
-  def startApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
+  def startApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -423,15 +410,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
 
       _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStarting).transaction
-      // TODO: support Azure
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
-      )
       message = StartAppMessage(
         appResult.app.id,
         appResult.app.appName,
-        googleProject,
+        cloudContext.value,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(message)
@@ -446,46 +428,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .transaction
 
     res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v2")
-  } yield res
-
-  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
-                                        userInfo: UserInfo,
-                                        labels: List[String],
-                                        apiVersion: String
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] = for {
-    _ <- as.ask
-    samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
-    samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
-      authProvider.filterUserVisible(apps, userInfo)
-    }
-
-    res = samVisibleAppsOpt match {
-      case None => Vector.empty
-      case Some(samVisibleApps) =>
-        val samVisibleAppsSet = samVisibleApps.toSet
-        // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
-        // then we build back up by filtering nodepools without apps and clusters without nodepools
-        allClusters
-          .map { c =>
-            c.copy(
-              nodepools = c.nodepools
-                .map { n =>
-                  n.copy(apps = n.apps.filter { a =>
-                    // Making the assumption that users will always be able to access apps that they create
-                    // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                    samVisibleAppsSet
-                      .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
-                  })
-                }
-                .filterNot(_.apps.isEmpty)
-            )
-          }
-          .filterNot(_.nodepools.isEmpty)
-          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels, apiVersion))
-          .toVector
-    }
   } yield res
 
   override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
@@ -1095,6 +1037,46 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
     )
   }
+
+  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
+                                        userInfo: UserInfo,
+                                        labels: List[String],
+                                        apiVersion: String
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[ListAppResponse]] = for {
+    _ <- as.ask
+    samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
+    samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
+      authProvider.filterUserVisible(apps, userInfo)
+    }
+
+    res = samVisibleAppsOpt match {
+      case None => Vector.empty
+      case Some(samVisibleApps) =>
+        val samVisibleAppsSet = samVisibleApps.toSet
+        // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
+        // then we build back up by filtering nodepools without apps and clusters without nodepools
+        allClusters
+          .map { c =>
+            c.copy(
+              nodepools = c.nodepools
+                .map { n =>
+                  n.copy(apps = n.apps.filter { a =>
+                    // Making the assumption that users will always be able to access apps that they create
+                    // Fix for https://github.com/DataBiosphere/leonardo/issues/821
+                    samVisibleAppsSet
+                      .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
+                  })
+                }
+                .filterNot(_.apps.isEmpty)
+            )
+          }
+          .filterNot(_.nodepools.isEmpty)
+          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels, apiVersion))
+          .toVector
+    }
+  } yield res
 
 }
 

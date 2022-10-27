@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   Nodepool,
   WorkspaceId
 }
-import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.http4s.Uri
 
 import java.net.URL
@@ -30,8 +29,6 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   descriptorPath: Option[Uri],
                                   extraArgs: List[String]
 )
-
-final case class DeleteAppRequest(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName, deleteDisk: Boolean)
 
 final case class GetAppResponse(appName: AppName,
                                 cloudContext: CloudContext,
