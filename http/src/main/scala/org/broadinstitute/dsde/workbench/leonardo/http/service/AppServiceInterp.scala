@@ -968,10 +968,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Galaxy, Cromwell, and Custom app types require a disk.
       // Cromwell on Azure requires _no_ disk.
       _ <- (req.appType, diskOpt) match {
+        case (Galaxy | Cromwell | Custom, None) =>
+          Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
         case (CromwellOnAzure, Some(_)) =>
           Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
-        case (_, None) => Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
-        case _         => Right(())
+        case _ => Right(())
       }
 
       // Generate namespace and app release names using a random 6-character string prefix.
