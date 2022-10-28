@@ -156,7 +156,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, originatingUserEmail, req.kubernetesRuntimeConfig, ctx.now)
+              getUserNodepool(clusterId, originatingUserEmail, machineConfig, ctx.now)
             )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
@@ -485,6 +485,25 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](AppAlreadyExistsInWorkspaceException(workspaceId, appName, c.app.status, ctx.traceId))
       )
 
+      // Validate the machine config from the request
+      // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
+      // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
+      machineConfig <- (req.appType, req.kubernetesRuntimeConfig) match {
+        case (CromwellOnAzure, Some(_)) => F.raiseError(AppMachineConfigNotSupportedException(req.appType, ctx.traceId))
+        // TODO: pull this from the landing zone instead of hardcoding once TOAZ-232 is implemented
+        case (CromwellOnAzure, None) =>
+          F.pure(KubernetesRuntimeConfig(NumNodes(1), MachineTypeName("Standard_A2_v2"), false))
+        case (_, Some(mt)) => F.pure(mt)
+        case (_, None) =>
+          F.pure(
+            KubernetesRuntimeConfig(
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+            )
+          )
+      }
+
       // Create a new Sam resource for the app
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
       // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent.
@@ -513,18 +532,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else F.unit
 
       // Save or retrieve a nodepool record for the app
-      clusterId = saveClusterResult.minimalCluster.id
-      // Default to Galaxy settings if no user machine config provided
-      machineConfig = req.kubernetesRuntimeConfig.getOrElse(
-        KubernetesRuntimeConfig(
-          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
-          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
-        )
-      )
       userNodepoolOpt <- nodepoolQuery
         .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
         .transaction
+      clusterId = saveClusterResult.minimalCluster.id
       nodepool <- userNodepoolOpt match {
         case Some(n) =>
           log.info(ctx.loggingCtx)(
@@ -536,7 +547,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, originatingUserEmail, req.kubernetesRuntimeConfig, ctx.now)
+              getUserNodepool(clusterId, originatingUserEmail, machineConfig, ctx.now)
             )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
@@ -861,19 +872,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
                                        userEmail: WorkbenchEmail,
-                                       runtimeConfig: Option[KubernetesRuntimeConfig],
+                                       machineConfig: KubernetesRuntimeConfig,
                                        now: Instant
   ): Either[Throwable, Nodepool] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
-
-    val machineConfig = runtimeConfig.getOrElse(
-      KubernetesRuntimeConfig(
-        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
-        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
-      )
-    )
-
     for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
     } yield Nodepool(
@@ -1221,5 +1223,12 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class AppMachineConfigNotSupportedException(appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"Machine configuration not supported for apps of type ${appType}. Trace ID ${traceId.asString}",
+      StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
