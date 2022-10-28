@@ -208,7 +208,8 @@ class MockSamDAO extends SamDAO[IO] {
     }
   }
 
-  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def deleteResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] =

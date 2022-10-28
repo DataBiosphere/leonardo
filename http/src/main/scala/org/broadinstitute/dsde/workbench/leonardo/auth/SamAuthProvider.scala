@@ -194,8 +194,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // TODO: consider using v2 for all existing entities if this works out for apps https://broadworkbench.atlassian.net/browse/IA-2569
-    // Apps are modeled different in SAM than other leo resources.
+    // Note: apps on GCP are defined with a google-project as a parent Sam resource.
+    // Otherwise the Sam resource has no parent.
     if (sr.resourceType != SamResourceType.App)
       samDao.createResourceAsGcpPet(samResource, creatorEmail, googleProject)
     else
@@ -208,6 +208,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     workspaceId: WorkspaceId,
     userInfo: UserInfo
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
+    // Note: apps on GCP are defined with a google-project as a parent Sam resource.
+    // Otherwise the Sam resource has no parent.
     if (sr.resourceType == SamResourceType.App && cloudContext.cloudProvider == CloudProvider.Gcp)
       samDao.createResourceWithParent(samResource, creatorEmail, GoogleProject(cloudContext.asString))
     else
@@ -218,7 +220,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
-    samDao.deleteResource(samResource, creatorEmail, googleProject)
+    samDao.deleteResourceAsGcpPet(samResource, creatorEmail, googleProject)
 
   override def notifyResourceDeletedV2[R](
     samResource: R,
