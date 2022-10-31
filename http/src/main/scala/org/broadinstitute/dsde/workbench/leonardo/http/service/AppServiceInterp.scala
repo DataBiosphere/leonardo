@@ -852,7 +852,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           F.pure(none[LastUsedApp])
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
-            case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _, _))) |
+            case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
                 (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
@@ -876,7 +876,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
               )
-            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
+            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _))) =>
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
               )
