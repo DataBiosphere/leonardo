@@ -603,8 +603,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
     // Call deleteApp
-    val params = DeleteAppRequest(petUserInfo, cloudContextGcp, appName, true)
-    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    kubeServiceInterp
+      .deleteApp(petUserInfo, cloudContextGcp, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // Verify that request using pet SA was successful and app is marked to be deleted
     val appResultPreDelete = dbFutureValue {
@@ -806,8 +807,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResultPreDelete.get.app.status shouldEqual AppStatus.Running
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    val params = DeleteAppRequest(userInfo, cloudContextGcp, appName, false)
-    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    kubeServiceInterp
+      .deleteApp(userInfo, cloudContextGcp, appName, false)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val clusterPostDelete = dbFutureValue {
       KubernetesServiceDbQueries.listFullApps(Some(cloudContextGcp), includeDeleted = true)
     }
@@ -846,9 +848,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    val params = DeleteAppRequest(userInfo, cloudContextGcp, appName, false)
     an[AppCannotBeDeletedException] should be thrownBy {
-      appServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp
+        .deleteApp(userInfo, cloudContextGcp, appName, false)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
@@ -885,8 +888,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResultPreDelete.get.app.appResources.disk.get.auditInfo.destroyedDate shouldBe defined
 
     // Call deleteApp
-    val params = DeleteAppRequest(userInfo, cloudContextGcp, appName, true)
-    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    kubeServiceInterp
+      .deleteApp(userInfo, cloudContextGcp, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // Verify database state
     val clusterPostDelete = dbFutureValue {
@@ -1104,7 +1108,11 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
       savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Running).save())
 
-      _ <- kubeServiceInterp.stopApp(userInfo, savedCluster.cloudContext, savedApp.appName)
+      gcpContext = savedCluster.cloudContext match {
+        case g @ CloudContext.Gcp(_) => g
+        case _                       => fail("expected GCP context")
+      }
+      _ <- kubeServiceInterp.stopApp(userInfo, gcpContext, savedApp.appName)
       _ <- withLeoPublisher(publisherQueue) {
         for {
           dbAppOpt <- KubernetesServiceDbQueries
@@ -1136,7 +1144,11 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
       savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Stopped).save())
 
-      _ <- kubeServiceInterp.startApp(userInfo, savedCluster.cloudContext, savedApp.appName)
+      gcpContext = savedCluster.cloudContext match {
+        case g @ CloudContext.Gcp(_) => g
+        case _                       => fail("expected GCP context")
+      }
+      _ <- kubeServiceInterp.startApp(userInfo, gcpContext, savedApp.appName)
       _ <- withLeoPublisher(publisherQueue) {
         for {
           dbAppOpt <- KubernetesServiceDbQueries

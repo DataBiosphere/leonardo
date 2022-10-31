@@ -1,18 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import cats.effect.unsafe.IORuntime
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.project
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppStatus,
-  CloudContext,
-  KubernetesClusterStatus,
-  NodepoolStatus,
-  WorkspaceId
-}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.flatspec.AnyFlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, KubernetesClusterStatus, NodepoolStatus, WorkspaceId}
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global

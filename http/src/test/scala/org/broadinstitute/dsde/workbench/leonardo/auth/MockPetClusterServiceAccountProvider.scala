@@ -23,8 +23,8 @@ class MockPetClusterServiceAccountProvider extends ServiceAccountProvider[IO] {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${userInfo.userEmail}"))
     // Pretend we're asking Sam for the pet
     cloudContext match {
-      case CloudContext.Gcp(googleProject) => samDao.getPetServiceAccount(authHeader, googleProject)
-      case CloudContext.Azure(_)           => samDao.getPetManagedIdentity(authHeader)
+      case CloudContext.Gcp(googleProject)  => samDao.getPetServiceAccount(authHeader, googleProject)
+      case CloudContext.Azure(cloudContext) => samDao.getPetManagedIdentity(authHeader, cloudContext)
     }
   }
 
