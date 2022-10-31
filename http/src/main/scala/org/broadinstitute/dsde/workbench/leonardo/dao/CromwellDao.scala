@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, RuntimeName}
+import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
+import org.http4s.Headers
 
 trait CromwellDao[F[_]] {
-  def getStatus(cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
-    ev: Ask[F, AppContext]
+  def getStatus(relayNamespace: RelayNamespace, headers: Headers)(implicit
+                                                ev: Ask[F, AppContext]
   ): F[Boolean]
 }
