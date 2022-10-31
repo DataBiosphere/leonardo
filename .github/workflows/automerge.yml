@@ -1,0 +1,34 @@
+name: automerge
+on:
+  pull_request:
+    types:
+      - labeled
+  check_suite:
+    types:
+      - completed
+  status: {}
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: github.event.label.name == 'automerge'
+    steps:
+      - uses: "hmarr/auto-approve-action@v3"
+        with:
+          review-message: "This PR was automatically approved"
+  automerge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: automerge
+        uses: "broadinstitute/automerge-action@v0.12.0"
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          MERGE_METHOD: squash
+          MERGE_FORKS: false
+          MERGE_RETRIES: 72 # Retry for 6 minutes instead of 30s
+          MERGE_RETRY_SLEEP: 5000 # 5 seconds
+          UPDATE_METHOD: rebase
+          UPDATE_RETRIES: 72 # Retry updates for 6 minutes instead of once
+          UPDATE_RETRY_SLEEP: 5000 # 5 seconds
+          MERGE_REQUIRED_APPROVALS: 0
