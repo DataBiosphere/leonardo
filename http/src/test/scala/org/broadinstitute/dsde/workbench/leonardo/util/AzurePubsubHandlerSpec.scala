@@ -10,7 +10,6 @@ import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, Vir
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
-import reactor.core.publisher.Mono
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -21,10 +20,12 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeStartingError,
-  AzureRuntimeStoppingError
+  AzureRuntimeStoppingError,
+  PubsubKubernetesError
 }
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsp.HelmException
 import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{times, verify, when}
@@ -32,6 +33,7 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
+import reactor.core.publisher.Mono
 
 import java.time.ZonedDateTime
 import java.util.UUID
@@ -537,11 +539,48 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle AKS errors" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val failAksInterp = new MockAKSInterp {
+      override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+        IO.raiseError(HelmException("something went wrong"))
+    }
+    val azureInterp =
+      makeAzureInterp(asyncTaskQueue = queue, aksAlg = failAksInterp)
+
+    val appId = AppId(42)
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      result <- azureInterp
+        .createAndPollApp(appId, AppName("app"), WorkspaceId(UUID.randomUUID()), azureCloudContext)
+        .attempt
+    } yield result shouldBe Left(
+      PubsubKubernetesError(
+        AppError(
+          s"Error creating Azure app with id ${appId} and cloudContext ${azureCloudContext.asString}: something went wrong",
+          ctx.now,
+          ErrorAction.CreateApp,
+          ErrorSource.App,
+          None,
+          Some(ctx.traceId)
+        ),
+        Some(appId),
+        false,
+        None,
+        None,
+        None
+      )
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
                       relayService: AzureRelayService[IO] = FakeAzureRelayService,
                       wsmDAO: WsmDao[IO] = new MockWsmDAO,
-                      azureVmService: AzureVmService[IO] = FakeAzureVmService
+                      azureVmService: AzureVmService[IO] = FakeAzureVmService,
+                      aksAlg: AKSAlgebra[IO] = new MockAKSInterp
   ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -553,7 +592,7 @@ class AzurePubsubHandlerSpec
       new MockJupyterDAO(),
       relayService,
       azureVmService,
-      ??? // TODO
+      aksAlg
     )
 
 }

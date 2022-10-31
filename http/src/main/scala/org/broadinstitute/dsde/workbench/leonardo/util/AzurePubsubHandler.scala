@@ -752,8 +752,26 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                 cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit] = {
-    val params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
-    aksAlgebra.createAndPollApp(params)
-  }
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
+      _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error creating Azure app with id ${appId} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
+    } yield ()
 }
