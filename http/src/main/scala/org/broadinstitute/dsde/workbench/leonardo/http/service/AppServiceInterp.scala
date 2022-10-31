@@ -597,6 +597,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       createAppV2Message = CreateAppV2Message(
         app.id,
         app.appName,
+        workspaceId,
         cloudContext,
         Some(ctx.traceId)
       )

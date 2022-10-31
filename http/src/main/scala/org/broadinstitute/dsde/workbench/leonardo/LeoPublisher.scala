@@ -124,7 +124,9 @@ final class LeoPublisher[F[_]](
           KubernetesServiceDbQueries
             .markPendingCreating(m.appId, None, None, None)
             .transaction
-        case _: LeoPubsubMessage.DeleteAppV2Message => F.unit
+        case _: LeoPubsubMessage.DeleteAppV2Message =>
+          // TODO: TOAZ-230
+          F.unit
       }
     } yield ()
 }

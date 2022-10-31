@@ -746,10 +746,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }.void
     } yield ()
 
-  override def createAndPollApp(appId: AppId, appName: AppName, cloudContext: AzureCloudContext)(implicit
+  override def createAndPollApp(appId: AppId,
+                                appName: AppName,
+                                workspaceId: WorkspaceId,
+                                cloudContext: AzureCloudContext
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = {
-    val params = CreateAKSAppParams(appId, appName, cloudContext)
+    val params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
     aksAlgebra.createAndPollApp(params)
   }
 }

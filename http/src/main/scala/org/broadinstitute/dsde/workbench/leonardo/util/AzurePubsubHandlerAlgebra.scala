@@ -5,7 +5,6 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppV2Message,
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
 }
@@ -37,8 +36,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def createAndPollApp(appId: AppId, appName: AppName, cloudContext: AzureCloudContext)(implicit
-    ev: Ask[F, AppContext]
+  def createAndPollApp(appId: AppId, appName: AppName, workspaceId: WorkspaceId, cloudContext: AzureCloudContext)(
+    implicit ev: Ask[F, AppContext]
   ): F[Unit]
 
   def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit

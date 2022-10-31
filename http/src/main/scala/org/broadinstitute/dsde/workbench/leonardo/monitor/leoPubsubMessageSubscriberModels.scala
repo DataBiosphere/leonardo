@@ -266,6 +266,7 @@ object LeoPubsubMessage {
   final case class CreateAppV2Message(
     appId: AppId,
     appName: AppName,
+    workspaceId: WorkspaceId,
     cloudContext: CloudContext,
     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
@@ -523,6 +524,9 @@ object LeoPubsubCodec {
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
 
+  implicit val createAppV2Decoder: Decoder[CreateAppV2Message] =
+    Decoder.forProduct5("appId", "appName", "workspaceId", "cloudContext", "traceId")(CreateAppV2Message.apply)
+
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
@@ -541,6 +545,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.StartApp           => message.as[StartAppMessage]
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
+        case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
       }
     } yield value
   }
@@ -863,13 +868,14 @@ object LeoPubsubCodec {
     )
 
   implicit val createAppV2MessageEncoder: Encoder[CreateAppV2Message] =
-    Encoder.forProduct5(
+    Encoder.forProduct6(
       "messageType",
       "appId",
       "appName",
+      "workspaceId",
       "cloudContext",
       "traceId"
-    )(x => (x.messageType, x.appId, x.appName, x.cloudContext, x.traceId))
+    )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.traceId))
 
   implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
     Encoder.forProduct6("messageType", "appId", "appName", "workspaceId", "diskId", "traceId")(x =>

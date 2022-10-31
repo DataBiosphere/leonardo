@@ -122,7 +122,9 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           }
         case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
-        case _: DeleteAppV2Message   => F.unit // TODO: Implement in future PR
+        case _: DeleteAppV2Message   =>
+          // TODO: TOAZ-230
+          F.unit
       }
     } yield resp
 
@@ -1420,10 +1422,10 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(c) =>
-          azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, c).adaptError { case e =>
+          azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, c).adaptError { case e =>
             PubsubKubernetesError(
               AppError(
-                s"Error creating Azure app with id ${msg.appId} in cloudContext ${c.asString}: ${e.getMessage}",
+                s"Error creating Azure app with id ${msg.appId} and cloudContext ${c.asString}: ${e.getMessage}",
                 ctx.now,
                 ErrorAction.CreateApp,
                 ErrorSource.App,
@@ -1441,7 +1443,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           F.raiseError(
             PubsubKubernetesError(
               AppError(
-                s"Error creating GCP app with id ${msg.appId} in cloudContext ${c.value}: CreateAppV2 not supported for GCP",
+                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: CreateAppV2 not supported for GCP",
                 ctx.now,
                 ErrorAction.CreateApp,
                 ErrorSource.App,
