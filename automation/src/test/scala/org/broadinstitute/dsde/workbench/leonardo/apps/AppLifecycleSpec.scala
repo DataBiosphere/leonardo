@@ -76,7 +76,7 @@ class AppLifecycleSpec
   }
 
   forAll(appTestCases) { (description, createAppRequest, testStartStop, testPD) =>
-    description taggedAs (Tags.SmokeTest, Retryable) in { googleProject =>
+    description taggedAs Retryable in { googleProject =>
       test(googleProject, createAppRequest, testStartStop, testPD)
     }
   }
