@@ -552,7 +552,8 @@ class AzurePubsubHandlerSpec
       new MockWelderDAO(),
       new MockJupyterDAO(),
       relayService,
-      azureVmService
+      azureVmService,
+      ??? // TODO
     )
 
 }

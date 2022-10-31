@@ -488,13 +488,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Validate the machine config from the request
       // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
       // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
-      machineConfig <- (req.appType, req.kubernetesRuntimeConfig) match {
-        case (CromwellOnAzure, Some(_)) => F.raiseError(AppMachineConfigNotSupportedException(req.appType, ctx.traceId))
+      machineConfig <- (cloudContext.cloudProvider, req.kubernetesRuntimeConfig) match {
+        case (CloudProvider.Azure, Some(_)) =>
+          F.raiseError(AppMachineConfigNotSupportedException(ctx.traceId))
         // TODO: pull this from the landing zone instead of hardcoding once TOAZ-232 is implemented
-        case (CromwellOnAzure, None) =>
+        case (CloudProvider.Azure, None) =>
           F.pure(KubernetesRuntimeConfig(NumNodes(1), MachineTypeName("Standard_A2_v2"), false))
-        case (_, Some(mt)) => F.pure(mt)
-        case (_, None) =>
+        case (CloudProvider.Gcp, Some(mt)) => F.pure(mt)
+        case (CloudProvider.Gcp, None) =>
           F.pure(
             KubernetesRuntimeConfig(
               config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
@@ -1228,9 +1229,9 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
       traceId = Some(traceId)
     )
 
-case class AppMachineConfigNotSupportedException(appType: AppType, traceId: TraceId)
+case class AppMachineConfigNotSupportedException(traceId: TraceId)
     extends LeoException(
-      s"Machine configuration not supported for apps of type ${appType}. Trace ID ${traceId.asString}",
+      s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
     )

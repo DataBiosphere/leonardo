@@ -24,12 +24,14 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   ManagedIdentityName,
   Namespace,
   NamespaceId,
-  NodepoolStatus
+  NodepoolStatus,
+  WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 /**
@@ -49,6 +51,9 @@ object AKSManualTest {
     ClientSecret("client-secret"),
     ManagedAppTenantId("tenant-id")
   )
+
+  // This is your WSM workspace ID
+  val workspaceId = WorkspaceId(UUID.randomUUID)
 
   // this is your MRG
   val cloudContext = AzureCloudContext(
@@ -152,6 +157,7 @@ object AKSManualTest {
         CreateAKSAppParams(
           deps.app.id,
           deps.app.appName,
+          workspaceId,
           cloudContext
         )
       )

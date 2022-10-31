@@ -26,7 +26,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.nio.file.Files
-import java.util.Base64
+import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -120,7 +120,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
       )
       saveApp <- IO(app.save())
-      params = CreateAKSAppParams(saveApp.id, saveApp.appName, cloudContext)
+      params = CreateAKSAppParams(saveApp.id, saveApp.appName, WorkspaceId(UUID.randomUUID), cloudContext)
       _ <- aksInterp.createAndPollApp(params)
     } yield {
       // TODO (TOAZ-229): verify app status reaches Running once polling is implemented
