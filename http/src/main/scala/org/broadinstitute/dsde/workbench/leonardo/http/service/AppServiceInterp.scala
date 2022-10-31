@@ -156,7 +156,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, originatingUserEmail, machineConfig, ctx.now)
+              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
             )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
@@ -547,7 +547,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, originatingUserEmail, machineConfig, ctx.now)
+              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
             )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
@@ -595,13 +595,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Publish a CreateApp message for Back Leo
       createAppV2Message = CreateAppV2Message(
-        workspaceId,
         app.id,
         app.appName,
-        diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
-        req.customEnvironmentVariables,
-        req.appType,
-        app.appResources.namespace.name,
+        cloudContext,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
@@ -680,7 +676,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       NodepoolLeoId(-1),
       clusterId = KubernetesClusterLeoId(-1),
       nodepoolName,
-      status = NodepoolStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
       numNodes = numNodepools
@@ -707,7 +704,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       clusterName = clusterName.getOrElse(defaultClusterName),
       location = config.leoKubernetesConfig.clusterConfig.location,
       region = config.leoKubernetesConfig.clusterConfig.region,
-      status = KubernetesClusterStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
+        else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool,
@@ -871,6 +870,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   }
 
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
+                                       cloudContext: CloudContext,
                                        userEmail: WorkbenchEmail,
                                        machineConfig: KubernetesRuntimeConfig,
                                        now: Instant
@@ -882,7 +882,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       NodepoolLeoId(-1),
       clusterId = clusterId,
       nodepoolName,
-      status = NodepoolStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = machineConfig.machineType,
       numNodes = machineConfig.numNodes,

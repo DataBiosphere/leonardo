@@ -148,6 +148,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // TODO (TOAZ-229): poll app for completion
 
+      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+
     } yield ()
 
   private[util] def buildCromwellChartOverrideValues(release: Release,

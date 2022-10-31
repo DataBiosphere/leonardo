@@ -253,19 +253,19 @@ final case class DefaultKubernetesLabels(cloudContext: CloudContext,
 sealed abstract class ErrorAction
 object ErrorAction {
   case object CreateApp extends ErrorAction {
-    override def toString: String = "createGalaxyApp"
+    override def toString: String = "createApp"
   }
 
   case object DeleteApp extends ErrorAction {
-    override def toString: String = "deleteGalaxyApp"
+    override def toString: String = "deleteApp"
   }
 
   case object StopApp extends ErrorAction {
-    override def toString: String = "stopGalaxyApp"
+    override def toString: String = "stopApp"
   }
 
   case object StartApp extends ErrorAction {
-    override def toString: String = "startGalaxyApp"
+    override def toString: String = "startApp"
   }
 
   case object DeleteNodepool extends ErrorAction {

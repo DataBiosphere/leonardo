@@ -121,8 +121,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
-        case _: CreateAppV2Message => F.unit // TODO: Implement in future PR
-        case _: DeleteAppV2Message => F.unit // TODO: Implement in future PR
+        case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
+        case _: DeleteAppV2Message   => F.unit // TODO: Implement in future PR
       }
     } yield resp
 
@@ -1412,4 +1412,49 @@ class LeoPubsubMessageSubscriber[F[_]](
           } yield operation
       }
     } yield res
+
+  private[monitor] def handleCreateAppV2Message(
+    msg: CreateAppV2Message
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- msg.cloudContext match {
+        case CloudContext.Azure(c) =>
+          azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, c).adaptError { case e =>
+            PubsubKubernetesError(
+              AppError(
+                s"Error creating Azure app with id ${msg.appId} in cloudContext ${c.asString}: ${e.getMessage}",
+                ctx.now,
+                ErrorAction.CreateApp,
+                ErrorSource.App,
+                None,
+                Some(ctx.traceId)
+              ),
+              Some(msg.appId),
+              false,
+              None,
+              None,
+              None
+            )
+          }
+        case CloudContext.Gcp(c) =>
+          F.raiseError(
+            PubsubKubernetesError(
+              AppError(
+                s"Error creating GCP app with id ${msg.appId} in cloudContext ${c.value}: CreateAppV2 not supported for GCP",
+                ctx.now,
+                ErrorAction.CreateApp,
+                ErrorSource.App,
+                None,
+                Some(ctx.traceId)
+              ),
+              Some(msg.appId),
+              false,
+              None,
+              None,
+              None
+            )
+          )
+      }
+    } yield ()
 }
