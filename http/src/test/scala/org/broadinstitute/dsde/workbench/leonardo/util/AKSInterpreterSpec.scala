@@ -138,11 +138,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       app <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), appName)
         .transaction
-    } yield {
-      app.get
-    }
+    } yield app.get
 
-    createdAppStatus.map(r => r.app.status shouldBe AppStatus.Running).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    createdAppStatus
+      .map(r => r.app.status shouldBe AppStatus.Running)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def setUpMockIdentity: Identity = {

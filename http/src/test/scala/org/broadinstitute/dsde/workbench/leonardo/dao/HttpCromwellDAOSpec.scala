@@ -74,7 +74,6 @@ class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSui
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-
     val cromwellDAO = new HttpCromwellDAO(okSam, mockSamDao)
     val res = cromwellDAO.getStatus(RelayNamespace("test-namespace"), headers)
     res.map(r => r shouldBe CromwellStatusCheckResponse(true)).unsafeRunSync()
