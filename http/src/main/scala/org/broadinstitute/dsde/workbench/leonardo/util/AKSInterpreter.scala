@@ -146,7 +146,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-       // Poll app status
+      // Poll app status
       appOk <- pollAppsForSuccess(landingZoneResources.relayNamespace)
 
       _ <-
@@ -375,7 +375,9 @@ final case class AKSInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupCha
                                       coaAppConfig: CoaAppConfig,
                                       aadPodIdentityConfig: AadPodIdentityConfig,
                                       appRegistrationConfig: AzureAppRegistrationConfig,
-                                      samConfig: SamConfig
+                                      samConfig: SamConfig,
+                                      pollingConfig: PollingConfig =
+                                        PollingConfig(maxAttempts = 12, delay = 10 seconds, interruptAfter = 2 minute)
 )
 
 final case class PollingConfig(maxAttempts: Int, delay: FiniteDuration, interruptAfter: FiniteDuration)

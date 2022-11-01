@@ -18,7 +18,6 @@ import org.typelevel.log4cats.Logger
 
 import scala.util.control.NoStackTrace
 
-
 object HttpCromwellDAO {
   implicit val statusDecoder: Decoder[CromwellStatusCheckResponse] = Decoder.instance { d =>
     for {
