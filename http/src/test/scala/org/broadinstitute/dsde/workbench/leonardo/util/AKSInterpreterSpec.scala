@@ -12,6 +12,7 @@ import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -56,11 +57,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ManagedResourceGroupName("mrg")
   )
 
-  val lzResources = LandingZoneResources(AKSClusterName("cluster"),
-                                         BatchAccountName("batch"),
-                                         RelayNamespace("relay"),
-                                         StorageAccountName("storage"),
-                                         SubnetName("subnet")
+  val lzResources = LandingZoneResources(
+    AKSClusterName("cluster"),
+    BatchAccountName("batch"),
+    RelayNamespace("relay"),
+    StorageAccountName("storage"),
+    NetworkName("network"),
+    SubnetworkName("subnet1"),
+    SubnetworkName("subnet2")
   )
 
   "AKSInterpreter" should "get a helm auth context" in {

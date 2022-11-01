@@ -81,16 +81,14 @@ object KubernetesTestData {
         testNodepool,
         testApp
       ),
-      "https://leo/proxy/",
-      "v1"
+      "https://leo/proxy/"
     )
 
   val listAppResponse =
     ListAppResponse
       .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
                    "https://leo/proxy/",
-                   List.empty,
-                   "v1"
+                   List.empty
       )
       .toVector
 
