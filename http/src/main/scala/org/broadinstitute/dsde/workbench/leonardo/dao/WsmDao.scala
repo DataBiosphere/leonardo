@@ -92,6 +92,14 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 
+  def getLandingZone(billingId: String, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[String]] // TODO update with LandingZone id type if one exists
+
+  def listLandingZoneResourcesByType(landingZoneId: String, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[List[Object]]] // TODO update type with landing zone resource type
+
   // TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
   def getRelayNamespace(workspaceId: WorkspaceId,
                         region: com.azure.core.management.Region,
@@ -117,6 +125,7 @@ final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
 final case class CreateStorageContainerResult(resourceId: WsmControlledResourceId)
 final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
+                                      spendProfile: String,
                                       azureContext: Option[AzureCloudContext],
                                       gcpContext: Option[GoogleProject]
 )
@@ -386,9 +395,10 @@ object WsmDecoders {
     for {
       id <- c.downField("id").as[WorkspaceId]
       displayName <- c.downField("displayName").as[String]
+      spendProfile <- c.downField("spendProfile").as[String]
       azureContext <- c.downField("azureContext").as[Option[AzureCloudContext]]
       gcpContext <- c.downField("gcpContext").as[Option[WsmGcpContext]]
-    } yield WorkspaceDescription(id, displayName, azureContext, gcpContext.map(_.projectId))
+    } yield WorkspaceDescription(id, displayName, spendProfile, azureContext, gcpContext.map(_.projectId))
   }
 
   implicit val wsmJobStatusDecoder: Decoder[WsmJobStatus] =

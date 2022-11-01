@@ -9,12 +9,7 @@ import com.azure.core.management.AzureEnvironment
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{
-  ResourceIdentityType,
-  VirtualMachineIdentityUserAssignedIdentities,
-  VirtualMachineScaleSetIdentity,
-  VirtualMachineScaleSetUpdate
-}
+import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import org.broadinstitute.dsde.workbench.azure._
@@ -23,10 +18,14 @@ import org.broadinstitute.dsde.workbench.google2.tracedRetryF
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpWsmDao
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsp.{Release, _}
+import org.http4s.AuthScheme
+import org.http4s.Credentials.Token
+import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.Base64
@@ -36,7 +35,8 @@ import scala.jdk.CollectionConverters._
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
                            azureContainerService: AzureContainerService[F],
-                           azureRelayService: AzureRelayService[F]
+                           azureRelayService: AzureRelayService[F],
+                           httpWsmDao: HttpWsmDao[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -76,7 +76,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Get resources from landing zone
-      landingZoneResources = getLandingZoneResources
+      workspaceId <- F.fromOption(
+        dbApp.cluster.workspaceId,
+        AppCreationException(
+          s"Workspace ID not found in DB for app ${app.appName.value}",
+          Some(ctx.traceId)
+        )
+      )
+      petToken = Authorization(
+        Token(AuthScheme.Bearer, "sam-UAMI-token") // TODO get real token pet token. Add required SAM API
+      )
+      landingZoneResources <- getLandingZoneResources(workspaceId, petToken)
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
@@ -290,14 +300,40 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield authContext
 
   // TODO (TOAZ-232): replace hard-coded values with LZ API calls
-  private def getLandingZoneResources: LandingZoneResources =
-    LandingZoneResources(
+  private def getLandingZoneResources(workspaceId: WorkspaceId,
+                                      petToken: Authorization
+  )(implicit ev: Ask[F, AppContext]): F[LandingZoneResources] = {
+
+    for {
+      // Step 1: call WSM for billing profile id
+      workspaceDetailsOpt <- httpWsmDao.getWorkspace(workspaceId, petToken)
+      workspaceDetails <- F.fromOption(
+        workspaceDetailsOpt,
+        AppCreationException(s"Workspace ${workspaceId} not found in call to WSM")
+      )
+
+      // Step 2: call LZ for LZ id
+      landingZoneOpt <- httpWsmDao.getLandingZone(workspaceDetails.spendProfile, petToken)
+      landingZoneId <- F.fromOption(
+        landingZoneOpt,
+        AppCreationException(s"Landing zone not found for billing profile ${workspaceDetails.spendProfile}")
+      )
+
+      // Step 3: call LZ for LZ resources
+      lzResourcesOpt <- httpWsmDao.listLandingZoneResourcesByType(landingZoneId, petToken)
+      lzResources <- F.fromOption(
+        lzResourcesOpt,
+        AppCreationException(s"Landing zone resources not found in landing zone ${landingZoneId}")
+      ) // TODO use lz resource to construct LandingZoneResources object
+
+    } yield LandingZoneResources(
       AKSClusterName("cluster-name"),
       BatchAccountName("batch-account"),
       RelayNamespace("relay-namespace"),
       StorageAccountName("storage-account"),
       SubnetName("BATCH_SUBNET")
     )
+  }
 
   private[util] def buildMsiManager(cloudContext: AzureCloudContext): F[MsiManager] = {
     val azureProfile =

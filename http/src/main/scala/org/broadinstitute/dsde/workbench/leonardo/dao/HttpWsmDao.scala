@@ -151,6 +151,43 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
+  override def getLandingZone(billingId: String, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[String]] =
+    for {
+      ctx <- ev.ask
+      landingZoneListOption <- httpClient.expectOptionOr[List[String]](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(s"/api/landingzones/v1/bybillingid/${billingId}")
+            ),
+          headers = headers(authorization, ctx.traceId, withBody = false) // TODO put billing id in body?
+        )
+      )(onError)
+      landingZoneIdOption = landingZoneListOption.flatMap(landingZoneList => landingZoneList.headOption)
+    } yield landingZoneIdOption
+
+  override def listLandingZoneResourcesByType(landingZoneId: String, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[List[Object]]] =
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOptionOr[List[Object]]( // TODO fix object type
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(s"/api/landingzones/v1/azure/${landingZoneId}/resources")
+            ),
+          headers = headers(authorization, ctx.traceId, withBody = false)
+        )
+      )(onError)
+    } yield res
+
   override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]] =
