@@ -558,7 +558,7 @@ class AzurePubsubHandlerSpec
     } yield result shouldBe Left(
       PubsubKubernetesError(
         AppError(
-          s"Error creating Azure app with id ${appId} and cloudContext ${azureCloudContext.asString}: something went wrong",
+          s"Error creating Azure app with id ${appId.id} and cloudContext ${azureCloudContext.asString}: something went wrong",
           ctx.now,
           ErrorAction.CreateApp,
           ErrorSource.App,

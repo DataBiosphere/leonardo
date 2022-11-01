@@ -199,7 +199,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         // TODO (TOAZ-242): change to kubernetes-app resource type once listener supports it
-        raw"relaylistener.samResourceType=workspace",
+        raw"relaylistener.samResourceType=controlled-application-private-workspace-resource",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",

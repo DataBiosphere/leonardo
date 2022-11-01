@@ -93,7 +93,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
       "config.batchAccountName=batch," +
-      "config.batchNodesSubnetId=subnet," +
+      "config.batchNodesSubnetId=subnet1," +
       "relaylistener.connectionString=Endpoint=sb://relay.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=pk;EntityPath=hc," +
       "relaylistener.connectionName=hc,relaylistener.endpoint=https://relay.servicebus.windows.net," +
       "relaylistener.targetHost=http://coa-rel-1-reverse-proxy-service:8000/," +
@@ -152,7 +152,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val identities = mock[Identities]
     val identity = setUpMockIdentity
     when {
-      identities.getByResourceGroup(anyString, anyString)
+      identities.getById(anyString)
     } thenReturn identity
     when {
       msi.identities()
