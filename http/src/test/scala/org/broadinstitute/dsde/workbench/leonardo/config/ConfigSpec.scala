@@ -127,4 +127,21 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       GalaxyDiskConfig("nfs-disk", DiskSize(100), "postgres-disk", "gxy-postres-disk", DiskSize(10), BlockSize(4096))
     Config.gkeGalaxyDiskConfig shouldBe expectedResult
   }
+
+  it should "read AppMonitorConfig properly" in {
+    val expectedResult =
+      AppMonitorConfig(
+        PollMonitorConfig(10 seconds, 90, 10 seconds),
+        PollMonitorConfig(10 seconds, 90, 10 seconds),
+        PollMonitorConfig(30 seconds, 120, 15 seconds),
+        PollMonitorConfig(30 seconds, 120, 15 seconds),
+        PollMonitorConfig(2 seconds, 100, 3 seconds),
+        InterruptablePollMonitorConfig(120, 10 seconds, 20 minutes),
+        PollMonitorConfig(30 seconds, 120, 10 seconds),
+        PollMonitorConfig(2 seconds, 90, 10 seconds),
+        PollMonitorConfig(0 days, 10, 2 seconds),
+        InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes)
+      )
+    Config.gkeMonitorConfig shouldBe expectedResult
+  }
 }
