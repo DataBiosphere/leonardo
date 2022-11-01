@@ -668,7 +668,7 @@ object Config {
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
-      config.getOrElse[KubernetesServiceKindName]("kind", KubernetesServiceKindName.clusterIP),
+      config.as[KubernetesServiceKindName]("kind"),
       config.as[Option[ServicePath]]("path")
     )
   }

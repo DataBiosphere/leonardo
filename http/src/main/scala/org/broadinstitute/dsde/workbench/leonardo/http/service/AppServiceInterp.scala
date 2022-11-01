@@ -1015,9 +1015,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             gkeAppConfig.chart
           else lastUsed.chart
         }
-        // TODO fix this for the cromwell case (BW-867)
-        // For now for cromwell apps, the chart is wrong in the Leo DB.
-        // Back Leo reads the chart from config instead of the DB.
         .getOrElse(gkeAppConfig.chart)
       release <- lastUsedApp.fold(
         KubernetesName.withValidation(

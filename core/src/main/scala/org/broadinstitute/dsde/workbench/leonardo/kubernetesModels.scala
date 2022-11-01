@@ -475,9 +475,6 @@ final case class KubernetesService(id: ServiceId, config: ServiceConfig)
 final case class ServiceId(id: Long) extends AnyVal
 final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, path: Option[ServicePath] = None)
 final case class KubernetesServiceKindName(value: String) extends AnyVal
-object KubernetesServiceKindName {
-  val clusterIP = KubernetesServiceKindName("ClusterIP")
-}
 final case class ServicePath(value: String) extends AnyVal
 
 final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: MachineTypeName, autoscalingEnabled: Boolean)

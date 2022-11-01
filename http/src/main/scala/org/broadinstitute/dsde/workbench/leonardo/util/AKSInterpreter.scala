@@ -151,7 +151,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
-      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
           dbApp.cluster.id,
