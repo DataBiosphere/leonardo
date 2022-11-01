@@ -41,12 +41,16 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SamConfig("https://sam")
   )
 
+  val mockSamDAO = mock[SamDAO[IO]]
+  val mockCromwellDAO = mock[CromwellDAO[IO]]
+
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
     setUpMockAzureContainerService,
     FakeAzureRelayService,
-    mock[CromwellDao[IO]]
+    mockSamDAO,
+    mockCromwellDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -110,7 +114,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "create and poll a coa app" in isolatedDbTest {
-    val res = for {
+    val createdAppStatus = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
       nodepool <- IO(makeNodepool(1, cluster.id).save())
       app = makeApp(1, nodepool.id).copy(
@@ -125,13 +129,20 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
       )
       saveApp <- IO(app.save())
-      params = CreateAKSAppParams(saveApp.id, saveApp.appName, WorkspaceId(UUID.randomUUID), cloudContext)
+      appId = saveApp.id
+      appName = saveApp.appName
+
+      params = CreateAKSAppParams(appId, appName, cloudContext)
       _ <- aksInterp.createAndPollApp(params)
+
+      app <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), appName)
+        .transaction
     } yield {
-      // TODO (TOAZ-229): verify app status reaches Running once polling is implemented
+      app.get
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    createdAppStatus.map(r => r.app.status shouldBe AppStatus.Running).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def setUpMockIdentity: Identity = {

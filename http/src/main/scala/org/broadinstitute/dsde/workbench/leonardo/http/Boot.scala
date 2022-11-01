@@ -326,7 +326,7 @@ object Boot extends IOApp {
         HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
       )
       cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
-        client => new HttpCromwellDAO[F](runtimeDnsCache, client, samDao)
+        client => new HttpCromwellDAO[F](client, samDao)
       )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
@@ -582,6 +582,7 @@ object Boot extends IOApp {
         helmClient,
         azureContainerService,
         azureRelay,
+        samDao,
         cromwellDao
       )
 

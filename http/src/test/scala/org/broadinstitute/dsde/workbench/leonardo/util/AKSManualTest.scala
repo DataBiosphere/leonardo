@@ -72,6 +72,9 @@ object AKSManualTest {
   implicit val logger = Slf4jLogger.getLogger[IO]
   implicit val executionContext = ExecutionContext.global
 
+  val mockSamDAO = mock[SamDAO[IO]]
+  val mockCromwellDAO = mock[CromwellDAO[IO]]
+
   /** Initializes DbReference */
   def getDbRef: Resource[IO, DbReference[IO]] = for {
     concurrentDbAccessPermits <- Resource.eval(Semaphore[IO](dbConcurrency))
@@ -144,7 +147,7 @@ object AKSManualTest {
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/")
     )
-  } yield new AKSInterpreter(config, helmClient, containerService, relayService, mock[CromwellDao[IO]])
+  } yield new AKSInterpreter(config, helmClient, containerService, relayService, mockSamDAO, mockCromwellDAO)
 
   /** Deploys a CoA app */
   def deployApp: IO[Unit] = {

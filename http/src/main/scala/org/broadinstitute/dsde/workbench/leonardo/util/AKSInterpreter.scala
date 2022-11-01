@@ -37,7 +37,9 @@ import scala.jdk.CollectionConverters._
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
                            azureContainerService: AzureContainerService[F],
-                           azureRelayService: AzureRelayService[F]
+                           azureRelayService: AzureRelayService[F],
+                           samDao: SamDAO[F],
+                           cromwellDao: CromwellDAO[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -144,10 +146,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-      // Poll app status
-      _ <- streamFUntilDone(
-          cromwellDao.getStatus(CloudContext.Azure(params.cloudContext), RuntimeName(params.appName.value)),
-        maxAttempts=6, delay=10 seconds).interruptAfter(1 minute).compile.lastOrError
+       // Poll app status
+      appOk <- pollAppsForSuccess(landingZoneResources.relayNamespace)
+
+      _ <-
+        if (appOk && app.status == AppStatus.Running)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppCreationException(
+              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              Some(ctx.traceId)
+            )
+          )
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
@@ -175,6 +186,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     } yield ()
+
+  private def pollAppsForSuccess(relayNamespace: RelayNamespace)(implicit ev: Ask[F, AppContext]): F[Boolean] = for {
+    headers <- samDao.getLeoAuthToken.map(x => Headers(x))
+    cromwellOk <- streamFUntilDone(
+      cromwellDao.getStatus(relayNamespace, headers),
+      maxAttempts = config.pollingConfig.maxAttempts,
+      delay = config.pollingConfig.delay
+    ).interruptAfter(config.pollingConfig.interruptAfter).compile.lastOrError
+  } yield cromwellOk
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      cloudContext: AzureCloudContext,

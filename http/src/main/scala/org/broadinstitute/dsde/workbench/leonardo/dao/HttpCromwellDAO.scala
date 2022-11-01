@@ -7,7 +7,6 @@ import cats.syntax.all._
 import io.circe._
 import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -19,21 +18,25 @@ import org.typelevel.log4cats.Logger
 
 import scala.util.control.NoStackTrace
 
-class HttpCromwellDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], httpClient: Client[F], samDAO: SamDAO[F])(implicit
-  logger: Logger[F],
-  F: Async[F],
-  metrics: OpenTelemetryMetrics[F]
-) extends CromwellDao[F]
-    with Http4sClientDsl[F] {
 
+object HttpCromwellDAO {
   implicit val statusDecoder: Decoder[CromwellStatusCheckResponse] = Decoder.instance { d =>
     for {
       ok <- d.downField("ok").as[Boolean]
     } yield CromwellStatusCheckResponse(ok)
   }
+}
+
+class HttpCromwellDAO[F[_]](httpClient: Client[F], samDAO: SamDAO[F])(implicit
+  logger: Logger[F],
+  F: Async[F],
+  metrics: OpenTelemetryMetrics[F]
+) extends CromwellDAO[F]
+    with Http4sClientDsl[F] {
+  import HttpCromwellDAO._
 
   override def getStatus(relayNamespace: RelayNamespace, headers: Headers)(implicit
-                                                                                 ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext]
   ): F[Boolean] = {
     val baseUri = Uri.unsafeFromString(s"https://${relayNamespace.value}.servicebus.windows.net")
     val cromwellStatusUri = baseUri / "cromwell" / "api" / "engine" / "v1" / "status"
@@ -45,9 +48,9 @@ class HttpCromwellDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], httpClient:
           headers = headers
         )
       )(onError) match {
-        case Left(e) =>
-            logger.error(s"Failed to get status from Cromwell for namespace ${relayNamespace.value}")
-            F.pure(false)
+        case Left(_) =>
+          logger.error(s"Failed to get status from Cromwell for namespace ${relayNamespace.value}")
+          F.pure(false)
         case Right(CromwellStatusCheckResponse(ok)) => F.pure(ok)
       }
     } yield res
