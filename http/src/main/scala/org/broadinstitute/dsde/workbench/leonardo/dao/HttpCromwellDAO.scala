@@ -34,21 +34,19 @@ class HttpCromwellDAO[F[_]](httpClient: Client[F], samDAO: SamDAO[F])(implicit
     with Http4sClientDsl[F] {
   import HttpCromwellDAO._
 
-  override def getStatus(relayNamespace: RelayNamespace, headers: Headers)(implicit
+  override def getStatus(uri: Uri, headers: Headers)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] = {
-    val baseUri = Uri.unsafeFromString(s"https://${relayNamespace.value}.servicebus.windows.net")
-    val cromwellStatusUri = baseUri / "cromwell" / "api" / "engine" / "v1" / "status"
     for {
       res <- metrics.incrementCounter("cromwell/status") >> httpClient.expectOr[CromwellStatusCheckResponse](
         Request[F](
           method = Method.GET,
-          uri = cromwellStatusUri,
+          uri = uri,
           headers = headers
         )
       )(onError) match {
         case Left(_) =>
-          logger.error(s"Failed to get status from Cromwell for namespace ${relayNamespace.value}")
+          logger.error(s"Failed to get status from $uri")
           F.pure(false)
         case Right(CromwellStatusCheckResponse(ok)) => F.pure(ok)
       }

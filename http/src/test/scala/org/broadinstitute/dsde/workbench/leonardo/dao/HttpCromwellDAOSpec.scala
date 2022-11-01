@@ -56,8 +56,9 @@ class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSui
     )
 
     val cromwellDAO = new HttpCromwellDAO(okSam, mockSamDao)
-    val res = cromwellDAO.getStatus(RelayNamespace("test-namespace"), headers)
-    res.map(r => r shouldBe CromwellStatusCheckResponse(false)).unsafeRunSync()
+    val res = cromwellDAO.getStatus(Uri.unsafeFromString("https://test.com/cromwell/status"), headers)
+    val status = res.unsafeRunSync()
+    status shouldBe CromwellStatusCheckResponse(false)
   }
 
   "HttpCromwellDAO.getStatus" should "return true if status is ok" in {
@@ -75,7 +76,8 @@ class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSui
     )
 
     val cromwellDAO = new HttpCromwellDAO(okSam, mockSamDao)
-    val res = cromwellDAO.getStatus(RelayNamespace("test-namespace"), headers)
-    res.map(r => r shouldBe CromwellStatusCheckResponse(true)).unsafeRunSync()
+    val res = cromwellDAO.getStatus(Uri.unsafeFromString("https://test.com/cromwell/status"), headers)
+    val status = res.unsafeRunSync()
+    status shouldBe CromwellStatusCheckResponse(true)
   }
 }

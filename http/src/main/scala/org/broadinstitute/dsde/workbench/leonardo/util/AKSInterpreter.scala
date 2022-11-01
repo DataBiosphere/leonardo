@@ -187,14 +187,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield ()
 
-  private def pollAppsForSuccess(relayNamespace: RelayNamespace)(implicit ev: Ask[F, AppContext]): F[Boolean] = for {
-    headers <- samDao.getLeoAuthToken.map(x => Headers(x))
-    cromwellOk <- streamFUntilDone(
-      cromwellDao.getStatus(relayNamespace, headers),
-      maxAttempts = config.pollingConfig.maxAttempts,
-      delay = config.pollingConfig.delay
-    ).interruptAfter(config.pollingConfig.interruptAfter).compile.lastOrError
-  } yield cromwellOk
+  private def pollAppsForSuccess(relayNamespace: RelayNamespace)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
+    val relayBaseUri = Uri.unsafeFromString(s"https://${relayNamespace.value}.servicebus.windows.net")
+    val cromwellStatusUri = relayBaseUri / "cromwell" / "api" / "engine" / "v1" / "status"
+    for {
+
+      headers <- samDao.getLeoAuthToken.map(x => Headers(x))
+      cromwellOk <- streamFUntilDone(
+        cromwellDao.getStatus(cromwellStatusUri, headers),
+        maxAttempts = config.pollingConfig.maxAttempts,
+        delay = config.pollingConfig.delay
+      ).interruptAfter(config.pollingConfig.interruptAfter).compile.lastOrError
+    } yield cromwellOk
+  }
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      cloudContext: AzureCloudContext,
