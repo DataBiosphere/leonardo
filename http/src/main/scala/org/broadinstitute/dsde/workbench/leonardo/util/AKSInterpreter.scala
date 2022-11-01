@@ -19,13 +19,14 @@ import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.tracedRetryF
+import org.broadinstitute.dsde.workbench.google2.{tracedRetryF, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsp.{Release, _}
 import org.typelevel.log4cats.StructuredLogger
 
@@ -117,7 +118,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Resolve pet managed identity in Azure
       msi <- buildMsiManager(params.cloudContext)
       petMi <- F.delay(
-        msi.identities().getByResourceGroup(params.cloudContext.managedResourceGroupName.value, petEmail.value)
+        msi.identities().getById(petEmail.value)
       )
 
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
@@ -148,6 +149,25 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // TODO (TOAZ-229): poll app for completion
 
+      // Populate async fields in the KUBERNETES_CLUSTER table.
+      // For Azure we don't need each field, but we do need the relay https endpoint.
+      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      _ <- kubernetesClusterQuery
+        .updateAsyncFields(
+          dbApp.cluster.id,
+          KubernetesClusterAsyncFields(
+            IP(relayEndpoint),
+            IP("[unset]"),
+            NetworkFields(
+              landingZoneResources.vnetName,
+              landingZoneResources.aksSubnetName,
+              IpRange("[unset]")
+            )
+          )
+        )
+        .transaction
+
+      // If we've got here, update the App status to Running.
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
     } yield ()
@@ -177,9 +197,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.endpoint=https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net",
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
-        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
+//        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
+        raw"relaylistener.samResourceId=46d846a4-dca9-4e53-8a89-0eb251ee0be1",
         // TODO (TOAZ-242): change to kubernetes-app resource type once listener supports it
-        raw"relaylistener.samResourceType=controlled-application-private-workspace-resource",
+        raw"relaylistener.samResourceType=workspace",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -294,11 +315,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   // TODO (TOAZ-232): replace hard-coded values with LZ API calls
   private def getLandingZoneResources: LandingZoneResources =
     LandingZoneResources(
-      AKSClusterName("cluster-name"),
-      BatchAccountName("batch-account"),
-      RelayNamespace("relay-namespace"),
-      StorageAccountName("storage-account"),
-      SubnetName("BATCH_SUBNET")
+      AKSClusterName("lz8323c0a84ab2e6268a14b70"),
+      BatchAccountName("lz036964999a1ae0e0cfc657"),
+      RelayNamespace("lzb4d1dcffa1b89cec65b7345dacec323bf339c47dc4e3e094"),
+      StorageAccountName("lz380543a4621836c78040ad"),
+      NetworkName("lz2e9010b56454cc61498fd958d646768f4e2ea5859c7dd98911671b268a88e1"),
+      SubnetworkName("BATCH_SUBNET"),
+      SubnetworkName("AKS_SUBNET")
     )
 
   private[util] def buildMsiManager(cloudContext: AzureCloudContext): F[MsiManager] = {

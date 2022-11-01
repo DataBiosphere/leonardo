@@ -668,7 +668,7 @@ object Config {
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
-      config.as[KubernetesServiceKindName]("kind"),
+      config.getOrElse[KubernetesServiceKindName]("kind", KubernetesServiceKindName.clusterIP),
       config.as[Option[ServicePath]]("path")
     )
   }
@@ -683,7 +683,7 @@ object Config {
       .getOrElse(throw new Exception(s"Invalid service name in config: ${s}"))
   )
   implicit private val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
-    stringValueReader.map(KubernetesServiceKindName)
+    stringValueReader.map(KubernetesServiceKindName.apply)
   implicit private val kubernetesClusterVersionReader: ValueReader[KubernetesClusterVersion] =
     stringValueReader.map(KubernetesClusterVersion)
   implicit private val servicePathReader: ValueReader[ServicePath] =

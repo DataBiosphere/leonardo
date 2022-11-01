@@ -250,7 +250,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
             .raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase, "v1")
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
     userInfo: UserInfo,
@@ -451,7 +451,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
             .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase, "v2")
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
     implicit as: Ask[F, AppContext]
@@ -960,7 +960,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         cloudContext,
         appName,
         userEmail,
-        config.leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail
+        googleServiceAccount
       ).toMap ++ req.labels
     for {
       // check the labels do not contain forbidden keys
@@ -1090,7 +1090,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             )
           }
           .filterNot(_.nodepools.isEmpty)
-          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels, apiVersion))
+          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
           .toVector
     }
   } yield res
@@ -1129,7 +1129,7 @@ case class AppNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
                                              traceId: TraceId,
                                              extraMsg: String
 ) extends LeoException(
-      s"App ${workspaceId.toString}/${appName.value} not found",
+      s"App ${workspaceId.value.toString}/${appName.value} not found",
       StatusCodes.NotFound,
       null,
       extraMsg,
@@ -1141,7 +1141,7 @@ case class AppAlreadyExistsInWorkspaceException(workspaceId: WorkspaceId,
                                                 status: AppStatus,
                                                 traceId: TraceId
 ) extends LeoException(
-      s"App ${workspaceId.toString}/${appName.value} already exists in ${status.toString} status.",
+      s"App ${workspaceId.value.toString}/${appName.value} already exists in ${status.toString} status.",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
@@ -1169,7 +1169,7 @@ case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
                                                     status: AppStatus,
                                                     traceId: TraceId
 ) extends LeoException(
-      s"App ${workspaceId.toString}/${appName.value} cannot be deleted in ${status} status." +
+      s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
       traceId = Some(traceId)

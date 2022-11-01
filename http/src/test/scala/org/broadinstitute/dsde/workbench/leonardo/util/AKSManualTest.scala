@@ -113,7 +113,9 @@ object AKSManualTest {
                   .copy(name = ChartName("cromwell-helm/cromwell-on-azure")),
                 release = Release(s"manual-${ConfigReader.appConfig.azure.coaAppConfig.releaseNameSuffix.value}"),
                 samResourceId = appSamResourceId,
-                googleServiceAccount = WorkbenchEmail(uamiName.value),
+                googleServiceAccount = WorkbenchEmail(
+                  s"/subscriptions/${cloudContext.subscriptionId.value}/resourcegroups/${cloudContext.managedResourceGroupName.value}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${uamiName.value}"
+                ),
                 appResources = AppResources(
                   namespace = Namespace(
                     NamespaceId(-1),

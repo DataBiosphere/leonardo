@@ -759,7 +759,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(
-            s"Error creating Azure app with id ${appId} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
             ctx.now,
             ErrorAction.CreateApp,
             ErrorSource.App,
