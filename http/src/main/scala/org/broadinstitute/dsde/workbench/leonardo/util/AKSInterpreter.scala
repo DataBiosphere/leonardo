@@ -197,8 +197,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.endpoint=https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net",
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
-//        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceId=46d846a4-dca9-4e53-8a89-0eb251ee0be1",
+        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         // TODO (TOAZ-242): change to kubernetes-app resource type once listener supports it
         raw"relaylistener.samResourceType=workspace",
 
