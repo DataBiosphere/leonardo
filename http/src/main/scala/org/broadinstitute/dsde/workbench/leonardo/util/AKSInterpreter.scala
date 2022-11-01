@@ -371,13 +371,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
 }
 
-final case class AKSInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
-                                      coaAppConfig: CoaAppConfig,
-                                      aadPodIdentityConfig: AadPodIdentityConfig,
-                                      appRegistrationConfig: AzureAppRegistrationConfig,
-                                      samConfig: SamConfig,
-                                      pollingConfig: PollingConfig =
-                                        PollingConfig(maxAttempts = 12, delay = 10 seconds, interruptAfter = 2 minute)
+final case class AKSInterpreterConfig(
+  terraAppSetupChartConfig: TerraAppSetupChartConfig,
+  coaAppConfig: CoaAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  appRegistrationConfig: AzureAppRegistrationConfig,
+  samConfig: SamConfig,
+  pollingConfig: PollingConfig = PollingConfig(maxAttempts = 120, delay = 10 seconds, interruptAfter = 20 minutes)
 )
 
 final case class PollingConfig(maxAttempts: Int, delay: FiniteDuration, interruptAfter: FiniteDuration)
