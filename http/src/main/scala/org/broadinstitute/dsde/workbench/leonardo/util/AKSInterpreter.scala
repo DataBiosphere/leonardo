@@ -315,11 +315,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   // TODO (TOAZ-232): replace hard-coded values with LZ API calls
   private def getLandingZoneResources: LandingZoneResources =
     LandingZoneResources(
-      AKSClusterName("lz8323c0a84ab2e6268a14b70"),
-      BatchAccountName("lz036964999a1ae0e0cfc657"),
-      RelayNamespace("lzb4d1dcffa1b89cec65b7345dacec323bf339c47dc4e3e094"),
-      StorageAccountName("lz380543a4621836c78040ad"),
-      NetworkName("lz2e9010b56454cc61498fd958d646768f4e2ea5859c7dd98911671b268a88e1"),
+      AKSClusterName("cluster-name"),
+      BatchAccountName("batch-account"),
+      RelayNamespace("relay-namespace"),
+      StorageAccountName("storage-account"),
+      NetworkName("vnet"),
       SubnetworkName("BATCH_SUBNET"),
       SubnetworkName("AKS_SUBNET")
     )

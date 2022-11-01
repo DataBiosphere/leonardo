@@ -91,34 +91,4 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
     Chart.fromString(invalidChartStr2) shouldBe None
     Chart.fromString(invalidChartStr3) shouldBe None
   }
-
-//  "App" should "generate valid proxy urls for v2 api." in {
-//    val services = (1 to 3).map(makeService).toList
-//    val app = LeoLenses.appToServices.modify(_ => services)(testApp)
-//
-//    // GCP Project
-//    app.getProxyUrls(CloudContext.Gcp(project), Some(workspaceId), proxyUrlBase) shouldBe Map(
-//      ServiceName("service1") -> new URL(
-//        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service1"
-//      ),
-//      ServiceName("service2") -> new URL(
-//        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service2"
-//      ),
-//      ServiceName("service3") -> new URL(
-//        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service3"
-//      )
-//    )
-//
-//    app.getProxyUrls(CloudContext.Azure(azureCloudContext), Some(workspaceId), proxyUrlBase) shouldBe Map(
-//      ServiceName("service1") -> new URL(
-//        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service1"
-//      ),
-//      ServiceName("service2") -> new URL(
-//        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service2"
-//      ),
-//      ServiceName("service3") -> new URL(
-//        s"https://leo/proxy/apps/v2/${workspaceId.toString}/${app.appName.value}/service3"
-//      )
-//    )
-//  }
 }
