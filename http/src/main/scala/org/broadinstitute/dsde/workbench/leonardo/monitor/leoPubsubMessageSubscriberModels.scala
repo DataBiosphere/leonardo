@@ -7,8 +7,8 @@ import com.google.cloud.compute.v1.Disk
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -162,6 +162,9 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object DeleteAzureRuntime extends LeoPubsubMessageType {
     val asString = "deleteAzureRuntime"
   }
+  final case object CreateAppV2 extends LeoPubsubMessageType {
+    val asString = "createAppV2"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -261,16 +264,13 @@ object LeoPubsubMessage {
   }
 
   final case class CreateAppV2Message(
-    workspaceId: WorkspaceId,
     appId: AppId,
     appName: AppName,
-    createDisk: Option[DiskId],
-    customEnvironmentVariables: Map[String, String],
-    appType: AppType,
-    namespaceName: NamespaceName,
+    workspaceId: WorkspaceId,
+    cloudContext: CloudContext,
     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
-    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAppV2
   }
 
   final case class DeleteAppMessage(appId: AppId,
@@ -524,6 +524,9 @@ object LeoPubsubCodec {
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
 
+  implicit val createAppV2Decoder: Decoder[CreateAppV2Message] =
+    Decoder.forProduct5("appId", "appName", "workspaceId", "cloudContext", "traceId")(CreateAppV2Message.apply)
+
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
@@ -542,6 +545,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.StartApp           => message.as[StartAppMessage]
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
+        case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
       }
     } yield value
   }
@@ -864,28 +868,14 @@ object LeoPubsubCodec {
     )
 
   implicit val createAppV2MessageEncoder: Encoder[CreateAppV2Message] =
-    Encoder.forProduct9(
+    Encoder.forProduct6(
       "messageType",
-      "workspaceId",
       "appId",
       "appName",
-      "createDisk",
-      "customEnvironmentVariables",
-      "appType",
-      "namespaceName",
+      "workspaceId",
+      "cloudContext",
       "traceId"
-    )(x =>
-      (x.messageType,
-       x.workspaceId,
-       x.appId,
-       x.appName,
-       x.createDisk,
-       x.customEnvironmentVariables,
-       x.appType,
-       x.namespaceName,
-       x.traceId
-      )
-    )
+    )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.traceId))
 
   implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
     Encoder.forProduct6("messageType", "appId", "appName", "workspaceId", "diskId", "traceId")(x =>

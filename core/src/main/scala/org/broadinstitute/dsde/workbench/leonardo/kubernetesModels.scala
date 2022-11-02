@@ -1,11 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
-import java.time.Instant
-import java.util.UUID
-
 import ca.mrvisser.sealerate
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   NamespaceName,
@@ -20,9 +15,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
+
+import java.net.URL
+import java.time.Instant
+import java.util.UUID
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              cloudContext: CloudContext,
@@ -46,7 +46,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
   // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
   def getClusterId: KubernetesClusterId = cloudContext match {
     case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
-    case CloudContext.Azure(_)   => ??? // TODO: implement once we start supporting Azure
+    case CloudContext.Azure(_)   => throw new IllegalStateException("Can't get GCP ID for an Azure cluster")
   }
 }
 
@@ -253,19 +253,19 @@ final case class DefaultKubernetesLabels(cloudContext: CloudContext,
 sealed abstract class ErrorAction
 object ErrorAction {
   case object CreateApp extends ErrorAction {
-    override def toString: String = "createGalaxyApp"
+    override def toString: String = "createApp"
   }
 
   case object DeleteApp extends ErrorAction {
-    override def toString: String = "deleteGalaxyApp"
+    override def toString: String = "deleteApp"
   }
 
   case object StopApp extends ErrorAction {
-    override def toString: String = "stopGalaxyApp"
+    override def toString: String = "stopApp"
   }
 
   case object StartApp extends ErrorAction {
-    override def toString: String = "startGalaxyApp"
+    override def toString: String = "startApp"
   }
 
   case object DeleteNodepool extends ErrorAction {
@@ -383,33 +383,21 @@ final case class App(id: AppId,
                      extraArgs: List[String]
 ) {
 
-  def getProxyUrls(cloudContext: CloudContext,
-                   workspaceId: Option[WorkspaceId],
-                   proxyUrlBase: String,
-                   apiVersion: String
-  ): Map[ServiceName, URL] =
+  def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.flatMap { service =>
-      val proxyPathOpt = (apiVersion, cloudContext, workspaceId) match {
-        // v1 apis should always generate urls for google apps
-        case ("v1", CloudContext.Gcp(project), _) =>
-          Some(s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}")
-        // v2 apis should generate urls for apps on both clouds, but only if there's a workspace
-        case ("v2", _, Some(workspace)) =>
-          Some(s"apps/v2/${workspace.toString}/${appName.value}/${service.config.name.value}")
-        // otherwise don't generate a proxy url
+      // A service can optionally define a path; otherwise, use the name.
+      val leafPath = service.config.path.map(_.value).getOrElse(s"/${service.config.name.value}")
+      // GCP uses a Leo proxy endpoint: e.g. https://notebooks.firecloud.org/google/v1/apps/{project}/{app}/{service}
+      // Azure uses Azure relay: e.g. https://{namespace}.servicebus.windows.net/{app}/{service}
+      val proxyPathOpt = cluster.cloudContext match {
+        case CloudContext.Gcp(project) =>
+          Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
+        case CloudContext.Azure(_) =>
+          cluster.asyncFields.map(_.loadBalancerIp.asString).map(base => s"${base}${appName.value}${leafPath}")
         case _ =>
           None
       }
-      proxyPathOpt match {
-        case Some(proxyPath) =>
-          Map(
-            service.config.name -> new URL(
-              s"${proxyUrlBase}${proxyPath}${service.config.path.getOrElse("")}"
-            )
-          )
-        case None =>
-          Map.empty
-      }
+      proxyPathOpt.fold(Map.empty[ServiceName, URL])(p => Map(service.config.name -> new URL(p)))
     }.toMap
 }
 

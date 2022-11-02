@@ -60,11 +60,7 @@ final case class ListAppResponse(cloudProvider: CloudProvider,
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 
 object ListAppResponse {
-  def fromCluster(c: KubernetesCluster,
-                  proxyUrlBase: String,
-                  labelsToReturn: List[String],
-                  apiVersion: String
-  ): List[ListAppResponse] =
+  def fromCluster(c: KubernetesCluster, proxyUrlBase: String, labelsToReturn: List[String]): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
@@ -78,7 +74,7 @@ object ListAppResponse {
           ),
           a.errors,
           a.status,
-          a.getProxyUrls(c.cloudContext, c.workspaceId, proxyUrlBase, apiVersion),
+          a.getProxyUrls(c, proxyUrlBase),
           a.appName,
           a.appType,
           a.appResources.disk.map(_.name),
@@ -90,7 +86,7 @@ object ListAppResponse {
 }
 
 object GetAppResponse {
-  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String, apiVersion: String): GetAppResponse =
+  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
       appResult.app.appName,
       appResult.cluster.cloudContext,
@@ -101,11 +97,7 @@ object GetAppResponse {
       ),
       appResult.app.errors,
       appResult.app.status,
-      appResult.app.getProxyUrls(appResult.cluster.cloudContext,
-                                 appResult.cluster.workspaceId,
-                                 proxyUrlBase,
-                                 apiVersion
-      ),
+      appResult.app.getProxyUrls(appResult.cluster, proxyUrlBase),
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,

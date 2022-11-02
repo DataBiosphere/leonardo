@@ -12,6 +12,7 @@ import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -26,7 +27,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.nio.file.Files
-import java.util.Base64
+import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -56,11 +57,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ManagedResourceGroupName("mrg")
   )
 
-  val lzResources = LandingZoneResources(AKSClusterName("cluster"),
-                                         BatchAccountName("batch"),
-                                         RelayNamespace("relay"),
-                                         StorageAccountName("storage"),
-                                         SubnetName("subnet")
+  val lzResources = LandingZoneResources(
+    AKSClusterName("cluster"),
+    BatchAccountName("batch"),
+    RelayNamespace("relay"),
+    StorageAccountName("storage"),
+    NetworkName("network"),
+    SubnetworkName("subnet1"),
+    SubnetworkName("subnet2")
   )
 
   "AKSInterpreter" should "get a helm auth context" in {
@@ -89,7 +93,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
       "config.batchAccountName=batch," +
-      "config.batchNodesSubnetId=subnet," +
+      "config.batchNodesSubnetId=subnet1," +
       "relaylistener.connectionString=Endpoint=sb://relay.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=pk;EntityPath=hc," +
       "relaylistener.connectionName=hc,relaylistener.endpoint=https://relay.servicebus.windows.net," +
       "relaylistener.targetHost=http://coa-rel-1-reverse-proxy-service:8000/," +
@@ -120,7 +124,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
       )
       saveApp <- IO(app.save())
-      params = CreateAKSAppParams(saveApp.id, saveApp.appName, cloudContext)
+      params = CreateAKSAppParams(saveApp.id, saveApp.appName, WorkspaceId(UUID.randomUUID), cloudContext)
       _ <- aksInterp.createAndPollApp(params)
     } yield {
       // TODO (TOAZ-229): verify app status reaches Running once polling is implemented
@@ -148,7 +152,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val identities = mock[Identities]
     val identity = setUpMockIdentity
     when {
-      identities.getByResourceGroup(anyString, anyString)
+      identities.getById(anyString)
     } thenReturn identity
     when {
       msi.identities()
