@@ -19,13 +19,14 @@ import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.tracedRetryF
+import org.broadinstitute.dsde.workbench.google2.{tracedRetryF, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsp.{Release, _}
 import org.typelevel.log4cats.StructuredLogger
 
@@ -117,7 +118,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Resolve pet managed identity in Azure
       msi <- buildMsiManager(params.cloudContext)
       petMi <- F.delay(
-        msi.identities().getByResourceGroup(params.cloudContext.managedResourceGroupName.value, petEmail.value)
+        msi.identities().getById(petEmail.value)
       )
 
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
@@ -142,11 +143,32 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
+      // TODO (TOAZ-229): poll app for completion
+
+      // Populate async fields in the KUBERNETES_CLUSTER table.
+      // For Azure we don't need each field, but we do need the relay https endpoint.
+      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+      _ <- kubernetesClusterQuery
+        .updateAsyncFields(
+          dbApp.cluster.id,
+          KubernetesClusterAsyncFields(
+            IP(relayEndpoint),
+            IP("[unset]"),
+            NetworkFields(
+              landingZoneResources.vnetName,
+              landingZoneResources.aksSubnetName,
+              IpRange("[unset]")
+            )
+          )
+        )
+        .transaction
+
+      // If we've got here, update the App status to Running.
+      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
       )
-
-      // TODO (TOAZ-229): poll app for completion
 
     } yield ()
 
@@ -296,7 +318,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       BatchAccountName("batch-account"),
       RelayNamespace("relay-namespace"),
       StorageAccountName("storage-account"),
-      SubnetName("BATCH_SUBNET")
+      NetworkName("vnet"),
+      SubnetworkName("BATCH_SUBNET"),
+      SubnetworkName("AKS_SUBNET")
     )
 
   private[util] def buildMsiManager(cloudContext: AzureCloudContext): F[MsiManager] = {

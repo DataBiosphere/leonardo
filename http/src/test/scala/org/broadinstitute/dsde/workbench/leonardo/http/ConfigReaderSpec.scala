@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -11,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
-import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
+import org.broadinstitute.dsp._
 import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -76,7 +77,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("0.2.154"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
-          KsaName("coa-ksa")
+          KsaName("coa-ksa"),
+          List(
+            ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
+            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
+          )
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),

@@ -266,3 +266,9 @@ class MockGKEService extends GKEAlgebra[IO] {
   /** Starts an app and polls for completion */
   override def startAndPollApp(params: StartAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }
+
+class MockAKSInterp extends AKSAlgebra[IO] {
+
+  /** Creates an app and polls it for completion */
+  override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+}
