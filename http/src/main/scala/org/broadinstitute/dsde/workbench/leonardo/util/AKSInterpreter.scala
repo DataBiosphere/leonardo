@@ -143,10 +143,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
-      )
-
       // TODO (TOAZ-229): poll app for completion
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
@@ -169,6 +165,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // If we've got here, update the App status to Running.
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
+      )
 
     } yield ()
 
