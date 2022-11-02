@@ -756,6 +756,7 @@ class GKEInterpreter[F[_]](
       _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
         for {
           op <- gkeService.setNodepoolSize(nodepoolId, 0)
+          _ <- F.sleep(config.monitorConfig.setNodepoolAutoscaling.initialDelay)
           lastOp <- gkeService
             .pollOperation(
               KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
