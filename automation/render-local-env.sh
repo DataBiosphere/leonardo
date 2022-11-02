@@ -8,9 +8,19 @@ set -e
 WORKING_DIR=$PWD
 VAULT_TOKEN=$(cat ~/.vault-token)
 FIRECLOUD_AUTOMATED_TESTING_BRANCH=master
-ENV=dev
+ENV=qa
 SERVICE=leonardo
 LOCAL_UI=${LOCAL_UI:-false}  # local ui defaults to false unless set in the env
+
+if [[ -n "${BEE_NAME}" ]]; then
+  BEE_DOMAIN="${BEE_NAME}.bee.envs-terra.bio"
+
+  FIRECLOUDORCH_URL="https://firecloudorch.${BEE_DOMAIN}"
+  LEONARDO_URL="https://leonardo.${BEE_DOMAIN}"
+  RAWLS_URL="https://rawls.${BEE_DOMAIN}"
+  SAM_URL="https://sam.${BEE_DOMAIN}"
+  THURLOE_URL="https://thurloe.${BEE_DOMAIN}"
+fi
 
 FC_INSTANCE=fiab
 if [ $LOCAL_UI = "true" ]; then
@@ -65,12 +75,14 @@ render_configs() {
     docker run -it --rm -e VAULT_TOKEN=${VAULT_TOKEN} \
         -e ENVIRONMENT=${ENV} -e ROOT_DIR=${WORKING_DIR} -v $PWD/firecloud-automated-testing/configs:/input -v $PWD/$SCRIPT_ROOT:/output \
         -e OUT_PATH=/output/src/test/resources -e INPUT_PATH=/input -e LOCAL_UI=$LOCAL_UI -e FC_INSTANCE=$FC_INSTANCE \
+        -e FIRECLOUDORCH_URL=${FIRECLOUDORCH_URL} -e LEONARDO_URL=${LEONARDO_URL} -e RAWLS_URL=${RAWLS_URL} -e SAM_URL=${SAM_URL} -e THURLOE_URL=${THURLOE_URL} \
         broadinstitute/dsde-toolbox:dev render-templates.sh
 
     # pull service-specific application.conf
     docker run -it --rm -e VAULT_TOKEN=${VAULT_TOKEN} \
         -e ENVIRONMENT=${ENV} -e ROOT_DIR=${WORKING_DIR} -v $PWD/firecloud-automated-testing/configs/$SERVICE:/input -v $PWD/$SCRIPT_ROOT:/output \
         -e OUT_PATH=/output/src/test/resources -e INPUT_PATH=/input -e LOCAL_UI=$LOCAL_UI -e FC_INSTANCE=$FC_INSTANCE \
+        -e FIRECLOUDORCH_URL=${FIRECLOUDORCH_URL} -e LEONARDO_URL=${LEONARDO_URL} -e RAWLS_URL=${RAWLS_URL} -e SAM_URL=${SAM_URL} -e THURLOE_URL=${THURLOE_URL} \
         broadinstitute/dsde-toolbox:dev render-templates.sh
     cd $original_dir
 }
