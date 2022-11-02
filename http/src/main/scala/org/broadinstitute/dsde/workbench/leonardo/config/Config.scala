@@ -810,8 +810,8 @@ object Config {
       config.as[PollMonitorConfig]("createIngress"),
       config.as[InterruptablePollMonitorConfig]("createApp"),
       config.as[PollMonitorConfig]("deleteApp"),
-      config.as[PollMonitorConfig]("scaleNodepool"),
-      config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
+      config.as[PollMonitorConfig]("scalingUpNodepool"),
+      config.as[PollMonitorConfig]("scalingDownNodepool"),
       config.as[InterruptablePollMonitorConfig]("startApp")
     )
   }

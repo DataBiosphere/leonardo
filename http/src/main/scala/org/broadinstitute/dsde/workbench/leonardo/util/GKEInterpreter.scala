@@ -729,12 +729,12 @@ class GKEInterpreter[F[_]](
                 nodepoolId,
                 NodePoolAutoscaling.newBuilder().setEnabled(false).build()
               )
-              _ <- F.sleep(config.monitorConfig.setNodepoolAutoscaling.initialDelay)
+              _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
               lastOp <- gkeService
                 .pollOperation(
                   KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                  config.monitorConfig.setNodepoolAutoscaling.interval,
-                  config.monitorConfig.setNodepoolAutoscaling.maxAttempts
+                  config.monitorConfig.scalingDownNodepool.interval,
+                  config.monitorConfig.scalingDownNodepool.maxAttempts
                 )
                 .compile
                 .lastOrError
@@ -756,12 +756,12 @@ class GKEInterpreter[F[_]](
       _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
         for {
           op <- gkeService.setNodepoolSize(nodepoolId, 0)
-          _ <- F.sleep(config.monitorConfig.setNodepoolAutoscaling.initialDelay)
+          _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
           lastOp <- gkeService
             .pollOperation(
               KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-              config.monitorConfig.scaleNodepool.interval,
-              config.monitorConfig.scaleNodepool.maxAttempts
+              config.monitorConfig.scalingDownNodepool.interval,
+              config.monitorConfig.scalingDownNodepool.maxAttempts
             )
             .compile
             .lastOrError
@@ -818,11 +818,12 @@ class GKEInterpreter[F[_]](
             nodepoolId,
             dbNodepool.numNodes.amount
           )
+          _ <- F.sleep(config.monitorConfig.scalingUpNodepool.initialDelay)
           lastOp <- gkeService
             .pollOperation(
               KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-              config.monitorConfig.scaleNodepool.interval,
-              config.monitorConfig.scaleNodepool.maxAttempts
+              config.monitorConfig.scalingUpNodepool.interval,
+              config.monitorConfig.scalingUpNodepool.maxAttempts
             )
             .compile
             .lastOrError
@@ -912,11 +913,12 @@ class GKEInterpreter[F[_]](
                           .build
                       )
 
+                      _ <- F.sleep(config.monitorConfig.scalingUpNodepool.initialDelay)
                       lastOp <- gkeService
                         .pollOperation(
                           KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                          config.monitorConfig.setNodepoolAutoscaling.interval,
-                          config.monitorConfig.setNodepoolAutoscaling.maxAttempts
+                          config.monitorConfig.scalingUpNodepool.interval,
+                          config.monitorConfig.scalingUpNodepool.maxAttempts
                         )
                         .compile
                         .lastOrError
