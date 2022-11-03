@@ -124,13 +124,13 @@ class AppLifecycleSpec
               getAppResponse <- getApp
               _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
 
-              // Verify the app eventually becomes Stopped
-              _ <- IO.sleep(60 seconds)
+              // Verify the app eventually becomes Stopped. Resizing nodepool to 0 takes more than 10 minutes
+              _ <- IO.sleep(10 minutes)
               monitorStopResult <- streamUntilDoneOrTimeout(
                 getApp,
-                180,
+                360,
                 10 seconds,
-                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 60 minutes"
               )(implicitly, appInStateOrError(AppStatus.Stopped))
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
