@@ -18,8 +18,8 @@ class PetClusterServiceAccountProvider[F[_]: Monad](sam: SamDAO[F]) extends Serv
   ): F[Option[WorkbenchEmail]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     cloudContext match {
-      case CloudContext.Gcp(googleProject) => sam.getPetServiceAccount(authHeader, googleProject)
-      case CloudContext.Azure(_)           => sam.getPetManagedIdentity(authHeader)
+      case CloudContext.Gcp(googleProject)       => sam.getPetServiceAccount(authHeader, googleProject)
+      case CloudContext.Azure(azureCloudContext) => sam.getPetManagedIdentity(authHeader, azureCloudContext)
     }
   }
 

@@ -24,12 +24,14 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   ManagedIdentityName,
   Namespace,
   NamespaceId,
-  NodepoolStatus
+  NodepoolStatus,
+  WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 /**
@@ -49,6 +51,9 @@ object AKSManualTest {
     ClientSecret("client-secret"),
     ManagedAppTenantId("tenant-id")
   )
+
+  // This is your WSM workspace ID
+  val workspaceId = WorkspaceId(UUID.randomUUID)
 
   // this is your MRG
   val cloudContext = AzureCloudContext(
@@ -108,7 +113,9 @@ object AKSManualTest {
                   .copy(name = ChartName("cromwell-helm/cromwell-on-azure")),
                 release = Release(s"manual-${ConfigReader.appConfig.azure.coaAppConfig.releaseNameSuffix.value}"),
                 samResourceId = appSamResourceId,
-                googleServiceAccount = WorkbenchEmail(uamiName.value),
+                googleServiceAccount = WorkbenchEmail(
+                  s"/subscriptions/${cloudContext.subscriptionId.value}/resourcegroups/${cloudContext.managedResourceGroupName.value}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${uamiName.value}"
+                ),
                 appResources = AppResources(
                   namespace = Namespace(
                     NamespaceId(-1),
@@ -152,6 +159,7 @@ object AKSManualTest {
         CreateAKSAppParams(
           deps.app.id,
           deps.app.appName,
+          workspaceId,
           cloudContext
         )
       )

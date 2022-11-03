@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 trait AppService[F[_]] {
   def createApp(
     userInfo: UserInfo,
-    cloudContext: CloudContext,
+    cloudContext: CloudContext.Gcp,
     appName: AppName,
     req: CreateAppRequest,
     workspaceId: Option[WorkspaceId] = None
@@ -17,25 +17,25 @@ trait AppService[F[_]] {
 
   def getApp(
     userInfo: UserInfo,
-    cloudContext: CloudContext,
+    cloudContext: CloudContext.Gcp,
     appName: AppName
   )(implicit as: Ask[F, AppContext]): F[GetAppResponse]
 
   def listApp(
     userInfo: UserInfo,
-    cloudContext: Option[CloudContext],
+    cloudContext: Option[CloudContext.Gcp],
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
 
-  def deleteApp(request: DeleteAppRequest)(implicit
+  def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 
-  def stopApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
+  def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 
-  def startApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
+  def startApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 

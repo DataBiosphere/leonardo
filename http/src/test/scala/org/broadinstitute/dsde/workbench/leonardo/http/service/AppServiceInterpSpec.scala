@@ -603,8 +603,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
     // Call deleteApp
-    val params = DeleteAppRequest(petUserInfo, cloudContextGcp, appName, true)
-    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    kubeServiceInterp
+      .deleteApp(petUserInfo, cloudContextGcp, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // Verify that request using pet SA was successful and app is marked to be deleted
     val appResultPreDelete = dbFutureValue {
@@ -806,8 +807,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResultPreDelete.get.app.status shouldEqual AppStatus.Running
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    val params = DeleteAppRequest(userInfo, cloudContextGcp, appName, false)
-    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    kubeServiceInterp
+      .deleteApp(userInfo, cloudContextGcp, appName, false)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val clusterPostDelete = dbFutureValue {
       KubernetesServiceDbQueries.listFullApps(Some(cloudContextGcp), includeDeleted = true)
     }
@@ -846,9 +848,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    val params = DeleteAppRequest(userInfo, cloudContextGcp, appName, false)
     an[AppCannotBeDeletedException] should be thrownBy {
-      appServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp
+        .deleteApp(userInfo, cloudContextGcp, appName, false)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
@@ -885,8 +888,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResultPreDelete.get.app.appResources.disk.get.auditInfo.destroyedDate shouldBe defined
 
     // Call deleteApp
-    val params = DeleteAppRequest(userInfo, cloudContextGcp, appName, true)
-    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    kubeServiceInterp
+      .deleteApp(userInfo, cloudContextGcp, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // Verify database state
     val clusterPostDelete = dbFutureValue {
@@ -1104,7 +1108,11 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
       savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Running).save())
 
-      _ <- kubeServiceInterp.stopApp(userInfo, savedCluster.cloudContext, savedApp.appName)
+      gcpContext = savedCluster.cloudContext match {
+        case g @ CloudContext.Gcp(_) => g
+        case _                       => fail("expected GCP context")
+      }
+      _ <- kubeServiceInterp.stopApp(userInfo, gcpContext, savedApp.appName)
       _ <- withLeoPublisher(publisherQueue) {
         for {
           dbAppOpt <- KubernetesServiceDbQueries
@@ -1136,7 +1144,11 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
       savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Stopped).save())
 
-      _ <- kubeServiceInterp.startApp(userInfo, savedCluster.cloudContext, savedApp.appName)
+      gcpContext = savedCluster.cloudContext match {
+        case g @ CloudContext.Gcp(_) => g
+        case _                       => fail("expected GCP context")
+      }
+      _ <- kubeServiceInterp.startApp(userInfo, gcpContext, savedApp.appName)
       _ <- withLeoPublisher(publisherQueue) {
         for {
           dbAppOpt <- KubernetesServiceDbQueries
@@ -1435,7 +1447,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   // ----- App V2 tests -----
-  // TODO: Need disk implementation in order to create app.
 
   it should "V2 GCP - create an app V2 and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
@@ -1443,7 +1454,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
-    gcpWorkspaceAppServiceInterp // TODO: Add test for Azure using appServiceInterp.
+    gcpWorkspaceAppServiceInterp
       .createAppV2(userInfo, workspaceId, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -1475,12 +1486,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
-  // TODO: Write test with existing disk
-  it should "V2 Azure - create an app V2 and a new disk" in isolatedDbTest {
+  it should "V2 Azure - create an app V2" in isolatedDbTest {
     val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, Some(DiskSize(50)), Some(DiskType.Standard), Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
+                                       appType = AppType.CromwellOnAzure,
+                                       diskConfig = None,
+                                       customEnvironmentVariables = customEnvVars
+    )
 
     appServiceInterp
       .createAppV2(userInfo, workspaceId, appName, appReq)
@@ -1494,24 +1507,50 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val cluster = clusters.head
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
     cluster.workspaceId shouldEqual Some(workspaceId)
+    cluster.status shouldEqual KubernetesClusterStatus.Running
 
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual appReq.kubernetesRuntimeConfig.get.machineType
-    nodepool.numNodes shouldEqual appReq.kubernetesRuntimeConfig.get.numNodes
-    nodepool.autoscalingEnabled shouldEqual appReq.kubernetesRuntimeConfig.get.autoscalingEnabled
+    nodepool.machineType shouldEqual MachineTypeName("Standard_A2_v2")
+    nodepool.numNodes shouldEqual NumNodes(1)
+    nodepool.autoscalingEnabled shouldEqual false
     nodepool.auditInfo.creator shouldEqual userInfo.userEmail
+    nodepool.status shouldEqual NodepoolStatus.Running
 
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
     app.appName shouldEqual appName
-    app.chart shouldEqual galaxyChart
+    app.chart shouldEqual coaChart
     app.auditInfo.creator shouldEqual userInfo.userEmail
     app.customEnvironmentVariables shouldEqual customEnvVars
+    app.status shouldEqual AppStatus.Precreating
+    app.appResources.disk shouldEqual None
+  }
 
-    val savedDisk = dbFutureValue {
-      persistentDiskQuery.getById(app.appResources.disk.get.id)
-    }
-    savedDisk.map(_.name) shouldEqual Some(diskName)
+  it should "V2 Azure - throw an error when providing a machine config" in isolatedDbTest {
+    val appName = AppName("app1")
+    val appReq = createAppRequest.copy(
+      appType = AppType.CromwellOnAzure,
+      diskConfig = None
+    )
+
+    a[AppMachineConfigNotSupportedException] should be thrownBy
+      appServiceInterp
+        .createAppV2(userInfo, workspaceId, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "V2 Azure - throw an error when providing a disk config" in isolatedDbTest {
+    val appName = AppName("app1")
+    val appReq = createAppRequest.copy(
+      kubernetesRuntimeConfig = None,
+      appType = AppType.CromwellOnAzure,
+      diskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
+    )
+
+    a[AppDiskNotSupportedException] should be thrownBy
+      appServiceInterp
+        .createAppV2(userInfo, workspaceId, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "V2 GCP - queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
@@ -1539,19 +1578,21 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     defaultNodepools.length shouldBe 1
 
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.CreateApp
+    message.messageType shouldBe LeoPubsubMessageType.CreateAppV2
     val createAppMessage = message.asInstanceOf[CreateAppV2Message]
     createAppMessage.appId shouldBe getApp.app.id
+    createAppMessage.appName shouldBe getApp.app.appName
     createAppMessage.workspaceId shouldBe workspaceId
-    createAppMessage.createDisk shouldBe getApp.app.appResources.disk.map(_.id)
-    createAppMessage.customEnvironmentVariables shouldBe customEnvVars
   }
 
-  it should "V2 Azure - queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
+  it should "V2 Azure - queue the proper v2 message when creating an app" in isolatedDbTest {
     val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
+                                       appType = AppType.CromwellOnAzure,
+                                       diskConfig = None,
+                                       customEnvironmentVariables = customEnvVars
+    )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
@@ -1572,17 +1613,16 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     defaultNodepools.length shouldBe 1
 
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.CreateApp
+    message.messageType shouldBe LeoPubsubMessageType.CreateAppV2
     val createAppMessage = message.asInstanceOf[CreateAppV2Message]
     createAppMessage.appId shouldBe getApp.app.id
+    createAppMessage.appName shouldBe getApp.app.appName
     createAppMessage.workspaceId shouldBe workspaceId
-    createAppMessage.createDisk shouldBe getApp.app.appResources.disk.map(_.id)
-    createAppMessage.customEnvironmentVariables shouldBe customEnvVars
   }
 
   it should "V2 GCP - delete a gcp app V2, update status appropriately, and queue a message" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue) // TODO: Add test for Azure using makeInterp.
+    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
@@ -1631,10 +1671,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "V2 Azure - delete an Azure app V2, update status appropriately, and queue a message" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue) // TODO: Add test for Azure using makeInterp.
+    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
     val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+    val appReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.CromwellOnAzure, diskConfig = None)
 
     kubeServiceInterp
       .createAppV2(userInfo, workspaceId, appName, appReq)
@@ -1729,10 +1769,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "V2 Azure - list apps V2 should return apps for workspace" in isolatedDbTest {
     val appName1 = AppName("app1")
-    val diskName1 = DiskName("newDiskName1")
-    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        diskConfig = Some(createDiskConfig1)
+                                        kubernetesRuntimeConfig = None,
+                                        appType = AppType.CromwellOnAzure,
+                                        diskConfig = None
     )
     appServiceInterp
       .createAppV2(userInfo, workspaceId, appName1, appReq1)
@@ -1744,18 +1784,16 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
     val appName2 = AppName("app2")
-    val diskName2 = DiskName("newDiskName2")
-    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
-    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
+    val appReq2 =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.CromwellOnAzure, diskConfig = None)
 
     appServiceInterp
       .createAppV2(userInfo, workspaceId, appName2, appReq2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val appName3 = AppName("app3")
-    val diskName3 = DiskName("newDiskName3")
-    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
-    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
+    val appReq3 =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.CromwellOnAzure, diskConfig = None)
 
     appServiceInterp
       .createAppV2(userInfo, workspaceId3, appName3, appReq3)
