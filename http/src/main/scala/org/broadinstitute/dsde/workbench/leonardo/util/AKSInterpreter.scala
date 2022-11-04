@@ -201,10 +201,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
       token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-      op = List(cromwellDao.getStatus(relayBaseUri, authHeader),
-                cbasDao.getStatus(relayBaseUri, authHeader),
-                wdsDao.getStatus(relayBaseUri, authHeader)
-      ).sequence
+      // TODO (TOAZ-241): add cromwell to the status checks once it starts up
+      op = List(cbasDao.getStatus(relayBaseUri, authHeader), wdsDao.getStatus(relayBaseUri, authHeader)).sequence
       cromwellOk <- streamFUntilDone(
         op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
