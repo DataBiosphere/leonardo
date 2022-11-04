@@ -154,17 +154,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Poll app status
       relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
-      appOk <- pollCromwellAppCreation(Uri.unsafeFromString(relayEndpoint))
-      _ <-
-        if (appOk)
-          F.unit
-        else
-          F.raiseError[Unit](
-            AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
-              Some(ctx.traceId)
-            )
-          )
+      // TODO: uncomment when auth is worked out
+//      appOk <- pollCromwellAppCreation(Uri.unsafeFromString(relayEndpoint))
+//      _ <-
+//        if (appOk)
+//          F.unit
+//        else
+//          F.raiseError[Unit](
+//            AppCreationException(
+//              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+//              Some(ctx.traceId)
+//            )
+//          )
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
