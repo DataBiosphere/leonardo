@@ -74,9 +74,6 @@ object AKSManualTest {
   implicit val logger = Slf4jLogger.getLogger[IO]
   implicit val executionContext = ExecutionContext.global
 
-//  val mockSamDAO = mock[SamDAO[IO]]
-//  val mockCromwellDAO = mock[CromwellDAO[IO]]
-
   /** Initializes DbReference */
   def getDbRef: Resource[IO, DbReference[IO]] = for {
     concurrentDbAccessPermits <- Resource.eval(Semaphore[IO](dbConcurrency))
