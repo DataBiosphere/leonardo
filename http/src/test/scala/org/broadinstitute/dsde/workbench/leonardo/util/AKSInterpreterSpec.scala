@@ -13,21 +13,26 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.workspaceId
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
+import org.http4s.{AuthScheme, Credentials, Header, Headers}
+import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.nio.file.Files
-import java.util.{Base64, UUID}
+import java.util.Base64
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -38,11 +43,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
-    SamConfig("https://sam")
+    SamConfig("https://sam"),
+    appMonitorConfig
   )
 
-  val mockSamDAO = mock[SamDAO[IO]]
-  val mockCromwellDAO = mock[CromwellDAO[IO]]
+  val mockSamDAO = setUpMockSamDAO
+  val mockCromwellDAO = setUpMockCromwellDAO
 
   val aksInterp = new AKSInterpreter[IO](
     config,
@@ -114,7 +120,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "create and poll a coa app" in isolatedDbTest {
-    val createdAppStatus = for {
+    val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
       nodepool <- IO(makeNodepool(1, cluster.id).save())
       app = makeApp(1, nodepool.id).copy(
@@ -132,17 +138,19 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       appId = saveApp.id
       appName = saveApp.appName
 
-      params = CreateAKSAppParams(appId, appName, cloudContext)
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
       _ <- aksInterp.createAndPollApp(params)
 
       app <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), appName)
         .transaction
-    } yield app.get
+    } yield {
+      app shouldBe defined
+      app.get.app.status shouldBe AppStatus.Running
+      app.get.cluster.asyncFields shouldBe defined
+    }
 
-    createdAppStatus
-      .map(r => r.app.status shouldBe AppStatus.Running)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def setUpMockIdentity: Identity = {
@@ -220,4 +228,19 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     container
   }
 
+  private def setUpMockSamDAO: SamDAO[IO] = {
+    val sam = mock[SamDAO[IO]]
+    when {
+      sam.getLeoAuthToken
+    } thenReturn IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "token")))
+    sam
+  }
+
+  private def setUpMockCromwellDAO: CromwellDAO[IO] = {
+    val cromwell = mock[CromwellDAO[IO]]
+    when {
+      cromwell.getStatus(any, any[List[Header.Raw]].asInstanceOf[Headers])(any)
+    } thenReturn IO.pure(true)
+    cromwell
+  }
 }

@@ -19,15 +19,17 @@ import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{tracedRetryF, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, tracedRetryF, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsp.{Release, _}
+import org.http4s.{Headers, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.Base64
@@ -46,7 +48,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   dbRef: DbReference[F],
   F: Async[F]
 ) extends AKSAlgebra[F] {
-  implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -147,10 +148,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext)
 
       // Poll app status
-      appOk <- pollAppsForSuccess(landingZoneResources.relayNamespace)
-
+      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+      appOk <- pollCromwellAppCreation(Uri.unsafeFromString(relayEndpoint))
       _ <-
-        if (appOk && app.status == AppStatus.Running)
+        if (appOk)
           F.unit
         else
           F.raiseError[Unit](
@@ -162,7 +163,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
-      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
           dbApp.cluster.id,
@@ -187,17 +187,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield ()
 
-  private def pollAppsForSuccess(relayNamespace: RelayNamespace)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
-    val relayBaseUri = Uri.unsafeFromString(s"https://${relayNamespace.value}.servicebus.windows.net")
+  private[util] def pollCromwellAppCreation(relayBaseUri: Uri)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
+    implicit val booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
     val cromwellStatusUri = relayBaseUri / "cromwell" / "api" / "engine" / "v1" / "status"
     for {
-
+      // TODO: shouldn't use Leo auth token
       headers <- samDao.getLeoAuthToken.map(x => Headers(x))
       cromwellOk <- streamFUntilDone(
         cromwellDao.getStatus(cromwellStatusUri, headers),
-        maxAttempts = config.pollingConfig.maxAttempts,
-        delay = config.pollingConfig.delay
-      ).interruptAfter(config.pollingConfig.interruptAfter).compile.lastOrError
+        maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
+        delay = config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk
   }
 
@@ -382,7 +382,5 @@ final case class AKSInterpreterConfig(
   aadPodIdentityConfig: AadPodIdentityConfig,
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
-  pollingConfig: PollingConfig = PollingConfig(maxAttempts = 120, delay = 10 seconds, interruptAfter = 20 minutes)
+  appMonitorConfig: AppMonitorConfig
 )
-
-final case class PollingConfig(maxAttempts: Int, delay: FiniteDuration, interruptAfter: FiniteDuration)

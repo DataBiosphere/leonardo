@@ -5,7 +5,6 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe._
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -14,7 +13,7 @@ import org.http4s._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.util.control.NoStackTrace
 
@@ -26,40 +25,36 @@ object HttpCromwellDAO {
   }
 }
 
-class HttpCromwellDAO[F[_]](httpClient: Client[F], samDAO: SamDAO[F])(implicit
-  logger: Logger[F],
+class HttpCromwellDAO[F[_]](httpClient: Client[F])(implicit
+  logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends CromwellDAO[F]
     with Http4sClientDsl[F] {
   import HttpCromwellDAO._
 
-  override def getStatus(uri: Uri, headers: Headers)(implicit
+  override def getStatus(baseUri: Uri, headers: Headers)(implicit
     ev: Ask[F, AppContext]
-  ): F[Boolean] = {
+  ): F[Boolean] =
     for {
-      res <- metrics.incrementCounter("cromwell/status") >> httpClient.expectOr[CromwellStatusCheckResponse](
+      _ <- metrics.incrementCounter("cromwell/status")
+      cromwellStatusUri = baseUri / "cromwell" / "api" / "engine" / "v1" / "status"
+      res <- httpClient.expectOr[CromwellStatusCheckResponse](
         Request[F](
           method = Method.GET,
-          uri = uri,
+          uri = cromwellStatusUri,
           headers = headers
         )
-      )(onError) match {
-        case Left(_) =>
-          logger.error(s"Failed to get status from $uri")
-          F.pure(false)
-        case Right(CromwellStatusCheckResponse(ok)) => F.pure(ok)
-      }
-    } yield res
-  }
+      )(onError)
+    } yield res.ok
 
   private def onError(response: Response[F])(implicit ev: Ask[F, AppContext]): F[Throwable] =
     for {
-      appContext <- ev.ask
+      ctx <- ev.ask
       body <- response.bodyText.compile.foldMonoid
-      _ <- logger.error(s"${appContext.traceId} | $body")
+      _ <- logger.error(ctx.loggingCtx)(s"Failed to get status from Cromwell. Body: $body")
       _ <- metrics.incrementCounter("cromwell/errorResponse")
-    } yield CromwellStatusCheckException(appContext.traceId, body, response.status.code)
+    } yield CromwellStatusCheckException(ctx.traceId, body, response.status.code)
 }
 
 // API response models

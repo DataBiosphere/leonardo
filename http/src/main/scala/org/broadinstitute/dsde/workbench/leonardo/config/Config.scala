@@ -816,7 +816,7 @@ object Config {
     )
   }
 
-  val gkeMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
+  val appMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
 
   val gkeInterpConfig =
     GKEInterpreterConfig(
@@ -826,7 +826,7 @@ object Config {
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
-      gkeMonitorConfig,
+      appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,
       gkeGalaxyDiskConfig
