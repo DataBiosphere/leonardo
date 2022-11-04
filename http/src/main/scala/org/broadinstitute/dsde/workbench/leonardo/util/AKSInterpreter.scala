@@ -155,7 +155,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Poll app status
       relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
-      appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint))
+      appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint) / app.appName.value)
       _ <-
         if (appOk)
           F.unit
@@ -201,8 +201,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
       token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-      // TODO (TOAZ-241): add cromwell to the status checks once it starts up
-      op = List(cbasDao.getStatus(relayBaseUri, authHeader), wdsDao.getStatus(relayBaseUri, authHeader)).sequence
+
+      op = List(
+        cbasDao
+          .getStatus(relayBaseUri, authHeader)
+          .handleError(_ => false)
+          // TODO: add WDS to status checks once https://github.com/DataBiosphere/terra-workspace-data-service/pull/135 is in a release
+          // wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          // TODO (TOAZ-241): add cromwell to the status checks once it starts up
+          // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+      ).sequence
       cromwellOk <- streamFUntilDone(
         op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
