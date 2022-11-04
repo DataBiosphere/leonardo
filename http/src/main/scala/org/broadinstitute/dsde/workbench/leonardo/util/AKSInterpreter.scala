@@ -17,13 +17,14 @@ import com.azure.resourcemanager.compute.models.{
 }
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, tracedRetryF, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -41,13 +42,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            azureContainerService: AzureContainerService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
-                           cromwellDao: CromwellDAO[F]
+                           cromwellDao: CromwellDAO[F],
+                           cbasDao: CbasDAO[F],
+                           wdsDao: WdsDAO[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   F: Async[F]
 ) extends AKSAlgebra[F] {
+  implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
+  implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -187,19 +192,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield ()
 
-  private[util] def pollCromwellAppCreation(relayBaseUri: Uri)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
-    implicit val booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
-    val cromwellStatusUri = relayBaseUri / "cromwell" / "api" / "engine" / "v1" / "status"
+  private[util] def pollCromwellAppCreation(relayBaseUri: Uri)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     for {
       // TODO: shouldn't use Leo auth token
       headers <- samDao.getLeoAuthToken.map(x => Headers(x))
+      op = List(cromwellDao.getStatus(relayBaseUri, headers),
+                cbasDao.getStatus(relayBaseUri, headers),
+                wdsDao.getStatus(relayBaseUri, headers)
+      ).sequence
       cromwellOk <- streamFUntilDone(
-        cromwellDao.getStatus(cromwellStatusUri, headers),
+        op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
         delay = config.appMonitorConfig.createApp.interval
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
-    } yield cromwellOk
-  }
+    } yield cromwellOk.isDone
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      cloudContext: AzureCloudContext,

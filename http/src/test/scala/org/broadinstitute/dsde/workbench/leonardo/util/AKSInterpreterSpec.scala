@@ -19,13 +19,13 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.http4s.{AuthScheme, Credentials, Header, Headers}
 import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials, Header, Headers}
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -49,6 +49,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   val mockSamDAO = setUpMockSamDAO
   val mockCromwellDAO = setUpMockCromwellDAO
+  val mockCbasDAO = setUpMockCbasDAO
+  val mockWdsDAO = setUpMockWdsDAO
 
   val aksInterp = new AKSInterpreter[IO](
     config,
@@ -56,7 +58,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     setUpMockAzureContainerService,
     FakeAzureRelayService,
     mockSamDAO,
-    mockCromwellDAO
+    mockCromwellDAO,
+    mockCbasDAO,
+    mockWdsDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -242,5 +246,21 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       cromwell.getStatus(any, any[List[Header.Raw]].asInstanceOf[Headers])(any)
     } thenReturn IO.pure(true)
     cromwell
+  }
+
+  private def setUpMockCbasDAO: CbasDAO[IO] = {
+    val cbas = mock[CbasDAO[IO]]
+    when {
+      cbas.getStatus(any, any[List[Header.Raw]].asInstanceOf[Headers])(any)
+    } thenReturn IO.pure(true)
+    cbas
+  }
+
+  private def setUpMockWdsDAO: WdsDAO[IO] = {
+    val wds = mock[WdsDAO[IO]]
+    when {
+      wds.getStatus(any, any[List[Header.Raw]].asInstanceOf[Headers])(any)
+    } thenReturn IO.pure(true)
+    wds
   }
 }

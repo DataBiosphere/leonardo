@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -156,7 +156,9 @@ object AKSManualTest {
                              containerService,
                              relayService,
                              mock[SamDAO[IO]],
-                             mock[CromwellDAO[IO]]
+                             mock[CromwellDAO[IO]],
+                             mock[CbasDAO[IO]],
+                             mock[WdsDAO[IO]]
   )
 
   /** Deploys a CoA app */

@@ -349,6 +349,12 @@ object Boot extends IOApp {
       cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
         client => new HttpCromwellDAO[F](client)
       )
+      cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
+        new HttpCbasDAO[F](client)
+      )
+      wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
+        new HttpWdsDAO[F](client)
+      )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -605,7 +611,9 @@ object Boot extends IOApp {
         azureContainerService,
         azureRelay,
         samDao,
-        cromwellDao
+        cromwellDao,
+        cbasDao,
+        wdsDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
