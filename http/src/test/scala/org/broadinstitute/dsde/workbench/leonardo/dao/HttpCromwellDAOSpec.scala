@@ -10,9 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
+import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.typelevel.ci.CIString
 
 class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite with TestComponent {
   "HttpCromwellDAO" should "decode cromwell status endpoint response successfully" in {
@@ -32,7 +32,7 @@ class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSui
   }
 
   "HttpCromwellDAO.getStatus" should "return false if status is not ok" in {
-    val headers = Headers(Header.Raw(CIString("Authorization"), "Bearer token"))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, "token"))
 
     val response =
       """
@@ -46,13 +46,13 @@ class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSui
     )
 
     val cromwellDAO = new HttpCromwellDAO(okCrom)
-    val res = cromwellDAO.getStatus(Uri.unsafeFromString("https://test.com/cromwell/status"), headers)
+    val res = cromwellDAO.getStatus(Uri.unsafeFromString("https://test.com/cromwell/status"), authHeader)
     val status = res.unsafeRunSync()
     status shouldBe false
   }
 
   "HttpCromwellDAO.getStatus" should "return true if status is ok" in {
-    val headers = Headers(Header.Raw(CIString("Authorization"), "Bearer token"))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, "token"))
 
     val response =
       """
@@ -66,7 +66,7 @@ class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSui
     )
 
     val cromwellDAO = new HttpCromwellDAO(okCrom)
-    val res = cromwellDAO.getStatus(Uri.unsafeFromString("https://test.com/cromwell/status"), headers)
+    val res = cromwellDAO.getStatus(Uri.unsafeFromString("https://test.com/cromwell/status"), authHeader)
     val status = res.unsafeRunSync()
     status shouldBe true
   }

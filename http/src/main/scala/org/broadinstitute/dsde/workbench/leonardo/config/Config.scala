@@ -354,9 +354,9 @@ object Config {
   implicit private val httpSamDao2ConfigValueReader: ValueReader[HttpSamDaoConfig] = ValueReader.relative { config =>
     HttpSamDaoConfig(
       Uri.unsafeFromString(config.as[String]("samServer")),
-      config.getOrElse("petTokenCacheEnabled", true),
-      config.getAs[FiniteDuration]("petTokenCacheExpiryTime").getOrElse(60 minutes),
-      config.getAs[Int]("petTokenCacheMaxSize").getOrElse(1000),
+      config.getOrElse("petKeyCacheEnabled", true),
+      config.getAs[FiniteDuration]("petKeyCacheExpiryTime").getOrElse(60 minutes),
+      config.getAs[Int]("petKeyCacheMaxSize").getOrElse(1000),
       serviceAccountProviderConfig
     )
   }

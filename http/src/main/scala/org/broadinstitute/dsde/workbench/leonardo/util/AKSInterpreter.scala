@@ -28,9 +28,10 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, Sam
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.IP
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
-import org.http4s.{Headers, Uri}
+import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.Base64
@@ -154,18 +155,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Poll app status
       relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
-      // TODO: uncomment when auth is worked out
-//      appOk <- pollCromwellAppCreation(Uri.unsafeFromString(relayEndpoint))
-//      _ <-
-//        if (appOk)
-//          F.unit
-//        else
-//          F.raiseError[Unit](
-//            AppCreationException(
-//              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
-//              Some(ctx.traceId)
-//            )
-//          )
+      appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint))
+      _ <-
+        if (appOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppCreationException(
+              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              Some(ctx.traceId)
+            )
+          )
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
@@ -193,13 +193,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield ()
 
-  private[util] def pollCromwellAppCreation(relayBaseUri: Uri)(implicit ev: Ask[F, AppContext]): F[Boolean] =
+  private[util] def pollCromwellAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] =
     for {
-      // TODO: shouldn't use Leo auth token
-      headers <- samDao.getLeoAuthToken.map(x => Headers(x))
-      op = List(cromwellDao.getStatus(relayBaseUri, headers),
-                cbasDao.getStatus(relayBaseUri, headers),
-                wdsDao.getStatus(relayBaseUri, headers)
+      ctx <- ev.ask
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+      token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+      op = List(cromwellDao.getStatus(relayBaseUri, authHeader),
+                cbasDao.getStatus(relayBaseUri, authHeader),
+                wdsDao.getStatus(relayBaseUri, authHeader)
       ).sequence
       cromwellOk <- streamFUntilDone(
         op,

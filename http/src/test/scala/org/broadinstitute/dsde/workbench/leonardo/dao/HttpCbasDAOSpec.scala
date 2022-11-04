@@ -10,9 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
+import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.typelevel.ci.CIString
 
 class HttpCbasDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite with TestComponent {
   "HttpCbasDAO" should "decode cbas status endpoint response successfully" in {
@@ -32,7 +32,7 @@ class HttpCbasDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite w
   }
 
   "HttpCbasDAO.getStatus" should "return false if status is not ok" in {
-    val headers = Headers(Header.Raw(CIString("Authorization"), "Bearer token"))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, "token"))
 
     val response =
       """
@@ -46,13 +46,13 @@ class HttpCbasDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite w
     )
 
     val cbasDAO = new HttpCbasDAO(okCbas)
-    val res = cbasDAO.getStatus(Uri.unsafeFromString("https://test.com/cbas/status"), headers)
+    val res = cbasDAO.getStatus(Uri.unsafeFromString("https://test.com/cbas/status"), authHeader)
     val status = res.unsafeRunSync()
     status shouldBe false
   }
 
   "HttpCbasDAO.getStatus" should "return true if status is ok" in {
-    val headers = Headers(Header.Raw(CIString("Authorization"), "Bearer token"))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, "token"))
 
     val response =
       """
@@ -66,7 +66,7 @@ class HttpCbasDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite w
     )
 
     val cbasDAO = new HttpCbasDAO(okCbas)
-    val res = cbasDAO.getStatus(Uri.unsafeFromString("https://test.com/cbas/status"), headers)
+    val res = cbasDAO.getStatus(Uri.unsafeFromString("https://test.com/cbas/status"), authHeader)
     val status = res.unsafeRunSync()
     status shouldBe true
   }

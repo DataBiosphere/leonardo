@@ -24,8 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials, Header, Headers}
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -235,15 +233,15 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockSamDAO: SamDAO[IO] = {
     val sam = mock[SamDAO[IO]]
     when {
-      sam.getLeoAuthToken
-    } thenReturn IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "token")))
+      sam.getCachedArbitraryPetAccessToken(any)(any)
+    } thenReturn IO.pure(Some("token"))
     sam
   }
 
   private def setUpMockCromwellDAO: CromwellDAO[IO] = {
     val cromwell = mock[CromwellDAO[IO]]
     when {
-      cromwell.getStatus(any, any[List[Header.Raw]].asInstanceOf[Headers])(any)
+      cromwell.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     cromwell
   }
@@ -251,7 +249,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockCbasDAO: CbasDAO[IO] = {
     val cbas = mock[CbasDAO[IO]]
     when {
-      cbas.getStatus(any, any[List[Header.Raw]].asInstanceOf[Headers])(any)
+      cbas.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     cbas
   }
@@ -259,7 +257,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockWdsDAO: WdsDAO[IO] = {
     val wds = mock[WdsDAO[IO]]
     when {
-      wds.getStatus(any, any[List[Header.Raw]].asInstanceOf[Headers])(any)
+      wds.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     wds
   }

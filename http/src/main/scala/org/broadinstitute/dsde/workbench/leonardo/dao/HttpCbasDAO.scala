@@ -13,6 +13,7 @@ import org.http4s._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
+import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.util.control.NoStackTrace
@@ -33,7 +34,7 @@ class HttpCbasDAO[F[_]](httpClient: Client[F])(implicit
     with Http4sClientDsl[F] {
   import HttpCbasDAO._
 
-  override def getStatus(baseUri: Uri, headers: Headers)(implicit
+  override def getStatus(baseUri: Uri, authHeader: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
@@ -43,7 +44,7 @@ class HttpCbasDAO[F[_]](httpClient: Client[F])(implicit
         Request[F](
           method = Method.GET,
           uri = cbasStatusUri,
-          headers = headers
+          headers = Headers(authHeader)
         )
       )(onError)
     } yield res.ok

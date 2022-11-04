@@ -2,10 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.http4s.{Headers, Uri}
+import org.http4s.Uri
+import org.http4s.headers.Authorization
 
 trait CbasDAO[F[_]] {
-  def getStatus(baseUri: Uri, headers: Headers)(implicit
+  def getStatus(baseUri: Uri, authHeader: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean]
 }
