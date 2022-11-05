@@ -350,7 +350,7 @@ object Boot extends IOApp {
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
       welderDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_welder_client"), false).map(
-        client => new HttpWelderDAO[F](runtimeDnsCache, client)
+        client => new HttpWelderDAO[F](runtimeDnsCache, client, samDao)
       )
       rstudioDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_rstudio_client"), false).map(
         client => new HttpRStudioDAO(runtimeDnsCache, client)
