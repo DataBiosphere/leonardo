@@ -335,16 +335,25 @@ object Boot extends IOApp {
 
       // Set up SSL context and http clients
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
-      underlyingPetTokenCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[String]]](
+      underlyingPetKeyCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[io.circe.Json]]](
         httpSamDaoConfig.petCacheMaxSize,
         httpSamDaoConfig.petCacheExpiryTime
       )
-      petTokenCache <- Resource.make(
-        F.delay(CaffeineCache[F, UserEmailAndProject, Option[String]](underlyingPetTokenCache))
+      petKeyCache <- Resource.make(
+        F.delay(CaffeineCache[F, UserEmailAndProject, Option[io.circe.Json]](underlyingPetKeyCache))
       )(_.close)
 
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
-        HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
+        HttpSamDAO[F](client, httpSamDaoConfig, petKeyCache)
+      )
+      cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
+        client => new HttpCromwellDAO[F](client)
+      )
+      cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
+        new HttpCbasDAO[F](client)
+      )
+      wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
+        new HttpWdsDAO[F](client)
       )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
@@ -510,7 +519,7 @@ object Boot extends IOApp {
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
-          .processWithUnderlyingCache(underlyingPetTokenCache),
+          .processWithUnderlyingCache(underlyingPetKeyCache),
         CacheMetrics("googleTokenCache")
           .processWithUnderlyingCache(underlyingGoogleTokenCache),
         CacheMetrics("samResourceCache")
@@ -595,11 +604,16 @@ object Boot extends IOApp {
           ConfigReader.appConfig.azure.coaAppConfig,
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
           ConfigReader.appConfig.azure.appRegistration,
-          samConfig
+          samConfig,
+          appMonitorConfig
         ),
         helmClient,
         azureContainerService,
-        azureRelay
+        azureRelay,
+        samDao,
+        cromwellDao,
+        cbasDao,
+        wdsDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
