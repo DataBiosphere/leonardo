@@ -96,8 +96,13 @@ trait SamDAO[F[_]] {
   /** Gets the GCP proxy group for provided user email. */
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]]
 
-  /** Gets a GCP pet access token from cache for the provider user/project. */
+  /** Gets a GCP pet access token from cache for the provided user/project. */
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[String]]
+
+  /** Gets a GCP pet access token from cache for the provided user in a shell project. */
+  def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[String]]
 

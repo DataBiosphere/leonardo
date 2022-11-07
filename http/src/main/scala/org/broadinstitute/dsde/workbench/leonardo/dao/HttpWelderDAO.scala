@@ -7,25 +7,34 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
-import org.http4s.{Method, Request}
+import org.http4s.{Headers, Method, Request}
 import org.typelevel.log4cats.Logger
 
-class HttpWelderDAO[F[_]: Async: Logger](
+class HttpWelderDAO[F[_]: Logger](
   val runtimeDnsCache: RuntimeDnsCache[F],
-  client: Client[F]
+  client: Client[F],
+  samDAO: SamDAO[F]
 )(implicit
+  F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends WelderDAO[F] {
 
   def flushCache(cloudContext: CloudContext, runtimeName: RuntimeName): F[Unit] =
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
+      headers <- cloudContext match {
+        case _: CloudContext.Azure =>
+          samDAO.getLeoAuthToken.map(x => Headers(x))
+        case _: CloudContext.Gcp =>
+          F.pure(Headers.empty)
+      }
       res <- host match {
         case x: HostReady =>
           client.successful(
             Request[F](
               method = Method.POST,
-              uri = x.toUri / "welder" / "cache" / "flush"
+              uri = x.toUri / "welder" / "cache" / "flush",
+              headers = headers
             )
           )
         case x =>
@@ -45,13 +54,20 @@ class HttpWelderDAO[F[_]: Async: Logger](
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
+      headers <- cloudContext match {
+        case _: CloudContext.Azure =>
+          samDAO.getLeoAuthToken.map(x => Headers(x))
+        case _: CloudContext.Gcp =>
+          F.pure(Headers.empty)
+      }
       res <- host match {
         case x: HostReady =>
           client
             .successful(
               Request[F](
                 method = Method.GET,
-                uri = x.toUri / "welder" / "status"
+                uri = x.toUri / "welder" / "status",
+                headers = headers
               )
             )
             .handleError(_ => false)

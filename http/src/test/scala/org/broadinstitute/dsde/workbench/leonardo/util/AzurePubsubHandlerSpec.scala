@@ -73,8 +73,8 @@ class AzurePubsubHandlerSpec
           )
         )
     }
-    val azureInterp =
-      makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+    val azurePubsubHandler =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
 
     val res =
       for {
@@ -106,7 +106,7 @@ class AzurePubsubHandlerSpec
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- azureInterp.createAndPollRuntime(msg)
+        _ <- azurePubsubHandler.createAndPollRuntime(msg)
 
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
         controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
@@ -119,6 +119,71 @@ class AzurePubsubHandlerSpec
         resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
         controlledResources.map(_.resourceId).contains(resourceId) shouldBe true
       }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to create azure vm if welder doesn't come up" in isolatedDbTest {
+    val vmReturn = mock[VirtualMachine]
+    val ipReturn: PublicIpAddress = mock[PublicIpAddress]
+
+    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+
+    val stubIp = "0.0.0.0"
+    when(vmReturn.getPrimaryPublicIPAddress()).thenReturn(ipReturn)
+    when(ipReturn.ipAddress()).thenReturn(stubIp)
+
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId))),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
+            None
+          )
+        )
+    }
+    val fakeWelderDao = new MockWelderDAO() {
+      override def isProxyAvailable(cloudContext: CloudContext, clusterName: RuntimeName): IO[Boolean] = IO.pure(false)
+    }
+    val azurePubsubHandler =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO, welderDao = fakeWelderDao)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+        } yield getRuntime.status shouldBe RuntimeStatus.Error
+
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        RelayNamespace("relay-ns"),
+                                        storageContainerResourceId,
+                                        None
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azurePubsubHandler.createAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -164,7 +229,7 @@ class AzurePubsubHandlerSpec
         any[Ask[IO, AppContext]]
       )
     } thenReturn IO.pure(None)
-    val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
     val res =
       for {
@@ -221,7 +286,7 @@ class AzurePubsubHandlerSpec
         ev: Ask[IO, AppContext]
       ): IO[GetCreateVmJobResult] = IO.raiseError(new Exception(exceptionMsg))
     }
-    val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
     val res =
       for {
@@ -271,7 +336,7 @@ class AzurePubsubHandlerSpec
         ev: Ask[IO, AppContext]
       ): IO[Option[GetDeleteJobResult]] = IO.raiseError(new Exception("test exception"))
     }
-    val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
 
     val res =
       for {
@@ -340,7 +405,7 @@ class AzurePubsubHandlerSpec
           )
         )
     }
-    val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
 
     val res =
       for {
@@ -399,7 +464,7 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzureInterp(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = passAzureVmService)
 
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
@@ -440,7 +505,7 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzureInterp(asyncTaskQueue = queue, azureVmService = failAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = failAzureVmService)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -475,7 +540,7 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzureInterp(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = passAzureVmService)
 
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
@@ -516,7 +581,7 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzureInterp(asyncTaskQueue = queue, azureVmService = failAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = failAzureVmService)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -547,7 +612,7 @@ class AzurePubsubHandlerSpec
         IO.raiseError(HelmException("something went wrong"))
     }
     val azureInterp =
-      makeAzureInterp(asyncTaskQueue = queue, aksAlg = failAksInterp)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, aksAlg = failAksInterp)
 
     val appId = AppId(42)
     val res = for {
@@ -576,19 +641,20 @@ class AzurePubsubHandlerSpec
   }
 
   // Needs to be made for each test its used in, otherwise queue will overlap
-  def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
-                      relayService: AzureRelayService[IO] = FakeAzureRelayService,
-                      wsmDAO: WsmDao[IO] = new MockWsmDAO,
-                      azureVmService: AzureVmService[IO] = FakeAzureVmService,
-                      aksAlg: AKSAlgebra[IO] = new MockAKSInterp
-  ): AzurePubsubHandlerInterp[IO] =
+  def makeAzurePubsubHandler(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
+                             relayService: AzureRelayService[IO] = FakeAzureRelayService,
+                             wsmDAO: WsmDao[IO] = new MockWsmDAO,
+                             welderDao: WelderDAO[IO] = new MockWelderDAO(),
+                             azureVmService: AzureVmService[IO] = FakeAzureVmService,
+                             aksAlg: AKSAlgebra[IO] = new MockAKSInterp
+  ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
       contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
-      new MockWelderDAO(),
+      welderDao,
       new MockJupyterDAO(),
       relayService,
       azureVmService,

@@ -8,8 +8,9 @@ import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dbConcurrency, liquibaseConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -29,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
+import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.util.UUID
@@ -142,9 +144,19 @@ object AKSManualTest {
       ConfigReader.appConfig.azure.coaAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
-      SamConfig("https://sam.dsde-dev.broadinstitute.org/")
+      SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
+      appMonitorConfig
     )
-  } yield new AKSInterpreter(config, helmClient, containerService, relayService)
+    // TODO Sam and Cromwell should not be using mocks
+  } yield new AKSInterpreter(config,
+                             helmClient,
+                             containerService,
+                             relayService,
+                             mock[SamDAO[IO]],
+                             mock[CromwellDAO[IO]],
+                             mock[CbasDAO[IO]],
+                             mock[WdsDAO[IO]]
+  )
 
   /** Deploys a CoA app */
   def deployApp: IO[Unit] = {
