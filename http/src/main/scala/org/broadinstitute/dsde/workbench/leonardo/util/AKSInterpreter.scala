@@ -244,8 +244,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        // TODO (TOAZ-242): change to kubernetes-app resource type once listener supports it
-        raw"relaylistener.samResourceType=controlled-application-private-workspace-resource",
+        raw"relaylistener.samResourceType=kubernetes-app",
+        raw"relaylistener.samAction=connect",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",

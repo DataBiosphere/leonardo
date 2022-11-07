@@ -112,7 +112,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "relaylistener.targetHost=http://coa-rel-1-reverse-proxy-service:8000/," +
       "relaylistener.samUrl=https://sam," +
       "relaylistener.samResourceId=sam," +
-      "relaylistener.samResourceType=controlled-application-private-workspace-resource," +
+      "relaylistener.samResourceType=kubernetes-app," +
+      "relaylistener.samAction=connect," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "identity.name=identity-name," +
