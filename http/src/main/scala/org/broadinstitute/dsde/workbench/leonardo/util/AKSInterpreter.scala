@@ -391,6 +391,42 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     F.delay(ComputeManager.authenticate(clientSecretCredential, azureProfile))
   }
 
+  override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    val DeleteAKSAppParams(appName, workspaceId, cloudContext, keepHistory) = params
+    for {
+      ctx <- ev.ask
+
+      // Grab records from the database
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(cloudContext), params.appName)
+        .transaction
+      dbApp <- F.fromOption(dbAppOpt,
+        AppNotFoundException(CloudContext.Azure(cloudContext),
+          params.appName,
+          ctx.traceId,
+          "No active app found in DB"
+        )
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"Deleting app $appName in workspace $workspaceId")
+
+      app = dbApp.app
+      namespaceName = app.appResources.namespace.name
+
+      // Get resources from landing zone
+      landingZoneResources = getLandingZoneResources
+
+      // Authenticate helm client
+      authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
+
+      _ <- helmClient.uninstall(app.release, keepHistory).run(authContext)
+
+
+
+      _ <- logger.info(ctx.loggingCtx)(s"Done deleting app $appName in workspace $workspaceId")
+    } yield ()
+
+  }
+
 }
 
 final case class AKSInterpreterConfig(
