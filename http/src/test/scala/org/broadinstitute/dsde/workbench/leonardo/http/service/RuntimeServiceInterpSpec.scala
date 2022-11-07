@@ -1970,7 +1970,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
-    } yield err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
+    } yield err shouldBe Left(DiskAlreadyAttachedException(CloudContext.Gcp(project), savedDisk.name, t.traceId))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -2008,10 +2008,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .attempt
     } yield {
       formatGceDiskError shouldBe Left(
-        DiskAlreadyFormattedByOtherApp(project, gceDisk.name, t.traceId, FormattedBy.GCE)
+        DiskAlreadyFormattedByOtherApp(CloudContext.Gcp(project), gceDisk.name, t.traceId, FormattedBy.GCE)
       )
       formatGalaxyDiskError shouldBe Left(
-        DiskAlreadyFormattedByOtherApp(project, galaxyDisk.name, t.traceId, FormattedBy.Galaxy)
+        DiskAlreadyFormattedByOtherApp(CloudContext.Gcp(project), galaxyDisk.name, t.traceId, FormattedBy.Galaxy)
       )
     }
 

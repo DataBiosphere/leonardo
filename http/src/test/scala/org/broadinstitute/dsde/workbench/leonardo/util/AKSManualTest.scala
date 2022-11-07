@@ -8,8 +8,9 @@ import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dbConcurrency, liquibaseConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -18,21 +19,21 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppResources,
   AppStatus,
   AppType,
-  BatchAccountName,
   CloudContext,
   DefaultNodepool,
   KubernetesClusterStatus,
-  LandingZoneResources,
   ManagedIdentityName,
   Namespace,
   NamespaceId,
   NodepoolStatus,
-  StorageAccountName,
-  SubnetName
+  WorkspaceId
 }
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
+import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 /**
@@ -45,26 +46,29 @@ import scala.concurrent.ExecutionContext
  */
 object AKSManualTest {
   // Constants
+
+  // vault read secret/dsde/terra/azure/dev/leonardo/managed-app-publisher
   val appRegConfig = AzureAppRegistrationConfig(
     ClientId("client-id"),
     ClientSecret("client-secret"),
     ManagedAppTenantId("tenant-id")
   )
+
+  // This is your WSM workspace ID
+  val workspaceId = WorkspaceId(UUID.randomUUID)
+
+  // this is your MRG
   val cloudContext = AzureCloudContext(
     TenantId("tenant-id"),
     SubscriptionId("subscription-id"),
     ManagedResourceGroupName("mrg-name")
   )
-  val uamiName = ManagedIdentityName("pet-uami")
-  val appSamResourceId = AppSamResourceId("sam-resource-id")
-  val landingZoneResources = LandingZoneResources(
-    AKSClusterName("cluster"),
-    BatchAccountName("batch"),
-    RelayNamespace("relay"),
-    StorageAccountName("storage"),
-    SubnetName("subnet")
-  )
+
+  // This is your pet UAMI
+  val uamiName = ManagedIdentityName("uami-name")
+
   val appName = AppName("coa-app")
+  val appSamResourceId = AppSamResourceId("sam-id")
 
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]
@@ -95,7 +99,8 @@ object AKSManualTest {
             DefaultNodepool.fromNodepool(
               cluster.nodepools.headOption
                 .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
-            )
+            ),
+            None
           )
           for {
             saveClusterResult <- dbRef.inTransaction(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster))
@@ -106,9 +111,13 @@ object AKSManualTest {
                 appName = AppName("coa-app"),
                 status = AppStatus.Running,
                 appType = AppType.Cromwell,
-                chart = ConfigReader.appConfig.azure.coaAppConfig.chart,
+                chart = ConfigReader.appConfig.azure.coaAppConfig.chart
+                  .copy(name = ChartName("cromwell-helm/cromwell-on-azure")),
                 release = Release(s"manual-${ConfigReader.appConfig.azure.coaAppConfig.releaseNameSuffix.value}"),
                 samResourceId = appSamResourceId,
+                googleServiceAccount = WorkbenchEmail(
+                  s"/subscriptions/${cloudContext.subscriptionId.value}/resourcegroups/${cloudContext.managedResourceGroupName.value}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/${uamiName.value}"
+                ),
                 appResources = AppResources(
                   namespace = Namespace(
                     NamespaceId(-1),
@@ -133,9 +142,21 @@ object AKSManualTest {
     config = AKSInterpreterConfig(
       ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
-      SamConfig("https://sam.dsde-dev.broadinstitute.org/")
+      ConfigReader.appConfig.azure.aadPodIdentityConfig,
+      appRegConfig,
+      SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
+      appMonitorConfig
     )
-  } yield new AKSInterpreter(config, helmClient, containerService, relayService)
+    // TODO Sam and Cromwell should not be using mocks
+  } yield new AKSInterpreter(config,
+                             helmClient,
+                             containerService,
+                             relayService,
+                             mock[SamDAO[IO]],
+                             mock[CromwellDAO[IO]],
+                             mock[CbasDAO[IO]],
+                             mock[WdsDAO[IO]]
+  )
 
   /** Deploys a CoA app */
   def deployApp: IO[Unit] = {
@@ -150,6 +171,7 @@ object AKSManualTest {
         CreateAKSAppParams(
           deps.app.id,
           deps.app.appName,
+          workspaceId,
           cloudContext
         )
       )

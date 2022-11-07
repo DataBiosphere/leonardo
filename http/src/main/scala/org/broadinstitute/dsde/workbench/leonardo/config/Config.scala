@@ -354,9 +354,9 @@ object Config {
   implicit private val httpSamDao2ConfigValueReader: ValueReader[HttpSamDaoConfig] = ValueReader.relative { config =>
     HttpSamDaoConfig(
       Uri.unsafeFromString(config.as[String]("samServer")),
-      config.getOrElse("petTokenCacheEnabled", true),
-      config.getAs[FiniteDuration]("petTokenCacheExpiryTime").getOrElse(60 minutes),
-      config.getAs[Int]("petTokenCacheMaxSize").getOrElse(1000),
+      config.getOrElse("petKeyCacheEnabled", true),
+      config.getAs[FiniteDuration]("petKeyCacheExpiryTime").getOrElse(60 minutes),
+      config.getAs[Int]("petKeyCacheMaxSize").getOrElse(1000),
       serviceAccountProviderConfig
     )
   }
@@ -683,7 +683,7 @@ object Config {
       .getOrElse(throw new Exception(s"Invalid service name in config: ${s}"))
   )
   implicit private val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
-    stringValueReader.map(KubernetesServiceKindName)
+    stringValueReader.map(KubernetesServiceKindName.apply)
   implicit private val kubernetesClusterVersionReader: ValueReader[KubernetesClusterVersion] =
     stringValueReader.map(KubernetesClusterVersion)
   implicit private val servicePathReader: ValueReader[ServicePath] =
@@ -816,7 +816,7 @@ object Config {
     )
   }
 
-  val gkeMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
+  val appMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
 
   val gkeInterpConfig =
     GKEInterpreterConfig(
@@ -826,7 +826,7 @@ object Config {
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
-      gkeMonitorConfig,
+      appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,
       gkeGalaxyDiskConfig

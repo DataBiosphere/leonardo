@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import org.http4s.Uri
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -12,35 +11,37 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
   GoogleComputeService,
   GoogleResourceService,
   KubernetesName,
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
-import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Cromwell, Custom, Galaxy}
+import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartVersion, Release}
+import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
-import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppConfig
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-
 import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
@@ -49,7 +50,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
-                                                customAppConfig: CustomAppConfig
+                                                customAppConfig: CustomAppConfig,
+                                                wsmDao: WsmDao[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -62,19 +64,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def createApp(
     userInfo: UserInfo,
-    cloudContext: CloudContext,
+    cloudContext: CloudContext.Gcp,
     appName: AppName,
-    req: CreateAppRequest
+    req: CreateAppRequest,
+    workspaceId: Option[WorkspaceId] = None
   )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
-      // TODO: add azure support
-      googleProject = cloudContext match {
-        case CloudContext.Gcp(value) => value
-        case CloudContext.Azure(_)   => ???
-      }
+      googleProject = cloudContext.value
       hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
         ProjectSamResourceId(googleProject),
         ProjectAction.CreateApp,
@@ -115,7 +114,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           ) >> F.raiseError[Unit](t)
         }
 
-      saveCluster <- F.fromEither(getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None))
+      saveCluster <- F.fromEither(
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None, workspaceId)
+      )
+
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <-
@@ -154,14 +156,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, originatingUserEmail, req.kubernetesRuntimeConfig, ctx.now)
+              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
             )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
       }
 
       runtimeServiceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, googleProject)
+        .getClusterServiceAccount(userInfo, cloudContext)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
       petSA <- F.fromEither(
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
@@ -187,62 +189,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           config.leoKubernetesConfig.diskConfig
         )
       )
+      lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
 
-      lastUsedApp <- diskResultOpt.flatTraverse { diskResult =>
-        if (diskResult.creationNeeded) F.pure(none[LastUsedApp])
-        else {
-          (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
-            case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _, _))) |
-                (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
-              val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
-              for {
-                lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
-                lastUsed <- F.fromOption(
-                  lastUsedOpt,
-                  new LeoException(s"last used app($lastUsedBy) not found", traceId = Some(ctx.traceId))
-                )
-                _ <- req.customEnvironmentVariables.get(WORKSPACE_NAME_KEY).traverse { s =>
-                  if (lastUsed.workspace.asString == s) F.unit
-                  else
-                    F.raiseError[Unit](
-                      BadRequestException(
-                        s"workspace name has to be the same as last used app in order to restore data from existing disk",
-                        Some(ctx.traceId)
-                      )
-                    )
-                }
-              } yield lastUsed.some
-            case (Some(FormattedBy.Galaxy), Some(CromwellRestore(_))) =>
-              F.raiseError[Option[LastUsedApp]](
-                DiskAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
-              )
-            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
-              F.raiseError[Option[LastUsedApp]](
-                DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
-              )
-            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
-              F.raiseError[Option[LastUsedApp]](
-                DiskAlreadyFormattedError(diskResult.disk.formattedBy.get,
-                                          s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
-                                          ctx.traceId
-                )
-              )
-            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
-              F.raiseError[Option[LastUsedApp]](
-                new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
-              )
-            case (None, _) =>
-              F.raiseError[Option[LastUsedApp]](
-                new LeoException(
-                  "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app",
-                  traceId = Some(ctx.traceId)
-                )
-              )
-          }
-        }
-      }
       saveApp <- F.fromEither(
-        getSavableApp(googleProject,
+        getSavableApp(cloudContext,
                       appName,
                       originatingUserEmail,
                       samResourceId,
@@ -279,7 +229,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def getApp(
     userInfo: UserInfo,
-    cloudContext: CloudContext,
+    cloudContext: CloudContext.Gcp,
     appName: AppName
   )(implicit
     as: Ask[F, AppContext]
@@ -304,7 +254,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def listApp(
     userInfo: UserInfo,
-    cloudContext: Option[CloudContext],
+    cloudContext: Option[CloudContext.Gcp],
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]] =
     for {
@@ -312,52 +262,24 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2)
         .transaction
-      samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
-      samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
-        authProvider.filterUserVisible(apps, userInfo)
-      }
-      res = samVisibleAppsOpt match {
-        case None => Vector.empty
-        case Some(samVisibleApps) =>
-          val samVisibleAppsSet = samVisibleApps.toSet
-          // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
-          // then we build back up by filtering nodepools without apps and clusters without nodepools
-          allClusters
-            .map { c =>
-              c.copy(
-                nodepools = c.nodepools
-                  .map { n =>
-                    n.copy(apps = n.apps.filter { a =>
-                      // Making the assumption that users will always be able to access apps that they create
-                      // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                      samVisibleAppsSet
-                        .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
-                    })
-                  }
-                  .filterNot(_.apps.isEmpty)
-              )
-            }
-            .filterNot(_.nodepools.isEmpty)
-            .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, paramMap._3))
-            .toVector
-      }
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v1")
     } yield res
 
-  override def deleteApp(request: DeleteAppRequest)(implicit
-    as: Ask[F, AppContext]
+  override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
       appOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(request.cloudContext, request.appName)
+        .getActiveFullAppByName(cloudContext, appName)
         .transaction
       appResult <- F.fromOption(
         appOpt,
-        AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, "No active app found in DB")
+        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
-      tags = Map("appType" -> appResult.app.appType.toString, "deleteDisk" -> request.deleteDisk.toString)
+      tags = Map("appType" -> appResult.app.appType.toString, "deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteApp", 1, tags)
-      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, request.userInfo)
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no GetAppStatus permission
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
@@ -365,23 +287,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (hasReadPermission) F.unit
         else
           F.raiseError[Unit](
-            AppNotFoundException(request.cloudContext, request.appName, ctx.traceId, "no read permission")
+            AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission")
           )
 
       // throw 403 if no DeleteApp permission
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(request.userInfo.userEmail))
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
       canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
       _ <-
         if (canDelete) F.unit
         else
           F.raiseError[Unit](
-            AppCannotBeDeletedException(request.cloudContext, request.appName, appResult.app.status, ctx.traceId)
+            AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId)
           )
 
       // Get the disk to delete if specified
-      diskOpt = if (request.deleteDisk) appResult.app.appResources.disk.map(_.id) else None
+      diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
 
       // If the app status is Error, we can assume that the underlying app/nodepool
       // has already been deleted. So we just transition the app to Deleted status
@@ -390,36 +312,32 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Note this has the side effect of not deleting the disk if requested to do so. The
       // caller must manually delete the disk in this situation. We have the same behavior for
       // runtimes.
-      googleProjectOpt = LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext)
       _ <-
         if (appResult.app.status == AppStatus.Error) {
           for {
             // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
-            _ <- googleProjectOpt.traverse(g =>
-              authProvider.notifyResourceDeleted(appResult.app.samResourceId, appResult.app.auditInfo.creator, g)
+            _ <- authProvider.notifyResourceDeleted(appResult.app.samResourceId,
+                                                    appResult.app.auditInfo.creator,
+                                                    cloudContext.value
             )
             _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
           } yield ()
         } else {
           for {
             _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
-            deleteMessage = appResult.cluster.cloudContext match {
-              case CloudContext.Gcp(value) =>
-                DeleteAppMessage(
-                  appResult.app.id,
-                  appResult.app.appName,
-                  value,
-                  diskOpt,
-                  Some(ctx.traceId)
-                )
-              case CloudContext.Azure(_) => ???
-            }
+            deleteMessage = DeleteAppMessage(
+              appResult.app.id,
+              appResult.app.appName,
+              cloudContext.value,
+              diskOpt,
+              Some(ctx.traceId)
+            )
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
         }
     } yield ()
 
-  def stopApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
+  def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -451,21 +369,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
 
       _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStopping).transaction
-      // TODO: support Azure
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(appResult.cluster.cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
-      )
       message = StopAppMessage(
         appResult.app.id,
         appResult.app.appName,
-        googleProject,
+        cloudContext.value,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(message)
     } yield ()
 
-  def startApp(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
+  def startApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -497,26 +410,265 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
 
       _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStarting).transaction
-      // TODO: support Azure
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
-      )
       message = StartAppMessage(
         appResult.app.id,
         appResult.app.appName,
-        googleProject,
+        cloudContext.value,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(message)
     } yield ()
+
+  override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[ListAppResponse]] = for {
+    paramMap <- F.fromEither(processListParameters(params))
+    allClusters <- KubernetesServiceDbQueries
+      .listAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+      .transaction
+
+    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v2")
+  } yield res
+
+  override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
+    as: Ask[F, AppContext]
+  ): F[GetAppResponse] =
+    for {
+      ctx <- as.ask
+      appOpt <- getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
+      app <- F.fromOption(
+        appOpt,
+        AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
+      )
+      hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
+                                                                               AppAction.GetAppStatus,
+                                                                               userInfo
+      )
+      _ <-
+        if (hasPermission) F.unit
+        else
+          log.info(ctx.loggingCtx)(
+            s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
+          ) >> F
+            .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
+
+  override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+
+      // Check the calling user has permission on the workspace
+      hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
+        WorkspaceResourceSamResourceId(workspaceId),
+        WorkspaceAction.CreateControlledUserResource,
+        userInfo
+      )
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
+
+      // Resolve the workspace in WSM to get the cloud context
+      userToken = org.http4s.headers.Authorization(
+        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
+      )
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
+        case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+      }
+
+      // Check if the app already exists
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
+      _ <- appOpt.fold(F.unit)(c =>
+        F.raiseError[Unit](AppAlreadyExistsInWorkspaceException(workspaceId, appName, c.app.status, ctx.traceId))
+      )
+
+      // Validate the machine config from the request
+      // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
+      // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
+      machineConfig <- (cloudContext.cloudProvider, req.kubernetesRuntimeConfig) match {
+        case (CloudProvider.Azure, Some(_)) =>
+          F.raiseError(AppMachineConfigNotSupportedException(ctx.traceId))
+        // TODO: pull this from the landing zone instead of hardcoding once TOAZ-232 is implemented
+        case (CloudProvider.Azure, None) =>
+          F.pure(KubernetesRuntimeConfig(NumNodes(1), MachineTypeName("Standard_A2_v2"), false))
+        case (CloudProvider.Gcp, Some(mt)) => F.pure(mt)
+        case (CloudProvider.Gcp, None) =>
+          F.pure(
+            KubernetesRuntimeConfig(
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+            )
+          )
+      }
+
+      // Create a new Sam resource for the app
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
+      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent.
+      originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
+      _ <- authProvider
+        .notifyResourceCreatedV2(samResourceId, originatingUserEmail, cloudContext, workspaceId, userInfo)
+        .handleErrorWith { t =>
+          log.error(ctx.loggingCtx, t)(
+            s"Failed to notify the AuthProvider for creation of kubernetes app ${cloudContext.asStringWithProvider} / ${appName.value}"
+          ) >> F.raiseError[Unit](t)
+        }
+
+      // Save or retrieve a KubernetesCluster record for the app
+      saveCluster <- F.fromEither(
+        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, None, None, Some(workspaceId))
+      )
+      saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
+      _ <-
+        if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
+          F.raiseError[Unit](
+            KubernetesAppCreationException(
+              s"You cannot create an app while a cluster ${saveClusterResult.minimalCluster.clusterName.value} is in status ${saveClusterResult.minimalCluster.status}",
+              Some(ctx.traceId)
+            )
+          )
+        else F.unit
+
+      // Save or retrieve a nodepool record for the app
+      userNodepoolOpt <- nodepoolQuery
+        .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
+        .transaction
+      clusterId = saveClusterResult.minimalCluster.id
+      nodepool <- userNodepoolOpt match {
+        case Some(n) =>
+          log.info(ctx.loggingCtx)(
+            s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
+          ) >> F.pure(n)
+        case None =>
+          for {
+            _ <- log.info(ctx.loggingCtx)(
+              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
+            )
+            saveNodepool <- F.fromEither(
+              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
+            )
+            savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+          } yield savedNodepool
+      }
+
+      // Retrieve a pet identity from Sam
+      runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
+      petSA <- F.fromEither(
+        runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
+      )
+
+      // Process persistent disk in the request, check if the disk was previously attached to any other app
+      diskResultOpt <- req.diskConfig.traverse(diskReq =>
+        RuntimeServiceInterp.processPersistentDiskRequestForWorkspace(
+          diskReq,
+          config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
+          cloudContext,
+          workspaceId,
+          userInfo,
+          petSA,
+          appTypeToFormattedByType(req.appType),
+          authProvider,
+          config.leoKubernetesConfig.diskConfig
+        )
+      )
+      lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
+
+      // Save a new App record in the database
+      saveApp <- F.fromEither(
+        getSavableApp(
+          cloudContext,
+          appName,
+          userInfo.userEmail,
+          samResourceId,
+          req,
+          diskResultOpt.map(_.disk),
+          lastUsedApp,
+          petSA,
+          nodepool.id,
+          ctx
+        )
+      )
+      app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
+
+      // Publish a CreateApp message for Back Leo
+      createAppV2Message = CreateAppV2Message(
+        app.id,
+        app.appName,
+        workspaceId,
+        cloudContext,
+        Some(ctx.traceId)
+      )
+      _ <- publisherQueue.offer(createAppV2Message)
+    } yield ()
+
+  override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+    appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
+    appResult <- F.fromOption(
+      appOpt,
+      AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
+    )
+    listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+
+    // throw 404 if no GetAppStatus permission
+    hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+    _ <-
+      if (hasReadPermission) F.unit
+      else
+        F.raiseError[Unit](
+          AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "no read permission")
+        )
+
+    // throw 403 if no DeleteApp permission
+    hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
+    _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
+    canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
+    _ <-
+      if (canDelete) F.unit
+      else
+        F.raiseError[Unit](
+          AppCannotBeDeletedByWorkspaceIdException(workspaceId, appName, appResult.app.status, ctx.traceId)
+        )
+
+    // Get the disk to delete if specified
+    diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
+
+    _ <-
+      if (appResult.app.status == AppStatus.Error) {
+        for {
+          _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction >> authProvider
+            .notifyResourceDeletedV2(appResult.app.samResourceId, userInfo)
+            .void
+        } yield ()
+      } else {
+        for {
+          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+          deleteMessage = DeleteAppV2Message(
+            appResult.app.id,
+            appResult.app.appName,
+            workspaceId,
+            diskOpt,
+            Some(ctx.traceId)
+          )
+          _ <- publisherQueue.offer(deleteMessage)
+        } yield ()
+      }
+  } yield ()
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
     now: Instant,
     numNodepools: Option[NumNodepools],
-    clusterName: Option[KubernetesClusterName] = None
+    clusterName: Option[KubernetesClusterName] = None,
+    workspaceId: Option[WorkspaceId]
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -526,7 +678,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       NodepoolLeoId(-1),
       clusterId = KubernetesClusterLeoId(-1),
       nodepoolName,
-      status = NodepoolStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
       numNodes = numNodepools
@@ -553,10 +706,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       clusterName = clusterName.getOrElse(defaultClusterName),
       location = config.leoKubernetesConfig.clusterConfig.location,
       region = config.leoKubernetesConfig.clusterConfig.region,
-      status = KubernetesClusterStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
+        else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
-      defaultNodepool = nodepool
+      defaultNodepool = nodepool,
+      workspaceId = workspaceId
     )
   }
 
@@ -606,28 +762,130 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       } yield ()
     else F.unit
 
+  private def getLastUsedAppForDisk(
+    req: CreateAppRequest,
+    diskResultOpt: Option[PersistentDiskRequestResult]
+  )(implicit as: Ask[F, AppContext]): F[Option[LastUsedApp]] = for {
+    ctx <- as.ask
+    lastUsedApp <- diskResultOpt match {
+      case Some(diskResult) =>
+        if (diskResult.creationNeeded) {
+          F.pure(none[LastUsedApp])
+        } else {
+          (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
+            case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _, _))) |
+                (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
+              val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
+              for {
+                lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
+                lastUsed <- F.fromOption(
+                  lastUsedOpt,
+                  new LeoException(s"last used app($lastUsedBy) not found", traceId = Some(ctx.traceId))
+                )
+                _ <- req.customEnvironmentVariables.get(WORKSPACE_NAME_KEY).traverse { s =>
+                  if (lastUsed.workspace.asString == s) F.unit
+                  else
+                    F.raiseError[Unit](
+                      BadRequestException(
+                        s"workspace name has to be the same as last used app in order to restore data from existing disk",
+                        Some(ctx.traceId)
+                      )
+                    )
+                }
+              } yield lastUsed.some
+            case (Some(FormattedBy.Galaxy), Some(CromwellRestore(_))) =>
+              F.raiseError[Option[LastUsedApp]](
+                DiskAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
+              )
+            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
+              F.raiseError[Option[LastUsedApp]](
+                DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
+              )
+            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
+              F.raiseError[Option[LastUsedApp]](
+                DiskAlreadyFormattedError(diskResult.disk.formattedBy.get,
+                                          s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
+                                          ctx.traceId
+                )
+              )
+            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
+              F.raiseError[Option[LastUsedApp]](
+                new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
+              )
+            case (None, _) =>
+              F.raiseError[Option[LastUsedApp]](
+                new LeoException(
+                  "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app",
+                  traceId = Some(ctx.traceId)
+                )
+              )
+          }
+        }
+      case None => F.pure(none[LastUsedApp])
+    }
+
+  } yield lastUsedApp
+
+  private[service] def convertToDisk(userInfo: UserInfo,
+                                     cloudContext: CloudContext,
+                                     diskName: DiskName,
+                                     config: PersistentDiskConfig,
+                                     req: CreateAppRequest,
+                                     now: Instant
+  ): Either[Throwable, PersistentDisk] = {
+    // create a LabelMap of default labels
+    val defaultLabelMap: LabelMap =
+      Map(
+        "diskName" -> diskName.value,
+        "cloudContext" -> cloudContext.asString,
+        "creator" -> userInfo.userEmail.value
+      )
+
+    // combine default and given labels
+    val allLabels = req.diskConfig.get.labels ++ defaultLabelMap
+
+    for {
+      // check the labels do not contain forbidden keys
+      labels <-
+        if (allLabels.contains(includeDeletedKey))
+          Left(IllegalLabelKeyException(includeDeletedKey))
+        else
+          Right(allLabels)
+    } yield PersistentDisk(
+      DiskId(0),
+      cloudContext,
+      ZoneName("us-west1-a"),
+      diskName,
+      userInfo.userEmail,
+      // TODO: WSM will populate this, we can update in backleo if its needed for anything
+      PersistentDiskSamResourceId("fakeUUID"),
+      DiskStatus.Creating,
+      AuditInfo(userInfo.userEmail, now, None, now),
+      req.diskConfig.get.size.getOrElse(config.defaultDiskSizeGb),
+      req.diskConfig.get.diskType.getOrElse(config.defaultDiskType),
+      config.defaultBlockSizeBytes,
+      None,
+      None,
+      labels,
+      None
+    )
+  }
+
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
+                                       cloudContext: CloudContext,
                                        userEmail: WorkbenchEmail,
-                                       runtimeConfig: Option[KubernetesRuntimeConfig],
+                                       machineConfig: KubernetesRuntimeConfig,
                                        now: Instant
   ): Either[Throwable, Nodepool] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
-
-    val machineConfig = runtimeConfig.getOrElse(
-      KubernetesRuntimeConfig(
-        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
-        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
-      )
-    )
-
     for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
     } yield Nodepool(
       NodepoolLeoId(-1),
       clusterId = clusterId,
       nodepoolName,
-      status = NodepoolStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = machineConfig.machineType,
       numNodes = machineConfig.numNodes,
@@ -677,7 +935,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else F.pure(AppMachineType(memoryInGb, machineType.getGuestCpus))
     } yield machineType
 
-  private[service] def getSavableApp(googleProject: GoogleProject,
+  private[service] def getSavableApp(cloudContext: CloudContext,
                                      appName: AppName,
                                      userEmail: WorkbenchEmail,
                                      samResourceId: AppSamResourceId,
@@ -691,17 +949,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     val now = ctx.now
     val auditInfo = AuditInfo(userEmail, now, None, now)
     val gkeAppConfig: KubernetesAppConfig = req.appType match {
-      case Galaxy   => config.leoKubernetesConfig.galaxyAppConfig
-      case Cromwell => config.leoKubernetesConfig.cromwellAppConfig
-      case Custom   => config.leoKubernetesConfig.customAppConfig
+      case Galaxy          => config.leoKubernetesConfig.galaxyAppConfig
+      case Cromwell        => config.leoKubernetesConfig.cromwellAppConfig
+      case Custom          => config.leoKubernetesConfig.customAppConfig
+      case CromwellOnAzure => ConfigReader.appConfig.azure.coaAppConfig
     }
 
     val allLabels =
       DefaultKubernetesLabels(
-        googleProject,
+        cloudContext,
         appName,
         userEmail,
-        config.leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail
+        googleServiceAccount
       ).toMap ++ req.labels
     for {
       // check the labels do not contain forbidden keys
@@ -711,10 +970,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else
           Right(allLabels)
 
-      // TODO make this non optional in the request
-      // the original thought when developing was that galaxy needs a disk, but some apps may not
-      // all apps require a disk
-      disk <- diskOpt.toRight(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
+      // Galaxy, Cromwell, and Custom app types require a disk.
+      // Cromwell on Azure requires _no_ disk.
+      _ <- (req.appType, diskOpt) match {
+        case (Galaxy | Cromwell | Custom, None) =>
+          Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
+        case (CromwellOnAzure, Some(_)) =>
+          Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
+        case _ => Right(())
+      }
 
       // Generate namespace and app release names using a random 6-character string prefix.
       //
@@ -751,9 +1015,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             gkeAppConfig.chart
           else lastUsed.chart
         }
-        // TODO fix this for the cromwell case (BW-867)
-        // For now for cromwell apps, the chart is wrong in the Leo DB.
-        // Back Leo reads the chart from config instead of the DB.
         .getOrElse(gkeAppConfig.chart)
       release <- lastUsedApp.fold(
         KubernetesName.withValidation(
@@ -779,7 +1040,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             namespaceId,
             namespaceName
           ),
-          Some(disk),
+          diskOpt,
           gkeAppConfig.kubernetesServices,
           Option(gkeAppConfig.serviceAccountName)
         ),
@@ -790,6 +1051,46 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
     )
   }
+
+  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
+                                        userInfo: UserInfo,
+                                        labels: List[String],
+                                        apiVersion: String
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[ListAppResponse]] = for {
+    _ <- as.ask
+    samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
+    samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
+      authProvider.filterUserVisible(apps, userInfo)
+    }
+
+    res = samVisibleAppsOpt match {
+      case None => Vector.empty
+      case Some(samVisibleApps) =>
+        val samVisibleAppsSet = samVisibleApps.toSet
+        // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
+        // then we build back up by filtering nodepools without apps and clusters without nodepools
+        allClusters
+          .map { c =>
+            c.copy(
+              nodepools = c.nodepools
+                .map { n =>
+                  n.copy(apps = n.apps.filter { a =>
+                    // Making the assumption that users will always be able to access apps that they create
+                    // Fix for https://github.com/DataBiosphere/leonardo/issues/821
+                    samVisibleAppsSet
+                      .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
+                  })
+                }
+                .filterNot(_.apps.isEmpty)
+            )
+          }
+          .filterNot(_.nodepools.isEmpty)
+          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
+          .toVector
+    }
+  } yield res
 
 }
 
@@ -820,6 +1121,28 @@ case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, tr
       traceId = Some(traceId)
     )
 
+case class AppNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
+                                             appName: AppName,
+                                             traceId: TraceId,
+                                             extraMsg: String
+) extends LeoException(
+      s"App ${workspaceId.value.toString}/${appName.value} not found",
+      StatusCodes.NotFound,
+      null,
+      extraMsg,
+      traceId = Some(traceId)
+    )
+
+case class AppAlreadyExistsInWorkspaceException(workspaceId: WorkspaceId,
+                                                appName: AppName,
+                                                status: AppStatus,
+                                                traceId: TraceId
+) extends LeoException(
+      s"App ${workspaceId.value.toString}/${appName.value} already exists in ${status.toString} status.",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
 case class AppAlreadyExistsException(cloudContext: CloudContext, appName: AppName, status: AppStatus, traceId: TraceId)
     extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} already exists in ${status.toString} status.",
@@ -838,6 +1161,17 @@ case class AppCannotBeDeletedException(cloudContext: CloudContext,
       traceId = Some(traceId)
     )
 
+case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
+                                                    appName: AppName,
+                                                    status: AppStatus,
+                                                    traceId: TraceId
+) extends LeoException(
+      s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
+        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
 case class AppCannotBeCreatedException(googleProject: GoogleProject,
                                        appName: AppName,
                                        status: AppStatus,
@@ -848,9 +1182,19 @@ case class AppCannotBeCreatedException(googleProject: GoogleProject,
       traceId = Some(traceId)
     )
 
-case class AppRequiresDiskException(googleProject: GoogleProject, appName: AppName, appType: AppType, traceId: TraceId)
+case class AppRequiresDiskException(cloudContext: CloudContext, appName: AppName, appType: AppType, traceId: TraceId)
     extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be created because the request does not contain a valid disk. Apps of type ${appType} require a disk. Trace ID: ${traceId.asString}",
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be created because the request does not contain a valid disk. Apps of type ${appType} require a disk. Trace ID: ${traceId.asString}",
+      StatusCodes.BadRequest,
+      traceId = Some(traceId)
+    )
+
+case class AppDiskNotSupportedException(cloudContext: CloudContext,
+                                        appName: AppName,
+                                        appType: AppType,
+                                        traceId: TraceId
+) extends LeoException(
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} of type ${appType} does not support persistent disk. Trace ID: ${traceId.toString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
@@ -879,5 +1223,12 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class AppMachineConfigNotSupportedException(traceId: TraceId)
+    extends LeoException(
+      s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
+      StatusCodes.BadRequest,
       traceId = Some(traceId)
     )

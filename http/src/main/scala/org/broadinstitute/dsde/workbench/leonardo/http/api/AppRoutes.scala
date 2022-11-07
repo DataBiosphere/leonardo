@@ -168,14 +168,11 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       ctx <- ev.ask[AppContext]
       // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
       deleteDisk = params.get("deleteDisk").exists(_ == "true")
-      deleteParams = DeleteAppRequest(
+      apiCall = kubernetesService.deleteApp(
         userInfo,
         CloudContext.Gcp(googleProject),
         appName,
         deleteDisk
-      )
-      apiCall = kubernetesService.deleteApp(
-        deleteParams
       )
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
@@ -230,9 +227,10 @@ object AppRoutes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct11(
+    Encoder.forProduct12(
+      "cloudProvider",
+      "workspaceId",
       "cloudContext",
-      "googleProject",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -243,8 +241,9 @@ object AppRoutes {
       "auditInfo",
       "labels"
     )(x =>
-      (x.cloudContext,
-       x.cloudContext.asString,
+      (x.cloudProvider,
+       x.workspaceId,
+       x.cloudContext,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,

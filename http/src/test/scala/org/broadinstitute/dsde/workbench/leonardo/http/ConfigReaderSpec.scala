@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -11,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import org.broadinstitute.dsp._
 import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -22,7 +23,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.2")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.3")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -37,7 +38,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Uri.unsafeFromString("https://localhost:8000"),
           "terradevacrpublic.azurecr.io/welder-server",
           "ef956b2",
-          PollMonitorConfig(1 seconds, 120, 1 seconds),
+          PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           AzureRuntimeDefaults(
             "Azure Ip",
@@ -72,11 +73,24 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
-          ChartName("/Users/rtitle/git/broadinstitute/cromwhelm/coa-helm"),
-          ChartVersion("0.2.125"),
+          ChartName("/leonardo/cromwell-on-azure"),
+          ChartVersion("0.2.158"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
-          KsaName("coa-ksa")
+          KsaName("coa-ksa"),
+          List(
+            ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
+            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
+          )
+        ),
+        AadPodIdentityConfig(
+          Namespace("aad-pod-identity"),
+          Release("aad-pod-identity"),
+          ChartName("aad-pod-identity/aad-pod-identity"),
+          ChartVersion("4.1.14"),
+          Values("operationMode=managed")
         )
       ),
       OidcAuthConfig(

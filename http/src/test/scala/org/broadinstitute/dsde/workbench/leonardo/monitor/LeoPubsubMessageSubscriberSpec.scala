@@ -1956,7 +1956,8 @@ class LeoPubsubMessageSubscriberSpec
       new MockWelderDAO(),
       new MockJupyterDAO(),
       relayService,
-      azureVmService
+      azureVmService,
+      new MockAKSInterp()
     )
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =

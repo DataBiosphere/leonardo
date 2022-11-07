@@ -220,14 +220,16 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val makeCluster1 = makeKubeCluster(1)
     val saveCluster1 = Some(makeCluster1)
       .map(c =>
-        SaveKubernetesCluster(c.cloudContext,
-                              c.clusterName,
-                              c.location,
-                              c.region,
-                              c.status,
-                              c.ingressChart,
-                              c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        SaveKubernetesCluster(
+          c.cloudContext,
+          c.clusterName,
+          c.location,
+          c.region,
+          c.status,
+          c.ingressChart,
+          c.auditInfo,
+          DefaultNodepool.fromNodepool(c.nodepools.headOption.get),
+          c.workspaceId
         )
       )
       .get
@@ -251,27 +253,31 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
     val saveCluster1 = Some(makeCluster1)
       .map(c =>
-        SaveKubernetesCluster(c.cloudContext,
-                              c.clusterName,
-                              c.location,
-                              c.region,
-                              c.status,
-                              c.ingressChart,
-                              c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        SaveKubernetesCluster(
+          c.cloudContext,
+          c.clusterName,
+          c.location,
+          c.region,
+          c.status,
+          c.ingressChart,
+          c.auditInfo,
+          DefaultNodepool.fromNodepool(c.nodepools.headOption.get),
+          c.workspaceId
         )
       )
       .get
     val saveCluster2 = Some(makeCluster2)
       .map(c =>
-        SaveKubernetesCluster(c.cloudContext,
-                              c.clusterName,
-                              c.location,
-                              c.region,
-                              c.status,
-                              c.ingressChart,
-                              c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        SaveKubernetesCluster(
+          c.cloudContext,
+          c.clusterName,
+          c.location,
+          c.region,
+          c.status,
+          c.ingressChart,
+          c.auditInfo,
+          DefaultNodepool.fromNodepool(c.nodepools.headOption.get),
+          c.workspaceId
         )
       )
       .get
@@ -294,14 +300,16 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
     val saveCluster2 = Some(makeCluster2)
       .map(c =>
-        SaveKubernetesCluster(c.cloudContext,
-                              c.clusterName,
-                              c.location,
-                              c.region,
-                              c.status,
-                              c.ingressChart,
-                              c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        SaveKubernetesCluster(
+          c.cloudContext,
+          c.clusterName,
+          c.location,
+          c.region,
+          c.status,
+          c.ingressChart,
+          c.auditInfo,
+          DefaultNodepool.fromNodepool(c.nodepools.headOption.get),
+          c.workspaceId
         )
       )
       .get
@@ -322,14 +330,16 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     makeCluster1.save()
     val saveCluster2 = Some(makeCluster2)
       .map(c =>
-        SaveKubernetesCluster(c.cloudContext,
-                              c.clusterName,
-                              c.location,
-                              c.region,
-                              c.status,
-                              c.ingressChart,
-                              c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        SaveKubernetesCluster(
+          c.cloudContext,
+          c.clusterName,
+          c.location,
+          c.region,
+          c.status,
+          c.ingressChart,
+          c.auditInfo,
+          DefaultNodepool.fromNodepool(c.nodepools.headOption.get),
+          c.workspaceId
         )
       )
       .get

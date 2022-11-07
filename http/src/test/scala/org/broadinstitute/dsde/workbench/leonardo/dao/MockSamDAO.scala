@@ -5,11 +5,12 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -116,7 +117,8 @@ class MockSamDAO extends SamDAO[IO] {
         )
     }
 
-  override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = {
@@ -206,7 +208,8 @@ class MockSamDAO extends SamDAO[IO] {
     }
   }
 
-  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def deleteResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] =
@@ -226,6 +229,11 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(petSA))
+
+  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Option[WorkbenchEmail]] =
+    IO.pure(Some(petMI))
 
   override def getUserProxy(
     userEmail: WorkbenchEmail
@@ -295,16 +303,31 @@ class MockSamDAO extends SamDAO[IO] {
   override def getLeoAuthToken: IO[Authorization] =
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
 
-  def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
+  override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
     IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
 
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
+
+  override def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
+
+  override def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
+
+  override def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Option[String]] = IO.pure(Some("token"))
 }
 
 object MockSamDAO {
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
+  val petMI = WorkbenchEmail("/subscriptions/foo/resourceGroups/bar/userAssignedManagedIdentities/pet-1234")
   val projectOwnerEmail = WorkbenchEmail("project-owner@test.org")
   val appManagerActions = Set(AppAction.GetAppStatus, AppAction.DeleteApp)
   def userEmailToAuthorization(workbenchEmail: WorkbenchEmail): Authorization =

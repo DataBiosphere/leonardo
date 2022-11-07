@@ -3,7 +3,7 @@ package dao
 
 import _root_.fs2._
 import _root_.io.circe._
-import _root_.org.typelevel.log4cats.Logger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.{Async, Ref}
@@ -11,13 +11,14 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
@@ -38,9 +39,9 @@ import scala.util.control.NoStackTrace
 
 class HttpSamDAO[F[_]](httpClient: Client[F],
                        config: HttpSamDaoConfig,
-                       petTokenCache: Cache[F, UserEmailAndProject, Option[String]]
+                       petKeyCache: Cache[F, UserEmailAndProject, Option[Json]]
 )(implicit
-  logger: Logger[F],
+  logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends SamDAO[F]
@@ -52,7 +53,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   )
   private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInteral)
 
-  def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
+  override def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       leoToken <- getLeoAuthToken
       isRegistered <- httpClient.expectOr[RegisterInfoResponse](
@@ -74,7 +75,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         .whenA(!isRegistered.enabled)
     } yield ()
 
-  def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse] =
+  override def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse] =
     metrics.incrementCounter("sam/status") >>
       httpClient.expectOr[StatusCheckResponse](
         Request[F](
@@ -83,10 +84,10 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
 
-  def hasResourcePermissionUnchecked(resourceType: SamResourceType,
-                                     resource: String,
-                                     action: String,
-                                     authHeader: Authorization
+  override private[leonardo] def hasResourcePermissionUnchecked(resourceType: SamResourceType,
+                                                                resource: String,
+                                                                action: String,
+                                                                authHeader: Authorization
   )(implicit
     ev: Ask[F, TraceId]
   ): F[Boolean] =
@@ -104,7 +105,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield res
 
-  def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
+  override def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[List[A]] = {
@@ -124,7 +125,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
   }
 
-  def getResourcePolicies[R](
+  override def getResourcePolicies[R](
     authHeader: Authorization
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
@@ -138,25 +139,39 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
-  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
       traceId <- ev.ask
-      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
+      tokenOpt <- getCachedPetAccessToken(creatorEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-      _ <- logger.info(
-        s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${googleProject}/${sr.resourceIdAsString(resource)}"
+      _ <- createResourceInternal(resource, authHeader)
+    } yield ()
+
+  override def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    createResourceInternal(resource, Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)))
+
+  private def createResourceInternal[R](resource: R, authHeader: Authorization)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    for {
+      traceId <- ev.ask
+      loggingCtx = Map("traceId" -> traceId.asString)
+      _ <- logger.info(loggingCtx)(
+        s"Creating ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} resource in Sam"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
       _ <- httpClient
@@ -186,19 +201,17 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     for {
       traceId <- ev.ask
-      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
+      tokenOpt <- getCachedPetAccessToken(creatorEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-      _ <- logger.info(
-        s"${traceId} | creating ${sr.resourceType.asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
+      loggingCtx = Map("traceId" -> traceId.asString)
+      _ <- logger.info(loggingCtx)(
+        s"Creating ${sr.resourceType.asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
       policies = Map[SamPolicyName, SamPolicyData](
@@ -223,23 +236,40 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
-  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def deleteResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
       traceId <- ev.ask
-      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
+      tokenOpt <- getCachedPetAccessToken(creatorEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+      _ <- deleteResourceInternal(resource, authHeader)
+    } yield ()
+
+  override def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    deleteResourceInternal(resource, Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)))
+
+  private def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    for {
+      traceId <- ev.ask
+      loggingCtx = Map("traceId" -> traceId.asString)
+      _ <- logger.info(loggingCtx)(
+        s"Deleting ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} resource in Sam"
+      )
       _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType.asString}")
       _ <- httpClient
         .run(
@@ -256,8 +286,8 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         .use { resp =>
           resp.status match {
             case Status.NotFound =>
-              logger.info(
-                s"Fail to delete ${googleProject}/${sr.resourceIdAsString(resource)} because ${sr.resourceType.asString} doesn't exist in SAM"
+              logger.info(loggingCtx)(
+                s"Fail to delete Sam resource ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} because it doesn't exist in Sam"
               )
             case s if s.isSuccess => F.unit
             case _                => onError(resp).flatMap(F.raiseError[Unit])
@@ -265,7 +295,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
-  def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
+  override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
     metrics.incrementCounter("sam/getPetServiceAccount") >>
@@ -278,7 +308,21 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
 
-  def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
+  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkbenchEmail]] =
+    metrics.incrementCounter("sam/getPetManagedIdentity") >>
+      httpClient.expectOptionOr[WorkbenchEmail](
+        Request[F](
+          method = Method.POST,
+          uri = config.samUri
+            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity")),
+          headers = Headers(authorization, `Content-Type`(MediaType.application.json)),
+          entity = cloudContext
+        )
+      )(onError)
+
+  override def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
     getLeoAuthToken.flatMap { leoToken =>
       metrics.incrementCounter("sam/getUserProxy") >>
         httpClient.expectOptionOr[WorkbenchEmail](
@@ -294,18 +338,67 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )(onError)
     }
 
-  def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[String]] =
-    if (config.petCacheEnabled) {
-      petTokenCache.cachingF(UserEmailAndProject(userEmail, googleProject))(None)(
-        getPetAccessToken(userEmail, googleProject)
-      )
-    } else {
-      getPetAccessToken(userEmail, googleProject)
-    }
+    for {
+      keyOpt <-
+        if (config.petCacheEnabled) {
+          petKeyCache.cachingF(UserEmailAndProject(userEmail, googleProject))(None)(
+            getPetKey(userEmail, googleProject)
+          )
+        } else {
+          getPetKey(userEmail, googleProject)
+        }
+      token <- keyOpt.traverse(getTokenFromKey)
+    } yield token
 
-  def getLeoAuthToken: F[Authorization] =
+  override def getCachedArbitraryPetAccessToken(
+    userEmail: WorkbenchEmail
+  )(implicit ev: Ask[F, TraceId]): F[Option[String]] =
+    for {
+      keyOpt <-
+        if (config.petCacheEnabled) {
+          // Cache only by email in the "arbitrary pet" case
+          petKeyCache.cachingF(UserEmailAndProject(userEmail, GoogleProject("user-shell-project")))(None)(
+            getArbitraryPetKey(userEmail)
+          )
+        } else {
+          getArbitraryPetKey(userEmail)
+        }
+      token <- keyOpt.traverse(getTokenFromKey)
+    } yield token
+
+  override def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[UserSubjectId]] =
+    for {
+      traceId <- ev.ask
+      _ <- metrics.incrementCounter("sam/getSubjectId")
+      tokenOpt <- getCachedPetAccessToken(userEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${userEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
+      )
+      userInfo <- getSamUserInfo(token)
+    } yield userInfo.map(_.userSubjectId)
+
+  override def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+    for {
+      resp <- httpClient.expectOptionOr[SamUserInfo](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
+          headers = Headers(authHeader)
+        )
+      )(onError)
+    } yield resp
+  }
+
+  override def getLeoAuthToken: F[Authorization] =
     for {
       ref <- leoSaTokenRef
       accessToken <- ref.get
@@ -319,81 +412,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
 
       Authorization(Credentials.Token(AuthScheme.Bearer, token))
     }
-
-  private def getLeoAuthTokenInteral: F[com.google.auth.oauth2.AccessToken] =
-    credentialResource(
-      config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
-    ).use { credential =>
-      val scopedCredential = credential.createScoped(saScopes.asJava)
-
-      F.delay(scopedCredential.refresh).map(_ => scopedCredential.getAccessToken)
-    }
-
-  private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Option[String]] =
-    for {
-      leoAuth <- getLeoAuthToken
-      _ <- metrics.incrementCounter("sam/getPetServiceAccount")
-      // fetch user's pet SA key with leo's authorization token
-      userPetKey <- httpClient.expectOptionOr[Json](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(
-            Uri.Path.unsafeFromString(
-              s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"
-            )
-          ),
-          headers = Headers(leoAuth)
-        )
-      )(onError)
-      token <- userPetKey.traverse { key =>
-        val keyStream = new ByteArrayInputStream(key.toString().getBytes)
-        F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
-          .map(_.refreshAccessToken.getTokenValue)
-      }
-    } yield token
-
-  private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
-    for {
-      traceId <- ev.ask
-      body <- response.bodyText.compile.foldMonoid
-      _ <- logger.error(s"${traceId} | Sam call failed: $body")
-      _ <- metrics.incrementCounter("sam/errorResponse")
-    } yield AuthProviderException(traceId, body, response.status.code)
-
-  override def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Option[UserSubjectId]] =
-    for {
-      traceId <- ev.ask
-      _ <- metrics.incrementCounter("sam/getSubjectId")
-      token <- getCachedPetAccessToken(userEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${userEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
-      )
-      userInfo <- getSamUserInfo(token)
-    } yield userInfo.map(_.userSubjectId)
-
-  override def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]] = {
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-
-    for {
-      resp <- httpClient.expectOptionOr[SamUserInfo](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
-          headers = Headers(authHeader)
-        )
-      )(onError)
-    } yield resp
-  }
 
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[F, TraceId]
@@ -421,15 +439,77 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             )(onError)
           } yield admins.contains(workbenchEmail)
     } yield res
+
+  private def getLeoAuthTokenInteral: F[com.google.auth.oauth2.AccessToken] =
+    credentialResource(
+      config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
+    ).use { credential =>
+      val scopedCredential = credential.createScoped(saScopes.asJava)
+
+      F.delay(scopedCredential.refresh).map(_ => scopedCredential.getAccessToken)
+    }
+
+  private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[Json]] =
+    for {
+      leoAuth <- getLeoAuthToken
+      _ <- metrics.incrementCounter("sam/getPetServiceAccount")
+      // fetch user's pet SA key with leo's authorization token
+      userPetKey <- httpClient.expectOptionOr[Json](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            Uri.Path.unsafeFromString(
+              s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"
+            )
+          ),
+          headers = Headers(leoAuth)
+        )
+      )(onError)
+    } yield userPetKey
+
+  private def getArbitraryPetKey(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[Json]] =
+    for {
+      leoAuth <- getLeoAuthToken
+      _ <- metrics.incrementCounter("sam/getArbitraryPetServiceAccount")
+      // fetch user's pet SA key with leo's authorization token
+      userPetKey <- httpClient.expectOptionOr[Json](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            Uri.Path.unsafeFromString(
+              s"/api/google/v1/petServiceAccount/${URLEncoder.encode(userEmail.value, UTF_8.name)}/key"
+            )
+          ),
+          headers = Headers(leoAuth)
+        )
+      )(onError)
+    } yield userPetKey
+
+  private def getTokenFromKey(key: Json): F[String] = {
+    val keyStream = new ByteArrayInputStream(key.toString().getBytes)
+    F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
+      .map(_.refreshAccessToken.getTokenValue)
+  }
+
+  private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
+    for {
+      traceId <- ev.ask
+      body <- response.bodyText.compile.foldMonoid
+      loggingCtx = Map("traceId" -> traceId.asString)
+      _ <- logger.error(loggingCtx)(s"Sam call failed: $body")
+      _ <- metrics.incrementCounter("sam/errorResponse")
+    } yield AuthProviderException(traceId, body, response.status.code)
 }
 
 object HttpSamDAO {
   def apply[F[_]: Async](
     httpClient: Client[F],
     config: HttpSamDaoConfig,
-    petTokenCache: Cache[F, UserEmailAndProject, Option[String]]
-  )(implicit logger: Logger[F], metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
-    new HttpSamDAO[F](httpClient, config, petTokenCache)
+    petKeyCache: Cache[F, UserEmailAndProject, Option[Json]]
+  )(implicit logger: StructuredLogger[F], metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
+    new HttpSamDAO[F](httpClient, config, petKeyCache)
 
   implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)
   implicit val projectActionEncoder: Encoder[ProjectAction] = Encoder.encodeString.contramap(_.asString)
@@ -451,6 +531,10 @@ object HttpSamDAO {
   implicit def createSamResourceRequestEncoder[R: Encoder]: Encoder[CreateSamResourceRequest[R]] =
     Encoder.forProduct5("resourceId", "policies", "authDomain", "returnResource", "parent")(x =>
       (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
+    )
+  implicit val getPetManagedIdentityEncoder: Encoder[AzureCloudContext] =
+    Encoder.forProduct3("tenantId", "subscriptionId", "managedResourceGroupName")(x =>
+      (x.tenantId.value, x.subscriptionId.value, x.managedResourceGroupName.value)
     )
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =

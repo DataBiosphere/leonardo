@@ -179,11 +179,27 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
+  def notifyResourceCreatedV2[R](samResource: R,
+                                 creatorEmail: WorkbenchEmail,
+                                 cloudContext: CloudContext,
+                                 workspaceId: WorkspaceId,
+                                 userInfo: UserInfo
+  )(implicit
+    sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
   // Deletes a resource in Sam
   def notifyResourceDeleted[R](
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
+  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
+
+  def notifyResourceDeletedV2[R](
+    samResource: R,
+    userInfo: UserInfo
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
 
   def isUserWorkspaceOwner[R](

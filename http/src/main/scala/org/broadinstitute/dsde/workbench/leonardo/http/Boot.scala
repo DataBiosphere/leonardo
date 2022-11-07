@@ -175,7 +175,8 @@ object Boot extends IOApp {
           appDependencies.publisherQueue,
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
-          gkeCustomAppConfig
+          gkeCustomAppConfig,
+          appDependencies.wsmDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -334,22 +335,31 @@ object Boot extends IOApp {
 
       // Set up SSL context and http clients
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
-      underlyingPetTokenCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[String]]](
+      underlyingPetKeyCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[io.circe.Json]]](
         httpSamDaoConfig.petCacheMaxSize,
         httpSamDaoConfig.petCacheExpiryTime
       )
-      petTokenCache <- Resource.make(
-        F.delay(CaffeineCache[F, UserEmailAndProject, Option[String]](underlyingPetTokenCache))
+      petKeyCache <- Resource.make(
+        F.delay(CaffeineCache[F, UserEmailAndProject, Option[io.circe.Json]](underlyingPetKeyCache))
       )(_.close)
 
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
-        HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
+        HttpSamDAO[F](client, httpSamDaoConfig, petKeyCache)
+      )
+      cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
+        client => new HttpCromwellDAO[F](client)
+      )
+      cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
+        new HttpCbasDAO[F](client)
+      )
+      wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
+        new HttpWdsDAO[F](client)
       )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
       welderDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_welder_client"), false).map(
-        client => new HttpWelderDAO[F](runtimeDnsCache, client)
+        client => new HttpWelderDAO[F](runtimeDnsCache, client, samDao)
       )
       rstudioDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_rstudio_client"), false).map(
         client => new HttpRStudioDAO(runtimeDnsCache, client)
@@ -509,7 +519,7 @@ object Boot extends IOApp {
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
-          .processWithUnderlyingCache(underlyingPetTokenCache),
+          .processWithUnderlyingCache(underlyingPetKeyCache),
         CacheMetrics("googleTokenCache")
           .processWithUnderlyingCache(underlyingGoogleTokenCache),
         CacheMetrics("samResourceCache")
@@ -592,11 +602,18 @@ object Boot extends IOApp {
         AKSInterpreterConfig(
           ConfigReader.appConfig.terraAppSetupChart,
           ConfigReader.appConfig.azure.coaAppConfig,
-          samConfig
+          ConfigReader.appConfig.azure.aadPodIdentityConfig,
+          ConfigReader.appConfig.azure.appRegistration,
+          samConfig,
+          appMonitorConfig
         ),
         helmClient,
         azureContainerService,
-        azureRelay
+        azureRelay,
+        samDao,
+        cromwellDao,
+        cbasDao,
+        wdsDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
@@ -607,7 +624,8 @@ object Boot extends IOApp {
                                                      welderDao,
                                                      jupyterDao,
                                                      azureRelay,
-                                                     azureVmService
+                                                     azureVmService,
+                                                     aksAlg
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
