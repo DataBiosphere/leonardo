@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -35,7 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, Sam
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
@@ -474,6 +475,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                     config.appMonitorConfig.deleteApp.initialDelay,
                                     "delete namespace timed out"
       )
+
+      userEmail = dbApp.app.googleServiceAccount
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+
+      _ <- tokenOpt match {
+        case Some(token) =>
+          for {
+            _ <- logger.info(ctx.loggingCtx)(s"Deleting app resources ${app.appResources} in Sam")
+            userInfo = UserInfo(OAuth2BearerToken(token), WorkbenchUserId("userId"), userEmail, 0)
+            _ <- samDao.deleteResourceWithUserInfo(dbApp.app.samResourceId, userInfo)
+
+          } yield ()
+        case None =>
+          logger.warn(ctx.loggingCtx)(
+            s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
+          )
+      }
+
       _ <- logger.info(ctx.loggingCtx)(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterId.toString}"
       )
