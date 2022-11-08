@@ -12,6 +12,7 @@ import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.workspaceId
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
@@ -53,6 +54,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
+    MockKubernetesService,
     setUpMockAzureContainerService,
     FakeAzureRelayService,
     mockSamDAO,
@@ -122,7 +124,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "fullnameOverride=coa-rel-1"
   }
 
-  it should "create and poll a coa app" in isolatedDbTest {
+  it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
       nodepool <- IO(makeNodepool(1, cluster.id).save())
@@ -151,9 +153,22 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       app shouldBe defined
       app.get.app.status shouldBe AppStatus.Running
       app.get.cluster.asyncFields shouldBe defined
+      app
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val dbApp = res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    dbApp shouldBe defined
+    val app = dbApp.get.app
+
+    for {
+      _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, cloudContext))
+      app <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
+        .transaction
+    } yield {
+      app shouldBe defined
+      app.get.app.status shouldBe AppStatus.Deleted
+    }
   }
 
   private def setUpMockIdentity: Identity = {

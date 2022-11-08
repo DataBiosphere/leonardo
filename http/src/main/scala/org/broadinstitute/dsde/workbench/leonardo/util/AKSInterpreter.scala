@@ -19,9 +19,16 @@ import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, tracedRetryF, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  tracedRetryF,
+  NetworkName,
+  SubnetworkName
+}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
@@ -36,10 +43,12 @@ import org.typelevel.log4cats.StructuredLogger
 
 import java.util.Base64
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
+                           kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
                            azureContainerService: AzureContainerService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
@@ -54,6 +63,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 ) extends AKSAlgebra[F] {
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
   implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
+
+  private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
+    pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
+  implicit private def podDoneCheckable: DoneCheckable[List[KubernetesPodStatus]] =
+    (ps: List[KubernetesPodStatus]) => ps.forall(isPodDone)
+
+  private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
+    Release(s"${appReleaseName.asString}-setup-rls")
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -400,17 +417,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       dbAppOpt <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Azure(cloudContext), params.appName)
         .transaction
-      dbApp <- F.fromOption(dbAppOpt,
-        AppNotFoundException(CloudContext.Azure(cloudContext),
-          params.appName,
-          ctx.traceId,
-          "No active app found in DB"
-        )
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(CloudContext.Azure(cloudContext), params.appName, ctx.traceId, "No active app found in DB")
       )
       _ <- logger.info(ctx.loggingCtx)(s"Deleting app $appName in workspace $workspaceId")
 
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
+      kubernetesNamespace = KubernetesNamespace(namespaceName)
+      dbCluster = dbApp.cluster
+      clusterId = dbCluster.getClusterId
+
+      _ <- appQuery.updateStatus(app.id, AppStatus.Deleting).transaction
 
       // Get resources from landing zone
       landingZoneResources = getLandingZoneResources
@@ -420,7 +439,49 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       _ <- helmClient.uninstall(app.release, keepHistory).run(authContext)
 
+      // poll until the app pods are deleted
+      last <- streamFUntilDone(
+        kubeService.listPodStatus(clusterId, KubernetesNamespace(app.appResources.namespace.name)),
+        config.appMonitorConfig.deleteApp.maxAttempts,
+        config.appMonitorConfig.deleteApp.interval
+      ).compile.lastOrError
 
+      _ <-
+        if (!podDoneCheckable.isDone(last)) {
+          val msg =
+            s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
+                .filterNot(isPodDone)
+                .map(_.name.value)
+                .mkString(", ")}"
+          logger.error(ctx.loggingCtx)(msg) >>
+            F.raiseError[Unit](AppDeletionException(msg))
+        } else F.unit
+
+      // helm uninstall the setup chart
+      _ <- helmClient
+        .uninstall(
+          getTerraAppSetupChartReleaseName(app.release),
+          keepHistory
+        )
+        .run(authContext)
+
+      // delete the namespace only after the helm uninstall completes
+      _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId, kubernetesNamespace)
+
+      fa = kubeService
+        .namespaceExists(dbApp.cluster.getClusterId, kubernetesNamespace)
+        .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
+
+      _ <- streamUntilDoneOrTimeout(fa,
+                                    config.appMonitorConfig.deleteApp.maxAttempts,
+                                    config.appMonitorConfig.deleteApp.initialDelay,
+                                    "delete namespace timed out"
+      )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterId.toString}"
+      )
+
+      _ <- appQuery.updateStatus(app.id, AppStatus.Deleted).transaction
 
       _ <- logger.info(ctx.loggingCtx)(s"Done deleting app $appName in workspace $workspaceId")
     } yield ()

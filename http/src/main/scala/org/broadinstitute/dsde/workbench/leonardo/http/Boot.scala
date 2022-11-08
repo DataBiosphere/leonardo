@@ -608,6 +608,7 @@ object Boot extends IOApp {
           appMonitorConfig
         ),
         helmClient,
+        kubeService,
         azureContainerService,
         azureRelay,
         samDao,

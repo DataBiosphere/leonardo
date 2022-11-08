@@ -11,7 +11,6 @@ trait AKSAlgebra[F[_]] {
 
   def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-
   // TODO (TOAZ-230): stop, start
 
 }
@@ -23,8 +22,8 @@ final case class CreateAKSAppParams(appId: AppId,
 )
 
 final case class DeleteAKSAppParams(
-                                    appName: AppName,
-                                    workspaceId: WorkspaceId,
-                                    cloudContext: AzureCloudContext,
-                                    keepHistory: Boolean = false
-                                   )
+  appName: AppName,
+  workspaceId: WorkspaceId,
+  cloudContext: AzureCloudContext,
+  keepHistory: Boolean = false
+)
