@@ -4,15 +4,24 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResour
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.proxyUrlBase
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeService, testApp}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
+  makeKubeCluster,
+  makeService,
+  serviceKind,
+  testApp
+}
 import org.broadinstitute.dsde.workbench.leonardo.{
   Chart,
   CloudContext,
   IpRange,
   KubernetesClusterAsyncFields,
+  KubernetesService,
   LeoLenses,
   LeonardoTestSuite,
-  NetworkFields
+  NetworkFields,
+  ServiceConfig,
+  ServiceId,
+  ServicePath
 }
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
@@ -34,6 +43,20 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       ),
       ServiceName("service3") -> new URL(
         s"https://leo/proxy/google/v1/apps/${cluster.cloudContext.asString}/${app.appName.value}/service3"
+      )
+    )
+  }
+
+  it should "generate valid GCP proxy urls with path overrides" in {
+    val service = KubernetesService(
+      ServiceId(-1),
+      ServiceConfig(ServiceName("service1"), serviceKind, Some(ServicePath("/")))
+    )
+    val cluster = makeKubeCluster(1)
+    val app = LeoLenses.appToServices.modify(_ => List(service))(testApp)
+    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
+      ServiceName("service1") -> new URL(
+        s"https://leo/proxy/google/v1/apps/${cluster.cloudContext.asString}/${app.appName.value}/"
       )
     )
   }
@@ -61,6 +84,30 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       ),
       ServiceName("service3") -> new URL(
         s"https://relay.windows.net/${app.appName.value}/service3"
+      )
+    )
+  }
+
+  it should "generate valid Azure proxy urls with path overrides" in {
+    val service = KubernetesService(
+      ServiceId(-1),
+      ServiceConfig(ServiceName("service1"), serviceKind, Some(ServicePath("/")))
+    )
+    val cluster = makeKubeCluster(1).copy(
+      cloudContext = CloudContext.Azure(
+        AzureCloudContext(TenantId("tenant"), SubscriptionId("sub"), ManagedResourceGroupName("mrg"))
+      ),
+      asyncFields = Some(
+        KubernetesClusterAsyncFields(IP("https://relay.windows.net/"),
+                                     IP("unused"),
+                                     NetworkFields(NetworkName("unused"), SubnetworkName("unused"), IpRange("unused"))
+        )
+      )
+    )
+    val app = LeoLenses.appToServices.modify(_ => List(service))(testApp)
+    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
+      ServiceName("service1") -> new URL(
+        s"https://relay.windows.net/${app.appName.value}/"
       )
     )
   }
