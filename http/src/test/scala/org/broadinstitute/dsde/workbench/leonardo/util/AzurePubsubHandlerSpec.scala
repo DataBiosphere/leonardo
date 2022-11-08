@@ -611,7 +611,7 @@ class AzurePubsubHandlerSpec
       override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
         IO.raiseError(HelmException("something went wrong"))
 
-        override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+      override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
         IO.raiseError(HelmException("something went wrong"))
     }
     val azureInterp =

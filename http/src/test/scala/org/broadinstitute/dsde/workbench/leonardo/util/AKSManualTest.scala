@@ -14,7 +14,21 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
-import org.broadinstitute.dsde.workbench.leonardo.{App, AppName, AppResources, AppStatus, AppType, CloudContext, DefaultNodepool, KubernetesClusterStatus, ManagedIdentityName, Namespace, NamespaceId, NodepoolStatus, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
+  AppName,
+  AppResources,
+  AppStatus,
+  AppType,
+  CloudContext,
+  DefaultNodepool,
+  KubernetesClusterStatus,
+  ManagedIdentityName,
+  Namespace,
+  NamespaceId,
+  NodepoolStatus,
+  WorkspaceId
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.scalatestplus.mockito.MockitoSugar.mock
@@ -137,7 +151,7 @@ object AKSManualTest {
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(config,
                              helmClient,
-    MockKubernetesService,
+                             MockKubernetesService,
                              containerService,
                              relayService,
                              mock[SamDAO[IO]],
