@@ -12,13 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    if: github.event.label.name == 'automerge'
+    if: github.event.label.name == 'automerge' && github.event.sender.login == 'broadbot'
     steps:
       - uses: "hmarr/auto-approve-action@v3"
         with:
           review-message: "This PR was automatically approved"
   automerge:
     runs-on: ubuntu-latest
+    needs: auto-approve
     steps:
       - name: automerge
         uses: "broadinstitute/automerge-action@v0.12.0"
