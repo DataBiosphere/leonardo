@@ -8,13 +8,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineSizeTypes}
-import org.broadinstitute.dsde.workbench.azure.{
-  AzureCloudContext,
-  AzureRelayService,
-  AzureVmService,
-  ContainerName,
-  RelayHybridConnectionName
-}
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
@@ -27,13 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   DeleteAzureRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  AzureRuntimeCreationError,
-  AzureRuntimeDeletionError,
-  AzureRuntimeStartingError,
-  AzureRuntimeStoppingError,
-  ClusterError
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.http4s.headers.Authorization
@@ -52,7 +40,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   welderDao: WelderDAO[F],
   jupyterDAO: JupyterDAO[F],
   azureRelay: AzureRelayService[F],
-  azureVmServiceInterp: AzureVmService[F]
+  azureVmServiceInterp: AzureVmService[F],
+  aksAlgebra: AKSAlgebra[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
   implicit val wsmDeleteVmDoneCheckable: DoneCheckable[Option[GetDeleteJobResult]] = (v: Option[GetDeleteJobResult]) =>
@@ -407,6 +396,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
 
       isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
+      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
         _ <- F.sleep(
@@ -456,6 +446,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.maxAttempts,
                 config.createVmPollConfig.interval,
                 s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+              )
+              _ <- streamUntilDoneOrTimeout(
+                isWelderUp,
+                config.createVmPollConfig.maxAttempts,
+                config.createVmPollConfig.interval,
+                s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
               _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
@@ -755,5 +751,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           auth
         )
       }.void
+    } yield ()
+
+  override def createAndPollApp(appId: AppId,
+                                appName: AppName,
+                                workspaceId: WorkspaceId,
+                                cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
+      _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
     } yield ()
 }

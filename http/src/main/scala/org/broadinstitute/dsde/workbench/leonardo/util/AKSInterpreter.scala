@@ -17,16 +17,21 @@ import com.azure.resourcemanager.compute.models.{
 }
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.tracedRetryF
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, tracedRetryF, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
+import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.Base64
@@ -36,13 +41,19 @@ import scala.jdk.CollectionConverters._
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
                            azureContainerService: AzureContainerService[F],
-                           azureRelayService: AzureRelayService[F]
+                           azureRelayService: AzureRelayService[F],
+                           samDao: SamDAO[F],
+                           cromwellDao: CromwellDAO[F],
+                           cbasDao: CbasDAO[F],
+                           wdsDao: WdsDAO[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   F: Async[F]
 ) extends AKSAlgebra[F] {
+  implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
+  implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -117,7 +128,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Resolve pet managed identity in Azure
       msi <- buildMsiManager(params.cloudContext)
       petMi <- F.delay(
-        msi.identities().getByResourceGroup(params.cloudContext.managedResourceGroupName.value, petEmail.value)
+        msi.identities().getById(petEmail.value)
       )
 
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
@@ -142,13 +153,70 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
+      // Poll app status
+      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+      appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint) / app.appName.value)
+      _ <-
+        if (appOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppCreationException(
+              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              Some(ctx.traceId)
+            )
+          )
+
+      // Populate async fields in the KUBERNETES_CLUSTER table.
+      // For Azure we don't need each field, but we do need the relay https endpoint.
+      _ <- kubernetesClusterQuery
+        .updateAsyncFields(
+          dbApp.cluster.id,
+          KubernetesClusterAsyncFields(
+            IP(relayEndpoint),
+            IP("[unset]"),
+            NetworkFields(
+              landingZoneResources.vnetName,
+              landingZoneResources.aksSubnetName,
+              IpRange("[unset]")
+            )
+          )
+        )
+        .transaction
+
+      // If we've got here, update the App status to Running.
+      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      // TODO (TOAZ-229): poll app for completion
-
     } yield ()
+
+  private[util] def pollCromwellAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] =
+    for {
+      ctx <- ev.ask
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+      token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+
+      op = List(
+        cbasDao
+          .getStatus(relayBaseUri, authHeader)
+          .handleError(_ => false)
+          // TODO: add WDS to status checks once https://github.com/DataBiosphere/terra-workspace-data-service/pull/135 is in a release
+          // wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          // TODO (TOAZ-241): add cromwell to the status checks once it starts up
+          // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+      ).sequence
+      cromwellOk <- streamFUntilDone(
+        op,
+        maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
+        delay = config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+    } yield cromwellOk.isDone
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      cloudContext: AzureCloudContext,
@@ -176,8 +244,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        // TODO (TOAZ-242): change to kubernetes-app resource type once listener supports it
-        raw"relaylistener.samResourceType=controlled-application-private-workspace-resource",
+        raw"relaylistener.samResourceType=kubernetes-app",
+        raw"relaylistener.samAction=connect",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -296,7 +364,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       BatchAccountName("batch-account"),
       RelayNamespace("relay-namespace"),
       StorageAccountName("storage-account"),
-      SubnetName("BATCH_SUBNET")
+      NetworkName("vnet"),
+      SubnetworkName("BATCH_SUBNET"),
+      SubnetworkName("AKS_SUBNET")
     )
 
   private[util] def buildMsiManager(cloudContext: AzureCloudContext): F[MsiManager] = {
@@ -323,9 +393,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
 }
 
-final case class AKSInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
-                                      coaAppConfig: CoaAppConfig,
-                                      aadPodIdentityConfig: AadPodIdentityConfig,
-                                      appRegistrationConfig: AzureAppRegistrationConfig,
-                                      samConfig: SamConfig
+final case class AKSInterpreterConfig(
+  terraAppSetupChartConfig: TerraAppSetupChartConfig,
+  coaAppConfig: CoaAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  appRegistrationConfig: AzureAppRegistrationConfig,
+  samConfig: SamConfig,
+  appMonitorConfig: AppMonitorConfig
 )

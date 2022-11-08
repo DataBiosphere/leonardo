@@ -156,7 +156,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, originatingUserEmail, machineConfig, ctx.now)
+              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
             )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
@@ -250,7 +250,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
             .raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase, "v1")
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
     userInfo: UserInfo,
@@ -451,7 +451,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
             .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase, "v2")
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
     implicit as: Ask[F, AppContext]
@@ -488,13 +488,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Validate the machine config from the request
       // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
       // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
-      machineConfig <- (req.appType, req.kubernetesRuntimeConfig) match {
-        case (CromwellOnAzure, Some(_)) => F.raiseError(AppMachineConfigNotSupportedException(req.appType, ctx.traceId))
+      machineConfig <- (cloudContext.cloudProvider, req.kubernetesRuntimeConfig) match {
+        case (CloudProvider.Azure, Some(_)) =>
+          F.raiseError(AppMachineConfigNotSupportedException(ctx.traceId))
         // TODO: pull this from the landing zone instead of hardcoding once TOAZ-232 is implemented
-        case (CromwellOnAzure, None) =>
+        case (CloudProvider.Azure, None) =>
           F.pure(KubernetesRuntimeConfig(NumNodes(1), MachineTypeName("Standard_A2_v2"), false))
-        case (_, Some(mt)) => F.pure(mt)
-        case (_, None) =>
+        case (CloudProvider.Gcp, Some(mt)) => F.pure(mt)
+        case (CloudProvider.Gcp, None) =>
           F.pure(
             KubernetesRuntimeConfig(
               config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
@@ -547,7 +548,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, originatingUserEmail, machineConfig, ctx.now)
+              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
             )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
@@ -595,13 +596,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Publish a CreateApp message for Back Leo
       createAppV2Message = CreateAppV2Message(
-        workspaceId,
         app.id,
         app.appName,
-        diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
-        req.customEnvironmentVariables,
-        req.appType,
-        app.appResources.namespace.name,
+        workspaceId,
+        cloudContext,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
@@ -680,7 +678,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       NodepoolLeoId(-1),
       clusterId = KubernetesClusterLeoId(-1),
       nodepoolName,
-      status = NodepoolStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
       numNodes = numNodepools
@@ -707,7 +706,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       clusterName = clusterName.getOrElse(defaultClusterName),
       location = config.leoKubernetesConfig.clusterConfig.location,
       region = config.leoKubernetesConfig.clusterConfig.region,
-      status = KubernetesClusterStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
+        else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool,
@@ -871,6 +872,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   }
 
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
+                                       cloudContext: CloudContext,
                                        userEmail: WorkbenchEmail,
                                        machineConfig: KubernetesRuntimeConfig,
                                        now: Instant
@@ -882,7 +884,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       NodepoolLeoId(-1),
       clusterId = clusterId,
       nodepoolName,
-      status = NodepoolStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = machineConfig.machineType,
       numNodes = machineConfig.numNodes,
@@ -957,7 +960,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         cloudContext,
         appName,
         userEmail,
-        config.leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail
+        googleServiceAccount
       ).toMap ++ req.labels
     for {
       // check the labels do not contain forbidden keys
@@ -1012,9 +1015,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             gkeAppConfig.chart
           else lastUsed.chart
         }
-        // TODO fix this for the cromwell case (BW-867)
-        // For now for cromwell apps, the chart is wrong in the Leo DB.
-        // Back Leo reads the chart from config instead of the DB.
         .getOrElse(gkeAppConfig.chart)
       release <- lastUsedApp.fold(
         KubernetesName.withValidation(
@@ -1087,7 +1087,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             )
           }
           .filterNot(_.nodepools.isEmpty)
-          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels, apiVersion))
+          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
           .toVector
     }
   } yield res
@@ -1126,7 +1126,7 @@ case class AppNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
                                              traceId: TraceId,
                                              extraMsg: String
 ) extends LeoException(
-      s"App ${workspaceId.toString}/${appName.value} not found",
+      s"App ${workspaceId.value.toString}/${appName.value} not found",
       StatusCodes.NotFound,
       null,
       extraMsg,
@@ -1138,7 +1138,7 @@ case class AppAlreadyExistsInWorkspaceException(workspaceId: WorkspaceId,
                                                 status: AppStatus,
                                                 traceId: TraceId
 ) extends LeoException(
-      s"App ${workspaceId.toString}/${appName.value} already exists in ${status.toString} status.",
+      s"App ${workspaceId.value.toString}/${appName.value} already exists in ${status.toString} status.",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
@@ -1166,7 +1166,7 @@ case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
                                                     status: AppStatus,
                                                     traceId: TraceId
 ) extends LeoException(
-      s"App ${workspaceId.toString}/${appName.value} cannot be deleted in ${status} status." +
+      s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
       traceId = Some(traceId)
@@ -1226,9 +1226,9 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
       traceId = Some(traceId)
     )
 
-case class AppMachineConfigNotSupportedException(appType: AppType, traceId: TraceId)
+case class AppMachineConfigNotSupportedException(traceId: TraceId)
     extends LeoException(
-      s"Machine configuration not supported for apps of type ${appType}. Trace ID ${traceId.asString}",
+      s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
