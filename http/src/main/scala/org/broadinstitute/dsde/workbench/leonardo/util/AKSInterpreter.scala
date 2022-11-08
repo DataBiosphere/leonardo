@@ -428,8 +428,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       dbCluster = dbApp.cluster
       clusterId = dbCluster.getClusterId
 
-      _ <- appQuery.updateStatus(app.id, AppStatus.Deleting).transaction
-
       // Get resources from landing zone
       landingZoneResources = getLandingZoneResources
 
