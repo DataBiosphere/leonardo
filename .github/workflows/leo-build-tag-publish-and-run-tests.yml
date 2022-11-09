@@ -3,9 +3,11 @@
 name: leo-build-tag-publish-and-run-tests
 
 on:
+  pull_request:
+    paths-ignore: [ '**.md' ]
   push:
     branches:
-      - DDO-2377
+      - develop
     paths-ignore: ['**.md']
 
 jobs:
