@@ -10,16 +10,10 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  GoogleComputeService,
-  GoogleResourceService,
-  KubernetesName,
-  MachineTypeName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -33,10 +27,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartVersion, Release}
+import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
@@ -593,6 +589,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
+      // TODO get landing zone resources
+
       // Publish a CreateApp message for Back Leo
       createAppV2Message = CreateAppV2Message(
         workspaceId,
@@ -663,6 +661,42 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } yield ()
       }
   } yield ()
+
+  // TODO (TOAZ-232): replace hard-coded values with LZ API calls
+  private def getLandingZoneResources(workspaceId: WorkspaceId,
+                                      petToken: Authorization
+                                     )(implicit ev: Ask[F, AppContext]): F[LandingZoneResources] = {
+    for {
+      // Step 1: call WSM for billing profile id
+      workspaceDetailsOpt <- wsmDao.getWorkspace(workspaceId, petToken)
+      workspaceDetails <- F.fromOption(
+        workspaceDetailsOpt,
+        AppCreationException(s"Workspace ${workspaceId} not found in call to WSM")
+      )
+
+      // Step 2: call LZ for LZ id
+      landingZoneOpt <- wsmDao.getLandingZone(workspaceDetails.spendProfile, petToken)
+      landingZoneId <- F.fromOption(
+        landingZoneOpt,
+        AppCreationException(s"Landing zone not found for billing profile ${workspaceDetails.spendProfile}")
+      )
+
+      // Step 3: call LZ for LZ resources
+      lzResourcesOpt <- wsmDao.listLandingZoneResourcesByType(landingZoneId, petToken)
+      lzResources <- F.fromOption(
+        lzResourcesOpt,
+        AppCreationException(s"Landing zone resources not found in landing zone ${landingZoneId}")
+      ) // TODO use lz resource to construct LandingZoneResources object
+
+    } yield LandingZoneResources(
+      AKSClusterName("cluster-name"),
+      BatchAccountName("batch-account"),
+      RelayNamespace("relay-namespace"),
+      StorageAccountName("storage-account"),
+      SubnetName("BATCH_SUBNET")
+    )
+  }
+
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
