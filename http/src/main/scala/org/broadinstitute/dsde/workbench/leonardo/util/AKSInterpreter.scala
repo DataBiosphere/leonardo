@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -10,12 +9,7 @@ import com.azure.core.management.AzureEnvironment
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{
-  ResourceIdentityType,
-  VirtualMachineIdentityUserAssignedIdentities,
-  VirtualMachineScaleSetIdentity,
-  VirtualMachineScaleSetUpdate
-}
+import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
@@ -23,20 +17,14 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{
-  streamFUntilDone,
-  streamUntilDoneOrTimeout,
-  tracedRetryF,
-  NetworkName,
-  SubnetworkName
-}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName, streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
@@ -125,7 +113,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Deploy setup chart
       _ <- helmClient
         .installChart(
-          Release(s"${app.release.asString}-setup-rls"),
+          getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
           org.broadinstitute.dsp.Values(
@@ -483,8 +471,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case Some(token) =>
           for {
             _ <- logger.info(ctx.loggingCtx)(s"Deleting app resources ${app.appResources} in Sam")
-            userInfo = UserInfo(OAuth2BearerToken(token), WorkbenchUserId("userId"), userEmail, 0)
-            _ <- samDao.deleteResourceWithUserInfo(dbApp.app.samResourceId, userInfo)
+            _ <- samDao.deleteResourceInternal(dbApp.app.samResourceId,
+                                               Authorization(Credentials.Token(AuthScheme.Bearer, token))
+            )
 
           } yield ()
         case None =>
