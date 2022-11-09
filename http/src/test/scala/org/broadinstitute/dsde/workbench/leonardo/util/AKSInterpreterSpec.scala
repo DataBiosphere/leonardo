@@ -160,7 +160,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     dbApp shouldBe defined
     val app = dbApp.get.app
 
-    for {
+    val deletion = for {
       _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, cloudContext))
       app <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
@@ -169,6 +169,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       app shouldBe defined
       app.get.app.status shouldBe AppStatus.Deleted
     }
+
+    deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def setUpMockIdentity: Identity = {
