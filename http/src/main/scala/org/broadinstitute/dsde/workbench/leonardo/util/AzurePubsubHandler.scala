@@ -396,6 +396,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
 
       isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
+      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
         _ <- F.sleep(
@@ -445,6 +446,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.maxAttempts,
                 config.createVmPollConfig.interval,
                 s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+              )
+              _ <- streamUntilDoneOrTimeout(
+                isWelderUp,
+                config.createVmPollConfig.maxAttempts,
+                config.createVmPollConfig.interval,
+                s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
               _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
