@@ -1,11 +1,8 @@
 # Github action to Build Leonardo, add/promote semantic tagging and then run tests
-#
 
 name: leo-build-tag-publish-and-run-tests
 
 on:
-  pull_request:
-    paths-ignore: ['**.md']
   push:
     branches:
       - DDO-2377
