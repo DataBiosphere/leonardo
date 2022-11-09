@@ -48,6 +48,10 @@ object KubernetesTestData {
   val ingressChartVersion = ChartVersion("1.41.3")
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
+  val coaChartName = ChartName("/leonardo/cromwell-on-azure")
+  val coaChartVersion = ChartVersion("0.2.159")
+  val coaChart = Chart(coaChartName, coaChartVersion)
+
   val serviceKind = KubernetesServiceKindName("ClusterIP")
 
   val kubernetesRuntimeConfig = KubernetesRuntimeConfig(
@@ -77,16 +81,14 @@ object KubernetesTestData {
         testNodepool,
         testApp
       ),
-      "https://leo/proxy/",
-      "v1"
+      "https://leo/proxy/"
     )
 
   val listAppResponse =
     ListAppResponse
       .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
                    "https://leo/proxy/",
-                   List.empty,
-                   "v1"
+                   List.empty
       )
       .toVector
 

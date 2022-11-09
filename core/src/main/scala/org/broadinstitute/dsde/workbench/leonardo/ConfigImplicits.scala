@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import pureconfig.ConfigReader
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{ClientId, ClientSecret, ManagedAppTenantId}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import pureconfig.error.ExceptionThrown
@@ -43,4 +44,6 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.emap(s =>
       Either.catchNonFatal(Uri.unsafeFromString(s)).leftMap(ExceptionThrown.apply)
     )
+  implicit val serviceNameReader: ConfigReader[ServiceName] =
+    ConfigReader.stringConfigReader.map(s => ServiceName(s))
 }

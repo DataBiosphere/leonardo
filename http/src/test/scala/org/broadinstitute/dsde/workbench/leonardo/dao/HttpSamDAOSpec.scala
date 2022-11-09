@@ -5,6 +5,7 @@ import cats.effect.IO
 import cats.effect.std.Dispatcher
 import cats.effect.unsafe.implicits.global
 import com.github.benmanes.caffeine.cache.Caffeine
+import io.circe.Json
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -40,8 +41,8 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
   val underlyingPetTokenCache = Caffeine
     .newBuilder()
     .maximumSize(httpSamDaoConfig.petCacheMaxSize)
-    .build[UserEmailAndProject, scalacache.Entry[Option[String]]]()
-  val petTokenCache = CaffeineCache[IO, UserEmailAndProject, Option[String]](underlyingPetTokenCache)
+    .build[UserEmailAndProject, scalacache.Entry[Option[Json]]]()
+  val petTokenCache = CaffeineCache[IO, UserEmailAndProject, Option[Json]](underlyingPetTokenCache)
 
   "HttpSamDAO" should "get Sam ok status" in {
     val okResponse =

@@ -12,11 +12,15 @@ import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.workspaceId
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
@@ -37,14 +41,24 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
-    SamConfig("https://sam")
+    SamConfig("https://sam"),
+    appMonitorConfig
   )
+
+  val mockSamDAO = setUpMockSamDAO
+  val mockCromwellDAO = setUpMockCromwellDAO
+  val mockCbasDAO = setUpMockCbasDAO
+  val mockWdsDAO = setUpMockWdsDAO
 
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
     setUpMockAzureContainerService,
-    FakeAzureRelayService
+    FakeAzureRelayService,
+    mockSamDAO,
+    mockCromwellDAO,
+    mockCbasDAO,
+    mockWdsDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -56,11 +70,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ManagedResourceGroupName("mrg")
   )
 
-  val lzResources = LandingZoneResources(AKSClusterName("cluster"),
-                                         BatchAccountName("batch"),
-                                         RelayNamespace("relay"),
-                                         StorageAccountName("storage"),
-                                         SubnetName("subnet")
+  val lzResources = LandingZoneResources(
+    AKSClusterName("cluster"),
+    BatchAccountName("batch"),
+    RelayNamespace("relay"),
+    StorageAccountName("storage"),
+    NetworkName("network"),
+    SubnetworkName("subnet1"),
+    SubnetworkName("subnet2")
   )
 
   "AKSInterpreter" should "get a helm auth context" in {
@@ -89,13 +106,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
       "config.batchAccountName=batch," +
-      "config.batchNodesSubnetId=subnet," +
+      "config.batchNodesSubnetId=subnet1," +
       "relaylistener.connectionString=Endpoint=sb://relay.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=pk;EntityPath=hc," +
       "relaylistener.connectionName=hc,relaylistener.endpoint=https://relay.servicebus.windows.net," +
       "relaylistener.targetHost=http://coa-rel-1-reverse-proxy-service:8000/," +
       "relaylistener.samUrl=https://sam," +
       "relaylistener.samResourceId=sam," +
-      "relaylistener.samResourceType=controlled-application-private-workspace-resource," +
+      "relaylistener.samResourceType=kubernetes-app," +
+      "relaylistener.samAction=connect," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "identity.name=identity-name," +
@@ -120,10 +138,19 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
       )
       saveApp <- IO(app.save())
-      params = CreateAKSAppParams(saveApp.id, saveApp.appName, cloudContext)
+      appId = saveApp.id
+      appName = saveApp.appName
+
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
       _ <- aksInterp.createAndPollApp(params)
+
+      app <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), appName)
+        .transaction
     } yield {
-      // TODO (TOAZ-229): verify app status reaches Running once polling is implemented
+      app shouldBe defined
+      app.get.app.status shouldBe AppStatus.Running
+      app.get.cluster.asyncFields shouldBe defined
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -148,7 +175,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val identities = mock[Identities]
     val identity = setUpMockIdentity
     when {
-      identities.getByResourceGroup(anyString, anyString)
+      identities.getById(anyString)
     } thenReturn identity
     when {
       msi.identities()
@@ -204,4 +231,35 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     container
   }
 
+  private def setUpMockSamDAO: SamDAO[IO] = {
+    val sam = mock[SamDAO[IO]]
+    when {
+      sam.getCachedArbitraryPetAccessToken(any)(any)
+    } thenReturn IO.pure(Some("token"))
+    sam
+  }
+
+  private def setUpMockCromwellDAO: CromwellDAO[IO] = {
+    val cromwell = mock[CromwellDAO[IO]]
+    when {
+      cromwell.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    cromwell
+  }
+
+  private def setUpMockCbasDAO: CbasDAO[IO] = {
+    val cbas = mock[CbasDAO[IO]]
+    when {
+      cbas.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    cbas
+  }
+
+  private def setUpMockWdsDAO: WdsDAO[IO] = {
+    val wds = mock[WdsDAO[IO]]
+    when {
+      wds.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    wds
+  }
 }
