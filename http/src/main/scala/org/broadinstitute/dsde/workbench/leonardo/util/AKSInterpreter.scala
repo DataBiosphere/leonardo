@@ -81,18 +81,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      // Get resources from landing zone
-      workspaceId <- F.fromOption(
-        dbApp.cluster.workspaceId,
-        AppCreationException(
-          s"Workspace ID not found in DB for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
-      petToken = Authorization(
-        Token(AuthScheme.Bearer, "sam-UAMI-token") // TODO get real token pet token. Add required SAM API
-      )
-      landingZoneResources <- getLandingZoneResources(workspaceId, petToken)
+      landingZoneResources = params.landingZoneResources
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
@@ -361,44 +350,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     } yield authContext
-
-  // TODO (TOAZ-232): replace hard-coded values with LZ API calls
-  private def getLandingZoneResources(workspaceId: WorkspaceId,
-                                      petToken: Authorization
-  )(implicit ev: Ask[F, AppContext]): F[LandingZoneResources] = {
-
-    for {
-      // Step 1: call WSM for billing profile id
-      workspaceDetailsOpt <- httpWsmDao.getWorkspace(workspaceId, petToken)
-      workspaceDetails <- F.fromOption(
-        workspaceDetailsOpt,
-        AppCreationException(s"Workspace ${workspaceId} not found in call to WSM")
-      )
-
-      // Step 2: call LZ for LZ id
-      landingZoneOpt <- httpWsmDao.getLandingZone(workspaceDetails.spendProfile, petToken)
-      landingZoneId <- F.fromOption(
-        landingZoneOpt,
-        AppCreationException(s"Landing zone not found for billing profile ${workspaceDetails.spendProfile}")
-      )
-
-      // Step 3: call LZ for LZ resources
-      lzResourcesOpt <- httpWsmDao.listLandingZoneResourcesByType(landingZoneId, petToken)
-      lzResources <- F.fromOption(
-        lzResourcesOpt,
-        AppCreationException(s"Landing zone resources not found in landing zone ${landingZoneId}")
-      ) // TODO use lz resource to construct LandingZoneResources object
-
-    } yield LandingZoneResources(
-      AKSClusterName("cluster-name"),
-      BatchAccountName("batch-account"),
-      RelayNamespace("relay-namespace"),
-      StorageAccountName("storage-account"),
-      NetworkName("vnet"),
-      SubnetworkName("BATCH_SUBNET"),
-      SubnetworkName("AKS_SUBNET")
-    )
-  }
 
   private[util] def buildMsiManager(cloudContext: AzureCloudContext): F[MsiManager] = {
     val azureProfile =

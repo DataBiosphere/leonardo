@@ -13,13 +13,13 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResource, LandingZoneResourcesByPurpose, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -590,7 +590,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
-      // TODO get landing zone resources
+      landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
 
       // Publish a CreateApp message for Back Leo
       createAppV2Message = CreateAppV2Message(
@@ -598,6 +598,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         app.appName,
         workspaceId,
         cloudContext,
+        landingZoneResources, // TODO add to class
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
@@ -660,41 +661,64 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
   } yield ()
 
-  // TODO (TOAZ-232): replace hard-coded values with LZ API calls
-  private def getLandingZoneResources(workspaceId: WorkspaceId,
-                                      petToken: Authorization
+  private def getLandingZoneResources(billingProfileId: String,
+                                      userToken: Authorization
                                      )(implicit ev: Ask[F, AppContext]): F[LandingZoneResources] = {
     for {
       // Step 1: call WSM for billing profile id
-      workspaceDetailsOpt <- wsmDao.getWorkspace(workspaceId, petToken)
+      workspaceDetailsOpt <- wsmDao.getWorkspace(workspaceId, userToken)
       workspaceDetails <- F.fromOption(
         workspaceDetailsOpt,
         AppCreationException(s"Workspace ${workspaceId} not found in call to WSM")
       )
 
       // Step 2: call LZ for LZ id
-      landingZoneOpt <- wsmDao.getLandingZone(workspaceDetails.spendProfile, petToken)
-      landingZoneId <- F.fromOption(
+      landingZoneOpt <- wsmDao.getLandingZone(workspaceDetails.spendProfile, userToken)
+      landingZone <- F.fromOption(
         landingZoneOpt,
         AppCreationException(s"Landing zone not found for billing profile ${workspaceDetails.spendProfile}")
       )
+      landingZoneId = landingZone.landingZoneId
 
       // Step 3: call LZ for LZ resources
-      lzResourcesOpt <- wsmDao.listLandingZoneResourcesByType(landingZoneId, petToken)
-      lzResources <- F.fromOption(
+      lzResourcesOpt <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
+      lzResourcesByPurpose <- F.fromOption(
         lzResourcesOpt,
         AppCreationException(s"Landing zone resources not found in landing zone ${landingZoneId}")
-      ) // TODO use lz resource to construct LandingZoneResources object
+      )
 
+      // TODO fix resource types
+      aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose, "AKSCluster", "SHARED_RESOURCE")
+      batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose, "BatchAccount", "SHARED_RESOURCE")
+      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose, "RelayNamespace", "SHARED_RESOURCE")
+      storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose, "StorageAccount", "SHARED_RESOURCE")
+      vnetName  <- getLandingZoneResourceName(lzResourcesByPurpose, "Vnet", "SHARED_RESOURCE")
+      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "subnet", "BATCH_SUBNET")
+      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "subnet", "AKS_SUBNET")
     } yield LandingZoneResources(
-      AKSClusterName("cluster-name"),
-      BatchAccountName("batch-account"),
-      RelayNamespace("relay-namespace"),
-      StorageAccountName("storage-account"),
-      SubnetName("BATCH_SUBNET")
+      AKSClusterName(aksClusterName),
+      BatchAccountName(batchAccountName),
+      RelayNamespace(relayNamespace),
+      StorageAccountName(storageAccountName),
+      NetworkName(vnetName),
+      SubnetworkName(batchNodesSubnetName),
+      SubnetworkName(aksSubnetName)
     )
   }
 
+  private def getLandingZoneResourceName(landingZoneResourcesByPurpose: List[LandingZoneResourcesByPurpose], resourceType: String, purpose: String): F[String] = {
+    val lzResourcesOpt = landingZoneResourcesByPurpose.find(lzResourceByPurpose => lzResourceByPurpose.purpose.equals(purpose))
+    val resourceOpt = lzResourcesOpt
+      .flatMap(lzResources => lzResources.deployedResources.find(lzResource => lzResource.resourceType.equals(resourceType)))
+    val resourceNameOpt = resourceOpt.map(lzResource => lzResource.resourceName)
+
+    for {
+      resourceName <- F.fromOption(
+        resourceNameOpt,
+        AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+      )
+    } yield resourceName
+  }
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,

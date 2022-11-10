@@ -16,9 +16,11 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{`Content-Type`, Authorization}
+import org.http4s.headers.{Authorization, `Content-Type`}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
+
+import java.util.UUID
 
 class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   logger: StructuredLogger[F],
@@ -151,31 +153,31 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def getLandingZone(billingId: String, authorization: Authorization)(implicit
+  override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[String]] =
+  ): F[Option[LandingZone]] =
     for {
       ctx <- ev.ask
-      landingZoneListOption <- httpClient.expectOptionOr[List[String]](
+      res <- httpClient.expectOptionOr[ListLandingZonesResult](
         Request[F](
           method = Method.GET,
           uri = config.uri
             .withPath(
               Uri.Path
-                .unsafeFromString(s"/api/landingzones/v1/bybillingid/${billingId}")
+                .unsafeFromString(s"/api/landingzones/v1/azure?billingProfileId=${billingProfileId}")
             ),
-          headers = headers(authorization, ctx.traceId, withBody = false) // TODO put billing id in body?
+          headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)
-      landingZoneIdOption = landingZoneListOption.flatMap(landingZoneList => landingZoneList.headOption)
-    } yield landingZoneIdOption
+      landingZoneOption = res.flatMap(listLandingZoneResult => listLandingZoneResult.landingZones.headOption)
+    } yield landingZoneOption
 
-  override def listLandingZoneResourcesByType(landingZoneId: String, authorization: Authorization)(implicit
+  override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[List[Object]]] =
+  ): F[Option[List[LandingZoneResourcesByPurpose]]] =
     for {
       ctx <- ev.ask
-      res <- httpClient.expectOptionOr[List[Object]]( // TODO fix object type
+      resOpt <- httpClient.expectOptionOr[ListLandingZoneResourcesResult](
         Request[F](
           method = Method.GET,
           uri = config.uri
@@ -186,7 +188,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
           headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)
-    } yield res
+    } yield resOpt.map(res => res.resources)
 
   override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]

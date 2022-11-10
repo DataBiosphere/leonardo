@@ -268,6 +268,7 @@ object LeoPubsubMessage {
     appName: AppName,
     workspaceId: WorkspaceId,
     cloudContext: CloudContext,
+    landingZoneResources: LandingZoneResources,
     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAppV2

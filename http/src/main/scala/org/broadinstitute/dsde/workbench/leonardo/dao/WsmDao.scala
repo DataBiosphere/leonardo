@@ -92,13 +92,13 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 
-  def getLandingZone(billingId: String, authorization: Authorization)(implicit
+  def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[String]] // TODO update with LandingZone id type if one exists
+  ): F[Option[LandingZone]]
 
-  def listLandingZoneResourcesByType(landingZoneId: String, authorization: Authorization)(implicit
+  def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[List[Object]]] // TODO update type with landing zone resource type
+  ): F[Option[List[LandingZoneResourcesByPurpose]]]
 
   // TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
   def getRelayNamespace(workspaceId: WorkspaceId,
@@ -129,6 +129,22 @@ final case class WorkspaceDescription(id: WorkspaceId,
                                       azureContext: Option[AzureCloudContext],
                                       gcpContext: Option[GoogleProject]
 )
+
+//Landing Zone models
+final case class LandingZone(landingZoneId: UUID,
+                             billingProfileId: UUID,
+                             definition: String,
+                             version: String,
+                             createdDate: String)
+final case class ListLandingZonesResult(landingZones: List[LandingZone])
+
+final case class LandingZoneResource(resourceId: String,
+                                     resourceType: String,
+                                     resourceName: String,
+                                     resourceParentId: String,
+                                     region: String)
+final case class LandingZoneResourcesByPurpose(purpose: String, deployedResources: List[LandingZoneResource])
+final case class ListLandingZoneResourcesResult(id: UUID, resources: List[LandingZoneResourcesByPurpose])
 
 //Azure Vm Models
 final case class CreateVmRequest(workspaceId: WorkspaceId,
@@ -387,6 +403,26 @@ object WsmDecoders {
                               ManagedResourceGroupName(resourceGroupId)
     )
   }
+
+  implicit val listLandingZonesResultDecoder: Decoder[ListLandingZonesResult] =
+    Decoder.forProduct1("landingZones")(ListLandingZonesResult.apply)
+  implicit val landingZone: Decoder[LandingZone] =
+    Decoder.forProduct5("landingZoneId",
+      "billingProfileId",
+      "definition",
+      "version",
+      "createdDate")(LandingZone.apply)
+
+  implicit val listLandingZoneResourcesResultDecoder: Decoder[ListLandingZoneResourcesResult] =
+    Decoder.forProduct2("id", "resources")(ListLandingZoneResourcesResult.apply)
+  implicit val landingZoneResourcesByPurposeDecoder: Decoder[LandingZoneResourcesByPurpose] =
+    Decoder.forProduct2("purpose", "deployedResources")(LandingZoneResourcesByPurpose.apply)
+  implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
+    Decoder.forProduct5("resourceId",
+      "resourceType",
+      "resourceName",
+      "resourceParentId",
+      "region")(LandingZoneResource.apply)
 
   implicit val wsmGcpContextDecoder: Decoder[WsmGcpContext] =
     Decoder.forProduct1("gcpContext")(WsmGcpContext.apply)

@@ -9,8 +9,8 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -18,11 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  AzureRuntimeStartingError,
-  AzureRuntimeStoppingError,
-  PubsubKubernetesError
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{AzureRuntimeStartingError, AzureRuntimeStoppingError, PubsubKubernetesError}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.HelmException
@@ -615,10 +611,12 @@ class AzurePubsubHandlerSpec
       makeAzurePubsubHandler(asyncTaskQueue = queue, aksAlg = failAksInterp)
 
     val appId = AppId(42)
+    val landingZoneResources = LandingZoneResources(AKSClusterName(""), BatchAccountName(""), RelayNamespace(""),
+      StorageAccountName(""), NetworkName(""), SubnetworkName(""), SubnetworkName(""))
     val res = for {
       ctx <- appContext.ask[AppContext]
       result <- azureInterp
-        .createAndPollApp(appId, AppName("app"), WorkspaceId(UUID.randomUUID()), azureCloudContext)
+        .createAndPollApp(appId, AppName("app"), WorkspaceId(UUID.randomUUID()), landingZoneResources, azureCloudContext)
         .attempt
     } yield result shouldBe Left(
       PubsubKubernetesError(
