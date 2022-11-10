@@ -598,7 +598,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         app.appName,
         workspaceId,
         cloudContext,
-        landingZoneResources, // TODO add to class
+        landingZoneResources,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
