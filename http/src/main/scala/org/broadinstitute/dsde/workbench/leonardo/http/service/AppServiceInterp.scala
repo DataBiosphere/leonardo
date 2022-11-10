@@ -665,22 +665,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                       userToken: Authorization
                                      )(implicit ev: Ask[F, AppContext]): F[LandingZoneResources] = {
     for {
-      // Step 1: call WSM for billing profile id
-      workspaceDetailsOpt <- wsmDao.getWorkspace(workspaceId, userToken)
-      workspaceDetails <- F.fromOption(
-        workspaceDetailsOpt,
-        AppCreationException(s"Workspace ${workspaceId} not found in call to WSM")
-      )
-
-      // Step 2: call LZ for LZ id
-      landingZoneOpt <- wsmDao.getLandingZone(workspaceDetails.spendProfile, userToken)
+      // Step 1: call LZ for LZ id
+      landingZoneOpt <- wsmDao.getLandingZone(billingProfileId, userToken)
       landingZone <- F.fromOption(
         landingZoneOpt,
         AppCreationException(s"Landing zone not found for billing profile ${workspaceDetails.spendProfile}")
       )
       landingZoneId = landingZone.landingZoneId
 
-      // Step 3: call LZ for LZ resources
+      // Step 2: call LZ for LZ resources
       lzResourcesOpt <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
       lzResourcesByPurpose <- F.fromOption(
         lzResourcesOpt,
