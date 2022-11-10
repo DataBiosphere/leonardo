@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResource, LandingZoneResourcesByPurpose, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResourcesByPurpose, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -669,7 +669,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       landingZoneOpt <- wsmDao.getLandingZone(billingProfileId, userToken)
       landingZone <- F.fromOption(
         landingZoneOpt,
-        AppCreationException(s"Landing zone not found for billing profile ${workspaceDetails.spendProfile}")
+        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
       )
       landingZoneId = landingZone.landingZoneId
 
