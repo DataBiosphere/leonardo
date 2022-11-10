@@ -19,6 +19,11 @@ lazy val automation = project.in(file("automation"))
   .settings(automationSettings)
   .dependsOn(core % "test->test;compile->compile")
 
+lazy val pact = project.in(file("pact"))
+  .enablePlugins(ScalaPactPlugin)
+  .settings(pactSettings)
+  .dependsOn(http % "test->test;compile->compile")
+
 assembly / assemblyMergeStrategy := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard
   case x => MergeStrategy.first

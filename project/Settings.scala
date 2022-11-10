@@ -204,4 +204,8 @@ object Settings {
 
     Test / testOptions += Tests.Argument("-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
   )
+
+  val pactSettings = coreSettings ++ List(
+    libraryDependencies ++= pactDependencies
+  )
 }

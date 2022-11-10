@@ -213,4 +213,8 @@ object Dependencies {
     http4sBlazeServer % Test//,
 //    wsmClient
   )
+
+  val pactDependencies = Seq(
+    "com.itv"       %% "scalapact-scalatest-suite"   % "4.4.0" % "test"
+  )
 }
