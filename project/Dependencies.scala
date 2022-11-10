@@ -14,6 +14,8 @@ object Dependencies {
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
+  val scalaHttpV = "2.4.2"
+  val json4sNativeV = "4.0.6"
 
   private val workbenchLibsHash = "fe4ec69"
   val serviceTestV = s"2.0-$workbenchLibsHash"
@@ -74,6 +76,7 @@ object Dependencies {
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-16" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaHttp = "org.scalaj" %% "scalaj-http" % scalaHttpV
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -132,6 +135,7 @@ object Dependencies {
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
+  val json4sNative =      "org.json4s"        %% "json4s-native"        % json4sNativeV
 
   val coreDependencies = List(
     workbenchOauth2,
@@ -215,6 +219,8 @@ object Dependencies {
   )
 
   val pactDependencies = Seq(
-    "com.itv"       %% "scalapact-scalatest-suite"   % "4.4.0" % "test"
+    "com.itv"       %% "scalapact-scalatest-suite"   % "4.4.0" % "test",
+    scalaHttp,
+    json4sNative
   )
 }
