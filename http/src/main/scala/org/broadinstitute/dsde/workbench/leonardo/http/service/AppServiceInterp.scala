@@ -679,7 +679,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         lzResourcesOpt,
         AppCreationException(s"Landing zone resources not found in landing zone ${landingZoneId}")
       )
-      
+
       aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.ContainerService/managedClusters", "SHARED_RESOURCE")
       batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Batch/batchAccounts", "SHARED_RESOURCE")
       relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Relay/namespaces", "SHARED_RESOURCE")
