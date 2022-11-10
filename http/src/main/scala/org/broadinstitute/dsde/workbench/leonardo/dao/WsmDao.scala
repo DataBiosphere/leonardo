@@ -404,25 +404,25 @@ object WsmDecoders {
     )
   }
 
-  implicit val listLandingZonesResultDecoder: Decoder[ListLandingZonesResult] =
-    Decoder.forProduct1("landingZones")(ListLandingZonesResult.apply)
   implicit val landingZone: Decoder[LandingZone] =
     Decoder.forProduct5("landingZoneId",
       "billingProfileId",
       "definition",
       "version",
       "createdDate")(LandingZone.apply)
+  implicit val listLandingZonesResultDecoder: Decoder[ListLandingZonesResult] =
+    Decoder.forProduct1("landingZones")(ListLandingZonesResult.apply)
 
-  implicit val listLandingZoneResourcesResultDecoder: Decoder[ListLandingZoneResourcesResult] =
-    Decoder.forProduct2("id", "resources")(ListLandingZoneResourcesResult.apply)
-  implicit val landingZoneResourcesByPurposeDecoder: Decoder[LandingZoneResourcesByPurpose] =
-    Decoder.forProduct2("purpose", "deployedResources")(LandingZoneResourcesByPurpose.apply)
   implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
     Decoder.forProduct5("resourceId",
       "resourceType",
       "resourceName",
       "resourceParentId",
       "region")(LandingZoneResource.apply)
+  implicit val landingZoneResourcesByPurposeDecoder: Decoder[LandingZoneResourcesByPurpose] =
+    Decoder.forProduct2("purpose", "deployedResources")(LandingZoneResourcesByPurpose.apply)
+  implicit val listLandingZoneResourcesResultDecoder: Decoder[ListLandingZoneResourcesResult] =
+    Decoder.forProduct2("id", "resources")(ListLandingZoneResourcesResult.apply)
 
   implicit val wsmGcpContextDecoder: Decoder[WsmGcpContext] =
     Decoder.forProduct1("gcpContext")(WsmGcpContext.apply)

@@ -29,7 +29,7 @@ final case class LandingZoneResources(clusterName: AKSClusterName,
                                       aksSubnetName: SubnetworkName
 )
 
-object AzureObjectCodec {
+trait AzureObjectCodec {
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.forProduct1("value")(AKSClusterName.apply)
   implicit val batchAccountNameDecoder: Decoder[BatchAccountName] = Decoder.forProduct1("value")(BatchAccountName.apply)
   implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.forProduct1("value")(RelayNamespace.apply)

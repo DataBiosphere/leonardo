@@ -402,7 +402,7 @@ final case class RuntimePatchDetails(runtimeId: Long, runtimeStatus: RuntimeStat
 
 final case class PubsubException(message: String) extends WorkbenchException(message)
 
-object LeoPubsubCodec {
+object LeoPubsubCodec extends AzureObjectCodec {
   implicit val runtimePatchDetailsDecoder: Decoder[RuntimePatchDetails] =
     Decoder.forProduct2("clusterId", "clusterStatus")(RuntimePatchDetails.apply)
 
