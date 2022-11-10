@@ -679,15 +679,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         lzResourcesOpt,
         AppCreationException(s"Landing zone resources not found in landing zone ${landingZoneId}")
       )
-
-      // TODO fix resource types
-      aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose, "AKSCluster", "SHARED_RESOURCE")
-      batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose, "BatchAccount", "SHARED_RESOURCE")
-      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose, "RelayNamespace", "SHARED_RESOURCE")
-      storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose, "StorageAccount", "SHARED_RESOURCE")
-      vnetName  <- getLandingZoneResourceName(lzResourcesByPurpose, "Vnet", "SHARED_RESOURCE")
-      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "subnet", "BATCH_SUBNET")
-      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "subnet", "AKS_SUBNET")
+      
+      aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.ContainerService/managedClusters", "SHARED_RESOURCE")
+      batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Batch/batchAccounts", "SHARED_RESOURCE")
+      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Relay/namespaces", "SHARED_RESOURCE")
+      storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Storage/storageAccounts", "SHARED_RESOURCE")
+      vnetName  <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Network/virtualNetworks", "SHARED_RESOURCE")
+      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Network/virtualNetworks/subnets", "BATCH_SUBNET")
+      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Network/virtualNetworks/subnets", "AKS_SUBNET")
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
