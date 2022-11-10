@@ -611,8 +611,7 @@ class AzurePubsubHandlerSpec
       makeAzurePubsubHandler(asyncTaskQueue = queue, aksAlg = failAksInterp)
 
     val appId = AppId(42)
-    val landingZoneResources = LandingZoneResources(AKSClusterName(""), BatchAccountName(""), RelayNamespace(""),
-      StorageAccountName(""), NetworkName(""), SubnetworkName(""), SubnetworkName(""))
+
     val res = for {
       ctx <- appContext.ask[AppContext]
       result <- azureInterp

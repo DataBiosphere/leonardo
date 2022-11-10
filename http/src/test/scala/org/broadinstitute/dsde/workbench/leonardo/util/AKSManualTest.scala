@@ -5,6 +5,7 @@ import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.landingZoneResources
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -13,21 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
-import org.broadinstitute.dsde.workbench.leonardo.{
-  App,
-  AppName,
-  AppResources,
-  AppStatus,
-  AppType,
-  CloudContext,
-  DefaultNodepool,
-  KubernetesClusterStatus,
-  ManagedIdentityName,
-  Namespace,
-  NamespaceId,
-  NodepoolStatus,
-  WorkspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.{App, AppName, AppResources, AppStatus, AppType, CloudContext, DefaultNodepool, KubernetesClusterStatus, LandingZoneResources, ManagedIdentityName, Namespace, NamespaceId, NodepoolStatus, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.scalatestplus.mockito.MockitoSugar.mock
@@ -172,6 +159,7 @@ object AKSManualTest {
           deps.app.id,
           deps.app.appName,
           workspaceId,
+          landingZoneResources,
           cloudContext
         )
       )

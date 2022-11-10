@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.workspaceId
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -141,7 +141,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       appId = saveApp.id
       appName = saveApp.appName
 
-      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
+      params = CreateAKSAppParams(appId, appName, workspaceId, landingZoneResources, cloudContext)
       _ <- aksInterp.createAndPollApp(params)
 
       app <- KubernetesServiceDbQueries

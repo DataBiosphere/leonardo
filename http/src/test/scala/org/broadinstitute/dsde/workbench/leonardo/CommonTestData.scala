@@ -12,62 +12,25 @@ import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{
-  DataprocRole,
-  DiskName,
-  MachineTypeName,
-  NetworkName,
-  OperationName,
-  RegionName,
-  SubnetworkName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, MachineTypeName, NetworkName, OperationName, RegionName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
-  BootSource,
-  CryptoDetector,
-  Jupyter,
-  Proxy,
-  RStudio,
-  Welder
-}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, CryptoDetector, Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  AccessScope,
-  CloningInstructions,
-  ControlledResourceCommonFields,
-  ControlledResourceDescription,
-  ControlledResourceIamRole,
-  ControlledResourceName,
-  ManagedBy,
-  MockSamDAO,
-  PrivateResourceUser
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AccessScope, CloningInstructions, ControlledResourceCommonFields, ControlledResourceDescription, ControlledResourceIamRole, ControlledResourceName, ManagedBy, MockSamDAO, PrivateResourceUser}
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
-import org.broadinstitute.dsde.workbench.leonardo.http.{
-  userScriptStartupOutputUriMetadataKey,
-  ConfigReader,
-  CreateRuntimeRequest,
-  RuntimeConfigRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, CreateRuntimeRequest, RuntimeConfigRequest, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.model._
-import org.broadinstitute.dsde.workbench.model.google.{
-  GoogleProject,
-  ServiceAccountKey,
-  ServiceAccountKeyId,
-  ServiceAccountPrivateKeyData,
-  _
-}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
 
 import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, ManagedResourceGroupName, RelayNamespace, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
 import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.util2.InstanceName
@@ -528,6 +491,9 @@ object CommonTestData {
     ),
     Some(0)
   )
+
+  val landingZoneResources = LandingZoneResources(AKSClusterName(""), BatchAccountName(""), RelayNamespace(""),
+    StorageAccountName(""), NetworkName(""), SubnetworkName(""), SubnetworkName(""))
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
