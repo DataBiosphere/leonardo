@@ -148,6 +148,62 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
+  override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Option[LandingZone]] =
+    IO.pure(
+      Some(
+        LandingZone(
+          UUID.fromString("9f3434cb-8f18-4595-95a9-d9b1ec9731d4"),
+          UUID.fromString("9f3434cb-8f18-4595-95a9-d9b1ec9731d4"),
+          "test-definition",
+          "1.0",
+          "2022-11-11"
+        )
+      )
+    )
+
+  override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Option[List[LandingZoneResourcesByPurpose]]] =
+    IO.pure(
+      Some(
+        List(
+          LandingZoneResourcesByPurpose(
+            "SHARED_RESOURCE",
+            List(
+              buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
+              buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
+              buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
+              buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
+              buildMockLandingZoneResource("Microsoft.Network/virtualNetworks", "lzvnet")
+            )
+          ),
+          LandingZoneResourcesByPurpose(
+            "BATCH_SUBNET",
+            List(
+              buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub")
+            )
+          ),
+          LandingZoneResourcesByPurpose(
+            "AKS_SUBNET",
+            List(
+              buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub")
+            )
+          )
+        )
+      )
+    )
+
+  private def buildMockLandingZoneResource(resourceType: String, resourceName: String) =
+    LandingZoneResource(
+      "id",
+      resourceType,
+      resourceName,
+      "parent-id",
+      "us-east"
+    )
+
   override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[DeleteWsmResourceResult]] =
