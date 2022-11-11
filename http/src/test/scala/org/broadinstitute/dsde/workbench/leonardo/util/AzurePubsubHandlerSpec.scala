@@ -18,7 +18,11 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{AzureRuntimeStartingError, AzureRuntimeStoppingError, PubsubKubernetesError}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureRuntimeStartingError,
+  AzureRuntimeStoppingError,
+  PubsubKubernetesError
+}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.HelmException
@@ -615,7 +619,12 @@ class AzurePubsubHandlerSpec
     val res = for {
       ctx <- appContext.ask[AppContext]
       result <- azureInterp
-        .createAndPollApp(appId, AppName("app"), WorkspaceId(UUID.randomUUID()), landingZoneResources, azureCloudContext)
+        .createAndPollApp(appId,
+                          AppName("app"),
+                          WorkspaceId(UUID.randomUUID()),
+                          landingZoneResources,
+                          azureCloudContext
+        )
         .attempt
     } yield result shouldBe Left(
       PubsubKubernetesError(

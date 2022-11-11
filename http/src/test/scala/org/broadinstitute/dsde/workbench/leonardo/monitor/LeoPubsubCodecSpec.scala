@@ -6,13 +6,25 @@ import java.util.UUID
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, ManagedResourceGroupName, RelayNamespace, SubscriptionId, TenantId}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  AzureCloudContext,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateAppV2Message, CreateAzureRuntimeMessage, CreateRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAppMessage,
+  CreateAppV2Message,
+  CreateAzureRuntimeMessage,
+  CreateRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.scalatest.flatspec.AnyFlatSpec
@@ -131,7 +143,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     res shouldBe Right(originalMessage)
   }
 
-  val landingZoneResources =  LandingZoneResources(
+  val landingZoneResources = LandingZoneResources(
     AKSClusterName("cluster-name"),
     BatchAccountName("batch-account"),
     RelayNamespace("relay-ns"),
@@ -153,11 +165,13 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
         AppId(1),
         AppName("test"),
         WorkspaceId(UUID.randomUUID()),
-        CloudContext.Azure(AzureCloudContext(
-          TenantId("id"),
-          SubscriptionId("sub"),
-          ManagedResourceGroupName("rg-name")
-        )),
+        CloudContext.Azure(
+          AzureCloudContext(
+            TenantId("id"),
+            SubscriptionId("sub"),
+            ManagedResourceGroupName("rg-name")
+          )
+        ),
         landingZoneResources,
         None
       )
