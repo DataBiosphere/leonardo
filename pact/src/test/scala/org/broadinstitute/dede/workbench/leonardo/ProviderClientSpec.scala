@@ -33,6 +33,18 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
     )
   )
 
+  val status: String = write(
+    Status(
+      ok = true,
+      systems = Map(
+        "GoogleGroups" -> OK(ok = true),
+        "GooglePubSub" -> OK(ok = true),
+        "GoogleIam" -> OK(ok = true),
+        "Database" -> OK(ok = true)
+      )
+    )
+  )
+
   // Forge all pacts up front
   val pact: ScalaPactDescription = forgePact
     .between(CONSUMER)
@@ -67,6 +79,21 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
             bodyRegexRule("token", "^([a-zA-Z0-9]+)$")
         )
     )
+    .addInteraction(
+      interaction
+        .description("Fetching status")
+        .uponReceiving(
+          method = GET,
+          path = "/status",
+          query = None,
+          headers = Map("Accept" -> "application/json")
+        )
+        .willRespondWith(
+          status = 200,
+          Map("Content-Type" -> "application/json; charset=UTF-8"),
+          status
+        )
+    )
 
   lazy val server: ScalaPactMockServer = pact.startServer()
   lazy val config: ScalaPactMockConfig = server.config
@@ -94,6 +121,19 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
       val token = ProviderClient.fetchAuthToken(config.host, config.port, "Sally")
       token.isDefined shouldEqual true
       token.get.token shouldEqual "abcABC123"
+    }
+
+    it("should be able to fetch status") {
+      val s = ProviderClient.fetchStatus(config.baseUrl)
+      s.isDefined shouldEqual true
+      s.get.ok shouldEqual true
+      val keys = List("GoogleGroups", "GooglePubSub", "GoogleIam", "Database")
+      for (key <- keys) {
+        s.get.systems.contains(key) shouldEqual true
+        if (s.get.systems.contains(key)) {
+          s.get.systems.get(key).get.ok shouldEqual true
+        }
+      }
     }
   }
 }

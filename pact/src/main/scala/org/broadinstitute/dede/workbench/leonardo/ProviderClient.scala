@@ -26,8 +26,23 @@ object ProviderClient {
       case _ =>
         None
     }
+
+  def fetchStatus(baseUrl: String): Option[Status] =
+    Http(baseUrl + "/status")
+      .headers(("Accept", "application/json"))
+      .asString match {
+      case r: HttpResponse[String] if r.is2xx =>
+        parse(r.body).extractOpt[Status]
+
+      case _ =>
+        None
+    }
 }
 
 case class Results(count: Int, results: List[String])
 
 case class Token(token: String)
+
+case class OK(ok:  Boolean)
+
+case class Status(ok: Boolean, systems: Map[String, OK])
