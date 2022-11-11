@@ -23,13 +23,16 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
+import org.typelevel.log4cats.StructuredLogger
+
 import scala.concurrent.duration._
 
 class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
                     runtimeService: RuntimeService[IO],
                     userInfoDirectives: UserInfoDirectives
 )(implicit
-  metrics: OpenTelemetryMetrics[IO]
+  metrics: OpenTelemetryMetrics[IO],
+  logger: StructuredLogger[IO]
 ) {
   // See https://github.com/DataBiosphere/terra-ui/blob/ef88f396a61383ee08beb65a37af7cae9476cc20/src/libs/ajax.js#L1358
   private val allValidSaturnIframeExtensions =
@@ -156,8 +159,12 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
       ctx <- ev.ask[AppContext]
       _ <- req.userJupyterExtensionConfig.traverse(uje =>
         uje.nbExtensions.get("saturn-iframe-extension").traverse { s =>
-          if (allValidSaturnIframeExtensions.contains(s) || allValidSaturnIframeExtensions.contains("*")) IO.unit
-          else IO.raiseError(BadRequestException(s"Invalid `saturn-iframe-extension` ${s}", Some(ctx.traceId)))
+          if (allValidSaturnIframeExtensions.contains(s) || saturnIframeExtentionHostConfig.validHosts.contains("*"))
+            IO.unit
+          else
+            logger.info(s"allowed valid saturn-iframe-extensions: ${allValidSaturnIframeExtensions}") >> IO.raiseError(
+              BadRequestException(s"Invalid `saturn-iframe-extension` ${s}", Some(ctx.traceId))
+            )
         }
       )
       apiCall = runtimeService.createRuntime(userInfo, cloudContext, runtimeName, req)
