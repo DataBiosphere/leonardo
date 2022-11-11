@@ -40,7 +40,7 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
     .addInteraction(
       interaction
         .description("Fetching results")
-        .given("Results: Bob, Fred, Harry")
+        .provided("Results: Bob, Fred, Harry")
         .uponReceiving("/results")
         .willRespondWith(200, Map("Pact" -> "modifiedRequest"), body)
     )

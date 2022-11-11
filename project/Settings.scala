@@ -31,7 +31,7 @@ object Settings {
   )
 
   val commonCompilerSettings = Seq(
-    "-release:17",
+//    "-release:17",
     "-deprecation",                      // Emit warning and location for usages of deprecated APIs.
     "-encoding", "utf-8",                // Specify character encoding used by source files.
     "-explaintypes",                     // Explain type errors in more detail.
@@ -205,7 +205,7 @@ object Settings {
     Test / testOptions += Tests.Argument("-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
   )
 
-  val pactSettings = coreSettings ++ List(
+  val pactSettings = commonSettings ++ commonTestSettings ++ List(
     libraryDependencies ++= pactDependencies
-  )
+  ) ++ commonAssemblySettings ++ versionSettings
 }

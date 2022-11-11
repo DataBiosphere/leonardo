@@ -5,7 +5,7 @@ lazy val root = project.in(file("."))
   .settings(
     name := "leonardo",
     publish / skip := true
-  ).aggregate(core, http, automation)
+  ).aggregate(core, http, automation, pact)
 
 lazy val core = project.in(file("core"))
   .settings(coreSettings)
@@ -22,7 +22,6 @@ lazy val automation = project.in(file("automation"))
 lazy val pact = project.in(file("pact"))
   .enablePlugins(ScalaPactPlugin)
   .settings(pactSettings)
-  .dependsOn(http % "test->test;compile->compile")
 
 assembly / assemblyMergeStrategy := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard

@@ -220,6 +220,7 @@ object Dependencies {
 
   val pactDependencies = Seq(
     "com.itv"       %% "scalapact-scalatest-suite"   % "4.4.0" % "test",
+    scalaTest,
     scalaHttp,
     json4sNative
   )
