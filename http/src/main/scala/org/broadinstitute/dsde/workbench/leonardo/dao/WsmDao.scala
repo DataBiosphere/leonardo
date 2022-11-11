@@ -135,14 +135,16 @@ final case class LandingZone(landingZoneId: UUID,
                              billingProfileId: UUID,
                              definition: String,
                              version: String,
-                             createdDate: String)
+                             createdDate: String
+)
 final case class ListLandingZonesResult(landingZones: List[LandingZone])
 
 final case class LandingZoneResource(resourceId: String,
                                      resourceType: String,
                                      resourceName: String,
                                      resourceParentId: String,
-                                     region: String)
+                                     region: String
+)
 final case class LandingZoneResourcesByPurpose(purpose: String, deployedResources: List[LandingZoneResource])
 final case class ListLandingZoneResourcesResult(id: UUID, resources: List[LandingZoneResourcesByPurpose])
 
@@ -405,20 +407,14 @@ object WsmDecoders {
   }
 
   implicit val landingZone: Decoder[LandingZone] =
-    Decoder.forProduct5("landingZoneId",
-      "billingProfileId",
-      "definition",
-      "version",
-      "createdDate")(LandingZone.apply)
+    Decoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(LandingZone.apply)
   implicit val listLandingZonesResultDecoder: Decoder[ListLandingZonesResult] =
     Decoder.forProduct1("landingZones")(ListLandingZonesResult.apply)
 
   implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
-    Decoder.forProduct5("resourceId",
-      "resourceType",
-      "resourceName",
-      "resourceParentId",
-      "region")(LandingZoneResource.apply)
+    Decoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(
+      LandingZoneResource.apply
+    )
   implicit val landingZoneResourcesByPurposeDecoder: Decoder[LandingZoneResourcesByPurpose] =
     Decoder.forProduct2("purpose", "deployedResources")(LandingZoneResourcesByPurpose.apply)
   implicit val listLandingZoneResourcesResultDecoder: Decoder[ListLandingZoneResourcesResult] =

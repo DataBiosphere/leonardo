@@ -9,7 +9,12 @@ import com.azure.core.management.AzureEnvironment
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
+import com.azure.resourcemanager.compute.models.{
+  ResourceIdentityType,
+  VirtualMachineIdentityUserAssignedIdentities,
+  VirtualMachineScaleSetIdentity,
+  VirtualMachineScaleSetUpdate
+}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._

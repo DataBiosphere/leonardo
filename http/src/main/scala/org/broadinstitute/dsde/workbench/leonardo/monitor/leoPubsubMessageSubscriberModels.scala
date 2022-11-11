@@ -526,7 +526,9 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppV2Decoder: Decoder[CreateAppV2Message] =
-    Decoder.forProduct6("appId", "appName", "workspaceId", "cloudContext", "landingZoneResources", "traceId")(CreateAppV2Message.apply)
+    Decoder.forProduct6("appId", "appName", "workspaceId", "cloudContext", "landingZoneResources", "traceId")(
+      CreateAppV2Message.apply
+    )
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {

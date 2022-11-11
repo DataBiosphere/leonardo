@@ -16,7 +16,7 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{Authorization, `Content-Type`}
+import org.http4s.headers.{`Content-Type`, Authorization}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 

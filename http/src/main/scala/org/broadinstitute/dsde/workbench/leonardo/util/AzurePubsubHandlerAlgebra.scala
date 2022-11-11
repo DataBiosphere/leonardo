@@ -36,8 +36,13 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def createAndPollApp(appId: AppId, appName: AppName, workspaceId: WorkspaceId, landingZoneResources: LandingZoneResources, cloudContext: AzureCloudContext)(
-    implicit ev: Ask[F, AppContext]
+  def createAndPollApp(appId: AppId,
+                       appName: AppName,
+                       workspaceId: WorkspaceId,
+                       landingZoneResources: LandingZoneResources,
+                       cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit]
 
   def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit

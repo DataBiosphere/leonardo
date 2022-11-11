@@ -10,10 +10,27 @@ import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, KubernetesName, Location, MachineTypeName, NetworkName, OperationName, RegionName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
+  DiskName,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  OperationName,
+  RegionName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, WorkbenchUserId}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{
+  parseGcsPath,
+  GcsBucketName,
+  GcsObjectName,
+  GcsPath,
+  GoogleProject
+}
 import org.http4s.Uri
 
 import java.nio.file.{Path, Paths}
@@ -627,7 +644,6 @@ object JsonCodec {
   implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.decodeString.map(RelayNamespace)
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
 
-
   implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
   implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
   implicit val subNetworkNameDecoder: Decoder[SubnetworkName] = Decoder.decodeString.map(SubnetworkName)
@@ -704,12 +720,13 @@ object JsonCodec {
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
     Decoder.forProduct7("clusterName",
-      "batchAccountName",
-      "relayNamespace",
-      "storageAccountName",
-      "vnetName",
-      "batchNodesSubnetName",
-      "aksSubnetName")(
+                        "batchAccountName",
+                        "relayNamespace",
+                        "storageAccountName",
+                        "vnetName",
+                        "batchNodesSubnetName",
+                        "aksSubnetName"
+    )(
       LandingZoneResources.apply
     )
 
@@ -721,11 +738,14 @@ object JsonCodec {
     "vnetName",
     "batchNodesSubnetName",
     "aksSubnetName"
-  )(x => (x.clusterName,
-    x.batchAccountName,
-    x.relayNamespace,
-    x.storageAccountName,
-    x.vnetName,
-    x.batchNodesSubnetName,
-    x.aksSubnetName))
+  )(x =>
+    (x.clusterName,
+     x.batchAccountName,
+     x.relayNamespace,
+     x.storageAccountName,
+     x.vnetName,
+     x.batchNodesSubnetName,
+     x.aksSubnetName
+    )
+  )
 }
