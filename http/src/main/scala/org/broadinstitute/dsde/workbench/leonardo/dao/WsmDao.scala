@@ -432,13 +432,9 @@ object WsmDecoders {
       (x.resourceId, x.resourceType, x.resourceName, x.resourceParentId, x.region)
     )
   implicit val landingZoneResourcesByPurposeEncoder: Encoder[LandingZoneResourcesByPurpose] =
-    Encoder.forProduct2("purpose", "deployedResources")(x =>
-      (x.purpose, x.deployedResources)
-    )
+    Encoder.forProduct2("purpose", "deployedResources")(x => (x.purpose, x.deployedResources))
   implicit val listLandingZoneResourcesResultEncoder: Encoder[ListLandingZoneResourcesResult] =
-    Encoder.forProduct2("id", "resources")(x =>
-      (x.id, x.resources)
-    )
+    Encoder.forProduct2("id", "resources")(x => (x.id, x.resources))
 
   implicit val wsmGcpContextDecoder: Decoder[WsmGcpContext] =
     Decoder.forProduct1("gcpContext")(WsmGcpContext.apply)
