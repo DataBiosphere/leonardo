@@ -6,7 +6,10 @@ import io.circe.Printer
 import io.circe.syntax.EncoderOps
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders.{listLandingZoneResourcesResultEncoder, listLandingZonesResultEncoder}
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders.{
+  listLandingZoneResourcesResultEncoder,
+  listLandingZonesResultEncoder
+}
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, WorkspaceId, WsmControlledResourceId, WsmJobId}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
@@ -72,9 +75,15 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val originalLandingZoneResourcesByPurpose = List(
       LandingZoneResourcesByPurpose(
         "SHARED_RESOURCE",
-        List(LandingZoneResource(
-          "id", "type", "name", "parent-id", "us-east"
-        ))
+        List(
+          LandingZoneResource(
+            "id",
+            "type",
+            "name",
+            "parent-id",
+            "us-east"
+          )
+        )
       )
     )
     val response = ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
