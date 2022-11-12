@@ -406,10 +406,17 @@ object WsmDecoders {
     )
   }
 
-  implicit val landingZone: Decoder[LandingZone] =
+  implicit val landingZoneDecoder: Decoder[LandingZone] =
     Decoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(LandingZone.apply)
   implicit val listLandingZonesResultDecoder: Decoder[ListLandingZonesResult] =
     Decoder.forProduct1("landingZones")(ListLandingZonesResult.apply)
+
+  implicit val landingZoneEncoder: Encoder[LandingZone] =
+    Encoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(x =>
+      (x.landingZoneId, x.billingProfileId, x.definition, x.version, x.createdDate)
+    )
+  implicit val listLandingZonesResultEncoder: Encoder[ListLandingZonesResult] =
+    Encoder.forProduct1("landingZones")(x => x.landingZones)
 
   implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
     Decoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(
@@ -419,6 +426,19 @@ object WsmDecoders {
     Decoder.forProduct2("purpose", "deployedResources")(LandingZoneResourcesByPurpose.apply)
   implicit val listLandingZoneResourcesResultDecoder: Decoder[ListLandingZoneResourcesResult] =
     Decoder.forProduct2("id", "resources")(ListLandingZoneResourcesResult.apply)
+
+  implicit val landingZoneResourceEncoder: Encoder[LandingZoneResource] =
+    Encoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(x =>
+      (x.resourceId, x.resourceType, x.resourceName, x.resourceParentId, x.region)
+    )
+  implicit val landingZoneResourcesByPurposeEncoder: Encoder[LandingZoneResourcesByPurpose] =
+    Encoder.forProduct2("purpose", "deployedResources")(x =>
+      (x.purpose, x.deployedResources)
+    )
+  implicit val listLandingZoneResourcesResultEncoder: Encoder[ListLandingZoneResourcesResult] =
+    Encoder.forProduct2("id", "resources")(x =>
+      (x.id, x.resources)
+    )
 
   implicit val wsmGcpContextDecoder: Decoder[WsmGcpContext] =
     Decoder.forProduct1("gcpContext")(WsmGcpContext.apply)
