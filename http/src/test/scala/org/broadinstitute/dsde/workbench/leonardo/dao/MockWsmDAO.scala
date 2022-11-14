@@ -13,6 +13,11 @@ import org.broadinstitute.dsde.workbench.azure.{
   SubscriptionId,
   TenantId
 }
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET
+}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -169,7 +174,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     IO.pure(
       List(
         LandingZoneResourcesByPurpose(
-          "SHARED_RESOURCE",
+          SHARED_RESOURCE.toString,
           List(
             buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
             buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
@@ -179,13 +184,13 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
           )
         ),
         LandingZoneResourcesByPurpose(
-          "WORKSPACE_BATCH_SUBNET",
+          WORKSPACE_BATCH_SUBNET.toString,
           List(
             buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub")
           )
         ),
         LandingZoneResourcesByPurpose(
-          "AKS_NODE_POOL_SUBNET",
+          AKS_NODE_POOL_SUBNET.toString,
           List(
             buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub")
           )

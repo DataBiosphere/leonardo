@@ -145,6 +145,15 @@ final case class LandingZoneResource(resourceId: String,
                                      resourceParentId: String,
                                      region: String
 )
+
+// TODO use the landing zone lib enum once published to release [TOAZ-269]
+object LandingZoneResourcePurpose extends Enumeration {
+  type LandingZoneResourcePurpose = Value
+  val SHARED_RESOURCE, WLZ_RESOURCE = Value
+  val WORKSPACE_COMPUTE_SUBNET, WORKSPACE_STORAGE_SUBNET, AKS_NODE_POOL_SUBNET, POSTGRESQL_SUBNET,
+    WORKSPACE_BATCH_SUBNET = Value
+}
+
 final case class LandingZoneResourcesByPurpose(purpose: String, deployedResources: List[LandingZoneResource])
 final case class ListLandingZoneResourcesResult(id: UUID, resources: List[LandingZoneResourcesByPurpose])
 
@@ -575,22 +584,6 @@ object WsmEncoders {
 
   implicit val deleteControlledAzureResourceRequestEncoder: Encoder[DeleteControlledAzureResourceRequest] =
     Encoder.forProduct1("jobControl")(x => x.jobControl)
-
-  implicit val landingZoneEncoder: Encoder[LandingZone] =
-    Encoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(x =>
-      (x.landingZoneId, x.billingProfileId, x.definition, x.version, x.createdDate)
-    )
-  implicit val listLandingZonesResultEncoder: Encoder[ListLandingZonesResult] =
-    Encoder.forProduct1("landingZones")(x => x.landingZones)
-
-  implicit val landingZoneResourceEncoder: Encoder[LandingZoneResource] =
-    Encoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(x =>
-      (x.resourceId, x.resourceType, x.resourceName, x.resourceParentId, x.region)
-    )
-  implicit val landingZoneResourcesByPurposeEncoder: Encoder[LandingZoneResourcesByPurpose] =
-    Encoder.forProduct2("purpose", "deployedResources")(x => (x.purpose, x.deployedResources))
-  implicit val listLandingZoneResourcesResultEncoder: Encoder[ListLandingZoneResourcesResult] =
-    Encoder.forProduct2("id", "resources")(x => (x.id, x.resources))
 }
 
 final case class WsmException(traceId: TraceId, message: String) extends Exception(message)

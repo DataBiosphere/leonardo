@@ -28,6 +28,11 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResourcesByPurpose, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -493,9 +498,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Get the Landing Zone Resources for the app for Azure
       landingZoneResourcesOpt <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp => F.pure(None)
-        case CloudProvider.Azure => for {
-          landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
-        } yield Some(landingZoneResources)
+        case CloudProvider.Azure =>
+          for {
+            landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+          } yield Some(landingZoneResources)
       }
 
       // Validate the machine config from the request
@@ -693,31 +699,31 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                    "Microsoft.ContainerService/managedClusters",
-                                                   "SHARED_RESOURCE"
+                                                   SHARED_RESOURCE.toString
       )
       batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                      "Microsoft.Batch/batchAccounts",
-                                                     "SHARED_RESOURCE"
+                                                     SHARED_RESOURCE.toString
       )
       relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                    "Microsoft.Relay/namespaces",
-                                                   "SHARED_RESOURCE"
+                                                   SHARED_RESOURCE.toString
       )
       storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                        "Microsoft.Storage/storageAccounts",
-                                                       "SHARED_RESOURCE"
+                                                       SHARED_RESOURCE.toString
       )
       vnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                              "Microsoft.Network/virtualNetworks",
-                                             "SHARED_RESOURCE"
+                                             SHARED_RESOURCE.toString
       )
       batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                          "Microsoft.Network/virtualNetworks/subnets",
-                                                         "WORKSPACE_BATCH_SUBNET"
+                                                         WORKSPACE_BATCH_SUBNET.toString
       )
       aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                   "Microsoft.Network/virtualNetworks/subnets",
-                                                  "AKS_NODE_POOL_SUBNET"
+                                                  AKS_NODE_POOL_SUBNET.toString
       )
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),

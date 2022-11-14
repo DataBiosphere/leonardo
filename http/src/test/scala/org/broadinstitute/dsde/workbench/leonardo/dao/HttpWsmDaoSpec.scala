@@ -2,14 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import io.circe.Printer
+import io.circe.{Encoder, Printer}
 import io.circe.syntax.EncoderOps
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders.{
-  listLandingZoneResourcesResultEncoder,
-  listLandingZonesResultEncoder
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.SHARED_RESOURCE
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, WorkspaceId, WsmControlledResourceId, WsmJobId}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
@@ -74,7 +71,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val landingZoneId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
     val originalLandingZoneResourcesByPurpose = List(
       LandingZoneResourcesByPurpose(
-        "SHARED_RESOURCE",
+        SHARED_RESOURCE.toString,
         List(
           LandingZoneResource(
             "id",
@@ -107,4 +104,20 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val landingZoneResourcesByPurpose = res.toOption.get
     landingZoneResourcesByPurpose shouldBe originalLandingZoneResourcesByPurpose
   }
+
+  implicit val landingZoneEncoder: Encoder[LandingZone] =
+    Encoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(x =>
+      (x.landingZoneId, x.billingProfileId, x.definition, x.version, x.createdDate)
+    )
+  implicit val listLandingZonesResultEncoder: Encoder[ListLandingZonesResult] =
+    Encoder.forProduct1("landingZones")(x => x.landingZones)
+
+  implicit val landingZoneResourceEncoder: Encoder[LandingZoneResource] =
+    Encoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(x =>
+      (x.resourceId, x.resourceType, x.resourceName, x.resourceParentId, x.region)
+    )
+  implicit val landingZoneResourcesByPurposeEncoder: Encoder[LandingZoneResourcesByPurpose] =
+    Encoder.forProduct2("purpose", "deployedResources")(x => (x.purpose, x.deployedResources))
+  implicit val listLandingZoneResourcesResultEncoder: Encoder[ListLandingZoneResourcesResult] =
+    Encoder.forProduct2("id", "resources")(x => (x.id, x.resources))
 }
