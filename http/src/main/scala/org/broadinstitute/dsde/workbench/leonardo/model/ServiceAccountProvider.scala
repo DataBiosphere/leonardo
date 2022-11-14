@@ -1,8 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
 import java.nio.file.Path
-
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.leonardo.CloudContext
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -20,10 +20,10 @@ abstract class ServiceAccountProvider[F[_]] {
    * is used instead.
    *
    * @param userInfo the user who is making the Leo request
-   * @param googleProject the Google project the cluster is created in
+   * @param cloudContext the cloud context the cluster is created in
    * @return service account email
    */
-  def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+  def getClusterServiceAccount(userInfo: UserInfo, cloudContext: CloudContext)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 

@@ -16,6 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
+import java.util.UUID
+
 object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
@@ -45,6 +47,10 @@ object KubernetesTestData {
   val ingressChartName = ChartName("stable/nginx-ingress")
   val ingressChartVersion = ChartVersion("1.41.3")
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
+
+  val coaChartName = ChartName("/leonardo/cromwell-on-azure")
+  val coaChartVersion = ChartVersion("0.2.160")
+  val coaChart = Chart(coaChartName, coaChartVersion)
 
   val serviceKind = KubernetesServiceKindName("ClusterIP")
 
@@ -121,7 +127,8 @@ object KubernetesTestData {
 
   def makeKubeCluster(index: Int,
                       withDefaultNodepool: Boolean = true,
-                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
+                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified,
+                      workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
   ): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueCloudContextGcp = CloudContext.Gcp(GoogleProject(project.value + index))
@@ -136,7 +143,8 @@ object KubernetesTestData {
       auditInfo,
       None,
       List(),
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool)),
+      Some(workspaceId)
     )
   }
 

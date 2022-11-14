@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 
 import java.util.UUID
 
@@ -16,11 +17,12 @@ final case class WsmJobId(value: String) extends AnyVal
 
 final case class ManagedIdentityName(value: String) extends AnyVal
 final case class BatchAccountName(value: String) extends AnyVal
-final case class SubnetName(value: String) extends AnyVal
 
 final case class LandingZoneResources(clusterName: AKSClusterName,
                                       batchAccountName: BatchAccountName,
                                       relayNamespace: RelayNamespace,
                                       storageAccountName: StorageAccountName,
-                                      batchNodesSubnetName: SubnetName
+                                      vnetName: NetworkName,
+                                      batchNodesSubnetName: SubnetworkName,
+                                      aksSubnetName: SubnetworkName
 )

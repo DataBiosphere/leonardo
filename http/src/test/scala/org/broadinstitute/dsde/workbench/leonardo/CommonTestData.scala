@@ -459,7 +459,7 @@ object CommonTestData {
   ) // we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
-    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
+    serviceAccountProvider.getClusterServiceAccount(userInfo, CloudContext.Gcp(googleProject))(traceId).unsafeRunSync()
 
   def notebookServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
@@ -496,6 +496,8 @@ object CommonTestData {
   val azureCloudContext =
     AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
+  val workspaceId2 = WorkspaceId(UUID.randomUUID())
+  val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   val testCommonControlledResourceFields = ControlledResourceCommonFields(

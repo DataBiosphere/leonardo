@@ -10,9 +10,11 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -20,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCode
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, UserInfo}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -52,6 +54,20 @@ class HttpRoutesSpec
       refererConfig
     )
 
+  val routesWithStrictRefererConfig =
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      RefererConfig(Set("https://bvdp-saturn-dev.appspot.com/"), true)
+    )
+
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
     for {
       message <- h.downField("message").as[String]
@@ -73,9 +89,14 @@ class HttpRoutesSpec
       Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "random"), Map.empty, Map.empty, Map.empty))
     )
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
       status shouldEqual StatusCodes.BadRequest
       responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe true
+    }
+
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
     }
   }
 
@@ -285,12 +306,12 @@ class HttpRoutesSpec
 
   it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in {
     val kubernetesService = new MockAppService {
-      override def deleteApp(request: DeleteAppRequest)(implicit
-        as: Ask[IO, AppContext]
+      override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
+        implicit as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
-        val expectedDeleteApp =
-          DeleteAppRequest(timedUserInfo, CloudContext.Gcp(GoogleProject("googleProject1")), AppName("app1"), false)
-        request shouldBe expectedDeleteApp
+        cloudContext shouldBe CloudContext.Gcp(GoogleProject("googleProject1"))
+        appName shouldBe AppName("app1")
+        deleteDisk shouldBe false
       }
     }
     Delete("/api/google/v1/apps/googleProject1/app1") ~> fakeRoutes(kubernetesService).route ~> check {
@@ -467,6 +488,11 @@ class HttpRoutesSpec
   }
 
   it should "list runtimes v2 with labels" in isolatedDbTest {
+
+    def testAzureCloudContext = AzureCloudContext(TenantId(workspaceId.toString),
+                                                  SubscriptionId(workspaceId.toString),
+                                                  ManagedResourceGroupName(workspaceId.toString)
+    )
     def saLabels = Map("clusterServiceAccount" -> "user1@example.com")
     def runtimesWithLabels(i: Int) =
       defaultCreateAzureRuntimeReq
@@ -489,7 +515,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-6")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"azureruntime-6",
@@ -510,7 +536,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-4")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"azureruntime-4",
@@ -725,6 +751,47 @@ class HttpRoutesSpec
     Post("/api/google/v1/apps/googleProject1/app1/start") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list apps v2 with project" in {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      val response = responseAs[Vector[ListAppResponse]]
+      response shouldBe listAppResponse
+    }
+  }
+
+  it should "get app V2" in {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      validateRawCookie(header("Set-Cookie"))
+      responseAs[GetAppResponse] shouldBe getAppResponse
+    }
+  }
+
+  it should "delete app V2" in {
+    Delete(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "validate create appV2 request" in {
+    Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
+      .withEntity(
+        ContentTypes.`application/json`,
+        createAppRequest
+          .copy(kubernetesRuntimeConfig =
+            createAppRequest.kubernetesRuntimeConfig.map(c => c.copy(numNodes = NumNodes(-1)))
+          )
+          .asJson
+          .spaces2
+      ) ~> httpRoutes.route ~> check {
+      status shouldBe StatusCodes.BadRequest
+      val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
+      resp shouldBe "The request content was malformed:\nDecodingFailure at .kubernetesRuntimeConfig.numNodes: Minimum number of nodes is 1"
     }
   }
 

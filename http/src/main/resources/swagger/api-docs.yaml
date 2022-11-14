@@ -16,6 +16,8 @@ tags:
     description: Persistent Disks API.
   - name: apps
     description: Experimental App API
+  - name: appsV2
+    description: Apps API v2. Support for Google Kubernetes Engine and Azure Kubernetes Service. Under active Development.
   - name: proxy
     description: Proxy API
   - name: notebooks
@@ -1184,11 +1186,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
   "/api/google/v1/apps/{googleProject}":
     get:
       summary: List apps within a project
@@ -1252,11 +1249,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
   "/api/google/v1/apps/{googleProject}/{appName}":
     post:
       summary: Creates a new app in the given project with the given appName
@@ -1304,11 +1296,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     get:
       summary: Get details of an app
       description: >
@@ -1351,11 +1338,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
     delete:
       summary: Deletes an existing app in the given project
       description: deletes an App
@@ -1486,6 +1468,194 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+
+  ## AppsV2 Paths ##
+
+  "/api/apps/v2/{workspaceId}/{appName}":
+    post:
+      summary: Creates a new app in the given project with the given appName
+      description: >
+        The specified appName is suffixed and the resulting string must adhere to Google's name validation regex ?:[a-z](?:[-a-z0-9]{0,38}[a-z0-9])?.
+        Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
+      operationId: createAppV2
+      tags:
+        - appsV2
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/CreateAppRequest"
+      responses:
+        "202":
+          description: App creation request has been received
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "403":
+          description: User does not have permission to perform action on App
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+    get:
+      summary:  Get details of an app
+      description: >
+        Returns information about an existing App managed by Leo.
+        Poll this to find out when your app has finished starting up.
+      operationId: getAppV2
+      tags:
+        - appsV2
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App found, here are the details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAppResponse"
+        "403":
+          description: User does not have permission to perform action on App
+        "404":
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
+    delete:
+      summary: Deletes an existing app in the given project
+      description: deletes an App
+      operationId: deleteAppV2
+      tags:
+        - appsV2
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the app should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: App deletion request accepted
+        "403":
+          description: User does not have permission to perform action on App
+        "404":
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
+  "/api/apps/v2/{workspaceId}":
+    get:
+      summary: List apps V2
+      description: List all apps for a given workspaceId.
+      operationId: listAppsV2
+      tags:
+        - appsV2
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all apps that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/google/v1/app?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any apps with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: includeLabels
+          description: >
+            Optional label keys of the labels returned in response. Example:
+            Querying by key1,key2,key3
+            returns all labels key1/val1 key2/val2 and key3 and val3 for each app in response
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListAppResponse"
 
   ## Deprecated Notebook API ##
 

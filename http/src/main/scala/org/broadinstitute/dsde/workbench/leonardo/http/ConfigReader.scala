@@ -1,13 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
+import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
-import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
-import org.http4s.Uri
 
 object ConfigReader {
   lazy val appConfig =
@@ -20,7 +21,8 @@ final case class AzureConfig(
   pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
   appRegistration: AzureAppRegistrationConfig,
-  coaAppConfig: CoaAppConfig
+  coaAppConfig: CoaAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig
 )
 
 final case class OidcAuthConfig(
@@ -28,6 +30,13 @@ final case class OidcAuthConfig(
   clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId,
   clientSecret: Option[org.broadinstitute.dsde.workbench.oauth2.ClientSecret],
   legacyGoogleClientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
+)
+
+final case class AadPodIdentityConfig(namespace: Namespace,
+                                      release: Release,
+                                      chartName: ChartName,
+                                      chartVersion: ChartVersion,
+                                      values: Values
 )
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
