@@ -44,6 +44,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   )
 
   // required for generating matching rules
+  // favored over old-style Dsl
   val okSystemStatusDsl: DslPart = newJsonBody(o => {
     o.booleanType("ok", true)
     o.`object`("systems", s => {
@@ -56,6 +57,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   println("okSystemStatusDsl")
   println(okSystemStatusDsl)
 
+  // Old-style Dsl
   val okSystemStatusJson: DslPart = new PactDslJsonBody()
     .booleanType("ok", true)
     .`object`("systems")
