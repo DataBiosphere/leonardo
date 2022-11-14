@@ -1,7 +1,7 @@
 package org.broadinstitute.dede.workbench.leonardo.consumer
 
 import au.com.dius.pact.consumer.dsl.LambdaDsl.newJsonBody
-import au.com.dius.pact.consumer.dsl.{DslPart, PactDslJsonBody}
+import au.com.dius.pact.consumer.dsl.{DslPart, PactDslJsonBody, PactDslResponse}
 import au.com.dius.pact.consumer.{ConsumerPactBuilder, PactTestExecutionContext}
 import au.com.dius.pact.core.model.RequestResponsePact
 import cats.effect.IO
@@ -24,7 +24,7 @@ import pact4s.scalatest.RequestResponsePactForger
 class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactForger {
   /*
     we can define the folder that the pact contracts get written to upon completion of this test suite.
-  */
+   */
   override val pactTestExecutionContext: PactTestExecutionContext =
     new PactTestExecutionContext(
       "./target/pacts"
@@ -37,7 +37,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   val newResource: Resource = Resource("newID", 234)
   val conflictResource: Resource = Resource("conflict", 234)
   val subsystems = List(GoogleGroups, GooglePubSub, GoogleIam, Database)
-  //val msgs = Some(List("test"))
+  // val msgs = Some(List("test"))
   val okSystemStatus: StatusCheckResponse = StatusCheckResponse(
     ok = true,
     systems = subsystems.map(s => (s, SubsystemStatus(ok = true, messages = None))).toMap
@@ -45,14 +45,14 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
 
   // required for generating matching rules
   // favored over old-style Dsl
-  val okSystemStatusDsl: DslPart = newJsonBody(o => {
+  val okSystemStatusDsl: DslPart = newJsonBody { o =>
     o.booleanType("ok", true)
-    o.`object`("systems", s => {
-      for (subsystem <- subsystems) {
-        s.`object`(subsystem.value, o => { o.booleanType("ok", true) })
-      }
-    } )
-  }).build()
+    o.`object`("systems",
+               s =>
+                 for (subsystem <- subsystems)
+                   s.`object`(subsystem.value, o => o.booleanType("ok", true))
+    )
+  }.build()
 
   println("okSystemStatusDsl")
   println(okSystemStatusDsl)
@@ -61,25 +61,25 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   val okSystemStatusJson: DslPart = new PactDslJsonBody()
     .booleanType("ok", true)
     .`object`("systems")
-      .`object`(GoogleGroups.value)
-        .booleanType("ok", true)
-        //.minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-      .closeObject()
-      .`object`(GooglePubSub.value)
-        .booleanType("ok", true)
-        //.minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-      .closeObject()
-      .`object`(GoogleIam.value)
-        .booleanType("ok", true)
-        //.minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-      .closeObject()
-      .`object`(Database.value)
-        .booleanType("ok", true)
-        //.minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-      .closeObject()
+    .`object`(GoogleGroups.value)
+    .booleanType("ok", true)
+    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
+    .closeObject()
+    .`object`(GooglePubSub.value)
+    .booleanType("ok", true)
+    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
+    .closeObject()
+    .`object`(GoogleIam.value)
+    .booleanType("ok", true)
+    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
+    .closeObject()
+    .`object`(Database.value)
+    .booleanType("ok", true)
+    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
+    .closeObject()
     .closeObject()
 
-  val pact: RequestResponsePact =
+  val pactBuilder: PactDslResponse =
     ConsumerPactBuilder
       .consumer("sam-consumer")
       .hasPactWith("sam-provider")
@@ -140,7 +140,8 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
       .status(200)
       .headers("Content-type" -> "application/json")
       .body(okSystemStatusDsl)
-      .toPact
+
+  val pact: RequestResponsePact = pactBuilder.toPact
 
   val client: Client[IO] = EmberClientBuilder.default[IO].build.allocated.unsafeRunSync()._1
 
@@ -149,7 +150,8 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
 
   def mockBearerHeader(workbenchEmail: WorkbenchEmail) = s"Bearer TokenFor$workbenchEmail"
 
-  def mockAuthToken(workbenchEmail: WorkbenchEmail): Token = Credentials.Token(AuthScheme.Bearer, s"TokenFor$workbenchEmail")
+  def mockAuthToken(workbenchEmail: WorkbenchEmail): Token =
+    Credentials.Token(AuthScheme.Bearer, s"TokenFor$workbenchEmail")
 
   /*
   we should use these tests to ensure that our client class correctly handles responses from the provider - i.e. decoding, error mapping, validation

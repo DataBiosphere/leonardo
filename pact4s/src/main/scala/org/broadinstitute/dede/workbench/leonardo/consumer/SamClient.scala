@@ -21,17 +21,16 @@ trait SamClient[F[_]] {
   def fetchSystemStatus(): F[Option[StatusCheckResponse]]
 }
 
-class SamClientImpl[F[_] : Concurrent](client: Client[F], baseUrl: Uri, bearer: Token)
-  extends SamClient[F] {
+class SamClientImpl[F[_]: Concurrent](client: Client[F], baseUrl: Uri, bearer: Token) extends SamClient[F] {
   def fetchResource(id: String): F[Option[Resource]] = {
     val request = Request[F](uri = baseUrl / "resource" / id)
       .withHeaders(Authorization(bearer))
     client.run(request).use { resp =>
       resp.status match {
-        case Status.Ok => resp.as[Resource].map(_.some)
-        case Status.NotFound => none[Resource].pure[F]
+        case Status.Ok           => resp.as[Resource].map(_.some)
+        case Status.NotFound     => none[Resource].pure[F]
         case Status.Unauthorized => InvalidCredentials.raiseError
-        case _ => UnknownError.raiseError
+        case _                   => UnknownError.raiseError
       }
     }
   }
@@ -43,8 +42,8 @@ class SamClientImpl[F[_] : Concurrent](client: Client[F], baseUrl: Uri, bearer: 
     client.run(request).use { resp =>
       resp.status match {
         case Status.NoContent => ().pure[F]
-        case Status.Conflict => UserAlreadyExists.raiseError
-        case _ => UnknownError.raiseError
+        case Status.Conflict  => UserAlreadyExists.raiseError
+        case _                => UnknownError.raiseError
       }
     }
   }
@@ -55,9 +54,9 @@ class SamClientImpl[F[_] : Concurrent](client: Client[F], baseUrl: Uri, bearer: 
     )
     client.run(request).use { resp =>
       resp.status match {
-        case Status.Ok => resp.as[StatusCheckResponse].map(_.some)
+        case Status.Ok       => resp.as[StatusCheckResponse].map(_.some)
         case Status.NotFound => none[StatusCheckResponse].pure[F]
-        case _ => UnknownError.raiseError
+        case _               => UnknownError.raiseError
       }
     }
   }
@@ -77,7 +76,7 @@ object Resource {
 
   implicit val decoder: Decoder[Resource] = Decoder.forProduct2("id", "value")(Resource.apply)
 
-  implicit def entityDecoder[F[_] : Concurrent]: EntityDecoder[F, Resource] = jsonOf[F, Resource]
+  implicit def entityDecoder[F[_]: Concurrent]: EntityDecoder[F, Resource] = jsonOf[F, Resource]
 }
 
 case object InvalidCredentials extends Exception
