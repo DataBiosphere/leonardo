@@ -172,7 +172,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
             ManagedResourceGroupName("rg-name")
           )
         ),
-        landingZoneResources,
+        Some(landingZoneResources),
         None
       )
 

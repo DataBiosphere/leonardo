@@ -179,13 +179,13 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
           )
         ),
         LandingZoneResourcesByPurpose(
-          "BATCH_SUBNET",
+          "WORKSPACE_BATCH_SUBNET",
           List(
             buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub")
           )
         ),
         LandingZoneResourcesByPurpose(
-          "AKS_SUBNET",
+          "AKS_NODE_POOL_SUBNET",
           List(
             buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub")
           )

@@ -6,7 +6,7 @@ import io.circe.Printer
 import io.circe.syntax.EncoderOps
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders.{
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders.{
   listLandingZoneResourcesResultEncoder,
   listLandingZonesResultEncoder
 }

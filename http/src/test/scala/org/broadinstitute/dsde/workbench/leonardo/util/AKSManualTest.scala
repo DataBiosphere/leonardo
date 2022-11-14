@@ -173,7 +173,7 @@ object AKSManualTest {
           deps.app.id,
           deps.app.appName,
           workspaceId,
-          landingZoneResources,
+          Some(landingZoneResources),
           cloudContext
         )
       )
