@@ -30,7 +30,7 @@ $ cd leonardo
 ```
 
 ```
-$ sbt "project pact4s" test  
+$ sbt "project pact4s" clean test  
 ```
 
 Generated contract can be found in the ./target/pacts folder: `sam-consumer-sam-provider.json`.
