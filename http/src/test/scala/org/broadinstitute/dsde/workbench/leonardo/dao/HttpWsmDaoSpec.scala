@@ -74,10 +74,10 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         SHARED_RESOURCE.toString,
         List(
           LandingZoneResource(
-            "id",
+            Some("id"),
             "type",
-            "name",
-            "parent-id",
+            Some("name"),
+            Some("parent-id"),
             "us-east"
           )
         )
@@ -110,7 +110,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       (x.landingZoneId, x.billingProfileId, x.definition, x.version, x.createdDate)
     )
   implicit val listLandingZonesResultEncoder: Encoder[ListLandingZonesResult] =
-    Encoder.forProduct1("landingZones")(x => x.landingZones)
+    Encoder.forProduct1("landingzones")(x => x.landingzones)
 
   implicit val landingZoneResourceEncoder: Encoder[LandingZoneResource] =
     Encoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(x =>

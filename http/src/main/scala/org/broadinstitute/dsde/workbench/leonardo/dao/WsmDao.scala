@@ -137,12 +137,13 @@ final case class LandingZone(landingZoneId: UUID,
                              version: String,
                              createdDate: String
 )
-final case class ListLandingZonesResult(landingZones: List[LandingZone])
+final case class ListLandingZonesResult(landingzones: List[LandingZone])
 
-final case class LandingZoneResource(resourceId: String,
+// A LandingZoneResource will have either a resourceId or a resourceName + resourceParentId
+final case class LandingZoneResource(resourceId: Option[String],
                                      resourceType: String,
-                                     resourceName: String,
-                                     resourceParentId: String,
+                                     resourceName: Option[String],
+                                     resourceParentId: Option[String],
                                      region: String
 )
 
@@ -418,7 +419,7 @@ object WsmDecoders {
   implicit val landingZoneDecoder: Decoder[LandingZone] =
     Decoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(LandingZone.apply)
   implicit val listLandingZonesResultDecoder: Decoder[ListLandingZonesResult] =
-    Decoder.forProduct1("landingZones")(ListLandingZonesResult.apply)
+    Decoder.forProduct1("landingzones")(ListLandingZonesResult.apply)
 
   implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
     Decoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(

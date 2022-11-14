@@ -167,7 +167,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
           headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)
-      landingZoneOption = res.flatMap(listLandingZoneResult => listLandingZoneResult.landingZones.headOption)
+      landingZoneOption = res.flatMap(listLandingZoneResult => listLandingZoneResult.landingzones.headOption)
     } yield landingZoneOption
 
   override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit

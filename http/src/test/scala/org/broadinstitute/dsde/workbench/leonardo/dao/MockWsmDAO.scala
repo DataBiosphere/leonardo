@@ -186,24 +186,24 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
         LandingZoneResourcesByPurpose(
           WORKSPACE_BATCH_SUBNET.toString,
           List(
-            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub")
+            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub", false)
           )
         ),
         LandingZoneResourcesByPurpose(
           AKS_NODE_POOL_SUBNET.toString,
           List(
-            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub")
+            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub", false)
           )
         )
       )
     )
 
-  private def buildMockLandingZoneResource(resourceType: String, resourceName: String) =
+  private def buildMockLandingZoneResource(resourceType: String, resourceName: String, useId: Boolean = true) =
     LandingZoneResource(
-      "id",
+      if (useId) Some(s"id-prefix/${resourceName}") else None,
       resourceType,
-      resourceName,
-      "parent-id",
+      if (useId) None else Some(resourceName),
+      if (useId) None else Some("parent-id"),
       "us-east"
     )
 

@@ -743,9 +743,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       landingZoneResourcesByPurpose.find(lzResourceByPurpose => lzResourceByPurpose.purpose.equals(purpose))
     val resourceOpt = lzResourcesOpt
       .flatMap(lzResources =>
-        lzResources.deployedResources.find(lzResource => lzResource.resourceType.equals(resourceType))
+        lzResources.deployedResources.find(lzResource => lzResource.resourceType.equalsIgnoreCase(resourceType))
       )
-    val resourceNameOpt = resourceOpt.map(lzResource => lzResource.resourceName)
+    val resourceNameOpt = resourceOpt.map(lzResource =>
+        lzResource.resourceName match {
+          case Some(resourceName) => Some(resourceName)
+          case None => lzResource.resourceId match {
+            case Some(resourceId) => resourceId.split("/").lastOption
+            case None => None
+          }
+        }
+    ).flatten
 
     F.fromOption(
       resourceNameOpt,
