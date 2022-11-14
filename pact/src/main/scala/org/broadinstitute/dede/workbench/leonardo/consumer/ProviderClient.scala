@@ -5,7 +5,7 @@ import org.json4s.native.JsonParser._
 import scalaj.http.{Http, HttpResponse}
 
 object ProviderClient {
-  private implicit val formats = DefaultFormats
+  implicit private val formats = DefaultFormats
 
   def fetchResults(baseUrl: String): Option[Results] =
     Http(baseUrl + "/results").asString match {
@@ -44,6 +44,6 @@ case class Results(count: Int, results: List[String])
 
 case class Token(token: String)
 
-case class OK(ok:  Boolean)
+case class OK(ok: Boolean)
 
 case class Status(ok: Boolean, systems: Map[String, OK])

@@ -67,7 +67,7 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
           headers = Map("Accept" -> "application/json", "Name" -> "Bob"),
           body = None,
           matchingRules = // When stubbing (during this test or externally), we don't mind
-          // what the name is, as long as it only contains letters.
+            // what the name is, as long as it only contains letters.
             headerRegexRule("Name", "^([a-zA-Z]+)$")
         )
         .willRespondWith(
@@ -75,8 +75,8 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
           headers = Map("Content-Type" -> "application/json; charset=UTF-8"),
           body = Some("""{"token":"abcABC123"}"""),
           matchingRules = // When verifying externally, we don't mind what is in the token
-          // as long as it contains a token field with an alphanumeric
-          // value
+            // as long as it contains a token field with an alphanumeric
+            // value
             bodyRegexRule("token", "^([a-zA-Z0-9]+)$")
         )
     )
@@ -93,20 +93,19 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
           status = 200,
           headers = Map("Content-Type" -> "application/json; charset=UTF-8"),
           body = Option(status),
-          matchingRules =
-            headerRegexRule("Content-Type", "application/json")
-              ~> bodyTypeRule("ok")
-              ~> bodyRegexRule("ok", "true")
-              ~> bodyTypeRule("systems")
-              ~> bodyTypeRule("systems.GoogleGroups")
-              ~> bodyTypeRule("systems.GoogleGroups.ok")
-              ~> bodyRegexRule("systems.GoogleGroups.ok", "true")
-              ~> bodyTypeRule("systems.GooglePubSub")
-              ~> bodyTypeRule("systems.GooglePubSub.ok")
-              ~> bodyRegexRule("systems.GooglePubSub.ok", "true")
-              ~> bodyTypeRule("systems.GoogleIam")
-              ~> bodyTypeRule("systems.GoogleIam.ok")
-              ~> bodyRegexRule("systems.GoogleIam.ok", "true")
+          matchingRules = headerRegexRule("Content-Type", "application/json")
+            ~> bodyTypeRule("ok")
+            ~> bodyRegexRule("ok", "true")
+            ~> bodyTypeRule("systems")
+            ~> bodyTypeRule("systems.GoogleGroups")
+            ~> bodyTypeRule("systems.GoogleGroups.ok")
+            ~> bodyRegexRule("systems.GoogleGroups.ok", "true")
+            ~> bodyTypeRule("systems.GooglePubSub")
+            ~> bodyTypeRule("systems.GooglePubSub.ok")
+            ~> bodyRegexRule("systems.GooglePubSub.ok", "true")
+            ~> bodyTypeRule("systems.GoogleIam")
+            ~> bodyTypeRule("systems.GoogleIam.ok")
+            ~> bodyRegexRule("systems.GoogleIam.ok", "true")
         )
     )
 
@@ -116,10 +115,9 @@ class ProviderClientSpec extends AnyFunSpec with Matchers with BeforeAndAfterAll
     ()
   }
 
-  override def afterAll(): Unit = {
+  override def afterAll(): Unit =
     // Shut down the stub server when tests are finished.
     server.stop()
-  }
 
   describe("Connecting to the Provider service") {
     it("should be able to fetch results") {
