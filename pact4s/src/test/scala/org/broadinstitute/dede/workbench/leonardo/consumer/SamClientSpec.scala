@@ -1,7 +1,7 @@
 package org.broadinstitute.dede.workbench.leonardo.consumer
 
 import au.com.dius.pact.consumer.dsl.LambdaDsl.newJsonBody
-import au.com.dius.pact.consumer.dsl.PactDslJsonBody
+import au.com.dius.pact.consumer.dsl.{DslPart, PactDslJsonBody}
 import au.com.dius.pact.consumer.{ConsumerPactBuilder, PactTestExecutionContext}
 import au.com.dius.pact.core.model.RequestResponsePact
 import cats.effect.IO
@@ -43,7 +43,8 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
     systems = subsystems.map(s => (s, SubsystemStatus(ok = true, messages = None))).toMap
   )
 
-  val okSystemStatusDsl = newJsonBody(o => {
+  // required for generating matching rules
+  val okSystemStatusDsl: DslPart = newJsonBody(o => {
     o.booleanType("ok", true)
     o.`object`("systems", s => {
       for (subsystem <- subsystems) {
@@ -55,7 +56,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   println("okSystemStatusDsl")
   println(okSystemStatusDsl)
 
-  val okSystemStatusJson = new PactDslJsonBody()
+  val okSystemStatusJson: DslPart = new PactDslJsonBody()
     .booleanType("ok", true)
     .`object`("systems")
       .`object`(GoogleGroups.value)
