@@ -268,7 +268,7 @@ object LeoPubsubMessage {
     appName: AppName,
     workspaceId: WorkspaceId,
     cloudContext: CloudContext,
-    landingZoneResources: LandingZoneResources,
+    landingZoneResourcesOpt: Option[LandingZoneResources],
     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAppV2
@@ -526,7 +526,7 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppV2Decoder: Decoder[CreateAppV2Message] =
-    Decoder.forProduct6("appId", "appName", "workspaceId", "cloudContext", "landingZoneResources", "traceId")(
+    Decoder.forProduct6("appId", "appName", "workspaceId", "cloudContext", "landingZoneResourcesOpt", "traceId")(
       CreateAppV2Message.apply
     )
 
@@ -877,9 +877,9 @@ object LeoPubsubCodec {
       "appName",
       "workspaceId",
       "cloudContext",
-      "landingZoneResources",
+      "landingZoneResourcesOpt",
       "traceId"
-    )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.landingZoneResources, x.traceId))
+    )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.landingZoneResourcesOpt, x.traceId))
 
   implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
     Encoder.forProduct6("messageType", "appId", "appName", "workspaceId", "diskId", "traceId")(x =>

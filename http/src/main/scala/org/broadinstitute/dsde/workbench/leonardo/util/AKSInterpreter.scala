@@ -86,7 +86,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      landingZoneResources = params.landingZoneResources
+      landingZoneResources <- F.fromOption(
+        params.landingZoneResourcesOpt,
+        AppCreationException(
+          s"Landing Zone Resources not found in app creation params for app ${app.appName.value}",
+          Some(ctx.traceId)
+        )
+      )
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)

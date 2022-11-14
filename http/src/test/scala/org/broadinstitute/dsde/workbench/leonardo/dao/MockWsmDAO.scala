@@ -165,31 +165,29 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
 
   override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
-  ): IO[Option[List[LandingZoneResourcesByPurpose]]] =
+  ): IO[List[LandingZoneResourcesByPurpose]] =
     IO.pure(
-      Some(
-        List(
-          LandingZoneResourcesByPurpose(
-            "SHARED_RESOURCE",
-            List(
-              buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
-              buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
-              buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
-              buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
-              buildMockLandingZoneResource("Microsoft.Network/virtualNetworks", "lzvnet")
-            )
-          ),
-          LandingZoneResourcesByPurpose(
-            "BATCH_SUBNET",
-            List(
-              buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub")
-            )
-          ),
-          LandingZoneResourcesByPurpose(
-            "AKS_SUBNET",
-            List(
-              buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub")
-            )
+      List(
+        LandingZoneResourcesByPurpose(
+          "SHARED_RESOURCE",
+          List(
+            buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
+            buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
+            buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
+            buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
+            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks", "lzvnet")
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          "BATCH_SUBNET",
+          List(
+            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub")
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          "AKS_SUBNET",
+          List(
+            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub")
           )
         )
       )

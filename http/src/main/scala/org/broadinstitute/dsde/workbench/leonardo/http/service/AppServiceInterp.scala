@@ -490,6 +490,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](AppAlreadyExistsInWorkspaceException(workspaceId, appName, c.app.status, ctx.traceId))
       )
 
+      // Get the Landing Zone Resources for the app for Azure
+      landingZoneResourcesOpt <- cloudContext.cloudProvider match {
+        case CloudProvider.Gcp => F.pure(None)
+        case CloudProvider.Azure => for {
+          landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+        } yield Some(landingZoneResources)
+      }
+
       // Validate the machine config from the request
       // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
       // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
@@ -599,15 +607,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
-      landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
-
       // Publish a CreateApp message for Back Leo
       createAppV2Message = CreateAppV2Message(
         app.id,
         app.appName,
         workspaceId,
         cloudContext,
-        landingZoneResources,
+        landingZoneResourcesOpt,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
@@ -683,11 +689,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       landingZoneId = landingZone.landingZoneId
 
       // Step 2: call LZ for LZ resources
-      lzResourcesOpt <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
-      lzResourcesByPurpose <- F.fromOption(
-        lzResourcesOpt,
-        AppCreationException(s"Landing zone resources not found in landing zone ${landingZoneId}")
-      )
+      lzResourcesByPurpose <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
 
       aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                    "Microsoft.ContainerService/managedClusters",
@@ -711,11 +713,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                          "Microsoft.Network/virtualNetworks/subnets",
-                                                         "BATCH_SUBNET"
+                                                         "WORKSPACE_BATCH_SUBNET"
       )
       aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                   "Microsoft.Network/virtualNetworks/subnets",
-                                                  "AKS_SUBNET"
+                                                  "AKS_NODE_POOL_SUBNET"
       )
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),
@@ -739,12 +741,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
     val resourceNameOpt = resourceOpt.map(lzResource => lzResource.resourceName)
 
-    for {
-      resourceName <- F.fromOption(
-        resourceNameOpt,
-        AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-      )
-    } yield resourceName
+    F.fromOption(
+      resourceNameOpt,
+      AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+    )
   }
 
   private[service] def getSavableCluster(

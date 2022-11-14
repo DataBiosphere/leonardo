@@ -622,7 +622,7 @@ class AzurePubsubHandlerSpec
         .createAndPollApp(appId,
                           AppName("app"),
                           WorkspaceId(UUID.randomUUID()),
-                          landingZoneResources,
+                          Some(landingZoneResources),
                           azureCloudContext
         )
         .attempt

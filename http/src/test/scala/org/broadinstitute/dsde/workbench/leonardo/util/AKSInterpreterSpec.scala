@@ -141,7 +141,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       appId = saveApp.id
       appName = saveApp.appName
 
-      params = CreateAKSAppParams(appId, appName, workspaceId, landingZoneResources, cloudContext)
+      params = CreateAKSAppParams(appId, appName, workspaceId, Some(landingZoneResources), cloudContext)
       _ <- aksInterp.createAndPollApp(params)
 
       app <- KubernetesServiceDbQueries

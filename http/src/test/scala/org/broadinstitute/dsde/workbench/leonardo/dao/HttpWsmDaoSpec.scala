@@ -104,7 +104,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
     res.isRight shouldBe true
 
-    val landingZoneResourcesByPurpose = res.toOption.flatten.get
+    val landingZoneResourcesByPurpose = res.toOption.get
     landingZoneResourcesByPurpose shouldBe originalLandingZoneResourcesByPurpose
   }
 }

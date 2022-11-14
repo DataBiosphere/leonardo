@@ -39,7 +39,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def createAndPollApp(appId: AppId,
                        appName: AppName,
                        workspaceId: WorkspaceId,
-                       landingZoneResources: LandingZoneResources,
+                       landingZoneResourcesOpt: Option[LandingZoneResources],
                        cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]

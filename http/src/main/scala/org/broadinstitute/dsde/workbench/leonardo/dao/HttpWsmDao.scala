@@ -162,10 +162,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         Request[F](
           method = Method.GET,
           uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(s"/api/landingzones/v1/azure?billingProfileId=${billingProfileId}")
-            ),
+            .withPath(Uri.Path.unsafeFromString("/api/landingzones/v1/azure"))
+            .withQueryParam("billingProfileId", billingProfileId),
           headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)
@@ -174,7 +172,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[List[LandingZoneResourcesByPurpose]]] =
+  ): F[List[LandingZoneResourcesByPurpose]] =
     for {
       ctx <- ev.ask
       resOpt <- httpClient.expectOptionOr[ListLandingZoneResourcesResult](
@@ -188,7 +186,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
           headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)
-    } yield resOpt.map(res => res.resources)
+    } yield resOpt.fold(List.empty[LandingZoneResourcesByPurpose])(res => res.resources)
 
   override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]

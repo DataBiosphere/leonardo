@@ -16,6 +16,6 @@ trait AKSAlgebra[F[_]] {
 final case class CreateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     workspaceId: WorkspaceId,
-                                    landingZoneResources: LandingZoneResources,
+                                    landingZoneResourcesOpt: Option[LandingZoneResources],
                                     cloudContext: AzureCloudContext
 )
