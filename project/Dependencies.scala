@@ -16,6 +16,8 @@ object Dependencies {
   val opencensusV = "0.29.0"
   val scalaHttpV = "2.4.2"
   val json4sNativeV = "4.0.6"
+  val munitCatsEffectV = "1.0.7"
+  val pact4sV = "0.6.0"
 
   private val workbenchLibsHash = "fe4ec69"
   val serviceTestV = s"2.0-$workbenchLibsHash"
@@ -131,11 +133,18 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.15" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
+  val circeCore =         "io.circe"          %% "circe-core"           % "0.14.3"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
+  val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
+  val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
+  val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val json4sNative =      "org.json4s"        %% "json4s-native"        % json4sNativeV
+  val typelevelCat =      "org.typelevel"     %% "munit-cats-effect-3"  % munitCatsEffectV % Test
+  val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
+  val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
 
   val coreDependencies = List(
     workbenchOauth2,
@@ -219,9 +228,22 @@ object Dependencies {
   )
 
   val pactDependencies = Seq(
-    "com.itv"       %% "scalapact-scalatest-suite"   % "4.4.0" % "test",
+    "com.itv"       %% "scalapact-scalatest-suite"   % "4.4.0"   % Test,
     scalaTest,
     scalaHttp,
-    json4sNative
+    json4sNative,
+    "org.slf4j"              % "slf4j-simple"        % "2.0.3"
+  )
+
+  val pact4sDependencies = Seq(
+    pact4sScalaTest,
+    pact4sCirce,
+    http4sEmberClient,
+    http4sDsl,
+    http4sEmberServer,
+    http4sCirce,
+    circeCore,
+    typelevelCat,
+    scalaTest
   )
 }

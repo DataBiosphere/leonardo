@@ -1,4 +1,4 @@
-package org.broadinstitute.dede.workbench.leonardo
+package org.broadinstitute.dede.workbench.leonardo.consumer
 
 import org.json4s.DefaultFormats
 import org.json4s.native.JsonParser._
@@ -37,6 +37,7 @@ object ProviderClient {
       case _ =>
         None
     }
+
 }
 
 case class Results(count: Int, results: List[String])

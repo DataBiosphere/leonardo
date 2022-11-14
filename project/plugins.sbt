@@ -10,6 +10,8 @@ addSbtPlugin(
 
 addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.10.4")
 
-dependencyOverrides ++= Seq("org.scala-lang.modules" % "scala-xml_2.12" % "2.1.0")
+dependencyOverrides ++= Seq(
+  "org.scala-lang.modules" % "scala-xml_2.12" % "2.1.0"
+)
 
 addSbtPlugin("com.itv" % "sbt-scalapact" % "4.4.0")

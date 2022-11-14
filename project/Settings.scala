@@ -206,6 +206,28 @@ object Settings {
   )
 
   val pactSettings = commonSettings ++ commonTestSettings ++ List(
-    libraryDependencies ++= pactDependencies
+    libraryDependencies ++= pactDependencies,
+
+    /**
+     * Invoking pact tests from root project (sbt "project pact" test)
+     * will launch tests in a separate JVM context that ensures contracts
+     * are written to the pact/target/pacts folder. Otherwise, contracts
+     * will be written to the root folder.
+     */
+    Test / fork := true
+
+  ) ++ commonAssemblySettings ++ versionSettings
+
+  val pact4sSettings = commonSettings ++ commonTestSettings ++ List(
+    libraryDependencies ++= pact4sDependencies,
+
+    /**
+     * Invoking pact tests from root project (sbt "project pact" test)
+     * will launch tests in a separate JVM context that ensures contracts
+     * are written to the pact/target/pacts folder. Otherwise, contracts
+     * will be written to the root folder.
+     */
+    Test / fork := true
+
   ) ++ commonAssemblySettings ++ versionSettings
 }
