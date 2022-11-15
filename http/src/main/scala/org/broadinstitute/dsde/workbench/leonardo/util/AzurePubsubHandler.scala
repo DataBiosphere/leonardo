@@ -756,13 +756,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   override def createAndPollApp(appId: AppId,
                                 appName: AppName,
                                 workspaceId: WorkspaceId,
+                                landingZoneResourcesOpt: Option[LandingZoneResources],
                                 cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
+      params = CreateAKSAppParams(appId, appName, workspaceId, landingZoneResourcesOpt, cloudContext)
       _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(
