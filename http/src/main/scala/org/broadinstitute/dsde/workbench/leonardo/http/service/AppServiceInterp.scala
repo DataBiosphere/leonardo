@@ -1331,7 +1331,7 @@ case class AppMachineConfigNotSupportedException(traceId: TraceId)
 
 case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
     extends LeoException(
-      s"Apps of type ${appType.toString} not support on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
+      s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
