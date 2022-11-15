@@ -700,20 +700,31 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                    "Microsoft.ContainerService/managedClusters",
-                                                   SHARED_RESOURCE
+                                                   SHARED_RESOURCE,
+                                                   false
       )
       batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                      "Microsoft.Batch/batchAccounts",
-                                                     SHARED_RESOURCE
+                                                     SHARED_RESOURCE,
+                                                     false
       )
-      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Relay/namespaces", SHARED_RESOURCE)
+      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                   "Microsoft.Relay/namespaces",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
       storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                        "Microsoft.Storage/storageAccounts",
-                                                       SHARED_RESOURCE
+                                                       SHARED_RESOURCE,
+                                                       false
       )
       vnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
-      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", WORKSPACE_BATCH_SUBNET)
-      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET)
+      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                         "DeployedSubnet",
+                                                         WORKSPACE_BATCH_SUBNET,
+                                                         true
+      )
+      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
@@ -727,7 +738,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private def getLandingZoneResourceName(landingZoneResourcesByPurpose: List[LandingZoneResourcesByPurpose],
                                          resourceType: String,
                                          purpose: LandingZoneResourcePurpose,
-                                         useParent: Boolean = false
+                                         useParent: Boolean
   ): F[String] =
     landingZoneResourcesByPurpose
       .filter(_.purpose == purpose)

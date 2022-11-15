@@ -179,20 +179,19 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
             buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
             buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
             buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
-            buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
-            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks", "lzvnet")
+            buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage")
           )
         ),
         LandingZoneResourcesByPurpose(
           WORKSPACE_BATCH_SUBNET,
           List(
-            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "batchsub", false)
           )
         ),
         LandingZoneResourcesByPurpose(
           AKS_NODE_POOL_SUBNET,
           List(
-            buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
           )
         )
       )
@@ -203,7 +202,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       if (useId) Some(s"id-prefix/${resourceName}") else None,
       resourceType,
       if (useId) None else Some(resourceName),
-      if (useId) None else Some("parent-id"),
+      if (useId) None else Some("lzvnet"),
       "us-east"
     )
 
