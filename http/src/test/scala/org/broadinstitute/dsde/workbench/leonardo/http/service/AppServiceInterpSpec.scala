@@ -61,6 +61,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           WorkspaceDescription(
             workspaceId,
             "someWorkspaceName" + workspaceId,
+            "9f3434cb-8f18-4595-95a9-d9b1ec9731d4",
             None,
             Some(GoogleProject(workspaceId.toString))
           )
@@ -1490,7 +1491,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
-                                       appType = AppType.CromwellOnAzure,
+                                       appType = AppType.Cromwell,
                                        diskConfig = None,
                                        customEnvironmentVariables = customEnvVars
     )
@@ -1529,7 +1530,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "V2 Azure - throw an error when providing a machine config" in isolatedDbTest {
     val appName = AppName("app1")
     val appReq = createAppRequest.copy(
-      appType = AppType.CromwellOnAzure,
+      appType = AppType.Cromwell,
       diskConfig = None
     )
 
@@ -1543,7 +1544,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val appReq = createAppRequest.copy(
       kubernetesRuntimeConfig = None,
-      appType = AppType.CromwellOnAzure,
+      appType = AppType.Cromwell,
       diskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
     )
 
@@ -1589,7 +1590,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
-                                       appType = AppType.CromwellOnAzure,
+                                       appType = AppType.Cromwell,
                                        diskConfig = None,
                                        customEnvironmentVariables = customEnvVars
     )
@@ -1671,10 +1672,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "V2 Azure - delete an Azure app V2, update status appropriately, and queue a message" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+    val kubeServiceInterp = makeInterp(publisherQueue)
     val appName = AppName("app1")
     val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.CromwellOnAzure, diskConfig = None)
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
 
     kubeServiceInterp
       .createAppV2(userInfo, workspaceId, appName, appReq)
@@ -1771,7 +1772,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName1 = AppName("app1")
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
                                         kubernetesRuntimeConfig = None,
-                                        appType = AppType.CromwellOnAzure,
+                                        appType = AppType.Cromwell,
                                         diskConfig = None
     )
     appServiceInterp
@@ -1785,7 +1786,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val appName2 = AppName("app2")
     val appReq2 =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.CromwellOnAzure, diskConfig = None)
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
 
     appServiceInterp
       .createAppV2(userInfo, workspaceId, appName2, appReq2)
@@ -1793,7 +1794,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val appName3 = AppName("app3")
     val appReq3 =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.CromwellOnAzure, diskConfig = None)
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
 
     appServiceInterp
       .createAppV2(userInfo, workspaceId3, appName3, appReq3)
