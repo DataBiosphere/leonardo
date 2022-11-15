@@ -1422,7 +1422,11 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(c) =>
-          azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, msg.landingZoneResourcesOpt, c)
+          val task =
+            azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, msg.landingZoneResourcesOpt, c)
+          asyncTasks.offer(
+            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
+          )
         case CloudContext.Gcp(c) =>
           F.raiseError(
             PubsubKubernetesError(
