@@ -101,7 +101,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
       runtimeImage: RuntimeImage = RuntimeImage(
-        RuntimeImageType.Azure,
+        RuntimeImageType.JupyterLab,
         config.azureConfig.image.asString,
         None,
         ctx.now
@@ -501,7 +501,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       Some(userInfo.userEmail),
       None,
       None,
-      Some(RuntimeImageType.Azure)
+      Some(RuntimeImageType.JupyterLab)
     ).toMap
 
     val allLabels = request.labels ++ defaultLabels

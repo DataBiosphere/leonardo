@@ -361,7 +361,7 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Proxy extends RuntimeImageType
   case object CryptoDetector extends RuntimeImageType
 
-  case object Azure extends RuntimeImageType
+  case object JupyterLab extends RuntimeImageType
 
   def stringToRuntimeImageType: Map[String, RuntimeImageType] = values.map(c => c.toString -> c).toMap
 }
