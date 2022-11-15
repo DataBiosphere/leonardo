@@ -174,7 +174,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     IO.pure(
       List(
         LandingZoneResourcesByPurpose(
-          SHARED_RESOURCE.toString,
+          SHARED_RESOURCE,
           List(
             buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
             buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
@@ -184,13 +184,13 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
           )
         ),
         LandingZoneResourcesByPurpose(
-          WORKSPACE_BATCH_SUBNET.toString,
+          WORKSPACE_BATCH_SUBNET,
           List(
             buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "batchsub", false)
           )
         ),
         LandingZoneResourcesByPurpose(
-          AKS_NODE_POOL_SUBNET.toString,
+          AKS_NODE_POOL_SUBNET,
           List(
             buildMockLandingZoneResource("Microsoft.Network/virtualNetworks/subnets", "akssub", false)
           )

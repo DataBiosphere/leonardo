@@ -2,15 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import io.circe.{Encoder, Printer}
 import io.circe.syntax.EncoderOps
+import io.circe.{Encoder, Printer}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.SHARED_RESOURCE
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  LandingZoneResourcePurpose,
+  SHARED_RESOURCE
+}
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, WorkspaceId, WsmControlledResourceId, WsmJobId}
+import org.http4s._
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.http4s._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -71,7 +74,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val landingZoneId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
     val originalLandingZoneResourcesByPurpose = List(
       LandingZoneResourcesByPurpose(
-        SHARED_RESOURCE.toString,
+        SHARED_RESOURCE,
         List(
           LandingZoneResource(
             Some("id"),
@@ -116,6 +119,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     Encoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(x =>
       (x.resourceId, x.resourceType, x.resourceName, x.resourceParentId, x.region)
     )
+  implicit val landingZoneResourcePurposeEncoder: Encoder[LandingZoneResourcePurpose] =
+    Encoder.encodeString.contramap(_.toString)
   implicit val landingZoneResourcesByPurposeEncoder: Encoder[LandingZoneResourcesByPurpose] =
     Encoder.forProduct2("purpose", "deployedResources")(x => (x.purpose, x.deployedResources))
   implicit val listLandingZoneResourcesResultEncoder: Encoder[ListLandingZoneResourcesResult] =

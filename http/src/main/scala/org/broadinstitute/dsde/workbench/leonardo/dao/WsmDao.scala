@@ -1,12 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.util.UUID
+import _root_.io.circe._
+import _root_.io.circe.syntax._
 import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import _root_.io.circe._
-import _root_.io.circe.syntax._
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
@@ -24,20 +24,14 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   wsmJobIdDecoder,
   wsmJobIdEncoder
 }
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.azure.{
-  AzureCloudContext,
-  ContainerName,
-  ManagedResourceGroupName,
-  RelayNamespace,
-  SubscriptionId,
-  TenantId
-}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import java.util.UUID
 
 trait WsmDao[F[_]] {
   def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
@@ -147,7 +141,6 @@ final case class LandingZoneResource(resourceId: Option[String],
                                      region: String
 )
 
-// TODO use the landing zone lib enum once published to release [TOAZ-269]
 object LandingZoneResourcePurpose extends Enumeration {
   type LandingZoneResourcePurpose = Value
   val SHARED_RESOURCE, WLZ_RESOURCE = Value
@@ -155,7 +148,9 @@ object LandingZoneResourcePurpose extends Enumeration {
     WORKSPACE_BATCH_SUBNET = Value
 }
 
-final case class LandingZoneResourcesByPurpose(purpose: String, deployedResources: List[LandingZoneResource])
+final case class LandingZoneResourcesByPurpose(purpose: LandingZoneResourcePurpose,
+                                               deployedResources: List[LandingZoneResource]
+)
 final case class ListLandingZoneResourcesResult(id: UUID, resources: List[LandingZoneResourcesByPurpose])
 
 //Azure Vm Models
@@ -424,6 +419,11 @@ object WsmDecoders {
   implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
     Decoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(
       LandingZoneResource.apply
+    )
+
+  implicit val landingZoneResourcePurposeDecoder: Decoder[LandingZoneResourcePurpose] =
+    Decoder.decodeString.emap(s =>
+      LandingZoneResourcePurpose.values.find(_.toString == s).toRight(s"Invalid LandingZoneResourcePurpose found: ${s}")
     )
   implicit val landingZoneResourcesByPurposeDecoder: Decoder[LandingZoneResourcesByPurpose] =
     Decoder.forProduct2("purpose", "deployedResources")(LandingZoneResourcesByPurpose.apply)

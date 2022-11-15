@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
   AKS_NODE_POOL_SUBNET,
+  LandingZoneResourcePurpose,
   SHARED_RESOURCE,
   WORKSPACE_BATCH_SUBNET
 }
@@ -699,32 +700,20 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                    "Microsoft.ContainerService/managedClusters",
-                                                   SHARED_RESOURCE.toString
+                                                   SHARED_RESOURCE
       )
       batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                      "Microsoft.Batch/batchAccounts",
-                                                     SHARED_RESOURCE.toString
+                                                     SHARED_RESOURCE
       )
-      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                   "Microsoft.Relay/namespaces",
-                                                   SHARED_RESOURCE.toString
-      )
+      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose, "Microsoft.Relay/namespaces", SHARED_RESOURCE)
       storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
                                                        "Microsoft.Storage/storageAccounts",
-                                                       SHARED_RESOURCE.toString
+                                                       SHARED_RESOURCE
       )
-      vnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                             "Microsoft.Network/virtualNetworks",
-                                             SHARED_RESOURCE.toString
-      )
-      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                         "Microsoft.Network/virtualNetworks/subnets",
-                                                         WORKSPACE_BATCH_SUBNET.toString
-      )
-      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                  "Microsoft.Network/virtualNetworks/subnets",
-                                                  AKS_NODE_POOL_SUBNET.toString
-      )
+      vnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", WORKSPACE_BATCH_SUBNET)
+      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET)
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
@@ -737,32 +726,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   private def getLandingZoneResourceName(landingZoneResourcesByPurpose: List[LandingZoneResourcesByPurpose],
                                          resourceType: String,
-                                         purpose: String
-  ): F[String] = {
-    val lzResourcesOpt =
-      landingZoneResourcesByPurpose.find(lzResourceByPurpose => lzResourceByPurpose.purpose.equals(purpose))
-    val resourceOpt = lzResourcesOpt
-      .flatMap(lzResources =>
-        lzResources.deployedResources.find(lzResource => lzResource.resourceType.equalsIgnoreCase(resourceType))
-      )
-    val resourceNameOpt = resourceOpt
-      .map(lzResource =>
-        lzResource.resourceName match {
-          case Some(resourceName) => Some(resourceName)
-          case None =>
-            lzResource.resourceId match {
-              case Some(resourceId) => resourceId.split("/").lastOption
-              case None             => None
-            }
-        }
-      )
-      .flatten
-
-    F.fromOption(
-      resourceNameOpt,
-      AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-    )
-  }
+                                         purpose: LandingZoneResourcePurpose,
+                                         useParent: Boolean = false
+  ): F[String] =
+    landingZoneResourcesByPurpose
+      .filter(_.purpose == purpose)
+      .flatMap(_.deployedResources)
+      .filter(_.resourceType.equalsIgnoreCase(resourceType))
+      .headOption
+      .flatMap { r =>
+        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
+        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
+      }
+      .fold(
+        F.raiseError[String](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
