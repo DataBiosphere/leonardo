@@ -61,6 +61,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           WorkspaceDescription(
             workspaceId,
             "someWorkspaceName" + workspaceId,
+            "9f3434cb-8f18-4595-95a9-d9b1ec9731d4",
             None,
             Some(GoogleProject(workspaceId.toString))
           )
