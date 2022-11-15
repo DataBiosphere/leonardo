@@ -1041,13 +1041,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userEmail, now, None, now)
-    val gkeAppConfig: KubernetesAppConfig = req.appType match {
-      case Galaxy          => config.leoKubernetesConfig.galaxyAppConfig
-      case Cromwell        => config.leoKubernetesConfig.cromwellAppConfig
-      case Custom          => config.leoKubernetesConfig.customAppConfig
-      case CromwellOnAzure => ConfigReader.appConfig.azure.coaAppConfig
-    }
-
     val allLabels =
       DefaultKubernetesLabels(
         cloudContext,
@@ -1056,6 +1049,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         googleServiceAccount
       ).toMap ++ req.labels
     for {
+      // Validate app type
+      gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
+        case (Galaxy, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
+      }
+
       // check the labels do not contain forbidden keys
       labels <-
         if (allLabels.contains(includeDeletedKey))
@@ -1063,12 +1065,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else
           Right(allLabels)
 
-      // Galaxy, Cromwell, and Custom app types require a disk.
-      // Cromwell on Azure requires _no_ disk.
-      _ <- (req.appType, diskOpt) match {
-        case (Galaxy | Cromwell | Custom, None) =>
+      // Validate disk.
+      // Apps on GCP require a disk.
+      // Apps on Azure require _no_ disk.
+      _ <- (cloudContext.cloudProvider, diskOpt) match {
+        case (CloudProvider.Gcp, None) =>
           Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
-        case (CromwellOnAzure, Some(_)) =>
+        case (CloudProvider.Azure, Some(_)) =>
           Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
         case _ => Right(())
       }
@@ -1270,7 +1273,7 @@ case class AppCannotBeCreatedException(googleProject: GoogleProject,
                                        status: AppStatus,
                                        traceId: TraceId
 ) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status.",
+      s"App ${googleProject.value}/${appName.value} cannot be created in ${status} status.",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
@@ -1322,6 +1325,13 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
 case class AppMachineConfigNotSupportedException(traceId: TraceId)
     extends LeoException(
       s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
+      StatusCodes.BadRequest,
+      traceId = Some(traceId)
+    )
+
+case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"Apps of type ${appType.toString} not support on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
