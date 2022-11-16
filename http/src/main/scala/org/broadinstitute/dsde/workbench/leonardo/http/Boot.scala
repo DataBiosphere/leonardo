@@ -17,7 +17,12 @@ import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.{AzureContainerService, AzureRelayService, AzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  AzureContainerService,
+  AzureRelayService,
+  AzureVmService
+}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{
   GoogleProjectDAO,
@@ -472,9 +477,20 @@ object Boot extends IOApp {
         200,
         2 hours
       )
+
       kubeCache <- Resource.make(F.delay(CaffeineCache[F, KubernetesClusterId, ApiClient](underlyingKubeClientCache)))(
         _.close
       )
+
+      underlyingAksKubeClientCache = buildCache[AKSClusterName, scalacache.Entry[ApiClient]](
+        200,
+        2 hours
+      )
+
+      aksKubeCache <- Resource.make(F.delay(CaffeineCache[F, AKSClusterName, ApiClient](underlyingAksKubeClientCache)))(
+        _.close
+      )
+
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
       // Use a low concurrency for helm because it can generate very chatty network traffic
@@ -608,13 +624,13 @@ object Boot extends IOApp {
           appMonitorConfig
         ),
         helmClient,
-        kubeService,
         azureContainerService,
         azureRelay,
         samDao,
         cromwellDao,
         cbasDao,
-        wdsDao
+        wdsDao,
+        aksKubeCache
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,

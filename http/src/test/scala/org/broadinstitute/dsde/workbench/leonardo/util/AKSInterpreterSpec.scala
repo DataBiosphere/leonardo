@@ -54,7 +54,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
-    MockKubernetesService,
     setUpMockAzureContainerService,
     FakeAzureRelayService,
     mockSamDAO,

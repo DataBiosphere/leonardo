@@ -152,7 +152,6 @@ object AKSManualTest {
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(config,
                              helmClient,
-                             MockKubernetesService,
                              containerService,
                              relayService,
                              mock[SamDAO[IO]],

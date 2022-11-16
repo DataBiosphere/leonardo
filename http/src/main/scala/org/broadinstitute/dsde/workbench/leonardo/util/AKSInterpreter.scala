@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -17,37 +18,56 @@ import com.azure.resourcemanager.compute.models.{
 }
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
+import io.kubernetes.client.openapi.ApiClient
+import io.kubernetes.client.openapi.apis.CoreV1Api
+import io.kubernetes.client.openapi.models.V1NamespaceList
+import io.kubernetes.client.util.Config
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
+  KubernetesApiServerIp,
+  KubernetesNamespace,
+  KubernetesPodStatus,
+  PodStatus
+}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, PodName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
+import org.broadinstitute.dsde.workbench.google2.{
+  autoClosableResourceF,
+  recoverF,
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  tracedRetryF
+}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.withLogging
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
+import scalacache.Cache
 
-import java.util.Base64
+import java.io.ByteArrayInputStream
+import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
-                           kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
                            azureContainerService: AzureContainerService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
                            cromwellDao: CromwellDAO[F],
                            cbasDao: CbasDAO[F],
-                           wdsDao: WdsDAO[F]
+                           wdsDao: WdsDAO[F],
+                           apiClientCache: Cache[F, AKSClusterName, ApiClient]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -413,7 +433,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       namespaceName = app.appResources.namespace.name
       kubernetesNamespace = KubernetesNamespace(namespaceName)
       dbCluster = dbApp.cluster
-      clusterId = dbCluster.getClusterId
+      clusterName = AKSClusterName(dbCluster.clusterName.value)
 
       // Get resources from landing zone
       landingZoneResources <- F.fromOption(
@@ -431,7 +451,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // poll until the app pods are deleted
       last <- streamFUntilDone(
-        kubeService.listPodStatus(clusterId, KubernetesNamespace(app.appResources.namespace.name)),
+        listPodStatus(cloudContext, clusterName, KubernetesNamespace(app.appResources.namespace.name)),
         config.appMonitorConfig.deleteApp.maxAttempts,
         config.appMonitorConfig.deleteApp.interval
       ).compile.lastOrError
@@ -456,11 +476,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext)
 
       // delete the namespace only after the helm uninstall completes.
-      _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId, kubernetesNamespace)
+      _ <- deleteNamespace(cloudContext, clusterName, kubernetesNamespace)
 
-      fa = kubeService
-        .namespaceExists(dbApp.cluster.getClusterId, kubernetesNamespace)
-        .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
+      fa = namespaceExists(cloudContext, clusterName, kubernetesNamespace)
+        .map(
+          !_
+        ) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
 
       _ <- streamUntilDoneOrTimeout(fa,
                                     config.appMonitorConfig.deleteApp.maxAttempts,
@@ -487,7 +508,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterId.toString}"
+        s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterName}"
       )
 
       _ <- appQuery.updateStatus(app.id, AppStatus.Deleted).transaction
@@ -496,6 +517,159 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield ()
 
   }
+
+  private def getNewApiClient(clusterName: AKSClusterName, cloudContext: AzureCloudContext): F[ApiClient] = {
+    // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
+    implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
+    for {
+      credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
+      client <- createClient(
+        credentials
+      )
+    } yield client
+  }
+
+  // DO NOT QUERY THE CACHE DIRECTLY
+  // There is a wrapper method that is necessary to ensure the token is refreshed
+  // we never make the entry stale, because we always need to refresh the token (see comment above getToken)
+  // if we did stale the entry we would have to unnecessarily re-do the google call
+  private def getClient[A](cloudContext: AzureCloudContext, clusterName: AKSClusterName, fa: ApiClient => A)(implicit
+    ev: Ask[F, TraceId]
+  ): F[A] =
+    for {
+      client <- apiClientCache.cachingF(clusterName)(None)(getNewApiClient(clusterName, cloudContext))
+      credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
+      _ <- F.blocking(client.setApiKey(credentials.token.value))
+    } yield fa(client)
+
+  private def deleteNamespace(cloudContext: AzureCloudContext,
+                              clusterName: AKSClusterName,
+                              namespace: KubernetesNamespace
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] = {
+    val delete = for {
+      traceId <- ev.ask
+      client <- getClient(cloudContext, clusterName, new CoreV1Api(_))
+      call =
+        recoverF(
+          F.blocking(
+            client.deleteNamespace(
+              namespace.name.value,
+              "true",
+              null,
+              null,
+              null,
+              null,
+              null
+            )
+          ).void
+            .recoverWith {
+              case e: com.google.gson.JsonSyntaxException
+                  if e.getMessage.contains("Expected a string but was BEGIN_OBJECT") =>
+                logger.error(e)("Ignore response parsing error")
+            } // see https://github.com/kubernetes-client/java/wiki/6.-Known-Issues#1-exception-on-deleting-resources-javalangillegalstateexception-expected-a-string-but-was-begin_object
+          ,
+          whenStatusCode(404)
+        )
+      _ <- withLogging(
+        call,
+        Some(traceId),
+        s"io.kubernetes.client.openapi.apis.CoreV1Api.deleteNamespace(${namespace.name.value}, true, null, null, null, null, null)"
+      )
+    } yield ()
+
+    // There is a known bug with the client lib json decoding.  `com.google.gson.JsonSyntaxException` occurs every time.
+    // See https://github.com/kubernetes-client/java/issues/86
+    delete.handleErrorWith {
+      case _: com.google.gson.JsonSyntaxException =>
+        F.unit
+      case e: Throwable => F.raiseError(e)
+    }
+  }
+
+  private def listPodStatus(cloudContext: AzureCloudContext,
+                            clusterName: AKSClusterName,
+                            namespace: KubernetesNamespace
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[List[KubernetesPodStatus]] =
+    for {
+      traceId <- ev.ask
+      client <- getClient(cloudContext, clusterName, new CoreV1Api(_))
+      call =
+        F.blocking(
+          client.listNamespacedPod(namespace.name.value, "true", null, null, null, null, null, null, null, null, null)
+        )
+
+      response <- withLogging(
+        call,
+        Some(traceId),
+        s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}, true, null, null, null, null, null, null, null, null)"
+      )
+
+      listPodStatus = Option(response.getItems)
+        .map { l =>
+          l.asScala.toList.foldMap(v1Pod =>
+            PodStatus.stringToPodStatus
+              .get(v1Pod.getStatus.getPhase)
+              .map(s => List(KubernetesPodStatus(PodName(v1Pod.getMetadata.getName), s)))
+              .toRight(new RuntimeException(s"Unknown Google status ${v1Pod.getStatus.getPhase}"))
+          )
+        }
+        .getOrElse(Nil.asRight[RuntimeException])
+
+      res <- F.fromEither(listPodStatus)
+    } yield res
+
+  // The underlying http client for ApiClient claims that it releases idle threads and that shutdown is not necessary
+  // Here is a guide on how to proactively release resource if this proves to be problematic https://square.github.io/okhttp/4.x/okhttp/okhttp3/-ok-http-client/#shutdown-isnt-necessary
+  private def createClient(credentials: AKSCredentials): F[ApiClient] = {
+    val certResource = autoClosableResourceF(new ByteArrayInputStream(credentials.certificate.value.getBytes))
+    val endpoint = KubernetesApiServerIp(credentials.server.value)
+
+    for {
+      apiClient <- certResource.use { certStream =>
+        F.delay(
+          Config
+            .fromToken(
+              endpoint.url,
+              credentials.token.value
+            )
+            .setSslCaCert(certStream)
+        )
+      }
+    } yield apiClient // appending here a .setDebugging(true) prints out useful API request/response info for development
+  }
+
+  private def namespaceExists(cloudContext: AzureCloudContext,
+                              clusterName: AKSClusterName,
+                              namespace: KubernetesNamespace
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] =
+    for {
+      traceId <- ev.ask
+      client <- getClient(cloudContext, clusterName, new CoreV1Api(_))
+      call =
+        recoverF(
+          F.blocking(
+            client.listNamespace("true", false, null, null, null, null, null, null, null, false)
+          ),
+          whenStatusCode(409)
+        )
+      v1NamespaceList <- withLogging(
+        call,
+        Some(traceId),
+        s"io.kubernetes.client.apis.CoreV1Api.listNamespace()",
+        Show.show[Option[V1NamespaceList]](
+          _.fold("No namespace found")(x => x.getItems.asScala.toList.map(_.getMetadata.getName).mkString(","))
+        )
+      )
+    } yield v1NamespaceList
+      .map(ls => ls.getItems.asScala.toList)
+      .getOrElse(List.empty)
+      .exists(x => x.getMetadata.getName == namespace.name.value)
 
 }
 
