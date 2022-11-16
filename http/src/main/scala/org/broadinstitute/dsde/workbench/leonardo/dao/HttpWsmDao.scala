@@ -4,11 +4,14 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, LandingZoneResourcePurpose, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
@@ -16,7 +19,7 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{`Content-Type`, Authorization}
+import org.http4s.headers.{Authorization, `Content-Type`}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
@@ -152,6 +155,78 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         )
       )(onError)
     } yield res
+
+  override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[LandingZoneResources] =
+    for {
+      // Step 1: call LZ for LZ id
+      landingZoneOpt <- getLandingZone(billingProfileId, userToken)
+      landingZone <- F.fromOption(
+        landingZoneOpt,
+        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
+      )
+      landingZoneId = landingZone.landingZoneId
+
+      // Step 2: call LZ for LZ resources
+      lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
+
+      aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
+        "Microsoft.ContainerService/managedClusters",
+        SHARED_RESOURCE,
+        false
+      )
+      batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
+        "Microsoft.Batch/batchAccounts",
+        SHARED_RESOURCE,
+        false
+      )
+      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose,
+        "Microsoft.Relay/namespaces",
+        SHARED_RESOURCE,
+        false
+      )
+      storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
+        "Microsoft.Storage/storageAccounts",
+        SHARED_RESOURCE,
+        false
+      )
+      vnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
+        "DeployedSubnet",
+        WORKSPACE_BATCH_SUBNET,
+        true
+      )
+      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+    } yield LandingZoneResources(
+      AKSClusterName(aksClusterName),
+      BatchAccountName(batchAccountName),
+      RelayNamespace(relayNamespace),
+      StorageAccountName(storageAccountName),
+      NetworkName(vnetName),
+      SubnetworkName(batchNodesSubnetName),
+      SubnetworkName(aksSubnetName)
+    )
+
+  private def getLandingZoneResourceName(landingZoneResourcesByPurpose: List[LandingZoneResourcesByPurpose],
+                                         resourceType: String,
+                                         purpose: LandingZoneResourcePurpose,
+                                         useParent: Boolean
+                                        ): F[String] =
+    landingZoneResourcesByPurpose
+      .filter(_.purpose == purpose)
+      .flatMap(_.deployedResources)
+      .filter(_.resourceType.equalsIgnoreCase(resourceType))
+      .headOption
+      .flatMap { r =>
+        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
+        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
+      }
+      .fold(
+        F.raiseError[String](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
 
   override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]

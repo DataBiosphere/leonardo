@@ -82,13 +82,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
       leoAuth <- samDAO.getLeoAuthToken
-      relayNamespaceOpt <- wsmDao.getRelayNamespace(workspaceId, req.region, leoAuth)
-      relayNamespace <- F.fromOption(
-        relayNamespaceOpt,
-        BadRequestException(s"Workspace ${workspaceId} doesn't have relay namespace provisioned appropriately",
-                            Some(ctx.traceId)
-        )
-      )
+      // TODO/PR question: do we still need this RelayNamespace for GCP?
       storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
       storageContainer <- F.fromOption(
         storageContainerOpt,
@@ -99,6 +93,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- logger.info(ctx.loggingCtx)(s"found ${storageContainer} for ${userInfo.userEmail}")
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
+
+      // Get the Landing Zone Resources for the app for Azure
+      landingZoneResourcesOpt <- cloudContext.cloudProvider match {
+        case CloudProvider.Gcp => F.pure(None)
+        case CloudProvider.Azure =>
+          for {
+            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+          } yield Some(landingZoneResources)
+      }
 
       runtimeImage: RuntimeImage = RuntimeImage(
         RuntimeImageType.Azure,
@@ -157,8 +160,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             _ <- publisherQueue.offer(
               CreateAzureRuntimeMessage(savedRuntime.id,
                                         workspaceId,
-                                        relayNamespace,
                                         storageContainer.resourceId,
+                                        landingZoneResourcesOpt,
                                         Some(ctx.traceId)
               )
             )

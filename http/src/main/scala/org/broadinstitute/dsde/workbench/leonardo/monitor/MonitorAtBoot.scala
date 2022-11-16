@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -317,7 +318,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
-        F.raiseError(MonitorAtBootException("Startting Azure runtime is not supported yet", traceId))
+        F.raiseError(MonitorAtBootException("Starting Azure runtime is not supported yet", traceId))
       case RuntimeStatus.Creating =>
         for {
           now <- F.realTimeInstant
@@ -331,7 +332,6 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
               F.raiseError(MonitorAtBootException("Azure runtime shouldn't have non Azure runtime config", traceId))
           }
           implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
-          relayNamespaceOpt <- wsmDao.getRelayNamespace(wid, azureRuntimeConfig.region, leoAuth)
           storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(wid, leoAuth)
           storageContainer <- F.fromOption(
             storageContainerOpt,
@@ -339,14 +339,17 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                 Some(traceId)
             )
           )
-          rns <- F.fromOption(relayNamespaceOpt,
-                              MonitorAtBootException(s"no relay namespace found for ${wid}", traceId)
-          )
+          workspaceDescOpt <- wsmDao.getWorkspace(wid, leoAuth)
+          workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
+
+
+          // Get the Landing Zone Resources for the app for Azure
+          landingZoneResourcesOpt <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,
           wid,
-          rns,
           storageContainer.resourceId,
+          Some(landingZoneResourcesOpt),
           Some(traceId)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))

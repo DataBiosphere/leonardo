@@ -65,18 +65,22 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
       createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
+      landingZoneResources <- F.fromOption(
+        msg.landingZoneResourcesOpt,
+        new RuntimeException(s"landing zone resources are required to create an Azure runtime")
+      )
       _ <- createRuntime(
         CreateAzureRuntimeParams(msg.workspaceId,
                                  runtime,
-                                 msg.relayNamespace,
                                  msg.storageContainerResourceId,
+                                 landingZoneResources,
                                  azureConfig,
                                  config.runtimeDefaults.image
         ),
         WsmJobControl(createVmJobId)
       )
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
+        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, landingZoneResources.relayNamespace)
       )
     } yield ()
 
@@ -101,8 +105,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
       hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
-      primaryKey <- azureRelay.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext)
+      primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace, hcName, cloudContext)
       createDiskAction = createDisk(params, auth)
+      // TODO PR question: can we use one of the LZ subnets for this? Possibly the compute subnet?
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
@@ -117,7 +122,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           Some(samResourceId)
         )
         val arguments = List(
-          params.relayeNamespace.value,
+          params.landingZoneResources.relayNamespace.value,
           hcName.value,
           "localhost",
           primaryKey.value,
