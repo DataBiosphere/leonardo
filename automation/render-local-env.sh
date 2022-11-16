@@ -20,6 +20,8 @@ if [[ -n "${BEE_NAME}" ]]; then
   RAWLS_URL="https://rawls.${BEE_DOMAIN}"
   SAM_URL="https://sam.${BEE_DOMAIN}"
   THURLOE_URL="https://thurloe.${BEE_DOMAIN}"
+else
+  exit "Missing environment variable BEE_NAME. Example: bee-qi-glad-raccoon"
 fi
 
 FC_INSTANCE=fiab
