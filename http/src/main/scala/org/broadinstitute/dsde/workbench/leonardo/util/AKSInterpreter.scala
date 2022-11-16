@@ -395,7 +395,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   }
 
   override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val DeleteAKSAppParams(appName, workspaceId, cloudContext, keepHistory) = params
+    val DeleteAKSAppParams(appName, workspaceId, landingZoneResourcesOpt, cloudContext, keepHistory) = params
     for {
       ctx <- ev.ask
 
@@ -416,7 +416,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       clusterId = dbCluster.getClusterId
 
       // Get resources from landing zone
-      landingZoneResources = getLandingZoneResources
+      landingZoneResources <- F.fromOption(
+        landingZoneResourcesOpt,
+        AppCreationException(
+          s"Landing Zone Resources not found in app creation params for app ${app.appName.value}",
+          Some(ctx.traceId)
+        )
+      )
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
