@@ -321,19 +321,15 @@ object AppType {
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
-  case object CromwellOnAzure extends AppType {
-    override def toString: String = "CROMWELL_ON_AZURE"
-  }
 
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy          => FormattedBy.Galaxy
-      case Cromwell        => FormattedBy.Cromwell
-      case Custom          => FormattedBy.Custom
-      case CromwellOnAzure => FormattedBy.Cromwell
+      case Galaxy   => FormattedBy.Galaxy
+      case Cromwell => FormattedBy.Cromwell
+      case Custom   => FormattedBy.Custom
     }
 }
 

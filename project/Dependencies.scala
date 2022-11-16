@@ -115,8 +115,6 @@ object Dependencies {
     excludeBouncyCastlePkix)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
-  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.275-SNAPSHOT"
-
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
 
@@ -151,7 +149,7 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
-    "com.github.pureconfig" %% "pureconfig" % "0.17.1" % Provided,
+    "com.github.pureconfig" %% "pureconfig" % "0.17.2" % Provided,
     sealerate,
     enumeratum,
     circeYaml,

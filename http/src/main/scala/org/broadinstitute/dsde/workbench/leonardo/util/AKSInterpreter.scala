@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNam
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName, streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
@@ -91,8 +92,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      // Get resources from landing zone
-      landingZoneResources = getLandingZoneResources
+      landingZoneResources <- F.fromOption(
+        params.landingZoneResourcesOpt,
+        AppCreationException(
+          s"Landing Zone Resources not found in app creation params for app ${app.appName.value}",
+          Some(ctx.traceId)
+        )
+      )
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
@@ -361,18 +367,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     } yield authContext
-
-  // TODO (TOAZ-232): replace hard-coded values with LZ API calls
-  private def getLandingZoneResources: LandingZoneResources =
-    LandingZoneResources(
-      AKSClusterName("cluster-name"),
-      BatchAccountName("batch-account"),
-      RelayNamespace("relay-namespace"),
-      StorageAccountName("storage-account"),
-      NetworkName("vnet"),
-      SubnetworkName("BATCH_SUBNET"),
-      SubnetworkName("AKS_SUBNET")
-    )
 
   private[util] def buildMsiManager(cloudContext: AzureCloudContext): F[MsiManager] = {
     val azureProfile =

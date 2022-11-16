@@ -618,10 +618,16 @@ class AzurePubsubHandlerSpec
       makeAzurePubsubHandler(asyncTaskQueue = queue, aksAlg = failAksInterp)
 
     val appId = AppId(42)
+
     val res = for {
       ctx <- appContext.ask[AppContext]
       result <- azureInterp
-        .createAndPollApp(appId, AppName("app"), WorkspaceId(UUID.randomUUID()), azureCloudContext)
+        .createAndPollApp(appId,
+                          AppName("app"),
+                          WorkspaceId(UUID.randomUUID()),
+                          Some(landingZoneResources),
+                          azureCloudContext
+        )
         .attempt
     } yield result shouldBe Left(
       PubsubKubernetesError(
