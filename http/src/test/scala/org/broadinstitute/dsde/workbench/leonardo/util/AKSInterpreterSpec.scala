@@ -9,6 +9,7 @@ import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, Virtual
 import com.azure.resourcemanager.containerservice.models.KubernetesCluster
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.{Identities, Identity}
+import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
@@ -29,6 +30,7 @@ import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+import scalacache.Cache
 
 import java.nio.file.Files
 import java.util.Base64
@@ -59,7 +61,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockSamDAO,
     mockCromwellDAO,
     mockCbasDAO,
-    mockWdsDAO
+    mockWdsDAO,
+    mock[Cache[IO, AKSClusterName, ApiClient]]
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)

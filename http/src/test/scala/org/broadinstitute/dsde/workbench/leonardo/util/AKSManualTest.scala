@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
+import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService
@@ -34,6 +35,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import scalacache.Cache
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext
@@ -150,14 +152,16 @@ object AKSManualTest {
       appMonitorConfig
     )
     // TODO Sam and Cromwell should not be using mocks
-  } yield new AKSInterpreter(config,
-                             helmClient,
-                             containerService,
-                             relayService,
-                             mock[SamDAO[IO]],
-                             mock[CromwellDAO[IO]],
-                             mock[CbasDAO[IO]],
-                             mock[WdsDAO[IO]]
+  } yield new AKSInterpreter(
+    config,
+    helmClient,
+    containerService,
+    relayService,
+    mock[SamDAO[IO]],
+    mock[CromwellDAO[IO]],
+    mock[CbasDAO[IO]],
+    mock[WdsDAO[IO]],
+    mock[Cache[IO, AKSClusterName, ApiClient]]
   )
 
   /** Deploys a CoA app */
