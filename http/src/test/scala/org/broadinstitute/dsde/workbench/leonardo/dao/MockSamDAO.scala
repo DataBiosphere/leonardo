@@ -325,7 +325,10 @@ class MockSamDAO extends SamDAO[IO] {
   ): IO[Option[String]] = IO.pure(Some("token"))
 
   /** Deletes a Sam resource R using the provided bearer token. */
-  override def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
 }
 
 object MockSamDAO {
