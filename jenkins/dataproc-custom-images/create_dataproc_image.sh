@@ -25,7 +25,7 @@ gsutil ls $TEST_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$TEST_B
 pushd $WORK_DIR
 
 customDataprocImageBaseName="test"
-dp_version_formatted="2-0-39-debian10"
+dp_version_formatted="2-0-51-debian10"
 # This needs to be unique for each run
 imageID=$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
 
