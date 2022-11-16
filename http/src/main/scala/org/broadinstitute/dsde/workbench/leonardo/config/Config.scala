@@ -607,10 +607,6 @@ object Config {
   implicit private val galaxyDrsUrlReader: ValueReader[GalaxyDrsUrl] = stringValueReader.map(GalaxyDrsUrl)
 
   implicit private val galaxyAppConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
-    val drsUrl = config.as[String]("drsResolver") match {
-      case "martha" => config.as[GalaxyDrsUrl]("marthaUrl")
-      case "drshub" => config.as[GalaxyDrsUrl]("drshubUrl")
-    }
     GalaxyAppConfig(
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[ChartName]("chartName"),
@@ -621,7 +617,7 @@ object Config {
       config.as[Boolean]("uninstallKeepHistory"),
       config.as[DbPassword]("postgres.password"),
       config.as[GalaxyOrchUrl]("orchUrl"),
-      drsUrl,
+      config.as[GalaxyDrsUrl]("drsUrl"),
       config.as[Int]("minMemoryGb"),
       config.as[Int]("minNumOfCpus")
     )
