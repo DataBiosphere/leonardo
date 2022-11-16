@@ -451,7 +451,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-      // delete the namespace only after the helm uninstall completes
+      // delete the namespace only after the helm uninstall completes.
       _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId, kubernetesNamespace)
 
       fa = kubeService
