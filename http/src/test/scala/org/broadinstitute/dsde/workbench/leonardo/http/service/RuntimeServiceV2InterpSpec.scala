@@ -157,8 +157,8 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        relayNamespace,
         storageContainerResourceId,
+        Some(landingZoneResources),
         Some(context.traceId)
       )
       message shouldBe expectedMessage

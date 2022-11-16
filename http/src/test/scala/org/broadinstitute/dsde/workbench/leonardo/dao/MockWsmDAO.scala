@@ -5,19 +5,9 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.{
-  AzureCloudContext,
-  ContainerName,
-  ManagedResourceGroupName,
-  RelayNamespace,
-  SubscriptionId,
-  TenantId
-}
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
-  AKS_NODE_POOL_SUBNET,
-  SHARED_RESOURCE,
-  WORKSPACE_BATCH_SUBNET
-}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, ContainerName, ManagedResourceGroupName, RelayNamespace, SubscriptionId, TenantId}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -150,6 +140,16 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
           ),
           None
         )
+      )
+    )
+
+  override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[LandingZoneResources] =
+    IO.pure(
+      LandingZoneResources(
+        AKSClusterName(""), BatchAccountName(""), RelayNamespace(""), StorageAccountName(""), NetworkName(""),
+        SubnetworkName(""), SubnetworkName("")
       )
     )
 
