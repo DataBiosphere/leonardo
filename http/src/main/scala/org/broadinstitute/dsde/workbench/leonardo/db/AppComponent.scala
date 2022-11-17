@@ -273,10 +273,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .filter(_.status =!= (AppStatus.Deleted: AppStatus))
       .filter(_.destroyedDate === dummyDate)
 
-  private[db] def filterByWorkspaceId(query: Query[AppTable, AppRecord, Seq], workspaceId: Option[WorkspaceId]): Query[AppTable, AppRecord, Seq] =
+  private[db] def filterByWorkspaceId(query: Query[AppTable, AppRecord, Seq],
+                                      workspaceId: Option[WorkspaceId]
+  ): Query[AppTable, AppRecord, Seq] =
     workspaceId match {
       case Some(wid) => query.filter(_.workspaceId === wid)
-      case None => query
+      case None      => query
     }
 }
 

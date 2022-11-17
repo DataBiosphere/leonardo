@@ -3,7 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
-import org.broadinstitute.dsde.workbench.leonardo.{KubernetesClusterAsyncFields, KubernetesClusterStatus, NodepoolStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  KubernetesClusterAsyncFields,
+  KubernetesClusterStatus,
+  NodepoolStatus
+}
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.time.Instant

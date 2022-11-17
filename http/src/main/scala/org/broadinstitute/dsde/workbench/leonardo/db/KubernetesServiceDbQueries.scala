@@ -19,6 +19,7 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 object KubernetesServiceDbQueries {
+
   /**
    * List all apps in the given CloudContext, with optional label filter.
    * This method should be used by v1 app routes. v2 apps should use `listFullAppsByWorkspaceId`.
@@ -99,12 +100,12 @@ object KubernetesServiceDbQueries {
    * This method should be used by v1 app routes. v2 apps should use `getActiveFullAppByWorkspaceIdAndAppName`.
    */
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
-                                                                                                          ec: ExecutionContext
+    ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
     getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
-      nodepoolQuery,
-      appQuery.findActiveByNameQuery(appName),
-      labelFilter
+                     nodepoolQuery,
+                     appQuery.findActiveByNameQuery(appName),
+                     labelFilter
     )
 
   /**

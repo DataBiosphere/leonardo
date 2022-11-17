@@ -88,7 +88,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     val appName = AppName("test")
     makeApp(1, savedNodepool1.id).copy(appName = appName).save()
 
-    an [AppExistsForCloudContextException] shouldBe thrownBy {
+    an[AppExistsForCloudContextException] shouldBe thrownBy {
       makeApp(2, savedNodepool2.id).copy(appName = appName).save()
     }
   }
