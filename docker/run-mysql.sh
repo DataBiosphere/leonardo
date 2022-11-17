@@ -7,6 +7,10 @@ start() {
     echo "attempting to remove old $CONTAINER container..."
     docker rm -f $CONTAINER || echo "docker rm failed. $CONTAINER not found."
 
+    # this is a necessary step for m1 laptops since a linux/arm64 image does not exist for mysql:5.6
+    echo "pulling mysql docker image"
+    docker pull --platform linux/x86_64 mysql:5.6
+
     # start up mysql
     echo "starting up mysql container..."
     docker run --name $CONTAINER \
