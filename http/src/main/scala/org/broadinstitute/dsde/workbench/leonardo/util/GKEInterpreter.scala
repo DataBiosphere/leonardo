@@ -1551,6 +1551,13 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
       raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
       raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Set replicaCount to 0
+      raw"""galaxy.workflowHandlers.replicaCount=0""",
+      raw"""galaxy.webHandlers.replicaCount=0""",
+      raw"""galaxy.jobHandlers.replicaCount=0""",
+      raw"""galaxy.celery.replicaCount=0""",
+      raw"""galaxy.celeryBeat.replicaCount=0""",
+
       // Set RabbitMQ storage class
       raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
       // Set Machine Type specs
