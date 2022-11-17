@@ -37,7 +37,7 @@ Ensure docker is running. Spin up MySQL locally:
 ```
 $ ./docker/run-mysql.sh start leonardo  
 ```
-If you have an M1 laptop, pull the x86_64 mysql image:
+If you have an M1 laptop and see an error, force pull the x86_64 mysql image:
 ```
 docker pull --platform linux/x86_64 mysql:5.6
 ```
