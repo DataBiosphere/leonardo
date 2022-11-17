@@ -80,4 +80,17 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     caught.getMessage should include("FK_APP_NODEPOOL_ID")
   }
 
+  it should "enforce uniqueness on (name, cloudContext)" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
+
+    val appName = AppName("test")
+    makeApp(1, savedNodepool1.id).copy(appName = appName).save()
+
+    an [AppExistsForCloudContextException] shouldBe thrownBy {
+      makeApp(2, savedNodepool2.id).copy(appName = appName).save()
+    }
+  }
+
 }

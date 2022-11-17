@@ -4,22 +4,7 @@ import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
-import org.broadinstitute.dsde.workbench.leonardo.{
-  App,
-  CloudContext,
-  CommonTestData,
-  DataprocInstance,
-  DefaultNodepool,
-  GcsPathUtils,
-  KubernetesCluster,
-  KubernetesClusterLeoId,
-  LeonardoTestSuite,
-  Nodepool,
-  PersistentDisk,
-  Runtime,
-  RuntimeConfig,
-  RuntimeName
-}
+import org.broadinstitute.dsde.workbench.leonardo.{App, CloudContext, CommonTestData, DataprocInstance, DefaultNodepool, GcsPathUtils, KubernetesCluster, KubernetesClusterLeoId, LeonardoTestSuite, Nodepool, PersistentDisk, Runtime, RuntimeConfig, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.ServiceAccountKeyId
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -197,8 +182,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             DefaultNodepool.fromNodepool(
               c.nodepools.headOption
                 .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
-            ),
-            c.workspaceId
+            )
           )
         )
       }
@@ -218,7 +202,6 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.auditInfo.destroyedDate.getOrElse(dummyDate),
             c.auditInfo.dateAccessed,
             c.ingressChart,
-            None,
             None,
             None,
             None,

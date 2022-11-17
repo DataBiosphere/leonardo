@@ -7,11 +7,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGooglePublisher,
-  FakeGoogleResourceService
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -23,17 +19,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfi
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  CreateAppV2Message,
-  DeleteAppMessage,
-  DeleteAppV2Message
-}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  ClusterNodepoolAction,
-  LeoPubsubMessage,
-  LeoPubsubMessageType
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateAppV2Message, DeleteAppMessage, DeleteAppV2Message}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage, LeoPubsubMessageType}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -68,6 +55,26 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
       )
   }
+  val appServiceInterp = new LeoAppServiceInterp[IO](
+    appServiceConfig,
+    whitelistAuthProvider,
+    serviceAccountProvider,
+    QueueFactory.makePublisherQueue(),
+    FakeGoogleComputeService,
+    FakeGoogleResourceService,
+    gkeCustomAppConfig,
+    wsmDao
+  )
+  val gcpWorkspaceAppServiceInterp = new LeoAppServiceInterp[IO](
+    appServiceConfig,
+    whitelistAuthProvider,
+    serviceAccountProvider,
+    QueueFactory.makePublisherQueue(),
+    FakeGoogleComputeService,
+    FakeGoogleResourceService,
+    gkeCustomAppConfig,
+    gcpWsmDao
+  )
 
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
@@ -80,27 +87,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                 gkeCustomAppConfig,
                                 wsmDao
     )
-  val appServiceInterp = new LeoAppServiceInterp[IO](
-    appServiceConfig,
-    whitelistAuthProvider,
-    serviceAccountProvider,
-    QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService,
-    FakeGoogleResourceService,
-    gkeCustomAppConfig,
-    wsmDao
-  )
-
-  val gcpWorkspaceAppServiceInterp = new LeoAppServiceInterp[IO](
-    appServiceConfig,
-    whitelistAuthProvider,
-    serviceAccountProvider,
-    QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService,
-    FakeGoogleResourceService,
-    gkeCustomAppConfig,
-    gcpWsmDao
-  )
 
   def makeGcpWorkspaceInterp(queue: Queue[IO, LeoPubsubMessage]) =
     new LeoAppServiceInterp[IO](appServiceConfig,
@@ -1460,13 +1446,12 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val clusters = dbFutureValue {
-      KubernetesServiceDbQueries.listAppsByWorkspaceId(Some(workspaceId))
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId))
     }
     clusters.length shouldEqual 1
     clusters.flatMap(_.nodepools).length shouldEqual 1
     val cluster = clusters.head
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
-    cluster.workspaceId shouldEqual Some(workspaceId)
 
     val nodepool = clusters.flatMap(_.nodepools).head
     nodepool.machineType shouldEqual appReq.kubernetesRuntimeConfig.get.machineType
@@ -1480,6 +1465,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     app.chart shouldEqual galaxyChart
     app.auditInfo.creator shouldEqual userInfo.userEmail
     app.customEnvironmentVariables shouldEqual customEnvVars
+    app.workspaceId shouldEqual Some(workspaceId)
 
     val savedDisk = dbFutureValue {
       persistentDiskQuery.getById(app.appResources.disk.get.id)
@@ -1501,13 +1487,12 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val clusters = dbFutureValue {
-      KubernetesServiceDbQueries.listAppsByWorkspaceId(Some(workspaceId))
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId))
     }
     clusters.length shouldEqual 1
     clusters.flatMap(_.nodepools).length shouldEqual 1
     val cluster = clusters.head
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
-    cluster.workspaceId shouldEqual Some(workspaceId)
     cluster.status shouldEqual KubernetesClusterStatus.Running
 
     val nodepool = clusters.flatMap(_.nodepools).head
@@ -1525,6 +1510,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     app.customEnvironmentVariables shouldEqual customEnvVars
     app.status shouldEqual AppStatus.Precreating
     app.appResources.disk shouldEqual None
+    app.workspaceId shouldEqual Some(workspaceId)
   }
 
   it should "V2 Azure - throw an error when providing a machine config" in isolatedDbTest {
@@ -1650,7 +1636,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .deleteAppV2(userInfo, workspaceId, appName, false)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
     }
 
     clusterPostDelete.length shouldEqual 1
@@ -1699,7 +1685,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .deleteAppV2(userInfo, workspaceId, appName, false)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
     }
 
     clusterPostDelete.length shouldEqual 1
