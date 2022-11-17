@@ -128,7 +128,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
     Config.gkeGalaxyDiskConfig shouldBe expectedResult
   }
 
-  it should "read AppMonitorConfig properly" in {
+  it should "read gkeGalaxyAppConfig properly" in {
     val expectedResult =
       AppMonitorConfig(
         PollMonitorConfig(10 seconds, 90, 10 seconds),
@@ -142,6 +142,6 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         PollMonitorConfig(0 days, 10, 2 seconds),
         InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes)
       )
-    Config.gkeMonitorConfig shouldBe expectedResult
+    Config.gkeGalaxyAppConfig shouldBe expectedResult
   }
 }
