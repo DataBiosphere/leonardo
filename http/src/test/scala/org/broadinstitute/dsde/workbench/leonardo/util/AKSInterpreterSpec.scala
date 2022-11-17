@@ -10,6 +10,17 @@ import com.azure.resourcemanager.containerservice.models.KubernetesCluster
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import io.kubernetes.client.openapi.ApiClient
+import io.kubernetes.client.openapi.apis.CoreV1Api
+import io.kubernetes.client.openapi.models.{
+  V1Namespace,
+  V1NamespaceList,
+  V1NamespaceStatus,
+  V1ObjectMeta,
+  V1Pod,
+  V1PodList,
+  V1PodStatus,
+  V1Status
+}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
@@ -26,7 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.mockito.ArgumentMatchers.{any, anyString}
+import org.mockito.ArgumentMatchers.{any, anyBoolean, anyInt, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -66,6 +77,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
+    override private[util] def buildCoreV1Client(cloudContext: AzureCloudContext,
+                                                 clusterName: AKSClusterName
+    ): IO[CoreV1Api] = IO.pure(setUpMockKubeAPI)
   }
 
   val cloudContext = AzureCloudContext(
@@ -165,7 +179,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val deletion = for {
       _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, Option(landingZoneResources), cloudContext))
       app <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
+        .getFullAppByName(CloudContext.Azure(cloudContext), app.id)
         .transaction
     } yield {
       app shouldBe defined
@@ -250,11 +264,41 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     container
   }
 
+  private def setUpMockKubeAPI: CoreV1Api = {
+    val coreV1Api = mock[CoreV1Api]
+    val podList = mock[V1PodList]
+    val mockPod = mock[V1Pod]
+    val mockNamespace = mock[V1NamespaceList]
+    val mockV1Status = mock[V1Status]
+    when {
+      coreV1Api.listNamespacedPod(any, any, any, any, any, any, any, any, any, any, any)
+    } thenReturn podList
+    when {
+      podList.getItems
+    } thenReturn List(mockPod).asJava
+    when {
+      mockPod.getStatus
+    } thenReturn new V1PodStatus().phase("Failed")
+    when {
+      coreV1Api.listNamespace(any, any, any, any, any, any, any, any, any, any)
+    } thenReturn mockNamespace
+    when {
+      mockNamespace.getItems
+    } thenReturn List.empty.asJava
+    when {
+      coreV1Api.deleteNamespace(any, any, any, any, any, any, any)
+    } thenReturn mockV1Status
+    coreV1Api
+  }
+
   private def setUpMockSamDAO: SamDAO[IO] = {
     val sam = mock[SamDAO[IO]]
     when {
       sam.getCachedArbitraryPetAccessToken(any)(any)
     } thenReturn IO.pure(Some("token"))
+    when {
+      sam.deleteResourceInternal(any, any)(any, any)
+    } thenReturn IO.unit
     sam
   }
 

@@ -27,10 +27,9 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   KubernetesApiServerIp,
   KubernetesNamespace,
-  KubernetesPodStatus,
   PodStatus
 }
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, PodName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
 import org.broadinstitute.dsde.workbench.google2.{
@@ -77,10 +76,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
   implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
-  private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
-    pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
-  implicit private def podDoneCheckable: DoneCheckable[List[KubernetesPodStatus]] =
-    (ps: List[KubernetesPodStatus]) => ps.forall(isPodDone)
+  private[util] def isPodDone(podStatus: PodStatus): Boolean =
+    podStatus == PodStatus.Failed || podStatus == PodStatus.Succeeded
+  implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
+    (ps: List[PodStatus]) => ps.forall(isPodDone)
 
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
@@ -459,10 +458,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <-
         if (!podDoneCheckable.isDone(last)) {
           val msg =
-            s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
-                .filterNot(isPodDone)
-                .map(_.name.value)
-                .mkString(", ")}"
+            s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppDeletionException(msg))
         } else F.unit
@@ -495,52 +491,52 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- tokenOpt match {
         case Some(token) =>
           for {
-            _ <- logger.info(ctx.loggingCtx)(s"Deleting app resources ${app.appResources} in Sam")
+//            _ <- logger.info(s"Deleting app resources ${app.appResources} in Sam")
             _ <- samDao.deleteResourceInternal(dbApp.app.samResourceId,
                                                Authorization(Credentials.Token(AuthScheme.Bearer, token))
             )
 
           } yield ()
         case None =>
-          logger.warn(ctx.loggingCtx)(
+          logger.warn(
             s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
           )
       }
 
-      _ <- logger.info(ctx.loggingCtx)(
+      _ <- logger.info(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterName}"
       )
 
       _ <- appQuery.updateStatus(app.id, AppStatus.Deleted).transaction
 
-      _ <- logger.info(ctx.loggingCtx)(s"Done deleting app $appName in workspace $workspaceId")
+      _ <- logger.info(s"Done deleting app $appName in workspace $workspaceId")
     } yield ()
 
   }
 
-  private def getNewApiClient(clusterName: AKSClusterName, cloudContext: AzureCloudContext): F[ApiClient] = {
-    // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
-    implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
+  private def getNewApiClient(clusterName: AKSClusterName, cloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, TraceId]
+  ): F[ApiClient] =
     for {
       credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
       client <- createClient(
         credentials
       )
     } yield client
-  }
 
   // DO NOT QUERY THE CACHE DIRECTLY
   // There is a wrapper method that is necessary to ensure the token is refreshed
   // we never make the entry stale, because we always need to refresh the token (see comment above getToken)
   // if we did stale the entry we would have to unnecessarily re-do the google call
-  private def getClient[A](cloudContext: AzureCloudContext, clusterName: AKSClusterName, fa: ApiClient => A)(implicit
-    ev: Ask[F, TraceId]
-  ): F[A] =
+  private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
+    // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
+    implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
     for {
       client <- apiClientCache.cachingF(clusterName)(None)(getNewApiClient(clusterName, cloudContext))
       credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
       _ <- F.blocking(client.setApiKey(credentials.token.value))
-    } yield fa(client)
+    } yield new CoreV1Api(client)
+  }
 
   private def deleteNamespace(cloudContext: AzureCloudContext,
                               clusterName: AKSClusterName,
@@ -550,7 +546,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[Unit] = {
     val delete = for {
       traceId <- ev.ask
-      client <- getClient(cloudContext, clusterName, new CoreV1Api(_))
+      client <- buildCoreV1Client(cloudContext, clusterName)
       call =
         recoverF(
           F.blocking(
@@ -593,10 +589,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                             namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, TraceId]
-  ): F[List[KubernetesPodStatus]] =
+  ): F[List[PodStatus]] =
     for {
       traceId <- ev.ask
-      client <- getClient(cloudContext, clusterName, new CoreV1Api(_))
+      client <- buildCoreV1Client(cloudContext, clusterName)
       call =
         F.blocking(
           client.listNamespacedPod(namespace.name.value, "true", null, null, null, null, null, null, null, null, null)
@@ -608,19 +604,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}, true, null, null, null, null, null, null, null, null)"
       )
 
-      listPodStatus = Option(response.getItems)
-        .map { l =>
-          l.asScala.toList.foldMap(v1Pod =>
-            PodStatus.stringToPodStatus
-              .get(v1Pod.getStatus.getPhase)
-              .map(s => List(KubernetesPodStatus(PodName(v1Pod.getMetadata.getName), s)))
-              .toRight(new RuntimeException(s"Unknown Google status ${v1Pod.getStatus.getPhase}"))
-          )
-        }
-        .getOrElse(Nil.asRight[RuntimeException])
+      listPodStatus: List[PodStatus] = response.getItems.asScala.toList.flatMap(v1Pod =>
+        PodStatus.stringToPodStatus
+          .get(v1Pod.getStatus.getPhase)
+      )
 
-      res <- F.fromEither(listPodStatus)
-    } yield res
+    } yield listPodStatus
 
   // The underlying http client for ApiClient claims that it releases idle threads and that shutdown is not necessary
   // Here is a guide on how to proactively release resource if this proves to be problematic https://square.github.io/okhttp/4.x/okhttp/okhttp3/-ok-http-client/#shutdown-isnt-necessary
@@ -650,7 +639,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[Boolean] =
     for {
       traceId <- ev.ask
-      client <- getClient(cloudContext, clusterName, new CoreV1Api(_))
+      client <- buildCoreV1Client(cloudContext, clusterName)
       call =
         recoverF(
           F.blocking(
