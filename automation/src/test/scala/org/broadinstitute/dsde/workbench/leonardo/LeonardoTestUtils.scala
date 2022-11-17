@@ -355,7 +355,7 @@ trait LeonardoTestUtils
     runningOrErroredRuntime.foreach { getRuntimeResponseCopy =>
       if (getRuntimeResponseCopy.status == ClusterStatus.Running) {
 
-        saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "create")
+        saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", ".welder.log"), "create")
       }
     }
 
