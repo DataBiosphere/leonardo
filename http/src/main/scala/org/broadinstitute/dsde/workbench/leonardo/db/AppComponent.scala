@@ -24,6 +24,7 @@ final case class AppRecord(id: AppId,
                            nodepoolId: NodepoolLeoId,
                            appType: AppType,
                            appName: AppName,
+                           workspaceId: Option[WorkspaceId],
                            status: AppStatus,
                            chart: Chart,
                            release: Release,
@@ -42,11 +43,12 @@ final case class AppRecord(id: AppId,
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
-  // unique (appName, destroyedDate)
+  // unique (appName, nodepoolId, destroyedDate)
   def id = column[AppId]("id", O.PrimaryKey, O.AutoInc)
   def nodepoolId = column[NodepoolLeoId]("nodepoolId")
   def appType = column[AppType]("appType", O.Length(254))
   def appName = column[AppName]("appName", O.Length(254))
+  def workspaceId = column[Option[WorkspaceId]]("workspaceId", O.Length(254))
   def status = column[AppStatus]("status", O.Length(254))
   def chart = column[Chart]("chart", O.Length(254))
   def release = column[Release]("release", O.Length(254))
@@ -69,6 +71,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       nodepoolId,
       appType,
       appName,
+      workspaceId,
       status,
       chart,
       release,
@@ -100,6 +103,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.nodepoolId,
       app.appType,
       app.appName,
+      app.workspaceId,
       app.status,
       app.chart,
       app.release,
@@ -173,6 +177,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.nodepoolId,
         saveApp.app.appType,
         saveApp.app.appName,
+        saveApp.app.workspaceId,
         saveApp.app.status,
         saveApp.app.chart,
         saveApp.app.release,
@@ -267,6 +272,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
     appQuery
       .filter(_.status =!= (AppStatus.Deleted: AppStatus))
       .filter(_.destroyedDate === dummyDate)
+
+  private[db] def filterByWorkspaceId(query: Query[AppTable, AppRecord, Seq], workspaceId: Option[WorkspaceId]): Query[AppTable, AppRecord, Seq] =
+    workspaceId match {
+      case Some(wid) => query.filter(_.workspaceId === wid)
+      case None => query
+    }
 }
 
 case class SaveApp(app: App)

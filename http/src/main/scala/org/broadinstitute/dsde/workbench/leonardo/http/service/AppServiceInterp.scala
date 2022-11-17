@@ -126,7 +126,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
 
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None, workspaceId)
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None)
       )
 
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
@@ -212,6 +212,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       lastUsedApp,
                       petSA,
                       nodepool.id,
+          None,
                       ctx
         )
       )
@@ -539,7 +540,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, None, None, Some(workspaceId))
+        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, None, None)
       )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       _ <-
@@ -609,6 +610,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           lastUsedApp,
           petSA,
           nodepool.id,
+          Some(workspaceId),
           ctx
         )
       )
@@ -760,8 +762,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     cloudContext: CloudContext,
     now: Instant,
     numNodepools: Option[NumNodepools],
-    clusterName: Option[KubernetesClusterName] = None,
-    workspaceId: Option[WorkspaceId]
+    clusterName: Option[KubernetesClusterName] = None
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -804,8 +805,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
-      defaultNodepool = nodepool,
-      workspaceId = workspaceId
+      defaultNodepool = nodepool
     )
   }
 
@@ -1037,6 +1037,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      lastUsedApp: Option[LastUsedApp],
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
+                                     workspaceId: Option[WorkspaceId],
                                      ctx: AppContext
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
@@ -1124,6 +1125,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         nodepoolId,
         req.appType,
         appName,
+        workspaceId,
         AppStatus.Precreating,
         chart,
         release,

@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.nonDeletedAppQuery
+import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByWorkspaceId, nonDeletedAppQuery}
 import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.ExecutionContext
@@ -38,9 +38,9 @@ object KubernetesServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
-      listClustersByWorkspaceId(workspaceId),
+      kubernetesClusterQuery,
       nodepoolQuery,
-      if (includeDeleted) appQuery else nonDeletedAppQuery,
+      filterByWorkspaceId(if (includeDeleted) appQuery else nonDeletedAppQuery, workspaceId),
       labelFilter
     )
 
@@ -90,9 +90,9 @@ object KubernetesServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
     getActiveFullApp(
-      listClustersByWorkspaceId(Some(workspaceId)),
+      kubernetesClusterQuery,
       nodepoolQuery,
-      appQuery.findActiveByNameQuery(appName),
+      filterByWorkspaceId(appQuery.findActiveByNameQuery(appName), Some(workspaceId)),
       labelFilter
     )
 
@@ -238,16 +238,6 @@ object KubernetesServiceDbQueries {
         kubernetesClusterQuery
           .filter(_.cloudProvider === context.cloudProvider)
           .filter(_.cloudContextDb === context.asCloudContextDb)
-      case None => kubernetesClusterQuery
-    }
-
-  private[db] def listClustersByWorkspaceId(
-    workspaceId: Option[WorkspaceId]
-  ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
-    workspaceId match {
-      case Some(wid) =>
-        kubernetesClusterQuery
-          .filter(_.workspaceId === wid)
       case None => kubernetesClusterQuery
     }
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="move_workspace_id_to_app_table">
+        <addColumn tableName="APP">
+            <column name="workspaceId" type="varchar(254)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <sql>
+            UPDATE APP a
+            JOIN NODEPOOL n ON n.id = a.nodepoolId
+            JOIN KUBERNETES_CLUSTER k on k.id = n.clusterId
+            SET a.workspaceId = k.workspaceId
+            WHERE k.workspaceId IS NOT NULL
+        </sql>
+
+        <dropColumn tableName="KUBERNETES_CLUSTER" columnName="workspaceId"/>
+    </changeSet>
+</databaseChangeLog>

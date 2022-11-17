@@ -32,8 +32,7 @@ final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                          apiServerIp: Option[IP],
                                          networkName: Option[NetworkName],
                                          subNetworkName: Option[SubnetworkName],
-                                         subNetworkIpRange: Option[IpRange],
-                                         workspaceId: Option[WorkspaceId]
+                                         subNetworkIpRange: Option[IpRange]
 )
 
 case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecord](tag, "KUBERNETES_CLUSTER") {
@@ -54,7 +53,6 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def networkName = column[Option[NetworkName]]("networkName", O.Length(254))
   def subNetworkName = column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
   def subNetworkIpRange = column[Option[IpRange]]("subNetworkIpRange", O.Length(254))
-  def workspaceId = column[Option[WorkspaceId]]("workspaceId")
 
   def * =
     (id,
@@ -72,8 +70,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      apiServerIp,
      networkName,
      subNetworkName,
-     subNetworkIpRange,
-     workspaceId
+     subNetworkIpRange
     ).shaped <> ({
       case (id,
             (cloudProvider, cloudContextDb),
@@ -90,8 +87,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
             apiServerIp,
             networkName,
             subNetworkName,
-            subNetworkIpRange,
-            workspaceId
+            subNetworkIpRange
           ) =>
         KubernetesClusterRecord(
           id,
@@ -116,8 +112,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
           apiServerIp,
           networkName,
           subNetworkName,
-          subNetworkIpRange,
-          workspaceId
+          subNetworkIpRange
         )
     }, { r: KubernetesClusterRecord =>
       Some(
@@ -141,8 +136,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
          r.apiServerIp,
          r.networkName,
          r.subNetworkName,
-         r.subNetworkIpRange,
-         r.workspaceId
+         r.subNetworkIpRange
         )
       )
     })
@@ -274,8 +268,7 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
         case _ => None
       },
       namespaces,
-      nodepools,
-      cr.workspaceId
+      nodepools
     )
 
   private[db] def findByIdQuery(
@@ -309,8 +302,7 @@ case class SaveKubernetesCluster(cloudContext: CloudContext,
                                  status: KubernetesClusterStatus,
                                  ingressChart: Chart,
                                  auditInfo: AuditInfo,
-                                 defaultNodepool: DefaultNodepool, // Question: does this have to be `DefaultNodepool`?
-                                 workspaceId: Option[WorkspaceId]
+                                 defaultNodepool: DefaultNodepool // Question: does this have to be `DefaultNodepool`?
 ) {
   def toClusterRecord: KubernetesClusterRecord =
     KubernetesClusterRecord(
@@ -329,7 +321,6 @@ case class SaveKubernetesCluster(cloudContext: CloudContext,
       None,
       None,
       None,
-      None,
-      workspaceId
+      None
     )
 }
