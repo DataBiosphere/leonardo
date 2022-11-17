@@ -165,7 +165,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
   ): DBIO[Option[Nodepool]] =
     for {
       clusters <- kubernetesClusterQuery.joinMinimalClusterAndUnmarshal(
-        kubernetesClusterQuery.findActiveByNameQuery(cloudContext),
+        kubernetesClusterQuery.findActiveByCloudContextQuery(cloudContext),
         nodepoolQuery
           .filter(_.destroyedDate === dummyDate)
           .filterNot(_.isDefault)

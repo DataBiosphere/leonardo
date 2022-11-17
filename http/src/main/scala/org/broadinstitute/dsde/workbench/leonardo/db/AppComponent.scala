@@ -155,7 +155,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
           )(DBIO.successful(_))
         )
 
-      // here, we enforce uniqueness on (AppName, GoogleProject) for active apps
+      // here, we enforce uniqueness on (AppName, CloudContext) for active apps
       getAppResult <- KubernetesServiceDbQueries.getActiveFullAppByName(cluster.cloudContext, saveApp.app.appName)
       _ <- getAppResult.fold[DBIO[Unit]](DBIO.successful(()))(appResult =>
         DBIO.failed(AppExistsForCloudContextException(appResult.app.appName, cluster.cloudContext, traceId))

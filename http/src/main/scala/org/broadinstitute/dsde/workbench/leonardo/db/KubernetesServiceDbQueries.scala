@@ -1,26 +1,32 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.Chain
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByWorkspaceId, nonDeletedAppQuery}
 import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import DBIOInstances._
-import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByWorkspaceId, nonDeletedAppQuery}
 import org.broadinstitute.dsde.workbench.model.TraceId
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 object KubernetesServiceDbQueries {
-  // the 'full' here means that all joins possible are done, meaning all fields in the cluster, nodepool, and app will be present
-  // if you just need the cluster, nodepools, and cluster-wide namespaces, see the minimal join in the KubernetesClusterComponent
+  /**
+   * List all apps in the given CloudContext, with optional label filter.
+   * This method should be used by v1 app routes. v2 apps should use `listFullAppsByWorkspaceId`.
+   *
+   * Note: the 'full' here means that all joins possible are done, meaning all fields in the cluster, nodepool,
+   * and app will be present. If you just need the cluster, nodepools, and cluster-wide namespaces, see the minimal
+   * join in the KubernetesClusterComponent.
+   */
   def listFullApps(cloudContext: Option[CloudContext], labelFilter: LabelMap = Map(), includeDeleted: Boolean = false)(
     implicit ec: ExecutionContext
   ): DBIO[List[KubernetesCluster]] =
@@ -31,9 +37,13 @@ object KubernetesServiceDbQueries {
       labelFilter
     )
 
-  def listAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
-                            labelFilter: LabelMap = Map(),
-                            includeDeleted: Boolean = false
+  /**
+   * List all apps in the given workspace, with optional label filter.
+   * This method should be used by v2 app routes.
+   */
+  def listFullAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
+                                labelFilter: LabelMap = Map(),
+                                includeDeleted: Boolean = false
   )(implicit
     ec: ExecutionContext
   ): DBIO[List[KubernetesCluster]] =
@@ -44,7 +54,9 @@ object KubernetesServiceDbQueries {
       labelFilter
     )
 
-  // Called by MonitorAtBoot to determine which apps need monitoring
+  /**
+   * List all apps that need monitoring. Called by MonitorAtBoot.
+   */
   def listMonitoredApps(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status
     joinFullAppAndUnmarshal(
@@ -53,16 +65,15 @@ object KubernetesServiceDbQueries {
       appQuery.filter(_.status inSetBind AppStatus.monitoredStatuses)
     )
 
-  // this is intended to be called first by any kubernetes /app endpoints to enforce one cluster per project
-  // an error is thrown if the cluster is creating, due to the fact that we do not allow apps to be created while the cluster for that project is creating, since that means another app is already queued and waiting on this cluster
-  // if the cluster already exists, this is a no-op
-  // if the cluster does not exist, this also saves a dummy nodepool with the cluster.
-  // For more info on dummy nodepool, See: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/492175377/2020-05-29+Dummy+Nodepool+for+Galaxy
+  /**
+   * Looks up or persists a KubernetesCluster, and returns it.
+   * Throws an error if the cluster is in creating status.
+   */
   def saveOrGetClusterForApp(
     saveKubernetesCluster: SaveKubernetesCluster
   )(implicit ec: ExecutionContext): DBIO[SaveClusterResult] =
     for {
-      clusterOpt <- kubernetesClusterQuery.getMinimalActiveClusterByName(saveKubernetesCluster.cloudContext)
+      clusterOpt <- kubernetesClusterQuery.getMinimalActiveClusterByCloudContext(saveKubernetesCluster.cloudContext)
 
       eitherClusterOrError <- clusterOpt match {
         case Some(cluster) =>
@@ -83,6 +94,23 @@ object KubernetesServiceDbQueries {
       }
     } yield eitherClusterOrError
 
+  /**
+   * Gets an active app by name and cloud context.
+   * This method should be used by v1 app routes. v2 apps should use `getActiveFullAppByWorkspaceIdAndAppName`.
+   */
+  def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
+                                                                                                          ec: ExecutionContext
+  ): DBIO[Option[GetAppResult]] =
+    getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
+      nodepoolQuery,
+      appQuery.findActiveByNameQuery(appName),
+      labelFilter
+    )
+
+  /**
+   * Gets an active app by name and workspace.
+   * This method should be used by v2 app routes.
+   */
   def getActiveFullAppByWorkspaceIdAndAppName(workspaceId: WorkspaceId,
                                               appName: AppName,
                                               labelFilter: LabelMap = Map()
@@ -96,16 +124,10 @@ object KubernetesServiceDbQueries {
       labelFilter
     )
 
-  def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
-    ec: ExecutionContext
-  ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
-                     nodepoolQuery,
-                     appQuery.findActiveByNameQuery(appName),
-                     labelFilter
-    )
-
-  def getFullAppByName(cloudContext: CloudContext, appId: AppId, labelFilter: LabelMap = Map())(implicit
+  /**
+   * Gets an app by ID. This method is safe to use for both v1 and v2 routes.
+   */
+  def getFullAppById(cloudContext: CloudContext, appId: AppId, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
     getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
@@ -114,6 +136,10 @@ object KubernetesServiceDbQueries {
                      labelFilter
     )
 
+  /**
+   * Queries a cluster by ID, and returns true if the cluster has a nodepool operation (creation, deletion)
+   * in progress.
+   */
   def hasClusterOperationInProgress(clusterId: KubernetesClusterLeoId)(implicit
     ec: ExecutionContext
   ): DBIO[Boolean] =
@@ -177,21 +203,6 @@ object KubernetesServiceDbQueries {
       }
     } yield validatedApp
 
-  // if there are no apps associated with this cluster, None will be returned even if the cluster exists.
-  // see the `Minimal` methods if you wish to get the cluster itself
-  def getFullClusterById(id: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
-    joinFullAppAndUnmarshal(kubernetesClusterQuery.findByIdQuery(id), nodepoolQuery, appQuery)
-      .map(_.headOption)
-
-  def getAllNodepoolsForCluster(
-    clusterId: KubernetesClusterLeoId
-  )(implicit ec: ExecutionContext): DBIO[List[Nodepool]] =
-    for {
-      nodepools <- nodepoolQuery
-        .findActiveByClusterIdQuery(clusterId)
-        .result
-    } yield nodepools.map(rec => unmarshalNodepool(rec, List.empty)).toList
-
   def markPendingCreating(appId: AppId,
                           clusterId: Option[KubernetesClusterLeoId],
                           defaultNodepoolId: Option[NodepoolLeoId],
@@ -206,18 +217,7 @@ object KubernetesServiceDbQueries {
       _ <- appQuery.updateStatus(appId, AppStatus.Provisioning)
     } yield ()
 
-  def markPendingBatchCreating(clusterId: KubernetesClusterLeoId, nodepoolIds: List[NodepoolLeoId])(implicit
-    ec: ExecutionContext
-  ): DBIO[Unit] =
-    for {
-      _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Provisioning)
-      _ <- nodepoolQuery
-        .filter(_.id.inSet(nodepoolIds.toSet))
-        .map(_.status)
-        .update(NodepoolStatus.Provisioning)
-    } yield ()
-
-  def markPreDeleting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
+  def markPreDeleting(appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
     for {
       _ <- appQuery.updateStatus(appId, AppStatus.Predeleting)
     } yield ()

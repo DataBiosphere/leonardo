@@ -157,11 +157,11 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
     ).map(_.headOption)
 
   // this retrieves the nodepool and namespaces associated with a cluster
-  def getMinimalActiveClusterByName(
+  def getMinimalActiveClusterByCloudContext(
     cloudContext: CloudContext
   )(implicit ec: ExecutionContext): DBIO[Option[KubernetesCluster]] =
     joinMinimalClusterAndUnmarshal(
-      findActiveByNameQuery(cloudContext),
+      findActiveByCloudContextQuery(cloudContext),
       nodepoolQuery.filter(_.destroyedDate === dummyDate)
     ).map(_.headOption)
 
@@ -277,7 +277,7 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
     kubernetesClusterQuery
       .filter(_.id === id)
 
-  private[db] def findActiveByNameQuery(
+  private[db] def findActiveByCloudContextQuery(
     cloudContext: CloudContext
   ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
     kubernetesClusterQuery
