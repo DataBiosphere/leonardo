@@ -135,7 +135,7 @@ function apply_start_user_script() {
 # END
 STEP_TIMINGS=($(date +%s))
 # temp workaround for https://github.com/docker/compose/issues/5930
-export CLOUDSDK_PYTHON=python2
+export CLOUDSDK_PYTHON=python3
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
