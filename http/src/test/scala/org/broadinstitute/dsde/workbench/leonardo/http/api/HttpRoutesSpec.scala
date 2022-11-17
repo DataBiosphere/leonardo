@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResour
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -53,6 +54,20 @@ class HttpRoutesSpec
       refererConfig
     )
 
+  val routesWithStrictRefererConfig =
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      RefererConfig(Set("https://bvdp-saturn-dev.appspot.com/"), true)
+    )
+
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
     for {
       message <- h.downField("message").as[String]
@@ -74,9 +89,14 @@ class HttpRoutesSpec
       Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "random"), Map.empty, Map.empty, Map.empty))
     )
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
       status shouldEqual StatusCodes.BadRequest
       responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe true
+    }
+
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
     }
   }
 

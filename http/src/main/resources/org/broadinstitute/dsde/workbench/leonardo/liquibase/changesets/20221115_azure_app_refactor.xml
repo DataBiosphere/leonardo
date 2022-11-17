@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="update_app_unique_constraint">
+        <dropUniqueConstraint tableName="APP" constraintName="IDX_APP_UNIQUE"/>
+        <addUniqueConstraint columnNames="appName, nodepoolId, destroyedDate" constraintName="IDX_APP_UNIQUE" tableName="APP"/>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="app_error_ddl_update">
+        <sql>UPDATE APP_ERROR SET action = 'createApp' WHERE action = 'createGalaxyApp'</sql>
+        <sql>UPDATE APP_ERROR SET action = 'deleteApp' WHERE action = 'deleteGalaxyApp'</sql>
+        <sql>UPDATE APP_ERROR SET action = 'stopApp' WHERE action = 'stopGalaxyApp'</sql>
+        <sql>UPDATE APP_ERROR SET action = 'startApp' WHERE action = 'startGalaxyApp'</sql>
+    </changeSet>
+</databaseChangeLog>
