@@ -155,10 +155,17 @@ object appQuery extends TableQuery(new AppTable(_)) {
           )(DBIO.successful(_))
         )
 
-      // here, we enforce uniqueness on (AppName, CloudContext) for active apps
-      getAppResult <- KubernetesServiceDbQueries.getActiveFullAppByName(cluster.cloudContext, saveApp.app.appName)
+      // v1 apps are unique by (appName, cloudContext)
+      // v2 apps are unique by (appName, workspace)
+      // This must be enforced at the code level, because the DB schema handles both v1 and v2.
+      getAppResult <- saveApp.app.workspaceId match {
+        case Some(wid) => KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(wid, saveApp.app.appName)
+        case None      => KubernetesServiceDbQueries.getActiveFullAppByName(cluster.cloudContext, saveApp.app.appName)
+      }
       _ <- getAppResult.fold[DBIO[Unit]](DBIO.successful(()))(appResult =>
-        DBIO.failed(AppExistsForCloudContextException(appResult.app.appName, cluster.cloudContext, traceId))
+        DBIO.failed(
+          AppExistsException(appResult.app.appName, saveApp.app.workspaceId.toLeft(cluster.cloudContext), traceId)
+        )
       )
 
       namespace <-
@@ -283,9 +290,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
 }
 
 case class SaveApp(app: App)
-case class AppExistsForCloudContextException(appName: AppName, cloudContext: CloudContext, traceId: Option[TraceId])
-    extends LeoException(
-      s"An app with name ${appName} already exists for the ${cloudContext.asStringWithProvider}.",
+case class AppExistsException(appName: AppName,
+                              workspaceOrCloudContext: Either[WorkspaceId, CloudContext],
+                              traceId: Option[TraceId]
+) extends LeoException(
+      s"An app with name ${appName.value} already exists for ${workspaceOrCloudContext
+          .fold(wid => s"workspace ${wid.value}", _.asStringWithProvider)}.",
       StatusCodes.Conflict,
       traceId = traceId
     )
