@@ -16,5 +16,8 @@
         </sql>
 
         <dropColumn tableName="KUBERNETES_CLUSTER" columnName="workspaceId"/>
+
+        <dropUniqueConstraint tableName="APP" constraintName="IDX_APP_UNIQUE"/>
+        <addUniqueConstraint columnNames="appName, nodepoolId, workspaceId, destroyedDate" constraintName="IDX_APP_UNIQUE" tableName="APP"/>
     </changeSet>
 </databaseChangeLog>

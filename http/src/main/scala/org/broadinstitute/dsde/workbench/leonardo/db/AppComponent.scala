@@ -43,7 +43,7 @@ final case class AppRecord(id: AppId,
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
-  // unique (appName, nodepoolId, destroyedDate)
+  // unique (appName, nodepoolId, workspaceId, destroyedDate)
   def id = column[AppId]("id", O.PrimaryKey, O.AutoInc)
   def nodepoolId = column[NodepoolLeoId]("nodepoolId")
   def appType = column[AppType]("appType", O.Length(254))
