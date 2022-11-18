@@ -130,6 +130,7 @@ fi
 function make_jar()
 {
     echo "building jar..."
+    docker version
     # start test db
     bash ./docker/run-mysql.sh start ${TARGET} ${DB_CONTAINER}
 
@@ -143,7 +144,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          hseeberger/scala-sbt:graalvm-ce-21.3.0-java17_1.6.2_2.13.8 \
+                          sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db

@@ -121,7 +121,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
         appName,
         req
       )
-      _ <- metrics.incrementCounter("createApp")
+      tags = Map("appType" -> req.appType.toString)
+      _ <- metrics.incrementCounter("createApp", 1, tags)
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -167,17 +168,12 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       ctx <- ev.ask[AppContext]
       // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
       deleteDisk = params.get("deleteDisk").exists(_ == "true")
-      deleteParams = DeleteAppRequest(
+      apiCall = kubernetesService.deleteApp(
         userInfo,
         CloudContext.Gcp(googleProject),
         appName,
         deleteDisk
       )
-      apiCall = kubernetesService.deleteApp(
-        deleteParams
-      )
-      tags = Map("deleteDisk" -> deleteDisk.toString)
-      _ <- metrics.incrementCounter("deleteApp", 1, tags)
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -187,7 +183,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
     for {
       ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.stopApp(userInfo, CloudContext.Gcp(googleProject), appName)
-      _ <- metrics.incrementCounter("stopApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "stopApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -197,7 +192,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
     for {
       ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.startApp(userInfo, CloudContext.Gcp(googleProject), appName)
-      _ <- metrics.incrementCounter("startApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "startApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 }
@@ -233,9 +227,10 @@ object AppRoutes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct11(
+    Encoder.forProduct12(
+      "cloudProvider",
+      "workspaceId",
       "cloudContext",
-      "googleProject",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -246,8 +241,9 @@ object AppRoutes {
       "auditInfo",
       "labels"
     )(x =>
-      (x.cloudContext,
-       x.cloudContext.asString,
+      (x.cloudProvider,
+       x.workspaceId,
+       x.cloudContext,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,
@@ -261,13 +257,17 @@ object AppRoutes {
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct8("kubernetesRuntimeConfig",
-                        "errors",
-                        "status",
-                        "proxyUrls",
-                        "diskName",
-                        "customEnvironmentVariables",
-                        "auditInfo",
-                        "appType"
+    Encoder.forProduct11(
+      "appName",
+      "cloudContext",
+      "kubernetesRuntimeConfig",
+      "errors",
+      "status",
+      "proxyUrls",
+      "diskName",
+      "customEnvironmentVariables",
+      "auditInfo",
+      "appType",
+      "labels"
     )(x => GetAppResponse.unapply(x).get)
 }

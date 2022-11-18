@@ -76,15 +76,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         AzureUnimplementedException("Azure runtime is not supported yet")
       )
-      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
-                                                  ProjectAction.CreateRuntime,
-                                                  userInfo
+      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
+        ProjectSamResourceId(googleProject),
+        ProjectAction.CreateRuntime,
+        userInfo
       )
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       runtimeServiceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, googleProject)
+        .getClusterServiceAccount(userInfo, cloudContext)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
       petSA <- F.fromEither(
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
@@ -191,7 +192,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
             _ <- authProvider
-              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
+              .notifyResourceCreated[RuntimeSamResourceId](samResource, userInfo.userEmail, googleProject)
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${context.traceId}] Failed to notify the AuthProvider for creation of runtime ${runtime.projectNameString}"
@@ -215,13 +216,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasPermissionWithProjectFallback(
+      hasPermission <- authProvider.hasPermissionWithProjectFallback[RuntimeSamResourceId, RuntimeAction](
         resp.samResource,
         RuntimeAction.GetRuntimeStatus,
         ProjectAction.GetRuntimeStatus,
         userInfo,
         GoogleProject(cloudContext.asString)
-      ) // TODO: support azure
+      )
       _ <-
         if (hasPermission) F.unit
         else
@@ -236,7 +237,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, cloudContext).transaction
+      runtimes <- RuntimeServiceDbQueries
+        .listRuntimes(paramMap._1, paramMap._2, cloudContext)
+        .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
       samVisibleRuntimesOpt <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
@@ -803,9 +806,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             DiskUpdate.Dataproc(d, mainInstance): DiskUpdate
           )
       }
+
       // if any of the above is defined, send a PubSub message
-      msg <- (targetNumWorkers orElse targetNumPreemptibles orElse targetMasterMachineType orElse targetMasterDiskSize)
-        .traverse { _ =>
+      msg <-
+        if (
+          List(targetNumWorkers, targetNumPreemptibles, targetMasterMachineType, targetMasterDiskSize).exists(
+            _.isDefined
+          )
+        ) {
           val requiresRestart = targetMasterMachineType.exists(x => x._2) || targetMasterDiskSize.isDefined
           val message = UpdateRuntimeMessage(
             runtime.id,
@@ -816,8 +824,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             targetNumPreemptibles,
             Some(context.traceId)
           )
-          publisherQueue.offer(message).as(message)
-        }
+          publisherQueue.offer(message).as(Some(message))
+        } else F.pure(none[UpdateRuntimeMessage])
     } yield msg
 
   private[service] def getTargetMachineType(curMachineType: MachineTypeName,
@@ -972,17 +980,18 @@ object RuntimeServiceInterp {
                   }
                 } else
                   F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, formattedBy)
+                    DiskAlreadyFormattedByOtherApp(CloudContext.Gcp(googleProject), req.name, ctx.traceId, formattedBy)
                   )
             }
             // throw 409 if the disk is attached to a runtime
             _ <-
               if (isAttached)
-                F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
+                F.raiseError[Unit](DiskAlreadyAttachedException(CloudContext.Gcp(googleProject), req.name, ctx.traceId))
               else F.unit
-            hasPermission <- authProvider.hasPermission(pd.samResource,
-                                                        PersistentDiskAction.AttachPersistentDisk,
-                                                        userInfo
+            hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
+              pd.samResource,
+              PersistentDiskAction.AttachPersistentDisk,
+              userInfo
             )
 
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
@@ -990,9 +999,10 @@ object RuntimeServiceInterp {
 
         case None =>
           for {
-            hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
-                                                        ProjectAction.CreatePersistentDisk,
-                                                        userInfo
+            hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
+              ProjectSamResourceId(googleProject),
+              ProjectAction.CreatePersistentDisk,
+              userInfo
             )
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
@@ -1014,6 +1024,109 @@ object RuntimeServiceInterp {
             )
             _ <- authProvider
               .notifyResourceCreated(samResource, originatingUserEmail, googleProject)
+              .handleErrorWith { t =>
+                log.error(t)(
+                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
+                ) >> F.raiseError(t)
+              }
+            pd <- persistentDiskQuery.save(diskBeforeSave).transaction
+          } yield PersistentDiskRequestResult(pd, true)
+      }
+    } yield disk
+
+  def processPersistentDiskRequestForWorkspace[F[_]](
+    req: PersistentDiskRequest,
+    targetZone: ZoneName,
+    cloudContext: CloudContext,
+    workspaceId: WorkspaceId,
+    userInfo: UserInfo,
+    serviceAccount: WorkbenchEmail,
+    willBeUsedBy: FormattedBy,
+    authProvider: LeoAuthProvider[F],
+    diskConfig: PersistentDiskConfig
+  )(implicit
+    as: Ask[F, AppContext],
+    F: Async[F],
+    dbReference: DbReference[F],
+    ec: ExecutionContext,
+    log: StructuredLogger[F]
+  ): F[PersistentDiskRequestResult] =
+    for {
+      ctx <- as.ask
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, req.name).transaction
+      disk <- diskOpt match {
+        case Some(pd) =>
+          for {
+            _ <-
+              if (pd.zone == targetZone) F.unit
+              else
+                F.raiseError(
+                  BadRequestException(
+                    s"existing disk ${pd.projectNameString} is in zone ${pd.zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create your runtime in zone ${pd.zone.value} if you'd like to use this disk; or opt to use a new disk",
+                    Some(ctx.traceId)
+                  )
+                )
+            isAttached <- pd.formattedBy match {
+              case None =>
+                for {
+                  isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                  isAttached <-
+                    if (isAttachedToRuntime) F.pure(true)
+                    else appQuery.isDiskAttached(pd.id).transaction
+                } yield isAttached
+              case Some(formattedBy) =>
+                if (willBeUsedBy == formattedBy) {
+                  formattedBy match {
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                      appQuery.isDiskAttached(pd.id).transaction
+                    case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                  }
+                } else
+                  F.raiseError[Boolean](
+                    DiskAlreadyFormattedByOtherApp(cloudContext, req.name, ctx.traceId, formattedBy)
+                  )
+            }
+            // throw 409 if the disk is attached to a runtime
+            _ <-
+              if (isAttached)
+                F.raiseError[Unit](DiskAlreadyAttachedException(cloudContext, req.name, ctx.traceId))
+              else F.unit
+            hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
+              pd.samResource,
+              PersistentDiskAction.AttachPersistentDisk,
+              userInfo
+            )
+
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+          } yield PersistentDiskRequestResult(pd, false)
+
+        case None =>
+          for {
+            hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
+              WorkspaceResourceSamResourceId(workspaceId),
+              WorkspaceAction.CreateControlledApplicationResource,
+              userInfo
+            ) // TODO: Correct check?
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+            samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
+            // Look up the original email in case this API was called by a pet SA
+            originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
+            diskBeforeSave <- F.fromEither(
+              DiskServiceInterp.convertToDisk(
+                originatingUserEmail,
+                serviceAccount,
+                cloudContext,
+                req.name,
+                samResource,
+                diskConfig,
+                CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
+                ctx.now,
+                willBeUsedBy == FormattedBy.Galaxy,
+                None
+              )
+            )
+            _ <- authProvider
+              .notifyResourceCreatedV2(samResource, originatingUserEmail, cloudContext, workspaceId, userInfo)
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
@@ -1073,19 +1186,19 @@ final case class DiskNotSupportedException(traceId: TraceId)
       traceId = Some(traceId)
     )
 
-final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName, traceId: TraceId)
+final case class DiskAlreadyAttachedException(cloudContext: CloudContext, name: DiskName, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
+      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already attached to another runtime",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
 
-final case class DiskAlreadyFormattedByOtherApp(googleProject: GoogleProject,
+final case class DiskAlreadyFormattedByOtherApp(cloudContext: CloudContext,
                                                 name: DiskName,
                                                 traceId: TraceId,
                                                 formattedBy: FormattedBy
 ) extends LeoException(
-      s"Persistent disk ${googleProject.value}/${name.value} is already formatted by ${formattedBy.asString}",
+      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already formatted by ${formattedBy.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

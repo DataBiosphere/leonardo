@@ -10,12 +10,13 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   AuditInfo,
   CloudContext,
+  CloudProvider,
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,
-  Nodepool
+  Nodepool,
+  WorkspaceId
 }
-import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.http4s.Uri
 
 import java.net.URL
@@ -29,19 +30,22 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   extraArgs: List[String]
 )
 
-final case class DeleteAppRequest(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName, deleteDisk: Boolean)
-
-final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+final case class GetAppResponse(appName: AppName,
+                                cloudContext: CloudContext,
+                                kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[AppError],
                                 status: AppStatus, // TODO: do we need some sort of aggregate status?
                                 proxyUrls: Map[ServiceName, URL],
                                 diskName: Option[DiskName],
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo,
-                                appType: AppType
+                                appType: AppType,
+                                labels: LabelMap
 )
 
-final case class ListAppResponse(cloudContext: CloudContext,
+final case class ListAppResponse(cloudProvider: CloudProvider,
+                                 workspaceId: Option[WorkspaceId],
+                                 cloudContext: CloudContext,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
                                  status: AppStatus, // TODO: do we need some sort of aggregate status?
@@ -60,6 +64,8 @@ object ListAppResponse {
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
+          c.cloudContext.cloudProvider,
+          c.workspaceId,
           c.cloudContext,
           KubernetesRuntimeConfig(
             n.numNodes,
@@ -68,9 +74,7 @@ object ListAppResponse {
           ),
           a.errors,
           a.status,
-          a.getProxyUrls(c.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                         proxyUrlBase
-          ), // TODO: refactor once we support proxying azure app
+          a.getProxyUrls(c, proxyUrlBase),
           a.appName,
           a.appType,
           a.appResources.disk.map(_.name),
@@ -79,12 +83,13 @@ object ListAppResponse {
         )
       }
     )
-
 }
 
 object GetAppResponse {
   def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
+      appResult.app.appName,
+      appResult.cluster.cloudContext,
       KubernetesRuntimeConfig(
         appResult.nodepool.numNodes,
         appResult.nodepool.machineType,
@@ -92,12 +97,11 @@ object GetAppResponse {
       ),
       appResult.app.errors,
       appResult.app.status,
-      appResult.app.getProxyUrls(appResult.cluster.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                                 proxyUrlBase
-      ), // TODO: refactor once we support proxying azure app
+      appResult.app.getProxyUrls(appResult.cluster, proxyUrlBase),
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,
-      appResult.app.appType
+      appResult.app.appType,
+      appResult.app.labels
     )
 }

@@ -67,7 +67,14 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  AzureCloudContext,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
 import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.util2.InstanceName
@@ -459,7 +466,7 @@ object CommonTestData {
   ) // we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
-    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
+    serviceAccountProvider.getClusterServiceAccount(userInfo, CloudContext.Gcp(googleProject))(traceId).unsafeRunSync()
 
   def notebookServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
@@ -496,6 +503,8 @@ object CommonTestData {
   val azureCloudContext =
     AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
+  val workspaceId2 = WorkspaceId(UUID.randomUUID())
+  val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   val testCommonControlledResourceFields = ControlledResourceCommonFields(
@@ -525,6 +534,15 @@ object CommonTestData {
       None
     ),
     Some(0)
+  )
+
+  val landingZoneResources = LandingZoneResources(AKSClusterName(""),
+                                                  BatchAccountName(""),
+                                                  RelayNamespace(""),
+                                                  StorageAccountName(""),
+                                                  NetworkName(""),
+                                                  SubnetworkName(""),
+                                                  SubnetworkName("")
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

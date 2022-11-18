@@ -11,14 +11,13 @@ import cats.syntax.all._
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
-import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.AzureRelayService
+import org.broadinstitute.dsde.workbench.azure.{AzureContainerService, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{
   GoogleProjectDAO,
@@ -71,13 +70,12 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.net.InetSocketAddress
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
 import javax.net.ssl.SSLContext
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -100,7 +98,7 @@ object Boot extends IOApp {
 
     val livenessRoutes = new LivenessRoutes
 
-    val liveness = logger
+    logger
       .info("Liveness server has been created, starting...")
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global) >> Http()
       .newServerAt("0.0.0.0", 9000)
@@ -177,7 +175,8 @@ object Boot extends IOApp {
           appDependencies.publisherQueue,
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
-          gkeCustomAppConfig
+          gkeCustomAppConfig,
+          appDependencies.wsmDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -336,22 +335,31 @@ object Boot extends IOApp {
 
       // Set up SSL context and http clients
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
-      underlyingPetTokenCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[String]]](
+      underlyingPetKeyCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[io.circe.Json]]](
         httpSamDaoConfig.petCacheMaxSize,
         httpSamDaoConfig.petCacheExpiryTime
       )
-      petTokenCache <- Resource.make(
-        F.delay(CaffeineCache[F, UserEmailAndProject, Option[String]](underlyingPetTokenCache))
+      petKeyCache <- Resource.make(
+        F.delay(CaffeineCache[F, UserEmailAndProject, Option[io.circe.Json]](underlyingPetKeyCache))
       )(_.close)
 
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
-        HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
+        HttpSamDAO[F](client, httpSamDaoConfig, petKeyCache)
+      )
+      cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
+        client => new HttpCromwellDAO[F](client)
+      )
+      cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
+        new HttpCbasDAO[F](client)
+      )
+      wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
+        new HttpWdsDAO[F](client)
       )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
       welderDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_welder_client"), false).map(
-        client => new HttpWelderDAO[F](runtimeDnsCache, client)
+        client => new HttpWelderDAO[F](runtimeDnsCache, client, samDao)
       )
       rstudioDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_rstudio_client"), false).map(
         client => new HttpRStudioDAO(runtimeDnsCache, client)
@@ -368,9 +376,13 @@ object Boot extends IOApp {
       wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
+      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
-
+      azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
+      azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
+        ConfigReader.appConfig.azure.appRegistration
+      )
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
@@ -381,7 +393,7 @@ object Boot extends IOApp {
 
       // Set up GCP credentials
       credential <- credentialResource(pathToCredentialJson)
-      scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
+      scopedCredential = credential.createScoped(Seq("https://www.googleapis.com/auth/compute").asJava)
       kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
       credentialJson <- Resource.eval(
         readFileToString(applicationConfig.leoServiceAccountJsonFile)
@@ -431,7 +443,7 @@ object Boot extends IOApp {
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
 
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
-      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
+
       underlyingNodepoolLockCache = buildCache[KubernetesClusterId, scalacache.Entry[Semaphore[F]]](
         gkeClusterConfig.nodepoolLockCacheMaxSize,
         gkeClusterConfig.nodepoolLockCacheExpiryTime
@@ -507,7 +519,7 @@ object Boot extends IOApp {
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
-          .processWithUnderlyingCache(underlyingPetTokenCache),
+          .processWithUnderlyingCache(underlyingPetKeyCache),
         CacheMetrics("googleTokenCache")
           .processWithUnderlyingCache(underlyingGoogleTokenCache),
         CacheMetrics("samResourceCache")
@@ -586,13 +598,34 @@ object Boot extends IOApp {
         googleDependencies.googleResourceService
       )
 
+      val aksAlg = new AKSInterpreter[F](
+        AKSInterpreterConfig(
+          ConfigReader.appConfig.terraAppSetupChart,
+          ConfigReader.appConfig.azure.coaAppConfig,
+          ConfigReader.appConfig.azure.aadPodIdentityConfig,
+          ConfigReader.appConfig.azure.appRegistration,
+          samConfig,
+          appMonitorConfig
+        ),
+        helmClient,
+        azureContainerService,
+        azureRelay,
+        samDao,
+        cromwellDao,
+        cbasDao,
+        wdsDao
+      )
+
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
                                                      contentSecurityPolicy,
                                                      asyncTasksQueue,
                                                      wsmDao,
                                                      samDao,
+                                                     welderDao,
                                                      jupyterDao,
-                                                     azureRelay
+                                                     azureRelay,
+                                                     azureVmService,
+                                                     aksAlg
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
@@ -653,7 +686,8 @@ object Boot extends IOApp {
         pubsubSubscriber,
         gkeAlg,
         dataprocInterp,
-        oidcConfig
+        oidcConfig,
+        aksAlg
       )
     }
 
@@ -752,5 +786,6 @@ final case class AppDependencies[F[_]](
   pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   gkeAlg: GKEAlgebra[F],
   dataprocInterp: DataprocInterpreter[F],
-  openIDConnectConfiguration: OpenIDConnectConfiguration
+  openIDConnectConfiguration: OpenIDConnectConfiguration,
+  aksInterp: AKSAlgebra[F]
 )

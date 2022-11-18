@@ -31,7 +31,7 @@ object Settings {
   )
 
   val commonCompilerSettings = Seq(
-    "-target:jvm-17",
+    "-release:17",
     "-deprecation",                      // Emit warning and location for usages of deprecated APIs.
     "-encoding", "utf-8",                // Specify character encoding used by source files.
     "-explaintypes",                     // Explain type errors in more detail.
@@ -87,7 +87,7 @@ object Settings {
   val commonSettings =
     commonBuildSettings ++ List(
     organization  := "org.broadinstitute.dsde.workbench",
-    scalaVersion  := "2.13.8",
+    scalaVersion  := "2.13.10",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )

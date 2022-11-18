@@ -241,7 +241,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     }
     List(PersistentDiskAction.ReadPersistentDisk).foreach { a =>
       samAuthProviderWithCache
-        .hasPermission(diskSamResource, a, userInfo)
+        .hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](diskSamResource, a, userInfo)
         .unsafeRunSync() shouldBe true
     }
     List(AppAction.ConnectToApp, AppAction.GetAppStatus).foreach { a =>
@@ -355,7 +355,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   it should "filter user visible resources" in {
     // positive tests
     val newRuntime = RuntimeSamResourceId("new_runtime")
-    mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(newRuntime, userEmail2, project).unsafeRunSync()
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), userInfo)
       .unsafeRunSync() shouldBe List(
@@ -363,7 +363,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     )
 
     val newDisk = PersistentDiskSamResourceId("new_disk")
-    mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(newDisk, userEmail2, project).unsafeRunSync()
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), userInfo)
       .unsafeRunSync() shouldBe List(
@@ -403,7 +403,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   it should "filter user visible resources with project fallback" in {
     // positive tests
     val newRuntime = RuntimeSamResourceId("new_runtime")
-    mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(newRuntime, userEmail2, project).unsafeRunSync()
     samAuthProvider
       .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
                                             userInfo
@@ -416,7 +416,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
 
     val newDisk = PersistentDiskSamResourceId("new_disk")
-    mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(newDisk, userEmail2, project).unsafeRunSync()
     samAuthProvider
       .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, diskSamResource), (project, newDisk)), userInfo)
       .unsafeRunSync() shouldBe List((project, diskSamResource))
@@ -438,17 +438,17 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   private def setUpMockSam(): SamDAO[IO] = {
     mockSam = new MockSamDAO
     // set up mock sam with a project, runtime, disk, and app
-    mockSam.createResource(ProjectSamResourceId(project), MockSamDAO.projectOwnerEmail, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(ProjectSamResourceId(project), MockSamDAO.projectOwnerEmail, project).unsafeRunSync()
     mockSam.billingProjects.get(
       (ProjectSamResourceId(project), projectOwnerAuthHeader)
     ) shouldBe Some(
       ProjectAction.allActions
     )
-    mockSam.createResource(runtimeSamResource, userEmail, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(runtimeSamResource, userEmail, project).unsafeRunSync()
     mockSam.runtimes.get((runtimeSamResource, authHeader)) shouldBe Some(
       RuntimeAction.allActions
     )
-    mockSam.createResource(diskSamResource, userEmail, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(diskSamResource, userEmail, project).unsafeRunSync()
     mockSam.persistentDisks.get((diskSamResource, authHeader)) shouldBe Some(
       PersistentDiskAction.allActions
     )

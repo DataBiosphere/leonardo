@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   DbPassword,
   GalaxyDrsUrl,
   GalaxyOrchUrl,
+  KsaName,
   KubernetesService,
   NamespaceNameSuffix,
   ReleaseNameSuffix,
@@ -14,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
-sealed trait GkeAppConfig {
+sealed trait KubernetesAppConfig {
   def chartName: ChartName
   def chartVersion: ChartVersion
   def releaseNameSuffix: ReleaseNameSuffix
@@ -36,7 +37,7 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  drsUrl: GalaxyDrsUrl,
                                  minMemoryGb: Int,
                                  minNumOfCpus: Int
-) extends GkeAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
@@ -47,7 +48,7 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    services: List[ServiceConfig],
                                    serviceAccountName: ServiceAccountName,
                                    dbPassword: DbPassword
-) extends GkeAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
@@ -59,7 +60,18 @@ final case class CustomAppConfig(chartName: ChartName,
                                  namespaceNameSuffix: NamespaceNameSuffix,
                                  serviceAccountName: ServiceAccountName,
                                  customApplicationAllowList: CustomApplicationAllowListConfig
-) extends GkeAppConfig {
+) extends KubernetesAppConfig {
   // Not known at config. Generated at runtime.
   override lazy val kubernetesServices: List[KubernetesService] = List.empty
+}
+
+final case class CoaAppConfig(chartName: ChartName,
+                              chartVersion: ChartVersion,
+                              releaseNameSuffix: ReleaseNameSuffix,
+                              namespaceNameSuffix: NamespaceNameSuffix,
+                              ksaName: KsaName,
+                              services: List[ServiceConfig]
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
 }

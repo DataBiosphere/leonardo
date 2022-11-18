@@ -500,7 +500,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         )
       )
       err <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name).attempt
-    } yield err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))
+    } yield err shouldBe Left(DiskAlreadyAttachedException(CloudContext.Gcp(project), disk.name, t.traceId))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

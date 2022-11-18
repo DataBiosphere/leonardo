@@ -2,13 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package model
 
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
-
-import java.net.{MalformedURLException, URL}
-import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
+import org.http4s.ParseFailure
 import org.scalatest.flatspec.AnyFlatSpecLike
+
+import java.net.{MalformedURLException, URL}
+import java.time.Instant
 
 class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
@@ -148,14 +149,24 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
   it should "create UserScriptPath objects according to provided path" in {
     val gcsPath = "gs://userscript_bucket/userscript.sh"
-    val httpPath = "https://userscript_path"
+    val httpPath = "https://www.mytesthttppath.com"
     val invalidPath = "invalid_userscript_path"
+    val maliciousPath = "https://url.com|nslookup http://another-url.com"
+    val maliciousGcsPath = "gs://userscript_bucket/userscript.sh | nslookup http://another-url.com"
 
     UserScriptPath.stringToUserScriptPath(gcsPath) shouldBe Right(
       UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))
     )
     UserScriptPath.stringToUserScriptPath(httpPath) shouldBe Right(UserScriptPath.Http(new URL(httpPath)))
-    UserScriptPath.stringToUserScriptPath(invalidPath).left.get shouldBe a[MalformedURLException]
+    UserScriptPath.stringToUserScriptPath(invalidPath).swap.toOption.get shouldBe a[MalformedURLException]
+    UserScriptPath.stringToUserScriptPath(maliciousPath).swap.toOption.get shouldBe a[ParseFailure]
+    // Note: no exception for below assertion.
+    // However, when checking the bucket for the file, app creation will fail due to Google validation.
+    UserScriptPath.stringToUserScriptPath(maliciousGcsPath) shouldBe Right(
+      UserScriptPath.Gcs(
+        GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh | nslookup http://another-url.com"))
+      )
+    )
   }
 
   "DockerRegistry regex" should "match expected image url format" in {

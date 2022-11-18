@@ -8,7 +8,7 @@ import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
-import org.broadinstitute.dsde.workbench.leonardo.{ProjectAction, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -36,7 +36,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[List[sr.ActionCategory]] =
+  ): IO[List[A]] =
     checkWhitelist(userInfo).map {
       case true  => sr.allActions
       case false => List.empty
@@ -45,7 +45,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[(List[sr.ActionCategory], List[ProjectAction])] =
+  ): IO[(List[A], List[ProjectAction])] =
     checkWhitelist(userInfo).map {
       case true  => (sr.allActions, ProjectAction.allActions.toList)
       case false => (List.empty, List.empty)
@@ -120,4 +120,16 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   }
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+
+  override def notifyResourceCreatedV2[R](samResource: R,
+                                          creatorEmail: WorkbenchEmail,
+                                          cloudContext: CloudContext,
+                                          workspaceId: WorkspaceId,
+                                          userInfo: UserInfo
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
+
+  override def notifyResourceDeletedV2[R](samResource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = IO.unit
 }

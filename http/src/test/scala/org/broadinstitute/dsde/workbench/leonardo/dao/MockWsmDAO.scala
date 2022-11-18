@@ -5,7 +5,19 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureCloudContext,
+  ContainerName,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET
+}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -128,11 +140,70 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       Some(
         WorkspaceDescription(
           workspaceId,
-          "workspaceName",
-          Some(CommonTestData.azureCloudContext),
+          "workspaceName" + workspaceId,
+          "9f3434cb-8f18-4595-95a9-d9b1ec9731d4",
+          Some(
+            AzureCloudContext(TenantId(workspaceId.toString),
+                              SubscriptionId(workspaceId.toString),
+                              ManagedResourceGroupName(workspaceId.toString)
+            )
+          ),
           None
         )
       )
+    )
+
+  override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Option[LandingZone]] =
+    IO.pure(
+      Some(
+        LandingZone(
+          UUID.fromString("9f3434cb-8f18-4595-95a9-d9b1ec9731d4"),
+          UUID.fromString("9f3434cb-8f18-4595-95a9-d9b1ec9731d4"),
+          "test-definition",
+          "1.0",
+          "2022-11-11"
+        )
+      )
+    )
+
+  override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[List[LandingZoneResourcesByPurpose]] =
+    IO.pure(
+      List(
+        LandingZoneResourcesByPurpose(
+          SHARED_RESOURCE,
+          List(
+            buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
+            buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
+            buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
+            buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage")
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          WORKSPACE_BATCH_SUBNET,
+          List(
+            buildMockLandingZoneResource("DeployedSubnet", "batchsub", false)
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          AKS_NODE_POOL_SUBNET,
+          List(
+            buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
+          )
+        )
+      )
+    )
+
+  private def buildMockLandingZoneResource(resourceType: String, resourceName: String, useId: Boolean = true) =
+    LandingZoneResource(
+      if (useId) Some(s"id-prefix/${resourceName}") else None,
+      resourceType,
+      if (useId) None else Some(resourceName),
+      if (useId) None else Some("lzvnet"),
+      "us-east"
     )
 
   override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit

@@ -6,13 +6,22 @@ import java.util.UUID
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  AzureCloudContext,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
+  CreateAppV2Message,
   CreateAzureRuntimeMessage,
   CreateRuntimeMessage
 }
@@ -130,6 +139,44 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       )
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
+
+    res shouldBe Right(originalMessage)
+  }
+
+  val landingZoneResources = LandingZoneResources(
+    AKSClusterName("cluster-name"),
+    BatchAccountName("batch-account"),
+    RelayNamespace("relay-ns"),
+    StorageAccountName("storage-account"),
+    NetworkName("vnet"),
+    SubnetworkName("batch-subnet"),
+    SubnetworkName("aks-subnet")
+  )
+
+  it should "encode/decode LandingZoneResources properly" in {
+    val res = decode[LandingZoneResources](landingZoneResources.asJson.printWith(Printer.noSpaces))
+
+    res shouldBe Right(landingZoneResources)
+  }
+
+  it should "encode/decode CreateAppV2Message properly" in {
+    val originalMessage =
+      CreateAppV2Message(
+        AppId(1),
+        AppName("test"),
+        WorkspaceId(UUID.randomUUID()),
+        CloudContext.Azure(
+          AzureCloudContext(
+            TenantId("id"),
+            SubscriptionId("sub"),
+            ManagedResourceGroupName("rg-name")
+          )
+        ),
+        Some(landingZoneResources),
+        None
+      )
+
+    val res = decode[CreateAppV2Message](originalMessage.asJson.printWith(Printer.noSpaces))
 
     res shouldBe Right(originalMessage)
   }

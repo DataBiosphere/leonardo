@@ -1,11 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
-import java.time.Instant
-import java.util.UUID
-
 import ca.mrvisser.sealerate
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   NamespaceName,
@@ -20,10 +15,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
+
+import java.net.URL
+import java.time.Instant
+import java.util.UUID
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              cloudContext: CloudContext,
@@ -39,14 +38,15 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
-                             nodepools: List[Nodepool]
+                             nodepools: List[Nodepool],
+                             workspaceId: Option[WorkspaceId]
 ) {
 
   // TODO consider renaming this method and the KubernetesClusterId class
   // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
   def getClusterId: KubernetesClusterId = cloudContext match {
     case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
-    case CloudContext.Azure(_)   => ??? // TODO: implement once we start supporting Azure
+    case CloudContext.Azure(_)   => throw new IllegalStateException("Can't get GCP ID for an Azure cluster")
   }
 }
 
@@ -233,36 +233,39 @@ final case class NumNodes(amount: Int) extends AnyVal
 final case class AutoscalingMin(amount: Int) extends AnyVal
 final case class AutoscalingMax(amount: Int) extends AnyVal
 
-final case class DefaultKubernetesLabels(googleProject: GoogleProject,
+final case class DefaultKubernetesLabels(cloudContext: CloudContext,
                                          appName: AppName,
                                          creator: WorkbenchEmail,
                                          serviceAccount: WorkbenchEmail
 ) {
+  val cloudContextList = cloudContext match {
+    case CloudContext.Gcp(value)   => List("googleProject" -> value.value)
+    case CloudContext.Azure(value) => List("cloudContext" -> value.asString)
+  }
   val toMap: LabelMap =
     Map(
       "appName" -> appName.value,
-      "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "clusterServiceAccount" -> serviceAccount.value
-    )
+    ) ++ cloudContextList
 }
 
 sealed abstract class ErrorAction
 object ErrorAction {
   case object CreateApp extends ErrorAction {
-    override def toString: String = "createGalaxyApp"
+    override def toString: String = "createApp"
   }
 
   case object DeleteApp extends ErrorAction {
-    override def toString: String = "deleteGalaxyApp"
+    override def toString: String = "deleteApp"
   }
 
   case object StopApp extends ErrorAction {
-    override def toString: String = "stopGalaxyApp"
+    override def toString: String = "stopApp"
   }
 
   case object StartApp extends ErrorAction {
-    override def toString: String = "startGalaxyApp"
+    override def toString: String = "startApp"
   }
 
   case object DeleteNodepool extends ErrorAction {
@@ -375,14 +378,22 @@ final case class App(id: AppId,
                      descriptorPath: Option[Uri],
                      extraArgs: List[String]
 ) {
-  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
-    appResources.services.map { service =>
-      val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
-      val servicePath = service.config.path match {
-        case Some(path) => path.value.replace("{proxyPath}", proxyPath)
-        case None       => ""
+
+  def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =
+    appResources.services.flatMap { service =>
+      // A service can optionally define a path; otherwise, use the name.
+      val leafPath = service.config.path.map(_.value).getOrElse(s"/${service.config.name.value}")
+      // GCP uses a Leo proxy endpoint: e.g. https://notebooks.firecloud.org/google/v1/apps/{project}/{app}/{service}
+      // Azure uses Azure relay: e.g. https://{namespace}.servicebus.windows.net/{app}/{service}
+      val proxyPathOpt = cluster.cloudContext match {
+        case CloudContext.Gcp(project) =>
+          Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
+        case CloudContext.Azure(_) =>
+          cluster.asyncFields.map(_.loadBalancerIp.asString).map(base => s"${base}${appName.value}${leafPath}")
+        case _ =>
+          None
       }
-      (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
+      proxyPathOpt.fold(Map.empty[ServiceName, URL])(p => Map(service.config.name -> new URL(p)))
     }.toMap
 }
 
@@ -480,3 +491,4 @@ final case class NamespaceNameSuffix(value: String) extends AnyVal
 final case class GalaxyOrchUrl(value: String) extends AnyVal
 final case class GalaxyDrsUrl(value: String) extends AnyVal
 final case class AppMachineType(memorySizeInGb: Int, numOfCpus: Int)
+final case class KsaName(value: String) extends AnyVal

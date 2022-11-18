@@ -121,6 +121,10 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
+        case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
+        case _: DeleteAppV2Message   =>
+          // TODO: TOAZ-230
+          F.unit
       }
     } yield resp
 
@@ -341,34 +345,55 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
         else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, true)
-      )
-      poll = op match {
-        case Some(o) =>
-          val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+      _ <- runtime.cloudContext match {
+        case CloudContext.Gcp(_) =>
           for {
-            operation <- F.blocking(o.get())
-            _ <- operationFutureCache.put(runtime.id)(o, None)
-            _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
-              runtimeConfig.cloudService
-                .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+            op <- runtimeConfig.cloudService.interpreter.stopRuntime(
+              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, isDataprocFullStop = true)
+            )
+            poll = op match {
+              case Some(o) =>
+                val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+                for {
+                  operation <- F.blocking(o.get())
+                  _ <- operationFutureCache.put(runtime.id)(o, None)
+                  _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
+                    runtimeConfig.cloudService
+                      .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+                  )
+                } yield ()
+              case None =>
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+            }
+            _ <- asyncTasks.offer(
+              Task(
+                ctx.traceId,
+                poll,
+                Some(
+                  handleRuntimeMessageError(msg.runtimeId,
+                                            ctx.now,
+                                            s"stopping runtime ${runtime.projectNameString} failed"
+                  )
+                ),
+                ctx.now,
+                "stopRuntime"
+              )
             )
           } yield ()
-        case None =>
-          runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+        case CloudContext.Azure(azureContext) =>
+          azurePubsubHandler
+            .stopAndMonitorRuntime(runtime, azureContext)
+            .handleErrorWith(e =>
+              azurePubsubHandler.handleAzureRuntimeStopError(
+                AzureRuntimeStoppingError(
+                  runtime.id,
+                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
+                ),
+                ctx.now
+              )
+            )
       }
-      _ <- asyncTasks.offer(
-        Task(
-          ctx.traceId,
-          poll,
-          Some(
-            handleRuntimeMessageError(msg.runtimeId, ctx.now, s"stopping runtime ${runtime.projectNameString} failed")
-          ),
-          ctx.now,
-          "stopRuntime"
-        )
-      )
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(implicit
@@ -386,24 +411,47 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
-      bucketName <- F.fromOption(initBucket.map(_.bucketName),
-                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
-      )
-      _ <- runtimeConfig.cloudService.interpreter
-        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
-      _ <- asyncTasks.offer(
-        Task(
-          ctx.traceId,
-          runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
-          Some(
-            handleRuntimeMessageError(msg.runtimeId, ctx.now, s"starting runtime ${runtime.projectNameString} failed")
-          ),
-          ctx.now,
-          "startRuntime"
-        )
-      )
+      _ <- runtime.cloudContext match {
+        case CloudContext.Gcp(_) =>
+          for {
+            runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+            initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
+            bucketName <- F.fromOption(
+              initBucket.map(_.bucketName),
+              new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
+            )
+            _ <- runtimeConfig.cloudService.interpreter
+              .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
+            _ <- asyncTasks.offer(
+              Task(
+                ctx.traceId,
+                runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
+                Some(
+                  handleRuntimeMessageError(msg.runtimeId,
+                                            ctx.now,
+                                            s"starting runtime ${runtime.projectNameString} failed"
+                  )
+                ),
+                ctx.now,
+                "startRuntime"
+              )
+            )
+          } yield ()
+        case CloudContext.Azure(azureContext) =>
+          azurePubsubHandler
+            .startAndMonitorRuntime(runtime, azureContext)
+            .handleErrorWith(e =>
+              azurePubsubHandler.handleAzureRuntimeStartError(
+                AzureRuntimeStartingError(
+                  runtime.id,
+                  s"starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+                  ctx.traceId
+                ),
+                ctx.now
+              )
+            )
+      }
+
     } yield ()
 
   private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(implicit
@@ -1298,7 +1346,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
       }
       _ <- errorMessage.traverse(m =>
-        (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now)) >>
+        (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
           clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
       // want to detach persistent disk for runtime
@@ -1366,4 +1414,37 @@ class LeoPubsubMessageSubscriber[F[_]](
           } yield operation
       }
     } yield res
+
+  private[monitor] def handleCreateAppV2Message(
+    msg: CreateAppV2Message
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- msg.cloudContext match {
+        case CloudContext.Azure(c) =>
+          val task =
+            azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, msg.landingZoneResourcesOpt, c)
+          asyncTasks.offer(
+            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
+          )
+        case CloudContext.Gcp(c) =>
+          F.raiseError(
+            PubsubKubernetesError(
+              AppError(
+                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: CreateAppV2 not supported for GCP",
+                ctx.now,
+                ErrorAction.CreateApp,
+                ErrorSource.App,
+                None,
+                Some(ctx.traceId)
+              ),
+              Some(msg.appId),
+              false,
+              None,
+              None,
+              None
+            )
+          )
+      }
+    } yield ()
 }

@@ -23,13 +23,14 @@ EXPOSE 5050
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
-ENV TERRA_APP_SETUP_VERSION 0.0.2
-ENV TERRA_APP_VERSION 0.3.0
+ENV TERRA_APP_SETUP_VERSION 0.0.3
+ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
 ENV GALAXY_VERSION 1.6.1
-ENV NGINX_VERSION 3.23.0
+ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.84
+ENV CROMWELL_CHART_VERSION 0.2.160
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.160
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -47,6 +48,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
+    helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
     helm repo update
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
@@ -60,6 +62,8 @@ RUN cd /leonardo && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
+    helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
+    helm repo update && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools

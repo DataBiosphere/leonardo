@@ -84,7 +84,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   override def getActions[R, A](
     samResource: R,
     userInfo: UserInfo
-  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[List[sr.ActionCategory]] = {
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[List[A]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
@@ -97,7 +97,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
-  ): F[(List[sr.ActionCategory], List[ProjectAction])] = {
+  ): F[(List[A], List[ProjectAction])] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
@@ -194,19 +194,39 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // TODO: consider using v2 for all existing entities if this works out for apps https://broadworkbench.atlassian.net/browse/IA-2569
-    // Apps are modeled different in SAM than other leo resources.
+    // Note: apps on GCP are defined with a google-project as a parent Sam resource.
+    // Otherwise the Sam resource has no parent.
     if (sr.resourceType != SamResourceType.App)
-      samDao.createResource(samResource, creatorEmail, googleProject)
+      samDao.createResourceAsGcpPet(samResource, creatorEmail, googleProject)
     else
       samDao.createResourceWithParent(samResource, creatorEmail, googleProject)
+
+  override def notifyResourceCreatedV2[R](
+    samResource: R,
+    creatorEmail: WorkbenchEmail,
+    cloudContext: CloudContext,
+    workspaceId: WorkspaceId,
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
+    // Note: apps on GCP are defined with a google-project as a parent Sam resource.
+    // Otherwise the Sam resource has no parent.
+    if (sr.resourceType == SamResourceType.App && cloudContext.cloudProvider == CloudProvider.Gcp)
+      samDao.createResourceWithParent(samResource, creatorEmail, GoogleProject(cloudContext.asString))
+    else
+      samDao.createResourceWithUserInfo(samResource, userInfo)
 
   override def notifyResourceDeleted[R](
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
-    samDao.deleteResource(samResource, creatorEmail, googleProject)
+    samDao.deleteResourceAsGcpPet(samResource, creatorEmail, googleProject)
+
+  override def notifyResourceDeletedV2[R](
+    samResource: R,
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
+    samDao.deleteResourceWithUserInfo(samResource, userInfo)
 
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
     for {
