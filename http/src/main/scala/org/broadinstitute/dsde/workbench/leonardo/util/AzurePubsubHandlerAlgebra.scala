@@ -45,6 +45,16 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
+  def deleteApp(appId: AppId,
+                appName: AppName,
+                workspaceId: WorkspaceId,
+                landingZoneResourcesOpt: Option[LandingZoneResources],
+                cloudContext: AzureCloudContext,
+                keepHistory: Boolean = false
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
   def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]

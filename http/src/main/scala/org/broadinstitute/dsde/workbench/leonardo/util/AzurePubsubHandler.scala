@@ -782,4 +782,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       }
     } yield ()
+
+  override def deleteApp(appId: AppId,
+                         appName: AppName,
+                         workspaceId: WorkspaceId,
+                         landingZoneResourcesOpt: Option[LandingZoneResources],
+                         cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = DeleteAKSAppParams(appName, workspaceId, landingZoneResourcesOpt, cloudContext)
+      _ <- aksAlgebra.deleteApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
+    } yield ()
 }

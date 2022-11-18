@@ -491,7 +491,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- tokenOpt match {
         case Some(token) =>
           for {
-//            _ <- logger.info(s"Deleting app resources ${app.appResources} in Sam")
             _ <- samDao.deleteResourceInternal(dbApp.app.samResourceId,
                                                Authorization(Credentials.Token(AuthScheme.Bearer, token))
             )

@@ -286,7 +286,8 @@ object LeoPubsubMessage {
   final case class DeleteAppV2Message(appId: AppId,
                                       appName: AppName,
                                       workspaceId: WorkspaceId,
-                                      diskId: Option[DiskId],
+                                      cloudContext: CloudContext,
+                                      landingZoneResourcesOpt: Option[LandingZoneResources],
                                       traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
