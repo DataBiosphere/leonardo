@@ -9,21 +9,21 @@ Leonardo supports launching the following services for compute:
 - Virtual machines through [Google Compute Engine](https://cloud.google.com/compute)
 - Kubernetes 'apps' through [Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine)
 
-Currently, leonardo supports the launching of custom docker images for Jupyter and Rstudio in virtual machines and Dataproc. It also supports launching applications in Kubernetes, with a spotlight on Galaxy. 
+Currently, leonardo supports the launching of custom docker images for Jupyter and Rstudio in virtual machines and Dataproc. It also supports launching applications in Kubernetes, with a spotlight on Galaxy.
 
 - For more information on APIs, see [swagger](https://notebooks.firecloud.org/)
 - For more information on custom docker images, see the [terra-docker repo](https://github.com/DataBiosphere/terra-docker)
 - For more information on applications we support in Kubernetes, see the [terra-apps repo](https://github.com/DataBiosphere/terra-app)
 - For more information on Galaxy, see the [Galaxy Project](https://github.com/galaxyproject)
 
-It is recommended to consume these APIs and functionality via the [Terra UI](https://terra.bio/) 
+It is recommended to consume these APIs and functionality via the [Terra UI](https://terra.bio/)
 
 We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
 
 ## Building and running Leonardo
 Clone the repo.
 ```
-$ git clone https://github.com/DataBiosphere/leonardo.git 
+$ git clone https://github.com/DataBiosphere/leonardo.git
 $ cd leonardo
 ```
 
@@ -31,11 +31,9 @@ The instructions to run Leo locally are maintained in this [confluence article](
 
 ### Run Leonardo unit tests
 
-Leonardo requires Java 8 due to a dependency on Java's DNS SPI functionality. This feature is removed in Java 9 and above.
-
 Ensure docker is running. Spin up MySQL locally:
 ```
-$ ./docker/run-mysql.sh start leonardo  
+$ ./docker/run-mysql.sh start leonardo
 ```
 
 Note, if you see error like
@@ -100,8 +98,8 @@ To build jar, leonardo docker image, and leonardo-notebooks docker image
 ./docker/build.sh jar -d build
 ```
 
-To build jar, leonardo docker image, and leonardo-notebooks docker image 
-and push to repos `broadinstitute/leonardo` and `broadinstitute/leonardo-notebooks` 
+To build jar, leonardo docker image, and leonardo-notebooks docker image
+and push to repos `broadinstitute/leonardo` and `broadinstitute/leonardo-notebooks`
 tagged with git hash
 ```
 ./docker/build.sh jar -d push
