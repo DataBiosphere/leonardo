@@ -295,7 +295,7 @@ object LeoPubsubMessage {
                                       landingZoneResourcesOpt: Option[LandingZoneResources],
                                       traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
-    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAppV2
   }
 
   final case class StopAppMessage(appId: AppId, appName: AppName, project: GoogleProject, traceId: Option[TraceId])
