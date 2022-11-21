@@ -901,8 +901,16 @@ object LeoPubsubCodec {
     )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.landingZoneResourcesOpt, x.traceId))
 
   implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
-    Encoder.forProduct6("messageType", "appId", "appName", "workspaceId", "diskId", "traceId")(x =>
-      (x.messageType, x.appId, x.appName, x.workspaceId, x.diskId, x.traceId)
+    Encoder.forProduct8("messageType",
+                        "appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "diskId",
+                        "landingZoneResourcesOpt",
+                        "traceId"
+    )(x =>
+      (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.diskId, x.landingZoneResourcesOpt, x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
