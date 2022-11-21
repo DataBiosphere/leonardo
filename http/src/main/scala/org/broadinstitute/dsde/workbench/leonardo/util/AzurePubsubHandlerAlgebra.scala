@@ -49,8 +49,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
                 appName: AppName,
                 workspaceId: WorkspaceId,
                 landingZoneResourcesOpt: Option[LandingZoneResources],
-                cloudContext: AzureCloudContext,
-                keepHistory: Boolean = false
+                cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]

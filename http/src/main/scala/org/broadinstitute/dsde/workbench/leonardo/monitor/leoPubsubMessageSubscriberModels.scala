@@ -287,6 +287,7 @@ object LeoPubsubMessage {
                                       appName: AppName,
                                       workspaceId: WorkspaceId,
                                       cloudContext: CloudContext,
+                                      diskId: Option[DiskId],
                                       landingZoneResourcesOpt: Option[LandingZoneResources],
                                       traceId: Option[TraceId]
   ) extends LeoPubsubMessage {

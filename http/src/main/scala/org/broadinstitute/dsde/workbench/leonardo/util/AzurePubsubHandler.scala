@@ -783,11 +783,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
     } yield ()
 
-  override def deleteApp(appId: AppId,
-                         appName: AppName,
-                         workspaceId: WorkspaceId,
-                         landingZoneResourcesOpt: Option[LandingZoneResources],
-                         cloudContext: AzureCloudContext
+  override def deleteApp(
+    appId: AppId,
+    appName: AppName,
+    workspaceId: WorkspaceId,
+    landingZoneResourcesOpt: Option[LandingZoneResources],
+    cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
