@@ -458,7 +458,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <-
         if (!podDoneCheckable.isDone(last)) {
           val msg =
-            s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
+            s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}."
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppDeletionException(msg))
         } else F.unit
