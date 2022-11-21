@@ -270,7 +270,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         StopAppParams(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value)
       )
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
+        .getFullAppById(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -294,7 +294,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         StartAppParams(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value)
       )
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
+        .getFullAppById(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
