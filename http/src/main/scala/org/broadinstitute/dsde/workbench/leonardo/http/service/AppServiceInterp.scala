@@ -674,12 +674,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
     }
 
-    // Check if the app already exists
-    appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
-    _ <- appOpt.fold(F.unit)(c =>
-      F.raiseError[Unit](AppAlreadyExistsInWorkspaceException(workspaceId, appName, c.app.status, ctx.traceId))
-    )
-
     // Get the Landing Zone Resources for the app for Azure
     landingZoneResourcesOpt <- cloudContext.cloudProvider match {
       case CloudProvider.Gcp => F.pure(None)
