@@ -65,7 +65,7 @@ object ListAppResponse {
       n.apps.map { a =>
         ListAppResponse(
           c.cloudContext.cloudProvider,
-          c.workspaceId,
+          a.workspaceId,
           c.cloudContext,
           KubernetesRuntimeConfig(
             n.numNodes,
