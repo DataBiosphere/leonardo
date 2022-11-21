@@ -179,11 +179,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val deletion = for {
       _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, Option(landingZoneResources), cloudContext))
       app <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Azure(cloudContext), app.id)
+        .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
         .transaction
     } yield {
-      app shouldBe defined
-      app.get.app.status shouldBe AppStatus.Deleted
+      app shouldBe None
     }
 
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
