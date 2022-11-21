@@ -165,6 +165,10 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object CreateAppV2 extends LeoPubsubMessageType {
     val asString = "createAppV2"
   }
+
+  final case object DeleteAppV2 extends LeoPubsubMessageType {
+    val asString = "deleteAppV2"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -532,6 +536,18 @@ object LeoPubsubCodec {
       CreateAppV2Message.apply
     )
 
+  implicit val deleteAppV2Decoder: Decoder[DeleteAppV2Message] =
+    Decoder.forProduct7("appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "diskId",
+                        "landingZoneResourcesOpt",
+                        "tradeId"
+    )(
+      DeleteAppV2Message.apply
+    )
+
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
@@ -551,6 +567,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
         case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
+        case LeoPubsubMessageType.DeleteAppV2        => message.as[DeleteAppV2Message]
       }
     } yield value
   }
