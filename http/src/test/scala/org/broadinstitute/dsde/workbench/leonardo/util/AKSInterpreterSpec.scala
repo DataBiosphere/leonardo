@@ -181,9 +181,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       app <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
         .transaction
-    } yield {
-      app shouldBe None
-    }
+    } yield app shouldBe None
 
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
