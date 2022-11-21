@@ -51,7 +51,6 @@ import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
-import scalacache.Cache
 
 import java.io.ByteArrayInputStream
 import java.util.{Base64, UUID}
