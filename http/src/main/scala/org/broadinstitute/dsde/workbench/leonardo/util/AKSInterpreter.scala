@@ -430,8 +430,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       namespaceName = app.appResources.namespace.name
       kubernetesNamespace = KubernetesNamespace(namespaceName)
       dbCluster = dbApp.cluster
-      clusterName = AKSClusterName(dbCluster.clusterName.value)
-      client <- buildCoreV1Client(cloudContext, clusterName)
 
       // Get resources from landing zone
       landingZoneResources <- F.fromOption(
@@ -441,6 +439,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           Some(ctx.traceId)
         )
       )
+
+      clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
+      client <- buildCoreV1Client(cloudContext, landingZoneResources.clusterName)
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
