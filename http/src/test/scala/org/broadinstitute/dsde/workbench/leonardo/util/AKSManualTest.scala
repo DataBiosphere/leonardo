@@ -160,8 +160,7 @@ object AKSManualTest {
     mock[SamDAO[IO]],
     mock[CromwellDAO[IO]],
     mock[CbasDAO[IO]],
-    mock[WdsDAO[IO]],
-    mock[Cache[IO, AKSClusterName, ApiClient]]
+    mock[WdsDAO[IO]]
   )
 
   /** Deploys a CoA app */

@@ -629,8 +629,7 @@ object Boot extends IOApp {
         samDao,
         cromwellDao,
         cbasDao,
-        wdsDao,
-        aksKubeCache
+        wdsDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,

@@ -65,8 +65,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            samDao: SamDAO[F],
                            cromwellDao: CromwellDAO[F],
                            cbasDao: CbasDAO[F],
-                           wdsDao: WdsDAO[F],
-                           apiClientCache: Cache[F, AKSClusterName, ApiClient]
+                           wdsDao: WdsDAO[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -433,6 +432,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       kubernetesNamespace = KubernetesNamespace(namespaceName)
       dbCluster = dbApp.cluster
       clusterName = AKSClusterName(dbCluster.clusterName.value)
+      client <- buildCoreV1Client(cloudContext, clusterName)
 
       // Get resources from landing zone
       landingZoneResources <- F.fromOption(
@@ -450,7 +450,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // poll until the app pods are deleted
       last <- streamFUntilDone(
-        listPodStatus(cloudContext, clusterName, KubernetesNamespace(app.appResources.namespace.name)),
+        listPodStatus(client, cloudContext, clusterName, KubernetesNamespace(app.appResources.namespace.name)),
         config.appMonitorConfig.deleteApp.maxAttempts,
         config.appMonitorConfig.deleteApp.interval
       ).compile.lastOrError
@@ -472,9 +472,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext)
 
       // delete the namespace only after the helm uninstall completes.
-      _ <- deleteNamespace(cloudContext, clusterName, kubernetesNamespace)
+      _ <- deleteNamespace(client, cloudContext, clusterName, kubernetesNamespace)
 
-      fa = namespaceExists(cloudContext, clusterName, kubernetesNamespace)
+      fa = namespaceExists(client, cloudContext, clusterName, kubernetesNamespace)
         .map(
           !_
         ) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
@@ -513,31 +513,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   }
 
-  private def getNewApiClient(clusterName: AKSClusterName, cloudContext: AzureCloudContext)(implicit
-    ev: Ask[F, TraceId]
-  ): F[ApiClient] =
+  private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
+    // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
+    implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
     for {
       credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
       client <- createClient(
         credentials
       )
-    } yield client
-
-  // DO NOT QUERY THE CACHE DIRECTLY
-  // There is a wrapper method that is necessary to ensure the token is refreshed
-  // we never make the entry stale, because we always need to refresh the token (see comment above getToken)
-  // if we did stale the entry we would have to unnecessarily re-do the google call
-  private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
-    // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
-    implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
-    for {
-      client <- apiClientCache.cachingF(clusterName)(None)(getNewApiClient(clusterName, cloudContext))
-      credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
       _ <- F.blocking(client.setApiKey(credentials.token.value))
     } yield new CoreV1Api(client)
   }
 
-  private def deleteNamespace(cloudContext: AzureCloudContext,
+  private def deleteNamespace(client: CoreV1Api,
+                              cloudContext: AzureCloudContext,
                               clusterName: AKSClusterName,
                               namespace: KubernetesNamespace
   )(implicit
@@ -545,7 +534,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[Unit] = {
     val delete = for {
       traceId <- ev.ask
-      client <- buildCoreV1Client(cloudContext, clusterName)
       call =
         recoverF(
           F.blocking(
@@ -583,7 +571,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private def listPodStatus(cloudContext: AzureCloudContext,
+  private def listPodStatus(client: CoreV1Api,
+                            cloudContext: AzureCloudContext,
                             clusterName: AKSClusterName,
                             namespace: KubernetesNamespace
   )(implicit
@@ -591,7 +580,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[List[PodStatus]] =
     for {
       traceId <- ev.ask
-      client <- buildCoreV1Client(cloudContext, clusterName)
       call =
         F.blocking(
           client.listNamespacedPod(namespace.name.value, "true", null, null, null, null, null, null, null, null, null)
@@ -630,7 +618,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield apiClient // appending here a .setDebugging(true) prints out useful API request/response info for development
   }
 
-  private def namespaceExists(cloudContext: AzureCloudContext,
+  private def namespaceExists(client: CoreV1Api,
+                              cloudContext: AzureCloudContext,
                               clusterName: AKSClusterName,
                               namespace: KubernetesNamespace
   )(implicit
@@ -638,7 +627,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[Boolean] =
     for {
       traceId <- ev.ask
-      client <- buildCoreV1Client(cloudContext, clusterName)
       call =
         recoverF(
           F.blocking(

@@ -72,8 +72,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockSamDAO,
     mockCromwellDAO,
     mockCbasDAO,
-    mockWdsDAO,
-    mock[Cache[IO, AKSClusterName, ApiClient]]
+    mockWdsDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
