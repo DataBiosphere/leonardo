@@ -49,7 +49,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.158")
+  val coaChartVersion = ChartVersion("0.2.160")
   val coaChart = Chart(coaChartName, coaChartVersion)
 
   val serviceKind = KubernetesServiceKindName("ClusterIP")
@@ -127,8 +127,7 @@ object KubernetesTestData {
 
   def makeKubeCluster(index: Int,
                       withDefaultNodepool: Boolean = true,
-                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified,
-                      workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
+                      status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
   ): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueCloudContextGcp = CloudContext.Gcp(GoogleProject(project.value + index))
@@ -143,8 +142,7 @@ object KubernetesTestData {
       auditInfo,
       None,
       List(),
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool)),
-      Some(workspaceId)
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
     )
   }
 
@@ -157,7 +155,8 @@ object KubernetesTestData {
               nodepoolId: NodepoolLeoId,
               customEnvironmentVariables: Map[String, String] = Map.empty,
               status: AppStatus = AppStatus.Unspecified,
-              appType: AppType = galaxyApp
+              appType: AppType = galaxyApp,
+              workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
@@ -166,6 +165,7 @@ object KubernetesTestData {
       nodepoolId,
       appType,
       name,
+      Some(workspaceId),
       status,
       galaxyChart,
       Release(galaxyReleasePrefix + index),

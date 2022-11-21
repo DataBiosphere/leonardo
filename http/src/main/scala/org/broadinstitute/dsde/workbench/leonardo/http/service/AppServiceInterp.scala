@@ -10,6 +10,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
@@ -18,6 +19,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleResourceService,
   KubernetesName,
   MachineTypeName,
+  NetworkName,
+  SubnetworkName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
@@ -25,7 +28,13 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  LandingZoneResourcePurpose,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET
+}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResourcesByPurpose, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -33,10 +42,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartVersion, Release}
+import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
@@ -115,7 +126,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
 
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None, workspaceId)
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
       )
 
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
@@ -201,6 +212,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       lastUsedApp,
                       petSA,
                       nodepool.id,
+                      None,
                       ctx
         )
       )
@@ -324,7 +336,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           } yield ()
         } else {
           for {
-            _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+            _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.app.id).transaction
             deleteMessage = DeleteAppMessage(
               appResult.app.id,
               appResult.app.appName,
@@ -424,7 +436,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Vector[ListAppResponse]] = for {
     paramMap <- F.fromEither(processListParameters(params))
     allClusters <- KubernetesServiceDbQueries
-      .listAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+      .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
       .transaction
 
     res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v2")
@@ -485,6 +497,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](AppAlreadyExistsInWorkspaceException(workspaceId, appName, c.app.status, ctx.traceId))
       )
 
+      // Get the Landing Zone Resources for the app for Azure
+      landingZoneResourcesOpt <- cloudContext.cloudProvider match {
+        case CloudProvider.Gcp => F.pure(None)
+        case CloudProvider.Azure =>
+          for {
+            landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+          } yield Some(landingZoneResources)
+      }
+
       // Validate the machine config from the request
       // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
       // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
@@ -519,7 +540,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, None, None, Some(workspaceId))
+        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now)
       )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       _ <-
@@ -589,6 +610,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           lastUsedApp,
           petSA,
           nodepool.id,
+          Some(workspaceId),
           ctx
         )
       )
@@ -600,6 +622,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         app.appName,
         workspaceId,
         cloudContext,
+        landingZoneResourcesOpt,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
@@ -649,7 +672,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } yield ()
       } else {
         for {
-          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.app.id).transaction
           deleteMessage = DeleteAppV2Message(
             appResult.app.id,
             appResult.app.appName,
@@ -662,13 +685,82 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
   } yield ()
 
+  private def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[LandingZoneResources] =
+    for {
+      // Step 1: call LZ for LZ id
+      landingZoneOpt <- wsmDao.getLandingZone(billingProfileId, userToken)
+      landingZone <- F.fromOption(
+        landingZoneOpt,
+        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
+      )
+      landingZoneId = landingZone.landingZoneId
+
+      // Step 2: call LZ for LZ resources
+      lzResourcesByPurpose <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
+
+      aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                   "Microsoft.ContainerService/managedClusters",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                     "Microsoft.Batch/batchAccounts",
+                                                     SHARED_RESOURCE,
+                                                     false
+      )
+      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                   "Microsoft.Relay/namespaces",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                       "Microsoft.Storage/storageAccounts",
+                                                       SHARED_RESOURCE,
+                                                       false
+      )
+      vnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                         "DeployedSubnet",
+                                                         WORKSPACE_BATCH_SUBNET,
+                                                         true
+      )
+      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+    } yield LandingZoneResources(
+      AKSClusterName(aksClusterName),
+      BatchAccountName(batchAccountName),
+      RelayNamespace(relayNamespace),
+      StorageAccountName(storageAccountName),
+      NetworkName(vnetName),
+      SubnetworkName(batchNodesSubnetName),
+      SubnetworkName(aksSubnetName)
+    )
+
+  private def getLandingZoneResourceName(landingZoneResourcesByPurpose: List[LandingZoneResourcesByPurpose],
+                                         resourceType: String,
+                                         purpose: LandingZoneResourcePurpose,
+                                         useParent: Boolean
+  ): F[String] =
+    landingZoneResourcesByPurpose
+      .filter(_.purpose == purpose)
+      .flatMap(_.deployedResources)
+      .filter(_.resourceType.equalsIgnoreCase(resourceType))
+      .headOption
+      .flatMap { r =>
+        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
+        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
+      }
+      .fold(
+        F.raiseError[String](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
+
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
-    now: Instant,
-    numNodepools: Option[NumNodepools],
-    clusterName: Option[KubernetesClusterName] = None,
-    workspaceId: Option[WorkspaceId]
+    now: Instant
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -682,18 +774,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
-      numNodes = numNodepools
-        .map(n =>
-          NumNodes(
-            math
-              .ceil(
-                n.value.toDouble /
-                  config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.maxNodepoolsPerDefaultNode.value.toDouble
-              )
-              .toInt
-          )
-        )
-        .getOrElse(config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes),
+      numNodes = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes,
       autoscalingEnabled = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.autoscalingEnabled,
       autoscalingConfig = None
     )
@@ -703,7 +784,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
     } yield SaveKubernetesCluster(
       cloudContext = cloudContext,
-      clusterName = clusterName.getOrElse(defaultClusterName),
+      clusterName = defaultClusterName,
       location = config.leoKubernetesConfig.clusterConfig.location,
       region = config.leoKubernetesConfig.clusterConfig.region,
       status =
@@ -711,8 +792,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
-      defaultNodepool = nodepool,
-      workspaceId = workspaceId
+      defaultNodepool = nodepool
     )
   }
 
@@ -944,17 +1024,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      lastUsedApp: Option[LastUsedApp],
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
+                                     workspaceId: Option[WorkspaceId],
                                      ctx: AppContext
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userEmail, now, None, now)
-    val gkeAppConfig: KubernetesAppConfig = req.appType match {
-      case Galaxy          => config.leoKubernetesConfig.galaxyAppConfig
-      case Cromwell        => config.leoKubernetesConfig.cromwellAppConfig
-      case Custom          => config.leoKubernetesConfig.customAppConfig
-      case CromwellOnAzure => ConfigReader.appConfig.azure.coaAppConfig
-    }
-
     val allLabels =
       DefaultKubernetesLabels(
         cloudContext,
@@ -963,6 +1037,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         googleServiceAccount
       ).toMap ++ req.labels
     for {
+      // Validate app type
+      gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
+        case (Galaxy, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
+      }
+
       // check the labels do not contain forbidden keys
       labels <-
         if (allLabels.contains(includeDeletedKey))
@@ -970,12 +1053,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else
           Right(allLabels)
 
-      // Galaxy, Cromwell, and Custom app types require a disk.
-      // Cromwell on Azure requires _no_ disk.
-      _ <- (req.appType, diskOpt) match {
-        case (Galaxy | Cromwell | Custom, None) =>
+      // Validate disk.
+      // Apps on GCP require a disk.
+      // Apps on Azure require _no_ disk.
+      _ <- (cloudContext.cloudProvider, diskOpt) match {
+        case (CloudProvider.Gcp, None) =>
           Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
-        case (CromwellOnAzure, Some(_)) =>
+        case (CloudProvider.Azure, Some(_)) =>
           Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
         case _ => Right(())
       }
@@ -1028,6 +1112,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         nodepoolId,
         req.appType,
         appName,
+        workspaceId,
         AppStatus.Precreating,
         chart,
         release,
@@ -1177,7 +1262,7 @@ case class AppCannotBeCreatedException(googleProject: GoogleProject,
                                        status: AppStatus,
                                        traceId: TraceId
 ) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status.",
+      s"App ${googleProject.value}/${appName.value} cannot be created in ${status} status.",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
@@ -1229,6 +1314,13 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
 case class AppMachineConfigNotSupportedException(traceId: TraceId)
     extends LeoException(
       s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
+      StatusCodes.BadRequest,
+      traceId = Some(traceId)
+    )
+
+case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
