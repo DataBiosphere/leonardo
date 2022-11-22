@@ -8,8 +8,21 @@ import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET, WORKSPACE_COMPUTE_SUBNET}
-import org.broadinstitute.dsde.workbench.leonardo.{BatchAccountName, LandingZoneResources, LeonardoTestSuite, StorageAccountName, WorkspaceId, WsmControlledResourceId, WsmJobId}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET,
+  WORKSPACE_COMPUTE_SUBNET
+}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  BatchAccountName,
+  LandingZoneResources,
+  LeonardoTestSuite,
+  StorageAccountName,
+  WorkspaceId,
+  WsmControlledResourceId,
+  WsmJobId
+}
 import org.http4s._
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
@@ -47,7 +60,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val landingZoneResponse = ListLandingZonesResult(List(originalLandingZone))
     val landingZoneStringResponse = landingZoneResponse.asJson.printWith(Printer.noSpaces)
 
-    val originalLandingZoneResourcesByPurpose =   List(
+    val originalLandingZoneResourcesByPurpose = List(
       LandingZoneResourcesByPurpose(
         SHARED_RESOURCE,
         List(
@@ -76,11 +89,12 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         )
       )
     )
-    val landingZoneResourcesResult = ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
+    val landingZoneResourcesResult =
+      ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
     val landingZoneResourcesStringResponse = landingZoneResourcesResult.asJson.printWith(Printer.noSpaces)
 
     val wsmClient = Client.fromHttpApp[IO](
-      HttpApp(request => {
+      HttpApp { request =>
         val resourceRequestString = f"/api/landingzones/v1/azure/${landingZoneId}/resources"
         request.uri.renderString match {
           case `resourceRequestString` =>
@@ -88,7 +102,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
           case "/api/landingzones/v1/azure" =>
             IO(Response(status = Status.Ok).withEntity(landingZoneStringResponse))
         }
-      })
+      }
     )
 
     val wsmDao = new HttpWsmDao[IO](wsmClient, config)

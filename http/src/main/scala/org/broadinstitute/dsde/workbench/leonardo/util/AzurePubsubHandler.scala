@@ -69,7 +69,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         CreateAzureRuntimeParams(msg.workspaceId,
                                  runtime,
                                  msg.storageContainerResourceId,
-          msg.landingZoneResources,
+                                 msg.landingZoneResources,
                                  azureConfig,
                                  config.runtimeDefaults.image
         ),
@@ -101,7 +101,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
       hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
-      primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace, hcName, cloudContext)
+      primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                           hcName,
+                                                           cloudContext
+      )
       createDiskAction = createDisk(params, auth)
       // TODO make a ticket. We're still calling WSM createVM API, which depends on a WSM owned network. We're migrating
       // to the shared LZ subnet. We could create the new VM directly from Leo or make an updated API in WSM

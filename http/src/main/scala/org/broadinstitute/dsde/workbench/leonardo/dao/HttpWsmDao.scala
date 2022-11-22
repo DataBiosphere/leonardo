@@ -1,13 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import  cats.effect.Async
+import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, LandingZoneResourcePurpose, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET, WORKSPACE_COMPUTE_SUBNET}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  LandingZoneResourcePurpose,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET,
+  WORKSPACE_COMPUTE_SUBNET
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
@@ -19,7 +25,7 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{Authorization, `Content-Type`}
+import org.http4s.headers.{`Content-Type`, Authorization}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
@@ -172,33 +178,37 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
 
       aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
-        "Microsoft.ContainerService/managedClusters",
-        SHARED_RESOURCE,
-        false
+                                                   "Microsoft.ContainerService/managedClusters",
+                                                   SHARED_RESOURCE,
+                                                   false
       )
       batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
-        "Microsoft.Batch/batchAccounts",
-        SHARED_RESOURCE,
-        false
+                                                     "Microsoft.Batch/batchAccounts",
+                                                     SHARED_RESOURCE,
+                                                     false
       )
       relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose,
-        "Microsoft.Relay/namespaces",
-        SHARED_RESOURCE,
-        false
+                                                   "Microsoft.Relay/namespaces",
+                                                   SHARED_RESOURCE,
+                                                   false
       )
       storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
-        "Microsoft.Storage/storageAccounts",
-        SHARED_RESOURCE,
-        false
+                                                       "Microsoft.Storage/storageAccounts",
+                                                       SHARED_RESOURCE,
+                                                       false
       )
       vnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
-        "DeployedSubnet",
-        WORKSPACE_BATCH_SUBNET,
-        false
+                                                         "DeployedSubnet",
+                                                         WORKSPACE_BATCH_SUBNET,
+                                                         false
       )
       aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
-      computeSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", WORKSPACE_COMPUTE_SUBNET, false)
+      computeSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
+                                                      "DeployedSubnet",
+                                                      WORKSPACE_COMPUTE_SUBNET,
+                                                      false
+      )
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
@@ -214,7 +224,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                          resourceType: String,
                                          purpose: LandingZoneResourcePurpose,
                                          useParent: Boolean
-                                        ): F[String] =
+  ): F[String] =
     landingZoneResourcesByPurpose
       .filter(_.purpose == purpose)
       .flatMap(_.deployedResources)

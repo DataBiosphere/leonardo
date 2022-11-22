@@ -726,7 +726,7 @@ object JsonCodec {
                         "vnetName",
                         "batchNodesSubnetName",
                         "aksSubnetName",
-      "computeSubnetName"
+                        "computeSubnetName"
     )(
       LandingZoneResources.apply
     )
@@ -748,7 +748,7 @@ object JsonCodec {
      x.vnetName,
      x.batchNodesSubnetName,
      x.aksSubnetName,
-      x.computeSubnetName
+     x.computeSubnetName
     )
   )
 }

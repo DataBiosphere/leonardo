@@ -96,7 +96,12 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       // Get the Landing Zone Resources for the app for Azure
       landingZoneResources <- cloudContext.cloudProvider match {
-        case CloudProvider.Gcp => F.raiseError(BadRequestException(s"Workspace ${workspaceId} is GCP and doesn't support V2 VM creation", Some(ctx.traceId)))
+        case CloudProvider.Gcp =>
+          F.raiseError(
+            BadRequestException(s"Workspace ${workspaceId} is GCP and doesn't support V2 VM creation",
+                                Some(ctx.traceId)
+            )
+          )
         case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
       }
 
