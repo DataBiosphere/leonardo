@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, LandingZoneResources, WorkspaceId}
 
 trait AKSAlgebra[F[_]] {
@@ -16,8 +17,9 @@ trait AKSAlgebra[F[_]] {
 final case class CreateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     workspaceId: WorkspaceId,
-                                    landingZoneResourcesOpt: Option[LandingZoneResources],
-                                    cloudContext: AzureCloudContext
+                                    cloudContext: AzureCloudContext,
+                                    landingZoneResources: LandingZoneResources,
+                                    storageContainer: Option[StorageContainerResponse]
 )
 
 final case class DeleteAKSAppParams(

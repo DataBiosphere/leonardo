@@ -109,16 +109,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      landingZoneResources <- F.fromOption(
-        params.landingZoneResourcesOpt,
-        AppCreationException(
-          s"Landing Zone Resources not found in app creation params for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
-
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
@@ -133,14 +125,26 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
+      // Create relay hybrid connection pool
+      hcName = RelayHybridConnectionName(params.appName.value)
+      relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                                       hcName,
+                                                                       params.cloudContext
+      )
+      relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+
       // Deploy setup chart
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          org.broadinstitute.dsp.Values(
-            s"cloud=azure,serviceAccount.name=${ksaName.value}"
+          buildSetupChartOverrideValues(app.release,
+                                        app.samResourceId,
+                                        ksaName,
+                                        params.landingZoneResources.relayNamespace,
+                                        hcName,
+                                        relayPrimaryKey
           ),
           true
         )
@@ -160,29 +164,41 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
-      _ <- assignVmScaleSet(landingZoneResources.clusterName, params.cloudContext, petMi)
+      _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
-      // Build values and install chart
-      values = buildCromwellChartOverrideValues(app.release,
-                                                params.cloudContext,
-                                                app.samResourceId,
-                                                landingZoneResources,
-                                                hcName,
-                                                primaryKey,
-                                                petMi
-      )
-      _ <- helmClient
-        .installChart(
-          app.release,
-          app.chart.name,
-          app.chart.version,
-          values,
-          createNamespace = true
-        )
-        .run(authContext)
+      // Deploy app chart
+      _ <- app.appType match {
+        case AppType.Cromwell =>
+          for {
+            // Storage container is required for Cromwell app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
+            )
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildCromwellChartOverrideValues(
+                  app.release,
+                  params.appName,
+                  params.cloudContext,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  relayEndpoint,
+                  petMi,
+                  storageContainer
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
+
+        case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
+      }
 
       // Poll app status
-      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
       appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint) / app.appName.value)
       _ <-
         if (appOk)
@@ -190,7 +206,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to start in cluster ${params.landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
@@ -204,8 +220,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             IP(relayEndpoint),
             IP("[unset]"),
             NetworkFields(
-              landingZoneResources.vnetName,
-              landingZoneResources.aksSubnetName,
+              params.landingZoneResources.vnetName,
+              params.landingZoneResources.aksSubnetName,
               IpRange("[unset]")
             )
           )
@@ -216,7 +232,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
+        s"Finished app creation for app ${params.appName.value} in cluster ${params.landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
       )
 
     } yield ()
@@ -233,11 +249,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       op = List(
         cbasDao
           .getStatus(relayBaseUri, authHeader)
+          .handleError(_ => false),
+        wdsDao
+          .getStatus(relayBaseUri, authHeader)
           .handleError(_ => false)
-          // TODO: add WDS to status checks once https://github.com/DataBiosphere/terra-workspace-data-service/pull/135 is in a release
-          // wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          // TODO (TOAZ-241): add cromwell to the status checks once it starts up
-          // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        // TODO (TOAZ-241): add cromwell to the status checks once it starts up
+        // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       ).sequence
       cromwellOk <- streamFUntilDone(
         op,
@@ -246,38 +263,58 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk.isDone
 
+  private[util] def buildSetupChartOverrideValues(release: Release,
+                                                  samResourceId: AppSamResourceId,
+                                                  ksaName: ServiceAccountName,
+                                                  relayNamespace: RelayNamespace,
+                                                  relayHcName: RelayHybridConnectionName,
+                                                  relayPrimaryKey: PrimaryKey
+  ): Values =
+    Values(
+      List(
+        raw"cloud=azure",
+        // KSA configs
+        raw"serviceAccount.name=${ksaName.value}",
+        // relay configs
+        raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
+        raw"relaylistener.connectionName=${relayHcName.value}",
+        raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
+        raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
+        raw"relaylistener.samUrl=${config.samConfig.server}",
+        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
+        raw"relaylistener.samResourceType=kubernetes-app",
+        raw"relaylistener.samAction=connect"
+      ).mkString(",")
+    )
+
   private[util] def buildCromwellChartOverrideValues(release: Release,
+                                                     appName: AppName,
                                                      cloudContext: AzureCloudContext,
-                                                     samResourceId: AppSamResourceId,
+                                                     workspaceId: WorkspaceId,
                                                      landingZoneResources: LandingZoneResources,
-                                                     relayHcName: RelayHybridConnectionName,
-                                                     relayPrimaryKey: PrimaryKey,
-                                                     petManagedIdentity: Identity
+                                                     relayEndpoint: String,
+                                                     petManagedIdentity: Identity,
+                                                     storageContainer: StorageContainerResponse
   ): Values =
     Values(
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        // TODO (TOAZ-227): set up Application Insights
-//      raw"config.azureServicesAuthConnectionString=???",
-//      raw"config.applicationInsightsAccountName=???",
-//      raw"config.cosmosDbAccountName=???",
+        // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
 
         // relay configs
-        raw"relaylistener.connectionString=Endpoint=sb://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
-        raw"relaylistener.connectionName=${relayHcName.value}",
-        raw"relaylistener.endpoint=https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net",
-        raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
-        raw"relaylistener.samUrl=${config.samConfig.server}",
-        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceType=kubernetes-app",
-        raw"relaylistener.samAction=connect",
+        raw"relay.path=$relayEndpoint",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
         raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
+        raw"persistence.blobContainer=${storageContainer.name.value}",
+        raw"persistence.leoAppInstanceName=${appName.value}",
+        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
+        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
+        raw"persistence.workspaceManager.workspaceContainerId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
         raw"identity.name=${petManagedIdentity.name()}",
@@ -640,5 +677,6 @@ final case class AKSInterpreterConfig(
   aadPodIdentityConfig: AadPodIdentityConfig,
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
-  appMonitorConfig: AppMonitorConfig
+  appMonitorConfig: AppMonitorConfig,
+  wsmConfig: HttpWsmDaoConfig
 )

@@ -3,6 +3,7 @@ package util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
+import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -39,8 +40,9 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def createAndPollApp(appId: AppId,
                        appName: AppName,
                        workspaceId: WorkspaceId,
-                       landingZoneResourcesOpt: Option[LandingZoneResources],
-                       cloudContext: AzureCloudContext
+                       cloudContext: AzureCloudContext,
+                       landingZoneResources: LandingZoneResources,
+                       storageContainer: Option[StorageContainerResponse]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
