@@ -28,11 +28,10 @@ import org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
@@ -44,7 +43,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import scalacache.Cache
 
 import java.nio.file.Files
-import java.util.Base64
+import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -56,7 +55,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam"),
-    appMonitorConfig
+    appMonitorConfig,
+    ConfigReader.appConfig.azure.wsm
   )
 
   val mockSamDAO = setUpMockSamDAO
@@ -93,8 +93,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     RelayNamespace("relay"),
     StorageAccountName("storage"),
     NetworkName("network"),
+    PostgresName("pg"),
+    LogAnalyticsWorkspaceName("logs"),
     SubnetworkName("subnet1"),
-    SubnetworkName("subnet2")
+    SubnetworkName("subnet2"),
+    SubnetworkName("subnet3"),
+    SubnetworkName("subnet4")
   )
 
   "AKSInterpreter" should "get a helm auth context" in {
@@ -112,27 +116,29 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "build coa override values" in {
-    val overrides = aksInterp.buildCromwellChartOverrideValues(Release("rel-1"),
-                                                               cloudContext,
-                                                               AppSamResourceId("sam"),
-                                                               lzResources,
-                                                               RelayHybridConnectionName("hc"),
-                                                               PrimaryKey("pk"),
-                                                               setUpMockIdentity
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val storageContainerId = WsmControlledResourceId(UUID.randomUUID)
+    val overrides = aksInterp.buildCromwellChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources,
+      "https://relay.com/app",
+      setUpMockIdentity,
+      StorageContainerResponse(ContainerName("sc-container"), storageContainerId)
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
       "config.batchAccountName=batch," +
       "config.batchNodesSubnetId=subnet1," +
-      "relaylistener.connectionString=Endpoint=sb://relay.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=pk;EntityPath=hc," +
-      "relaylistener.connectionName=hc,relaylistener.endpoint=https://relay.servicebus.windows.net," +
-      "relaylistener.targetHost=http://coa-rel-1-reverse-proxy-service:8000/," +
-      "relaylistener.samUrl=https://sam," +
-      "relaylistener.samResourceId=sam," +
-      "relaylistener.samResourceType=kubernetes-app," +
-      "relaylistener.samAction=connect," +
-      "persistence.storageResourceGroup=mrg," +
+      "relay.path=https://relay.com/app," +
       "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      "persistence.leoAppInstanceName=app," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.workspaceContainerId=${storageContainerId.value.toString}," +
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
@@ -158,7 +164,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       appId = saveApp.id
       appName = saveApp.appName
 
-      params = CreateAKSAppParams(appId, appName, workspaceId, Some(landingZoneResources), cloudContext)
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, landingZoneResources, None)
       _ <- aksInterp.createAndPollApp(params)
 
       app <- KubernetesServiceDbQueries

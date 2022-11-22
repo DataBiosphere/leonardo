@@ -625,8 +625,9 @@ class AzurePubsubHandlerSpec
         .createAndPollApp(appId,
                           AppName("app"),
                           WorkspaceId(UUID.randomUUID()),
-                          Some(landingZoneResources),
-                          azureCloudContext
+                          azureCloudContext,
+                          landingZoneResources,
+                          None
         )
         .attempt
     } yield result shouldBe Left(

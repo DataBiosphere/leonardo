@@ -148,7 +148,8 @@ object AKSManualTest {
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
-      appMonitorConfig
+      appMonitorConfig,
+      ConfigReader.appConfig.azure.wsm
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
@@ -176,8 +177,9 @@ object AKSManualTest {
           deps.app.id,
           deps.app.appName,
           workspaceId,
-          Some(landingZoneResources),
-          cloudContext
+          cloudContext,
+          landingZoneResources,
+          None
         )
       )
     }
