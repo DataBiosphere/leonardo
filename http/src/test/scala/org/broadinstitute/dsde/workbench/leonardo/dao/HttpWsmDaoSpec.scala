@@ -82,12 +82,13 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
     val wsmClient = Client.fromHttpApp[IO](
       HttpApp { request =>
-        val resourceRequestString = f"/api/landingzones/v1/azure/${landingZoneId}/resources"
+        val landingZoneRequestString = s"/api/landingzones/v1/azure?billingProfileId=${billingId}"
+        val resourceRequestString = s"/api/landingzones/v1/azure/${landingZoneId}/resources"
         request.uri.renderString match {
+          case `landingZoneRequestString` =>
+            IO(Response(status = Status.Ok).withEntity(landingZoneStringResponse))
           case `resourceRequestString` =>
             IO(Response(status = Status.Ok).withEntity(landingZoneResourcesStringResponse))
-          case "/api/landingzones/v1/azure" =>
-            IO(Response(status = Status.Ok).withEntity(landingZoneStringResponse))
         }
       }
     )
@@ -95,7 +96,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val wsmDao = new HttpWsmDao[IO](wsmClient, config)
     val res = wsmDao
       .getLandingZoneResources(
-        "78bacb57-2d47-4ac2-8710-5bd12edbc1bf",
+        billingId.toString,
         Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
       )
       .attempt
