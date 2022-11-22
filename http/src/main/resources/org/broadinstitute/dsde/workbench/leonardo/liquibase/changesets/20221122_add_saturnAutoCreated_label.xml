@@ -4,7 +4,7 @@
         <sql>
             INSERT into `LABEL` (`key`, `value`, `resourceType`, `resourceId`)
             SELECT "saturnAutoCreated", "true", "app", APP.id
-            FROM APP where status != "DELETED" and status != "ERROR" and (appName LIKE "saturn%" or appName LIKE "terra-app%");
+            FROM APP where status != "DELETED" and (appName LIKE "saturn%" or appName LIKE "terra-app%");
         </sql>
     </changeSet>
 </databaseChangeLog>
