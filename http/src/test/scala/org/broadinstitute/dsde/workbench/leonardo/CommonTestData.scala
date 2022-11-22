@@ -536,13 +536,14 @@ object CommonTestData {
     Some(0)
   )
 
-  val landingZoneResources = LandingZoneResources(AKSClusterName(""),
-                                                  BatchAccountName(""),
-                                                  RelayNamespace(""),
-                                                  StorageAccountName(""),
-                                                  NetworkName(""),
-                                                  SubnetworkName(""),
-                                                  SubnetworkName(""),
+  val landingZoneResources = LandingZoneResources(
+    AKSClusterName(""),
+    BatchAccountName(""),
+    RelayNamespace(""),
+    StorageAccountName(""),
+    NetworkName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
     SubnetworkName("")
   )
 

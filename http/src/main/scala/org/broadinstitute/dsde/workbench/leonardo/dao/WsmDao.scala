@@ -561,7 +561,7 @@ object WsmEncoders {
     Encoder.forProduct3("common", "azureVm", "jobControl")(x => (x.common, x.vmData, x.jobControl))
 
   implicit val storageContainerRequestEncoder: Encoder[StorageContainerRequest] =
-    Encoder.forProduct1( "storageContainerName")(x => (x.storageContainerName))
+    Encoder.forProduct1("storageContainerName")(x => x.storageContainerName)
 
   implicit val createStorageContainerRequestEncoder: Encoder[CreateStorageContainerRequest] =
     Encoder.forProduct2("common", "azureStorageContainer")(x => (x.commonFields, x.storageContainerReq))

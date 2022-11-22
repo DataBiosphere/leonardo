@@ -291,9 +291,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
         .transaction
       _ <- clusterQuery
-        .updateStagingBucket(params.runtime.id,
-                             Some(StagingBucket.Azure(params.landingZoneResources.storageAccountName, stagingContainerName)),
-                             ctx.now
+        .updateStagingBucket(
+          params.runtime.id,
+          Some(StagingBucket.Azure(params.landingZoneResources.storageAccountName, stagingContainerName)),
+          ctx.now
         )
         .transaction
     } yield (stagingContainerName, resp.resourceId)
