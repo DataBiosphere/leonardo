@@ -606,7 +606,8 @@ object Boot extends IOApp {
           ConfigReader.appConfig.azure.appRegistration,
           samConfig,
           appMonitorConfig,
-          ConfigReader.appConfig.azure.wsm
+          ConfigReader.appConfig.azure.wsm,
+          ConfigReader.appConfig.drs
         ),
         helmClient,
         azureContainerService,

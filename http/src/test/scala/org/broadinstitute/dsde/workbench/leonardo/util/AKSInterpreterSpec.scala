@@ -56,7 +56,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam"),
     appMonitorConfig,
-    ConfigReader.appConfig.azure.wsm
+    ConfigReader.appConfig.azure.wsm,
+    ConfigReader.appConfig.drs
   )
 
   val mockSamDAO = setUpMockSamDAO
@@ -136,14 +137,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.resourceGroup=mrg," +
       "config.batchAccountName=batch," +
       "config.batchNodesSubnetId=subnet1," +
-      "config.drsUrl=???," +
+      s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
       "relay.path=https://relay.com/app," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
       "persistence.leoAppInstanceName=app," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
-      s"persistence.workspaceManager.workspaceContainerId=${storageContainer.resourceId.value.toString}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +

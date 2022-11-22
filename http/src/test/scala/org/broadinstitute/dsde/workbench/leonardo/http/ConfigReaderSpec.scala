@@ -98,6 +98,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         org.broadinstitute.dsde.workbench.oauth2.ClientId("fakeClientId"),
         Some(org.broadinstitute.dsde.workbench.oauth2.ClientSecret("fakeClientSecret")),
         org.broadinstitute.dsde.workbench.oauth2.ClientId("legacyClientSecret")
+      ),
+      DrsConfig(
+        "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
       )
     )
 

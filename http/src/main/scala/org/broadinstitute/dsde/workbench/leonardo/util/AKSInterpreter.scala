@@ -303,7 +303,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
-        raw"config.drsUrl=???",
+        raw"config.drsUrl=${config.drsConfig.url}",
 
         // relay configs
         raw"relay.path=$relayEndpoint",
@@ -315,7 +315,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.leoAppInstanceName=${appName.value}",
         raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
         raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
-        raw"persistence.workspaceManager.workspaceContainerId=${storageContainer.resourceId.value.toString}",
+        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
         raw"identity.name=${petManagedIdentity.name()}",
@@ -679,5 +679,6 @@ final case class AKSInterpreterConfig(
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
   appMonitorConfig: AppMonitorConfig,
-  wsmConfig: HttpWsmDaoConfig
+  wsmConfig: HttpWsmDaoConfig,
+  drsConfig: DrsConfig
 )
