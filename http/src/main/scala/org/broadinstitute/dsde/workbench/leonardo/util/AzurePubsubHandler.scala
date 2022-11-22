@@ -279,16 +279,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
     for {
       ctx <- ev.ask[AppContext]
-      storageAccountOpt <- wsmDao.getWorkspaceStorageAccount(params.workspaceId, auth)
-      storageAccount <- F.fromOption(
-        storageAccountOpt,
-        new RuntimeException(s"${params.workspaceId} doesn't have a storage account provisioned properly")
-      )
       resp <- wsmDao.createStorageContainer(
         CreateStorageContainerRequest(
           params.workspaceId,
           storageContainerCommonFields,
-          StorageContainerRequest(storageAccount.resourceId, stagingContainerName)
+          StorageContainerRequest(stagingContainerName)
         ),
         auth
       )
@@ -297,7 +292,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
       _ <- clusterQuery
         .updateStagingBucket(params.runtime.id,
-                             Some(StagingBucket.Azure(storageAccount.name, stagingContainerName)),
+                             Some(StagingBucket.Azure(params.landingZoneResources.storageAccountName, stagingContainerName)),
                              ctx.now
         )
         .transaction

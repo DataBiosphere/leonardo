@@ -15,11 +15,6 @@ import org.broadinstitute.dsde.workbench.azure.{
   TenantId
 }
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
-  AKS_NODE_POOL_SUBNET,
-  SHARED_RESOURCE,
-  WORKSPACE_BATCH_SUBNET
-}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -166,7 +161,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
         StorageAccountName("lzstorage"),
         NetworkName("lzvnet"),
         SubnetworkName("batchsub"),
-        SubnetworkName("akssub")
+        SubnetworkName("akssub"),
+        SubnetworkName("computesub")
       )
     )
 
@@ -293,11 +289,6 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     ev: Ask[IO, AppContext]
   ): IO[CreateStorageContainerResult] =
     IO.pure(CreateStorageContainerResult(WsmControlledResourceId(UUID.randomUUID())))
-
-  override def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[Option[StorageAccountResponse]] =
-    IO.pure(Some(StorageAccountResponse(StorageAccountName("scn"), WsmControlledResourceId(UUID.randomUUID()))))
 
   override def deleteStorageContainer(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]

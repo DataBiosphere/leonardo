@@ -77,7 +77,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     StorageAccountName("storage"),
     NetworkName("network"),
     SubnetworkName("subnet1"),
-    SubnetworkName("subnet2")
+    SubnetworkName("subnet2"),
+    SubnetworkName("subnet3")
   )
 
   "AKSInterpreter" should "get a helm auth context" in {

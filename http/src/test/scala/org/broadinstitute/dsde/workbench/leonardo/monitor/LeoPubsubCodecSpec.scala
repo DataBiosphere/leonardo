@@ -150,7 +150,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     StorageAccountName("storage-account"),
     NetworkName("vnet"),
     SubnetworkName("batch-subnet"),
-    SubnetworkName("aks-subnet")
+    SubnetworkName("aks-subnet"),
+    SubnetworkName("compute-sub")
   )
 
   it should "encode/decode LandingZoneResources properly" in {

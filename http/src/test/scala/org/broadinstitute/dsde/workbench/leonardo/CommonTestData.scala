@@ -542,7 +542,8 @@ object CommonTestData {
                                                   StorageAccountName(""),
                                                   NetworkName(""),
                                                   SubnetworkName(""),
-                                                  SubnetworkName("")
+                                                  SubnetworkName(""),
+    SubnetworkName("")
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

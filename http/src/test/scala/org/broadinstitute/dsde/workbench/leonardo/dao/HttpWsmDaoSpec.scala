@@ -8,21 +8,8 @@ import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
-  AKS_NODE_POOL_SUBNET,
-  SHARED_RESOURCE,
-  WORKSPACE_BATCH_SUBNET,
-  WORKSPACE_COMPUTE_SUBNET
-}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  BatchAccountName,
-  LandingZoneResources,
-  LeonardoTestSuite,
-  StorageAccountName,
-  WorkspaceId,
-  WsmControlledResourceId,
-  WsmJobId
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, LandingZoneResourcePurpose, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET, WORKSPACE_COMPUTE_SUBNET}
+import org.broadinstitute.dsde.workbench.leonardo.{BatchAccountName, LandingZoneResources, LeonardoTestSuite, StorageAccountName, WorkspaceId, WsmControlledResourceId, WsmJobId}
 import org.http4s._
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
