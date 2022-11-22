@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   googleProjectDecoder,
   relayNamespaceDecoder,
   runtimeNameEncoder,
-  storageAccountNameDecoder,
   storageContainerNameDecoder,
   storageContainerNameEncoder,
   workspaceIdDecoder,
