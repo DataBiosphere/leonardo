@@ -303,6 +303,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
+        raw"config.drsUrl=???",
 
         // relay configs
         raw"relay.path=$relayEndpoint",

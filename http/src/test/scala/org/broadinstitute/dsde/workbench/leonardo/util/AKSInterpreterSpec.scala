@@ -101,6 +101,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SubnetworkName("subnet4")
   )
 
+  val storageContainer = StorageContainerResponse(
+    ContainerName("sc-container"),
+    WsmControlledResourceId(UUID.randomUUID)
+  )
+
   "AKSInterpreter" should "get a helm auth context" in {
     val res = for {
       authContext <- aksInterp.getHelmAuthContext(lzResources.clusterName, cloudContext, NamespaceName("ns"))
@@ -117,7 +122,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build coa override values" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val storageContainerId = WsmControlledResourceId(UUID.randomUUID)
     val overrides = aksInterp.buildCromwellChartOverrideValues(
       Release("rel-1"),
       AppName("app"),
@@ -126,19 +130,20 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       "https://relay.com/app",
       setUpMockIdentity,
-      StorageContainerResponse(ContainerName("sc-container"), storageContainerId)
+      storageContainer
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
       "config.batchAccountName=batch," +
       "config.batchNodesSubnetId=subnet1," +
+      "config.drsUrl=???," +
       "relay.path=https://relay.com/app," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
       "persistence.leoAppInstanceName=app," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
-      s"persistence.workspaceManager.workspaceContainerId=${storageContainerId.value.toString}," +
+      s"persistence.workspaceManager.workspaceContainerId=${storageContainer.resourceId.value.toString}," +
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
@@ -150,6 +155,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
       nodepool <- IO(makeNodepool(1, cluster.id).save())
       app = makeApp(1, nodepool.id).copy(
+        appType = AppType.Cromwell,
         appResources = AppResources(
           namespace = Namespace(
             NamespaceId(-1),
@@ -164,7 +170,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       appId = saveApp.id
       appName = saveApp.appName
 
-      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, landingZoneResources, None)
+      params = CreateAKSAppParams(appId,
+                                  appName,
+                                  workspaceId,
+                                  cloudContext,
+                                  landingZoneResources,
+                                  Some(storageContainer)
+      )
       _ <- aksInterp.createAndPollApp(params)
 
       app <- KubernetesServiceDbQueries
