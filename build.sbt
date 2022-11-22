@@ -5,7 +5,7 @@ lazy val root = project.in(file("."))
   .settings(
     name := "leonardo",
     publish / skip := true
-  ).aggregate(core, http, automation, pact, pact4s)
+  ).aggregate(core, http, automation, pact4s)
 
 lazy val core = project.in(file("core"))
   .settings(coreSettings)

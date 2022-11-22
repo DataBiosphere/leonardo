@@ -29,9 +29,20 @@ $ git clone https://github.com/DataBiosphere/leonardo.git
 $ cd leonardo
 ```
 
+If you are already using OpenJDK 17, run the following command. 
 ```
 $ sbt "project pact4s" clean test  
 ```
 
-Generated contract can be found in the ./target/pacts folder: `sam-consumer-sam-provider.json`.
+Otherwise, you can run the command inside a docker container with OpenJDK 17 installed. 
+```
+docker run --rm -v $PWD:/working \
+                -v jar-cache:/root/.ivy \
+                -v jar-cache:/root/.ivy2 \
+                -w /working \
+                sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
+                sbt "project pact4s" clean test
+```
+
+The generated contract can be found in the `./target/pacts` folder: `leo-consumer-sam-provider.json`.
 
