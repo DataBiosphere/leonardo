@@ -455,8 +455,6 @@ class GKEInterpreter[F[_]](
             app.extraArgs,
             app.customEnvironmentVariables
           )
-        case AppType.CromwellOnAzure =>
-          F.raiseError(AppCreationException(s"CromwellOnAzure app type not supported on GKE", Some(ctx.traceId)))
       }
 
       _ <- logger.info(ctx.loggingCtx)(
@@ -505,8 +503,6 @@ class GKEInterpreter[F[_]](
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
         case AppType.Custom   => F.unit
-        case AppType.CromwellOnAzure =>
-          F.raiseError(AppCreationException(s"CromwellOnAzure app type not supported on GKE", Some(ctx.traceId)))
       }
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
@@ -609,7 +605,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       dbAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .getFullAppById(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
                             AppNotFoundException(CloudContext.Gcp(params.googleProject),
@@ -708,7 +704,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       dbAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .getFullAppById(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
                             AppNotFoundException(CloudContext.Gcp(params.googleProject),
@@ -797,7 +793,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       dbAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .getFullAppById(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
                             AppNotFoundException(CloudContext.Gcp(params.googleProject),
@@ -880,8 +876,6 @@ class GKEInterpreter[F[_]](
               config.monitorConfig.startApp.interval
             ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
           } yield last.isDone
-        case AppType.CromwellOnAzure =>
-          F.raiseError(AppStartException(s"CromwellOnAzure app type not supported on GKE"))
       }
 
       _ <-

@@ -5,6 +5,7 @@ import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.landingZoneResources
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -99,8 +100,7 @@ object AKSManualTest {
             DefaultNodepool.fromNodepool(
               cluster.nodepools.headOption
                 .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
-            ),
-            None
+            )
           )
           for {
             saveClusterResult <- dbRef.inTransaction(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster))
@@ -172,6 +172,7 @@ object AKSManualTest {
           deps.app.id,
           deps.app.appName,
           workspaceId,
+          Some(landingZoneResources),
           cloudContext
         )
       )

@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.db
+package org.broadinstitute.dsde.workbench.leonardo
+package db
 
 import java.sql.SQLIntegrityConstraintViolationException
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -8,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
+import java.util.UUID
 
 class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
 
@@ -78,6 +80,33 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     }
 
     caught.getMessage should include("FK_APP_NODEPOOL_ID")
+  }
+
+  it should "enforce uniqueness on (name, cloudContext) for v1 apps" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
+
+    val appName = AppName("test")
+    makeApp(1, savedNodepool1.id).copy(appName = appName, workspaceId = None).save()
+
+    an[AppExistsException] shouldBe thrownBy {
+      makeApp(2, savedNodepool2.id).copy(appName = appName, workspaceId = None).save()
+    }
+  }
+
+  it should "enforce uniqueness on (name, workspace) for v2 apps" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
+
+    val appName = AppName("test")
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    makeApp(1, savedNodepool1.id).copy(appName = appName, workspaceId = Some(workspaceId)).save()
+
+    an[AppExistsException] shouldBe thrownBy {
+      makeApp(2, savedNodepool2.id).copy(appName = appName, workspaceId = Some(workspaceId)).save()
+    }
   }
 
 }
