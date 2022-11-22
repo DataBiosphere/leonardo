@@ -228,7 +228,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         )
       )(F.pure)
 
-  override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[LandingZone]] =
     for {
@@ -245,7 +245,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       landingZoneOption = res.flatMap(listLandingZoneResult => listLandingZoneResult.landingzones.headOption)
     } yield landingZoneOption
 
-  override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
+  private def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[List[LandingZoneResourcesByPurpose]] =
     for {

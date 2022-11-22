@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   wsmJobIdDecoder,
   wsmJobIdEncoder
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -89,14 +88,6 @@ trait WsmDao[F[_]] {
   def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources]
-
-  def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[LandingZone]]
-
-  def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[List[LandingZoneResourcesByPurpose]]
 
   // TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
   def getRelayNamespace(workspaceId: WorkspaceId,

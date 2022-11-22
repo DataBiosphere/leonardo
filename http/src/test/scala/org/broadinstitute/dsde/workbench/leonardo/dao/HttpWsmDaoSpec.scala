@@ -4,13 +4,12 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
-  LandingZoneResourcePurpose,
-  SHARED_RESOURCE
-}
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, WorkspaceId, WsmControlledResourceId, WsmJobId}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET}
+import org.broadinstitute.dsde.workbench.leonardo.{BatchAccountName, LandingZoneResources, LeonardoTestSuite, StorageAccountName, WorkspaceId, WsmControlledResourceId, WsmJobId}
 import org.http4s._
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
@@ -40,24 +39,55 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     res.unsafeRunSync().isRight shouldBe true
   }
 
-  it should "correctly parse landing zone id data" in {
-    val originalLandingZone = LandingZone(
-      UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
-      UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
-      "def",
-      "v1",
-      "2022-11-11"
+  it should "correctly get landing zone resources" in {
+    val billingId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
+    val landingZoneId = UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe")
+
+    val originalLandingZone = LandingZone(landingZoneId, billingId, "def", "v1", "2022-11-11")
+    val landingZoneResponse = ListLandingZonesResult(List(originalLandingZone))
+    val landingZoneStringResponse = landingZoneResponse.asJson.printWith(Printer.noSpaces)
+
+    val originalLandingZoneResourcesByPurpose =   List(
+      LandingZoneResourcesByPurpose(
+        SHARED_RESOURCE,
+        List(
+          buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
+          buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
+          buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
+          buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage")
+        )
+      ),
+      LandingZoneResourcesByPurpose(
+        WORKSPACE_BATCH_SUBNET,
+        List(
+          buildMockLandingZoneResource("DeployedSubnet", "batchsub", false)
+        )
+      ),
+      LandingZoneResourcesByPurpose(
+        AKS_NODE_POOL_SUBNET,
+        List(
+          buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
+        )
+      )
     )
-    val response = ListLandingZonesResult(List(originalLandingZone))
-    val stringResponse = response.asJson.printWith(Printer.noSpaces)
+    val landingZoneResourcesResult = ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
+    val landingZoneResourcesStringResponse = landingZoneResourcesResult.asJson.printWith(Printer.noSpaces)
 
     val wsmClient = Client.fromHttpApp[IO](
-      HttpApp(_ => IO(Response(status = Status.Ok).withEntity(stringResponse)))
+      HttpApp(request => {
+        val resourceRequestString = f"/api/landingzones/v1/azure/${landingZoneId}/resources"
+        request.uri.renderString match {
+          case `resourceRequestString` =>
+            IO(Response(status = Status.Ok).withEntity(landingZoneResourcesStringResponse))
+          case "/api/landingzones/v1/azure" =>
+            IO(Response(status = Status.Ok).withEntity(landingZoneStringResponse))
+        }
+      })
     )
 
     val wsmDao = new HttpWsmDao[IO](wsmClient, config)
     val res = wsmDao
-      .getLandingZone(
+      .getLandingZoneResources(
         "78bacb57-2d47-4ac2-8710-5bd12edbc1bf",
         Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
       )
@@ -66,47 +96,28 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
     res.isRight shouldBe true
 
-    val landingZone = res.toOption.flatten.get
-    landingZone shouldBe originalLandingZone
-  }
-
-  it should "correctly list landing zone resources" in {
-    val landingZoneId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
-    val originalLandingZoneResourcesByPurpose = List(
-      LandingZoneResourcesByPurpose(
-        SHARED_RESOURCE,
-        List(
-          LandingZoneResource(
-            Some("id"),
-            "type",
-            Some("name"),
-            Some("parent-id"),
-            "us-east"
-          )
-        )
-      )
-    )
-    val response = ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
-    val stringResponse = response.asJson.printWith(Printer.noSpaces)
-
-    val wsmClient = Client.fromHttpApp[IO](
-      HttpApp(_ => IO(Response(status = Status.Ok).withEntity(stringResponse)))
+    val expectedLandingZoneResources = LandingZoneResources(
+      AKSClusterName("lzcluster"),
+      BatchAccountName("lzbatch"),
+      RelayNamespace("lznamespace"),
+      StorageAccountName("lzstorage"),
+      NetworkName("lzvnet"),
+      SubnetworkName("batchsub"),
+      SubnetworkName("akssub")
     )
 
-    val wsmDao = new HttpWsmDao[IO](wsmClient, config)
-    val res = wsmDao
-      .listLandingZoneResourcesByType(
-        landingZoneId,
-        Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
-      )
-      .attempt
-      .unsafeRunSync()
-
-    res.isRight shouldBe true
-
-    val landingZoneResourcesByPurpose = res.toOption.get
-    landingZoneResourcesByPurpose shouldBe originalLandingZoneResourcesByPurpose
+    val landingZoneResources = res.toOption.get
+    landingZoneResources shouldBe expectedLandingZoneResources
   }
+
+  private def buildMockLandingZoneResource(resourceType: String, resourceName: String, useId: Boolean = true) =
+    LandingZoneResource(
+      if (useId) Some(s"id-prefix/${resourceName}") else None,
+      resourceType,
+      if (useId) None else Some(resourceName),
+      if (useId) None else Some("lzvnet"),
+      "us-east"
+    )
 
   implicit val landingZoneEncoder: Encoder[LandingZone] =
     Encoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(x =>
