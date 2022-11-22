@@ -7,23 +7,9 @@ import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
-  azureImageEncoder,
-  azureMachineTypeEncoder,
-  azureRegionDecoder,
-  azureRegionEncoder,
-  googleProjectDecoder,
-  relayNamespaceDecoder,
-  runtimeNameEncoder,
-  storageAccountNameDecoder,
-  storageContainerNameDecoder,
-  storageContainerNameEncoder,
-  workspaceIdDecoder,
-  wsmControlledResourceIdDecoder,
-  wsmControlledResourceIdEncoder,
-  wsmJobIdDecoder,
-  wsmJobIdEncoder
-}
+import org.broadinstitute.dsde.workbench.google2.NetworkName
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{azureImageEncoder, azureMachineTypeEncoder, azureRegionDecoder, azureRegionEncoder, googleProjectDecoder, relayNamespaceDecoder, runtimeNameEncoder, storageAccountNameDecoder, storageContainerNameDecoder, storageContainerNameEncoder, workspaceIdDecoder, wsmControlledResourceIdDecoder, wsmControlledResourceIdEncoder, wsmJobIdDecoder, wsmJobIdEncoder}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -172,6 +158,7 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      customScriptExtension: CustomScriptExtension,
                                      vmUserCredential: VMCredential,
                                      diskId: WsmControlledResourceId,
+                                     vnetName: NetworkName,
                                      networkId: WsmControlledResourceId
 )
 

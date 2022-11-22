@@ -101,7 +101,7 @@ class AzurePubsubHandlerSpec
         msg = CreateAzureRuntimeMessage(runtime.id,
                                         workspaceId,
                                         storageContainerResourceId,
-                                        Some(landingZoneResources),
+                                        landingZoneResources,
                                         None
         )
 
@@ -175,7 +175,7 @@ class AzurePubsubHandlerSpec
         msg = CreateAzureRuntimeMessage(runtime.id,
                                         workspaceId,
                                         storageContainerResourceId,
-                                        Some(landingZoneResources),
+                                        landingZoneResources,
                                         None
         )
 
@@ -315,7 +315,7 @@ class AzurePubsubHandlerSpec
         msg = CreateAzureRuntimeMessage(runtime.id,
                                         workspaceId,
                                         storageContainerResourceId,
-                                        Some(landingZoneResources),
+                                        landingZoneResources,
                                         None
         )
 

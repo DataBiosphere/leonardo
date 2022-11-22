@@ -1766,7 +1766,7 @@ class LeoPubsubMessageSubscriberSpec
         msg = CreateAzureRuntimeMessage(runtime.id,
                                         workspaceId,
                                         storageContainerResourceId,
-                                        Some(landingZoneResources),
+                                        landingZoneResources,
                                         None
         )
 

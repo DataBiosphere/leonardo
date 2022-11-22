@@ -15,6 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, Le
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s.{AuthScheme, Credentials}
+import org.http4s.headers.Authorization
 import org.typelevel.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
@@ -293,7 +295,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 
-  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId)(
+    implicit ev: Ask[F, TraceId]
+  ): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(
@@ -331,6 +335,12 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
             case _ =>
               F.raiseError(MonitorAtBootException("Azure runtime shouldn't have non Azure runtime config", traceId))
           }
+          petTokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+          petToken <- F.fromOption(
+            petTokenOpt,
+            MonitorAtBootException(s"Failed to get pet access token for ${runtime.auditInfo.creator}", traceId)
+          )
+          petAuth = Authorization(Credentials.Token(AuthScheme.Bearer, petToken))
           implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
           storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(wid, leoAuth)
           storageContainer <- F.fromOption(
@@ -344,12 +354,12 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
 
 
           // Get the Landing Zone Resources for the app for Azure
-          landingZoneResourcesOpt <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, petAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,
           wid,
           storageContainer.resourceId,
-          Some(landingZoneResourcesOpt),
+          landingZoneResources,
           Some(traceId)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))

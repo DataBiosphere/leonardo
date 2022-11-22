@@ -24,5 +24,6 @@ final case class LandingZoneResources(clusterName: AKSClusterName,
                                       storageAccountName: StorageAccountName,
                                       vnetName: NetworkName,
                                       batchNodesSubnetName: SubnetworkName,
-                                      aksSubnetName: SubnetworkName
+                                      aksSubnetName: SubnetworkName,
+                                      computeSubnetName: SubnetworkName
 )

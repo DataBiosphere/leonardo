@@ -51,7 +51,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     "https://www.googleapis.com/auth/userinfo.profile",
     StorageScopes.DEVSTORAGE_READ_ONLY
   )
-  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInteral)
+  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInternal)
 
   override def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
@@ -405,7 +405,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       now <- F.realTimeInstant
       validAccessToken <-
         if (accessToken.getExpirationTime.getTime > now.toEpochMilli)
-          getLeoAuthTokenInteral
+          getLeoAuthTokenInternal
         else F.pure(accessToken)
     } yield {
       val token = validAccessToken.getTokenValue
@@ -440,7 +440,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           } yield admins.contains(workbenchEmail)
     } yield res
 
-  private def getLeoAuthTokenInteral: F[com.google.auth.oauth2.AccessToken] =
+  private def getLeoAuthTokenInternal: F[com.google.auth.oauth2.AccessToken] =
     credentialResource(
       config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
     ).use { credential =>

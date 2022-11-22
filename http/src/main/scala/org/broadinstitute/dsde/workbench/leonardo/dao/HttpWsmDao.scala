@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import cats.effect.Async
+import  cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, LandingZoneResourcePurpose, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, LandingZoneResourcePurpose, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET, WORKSPACE_COMPUTE_SUBNET}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
@@ -195,9 +195,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
         "DeployedSubnet",
         WORKSPACE_BATCH_SUBNET,
-        true
+        false
       )
-      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
+      computeSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", WORKSPACE_COMPUTE_SUBNET, false)
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
@@ -205,7 +206,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       StorageAccountName(storageAccountName),
       NetworkName(vnetName),
       SubnetworkName(batchNodesSubnetName),
-      SubnetworkName(aksSubnetName)
+      SubnetworkName(aksSubnetName),
+      SubnetworkName(computeSubnetName)
     )
 
   private def getLandingZoneResourceName(landingZoneResourcesByPurpose: List[LandingZoneResourcesByPurpose],

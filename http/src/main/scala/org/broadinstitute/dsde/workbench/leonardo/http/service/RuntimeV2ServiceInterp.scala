@@ -95,12 +95,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
       // Get the Landing Zone Resources for the app for Azure
-      landingZoneResourcesOpt <- cloudContext.cloudProvider match {
-        case CloudProvider.Gcp => F.pure(None)
-        case CloudProvider.Azure =>
-          for {
-            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
-          } yield Some(landingZoneResources)
+      landingZoneResources <- cloudContext.cloudProvider match {
+        case CloudProvider.Gcp => F.raiseError(BadRequestException(s"Workspace ${workspaceId} is GCP and doesn't support V2 VM creation", Some(ctx.traceId)))
+        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
       }
 
       runtimeImage: RuntimeImage = RuntimeImage(
@@ -161,7 +158,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               CreateAzureRuntimeMessage(savedRuntime.id,
                                         workspaceId,
                                         storageContainer.resourceId,
-                                        landingZoneResourcesOpt,
+                                        landingZoneResources,
                                         Some(ctx.traceId)
               )
             )

@@ -340,7 +340,7 @@ object LeoPubsubMessage {
   final case class CreateAzureRuntimeMessage(runtimeId: Long,
                                              workspaceId: WorkspaceId,
                                              storageContainerResourceId: WsmControlledResourceId,
-                                             landingZoneResourcesOpt: Option[LandingZoneResources],
+                                             landingZoneResources: LandingZoneResources,
                                              traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime

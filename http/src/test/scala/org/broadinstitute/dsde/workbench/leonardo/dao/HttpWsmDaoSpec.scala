@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET, WORKSPACE_COMPUTE_SUBNET}
 import org.broadinstitute.dsde.workbench.leonardo.{BatchAccountName, LandingZoneResources, LeonardoTestSuite, StorageAccountName, WorkspaceId, WsmControlledResourceId, WsmJobId}
 import org.http4s._
 import org.http4s.client.Client
@@ -68,6 +68,12 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         List(
           buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
         )
+      ),
+      LandingZoneResourcesByPurpose(
+        WORKSPACE_COMPUTE_SUBNET,
+        List(
+          buildMockLandingZoneResource("DeployedSubnet", "computesub", false)
+        )
       )
     )
     val landingZoneResourcesResult = ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
@@ -103,7 +109,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       StorageAccountName("lzstorage"),
       NetworkName("lzvnet"),
       SubnetworkName("batchsub"),
-      SubnetworkName("akssub")
+      SubnetworkName("akssub"),
+      SubnetworkName("computesub")
     )
 
     val landingZoneResources = res.toOption.get
@@ -112,11 +119,11 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
   private def buildMockLandingZoneResource(resourceType: String, resourceName: String, useId: Boolean = true) =
     LandingZoneResource(
-      if (useId) Some(s"id-prefix/${resourceName}") else None,
+      resourceId = if (useId) Some(s"id-prefix/${resourceName}") else None,
       resourceType,
-      if (useId) None else Some(resourceName),
-      if (useId) None else Some("lzvnet"),
-      "us-east"
+      resourceName = if (useId) None else Some(resourceName),
+      resourceParentId = if (useId) None else Some("lzvnet"),
+      region = "us-east"
     )
 
   implicit val landingZoneEncoder: Encoder[LandingZone] =

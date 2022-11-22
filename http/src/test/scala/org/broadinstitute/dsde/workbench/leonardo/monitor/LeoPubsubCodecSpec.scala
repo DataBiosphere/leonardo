@@ -134,7 +134,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       CreateAzureRuntimeMessage(1,
                                 WorkspaceId(UUID.randomUUID()),
                                 storageContainerResourceId,
-                                Some(landingZoneResources),
+                                landingZoneResources,
                                 None
       )
 
