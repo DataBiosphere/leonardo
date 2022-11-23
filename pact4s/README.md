@@ -44,5 +44,7 @@ docker run --rm -v $PWD:/working \
                 sbt "project pact4s" clean test
 ```
 
-The generated contract can be found in the `./target/pacts` folder: `leo-consumer-sam-provider.json`.
+The generated contracts can be found in the `./target/pacts` folder
+- `leo-consumer-sam-provider.json`
+- `leo-consumer-fake-provider.json`
 

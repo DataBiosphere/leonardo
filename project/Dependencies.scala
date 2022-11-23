@@ -14,8 +14,6 @@ object Dependencies {
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
-  val scalaHttpV = "2.4.2"
-  val json4sNativeV = "4.0.6"
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.6.0"
 
@@ -78,7 +76,6 @@ object Dependencies {
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-16" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
-  val scalaHttp = "org.scalaj" %% "scalaj-http" % scalaHttpV
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -139,7 +136,6 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
-  val json4sNative =      "org.json4s"        %% "json4s-native"        % json4sNativeV
   val typelevelCat =      "org.typelevel"     %% "munit-cats-effect-3"  % munitCatsEffectV % Test
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
@@ -223,14 +219,6 @@ object Dependencies {
     scalaTestMockito,
     http4sBlazeServer % Test//,
 //    wsmClient
-  )
-
-  val pactDependencies = Seq(
-    "com.itv"       %% "scalapact-scalatest-suite"   % "4.4.0"   % Test,
-    scalaTest,
-    scalaHttp,
-    json4sNative,
-    "org.slf4j"              % "slf4j-simple"        % "2.0.3"
   )
 
   val pact4sDependencies = Seq(

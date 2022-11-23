@@ -19,10 +19,6 @@ lazy val automation = project.in(file("automation"))
   .settings(automationSettings)
   .dependsOn(core % "test->test;compile->compile")
 
-lazy val pact = project.in(file("pact"))
-  .enablePlugins(ScalaPactPlugin)
-  .settings(pactSettings)
-
 lazy val pact4s = project.in(file("pact4s"))
   .settings(pact4sSettings)
   .dependsOn(http % "test->test;compile->compile")
