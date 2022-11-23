@@ -127,7 +127,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
 
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None, workspaceId)
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
       )
 
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
@@ -213,6 +213,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       lastUsedApp,
                       petSA,
                       nodepool.id,
+                      None,
                       ctx
         )
       )
@@ -336,7 +337,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           } yield ()
         } else {
           for {
-            _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+            _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.app.id).transaction
             deleteMessage = DeleteAppMessage(
               appResult.app.id,
               appResult.app.appName,
@@ -436,7 +437,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Vector[ListAppResponse]] = for {
     paramMap <- F.fromEither(processListParameters(params))
     allClusters <- KubernetesServiceDbQueries
-      .listAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+      .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
       .transaction
 
     res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v2")
@@ -540,7 +541,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, None, None, Some(workspaceId))
+        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now)
       )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       _ <-
@@ -610,6 +611,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           lastUsedApp,
           petSA,
           nodepool.id,
+          Some(workspaceId),
           ctx
         )
       )
@@ -692,7 +694,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } yield ()
       } else {
         for {
-          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.app.id).transaction
           deleteMessage = DeleteAppV2Message(
             appResult.app.id,
             appResult.app.appName,
@@ -782,10 +784,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
-    now: Instant,
-    numNodepools: Option[NumNodepools],
-    clusterName: Option[KubernetesClusterName] = None,
-    workspaceId: Option[WorkspaceId]
+    now: Instant
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -799,18 +798,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
-      numNodes = numNodepools
-        .map(n =>
-          NumNodes(
-            math
-              .ceil(
-                n.value.toDouble /
-                  config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.maxNodepoolsPerDefaultNode.value.toDouble
-              )
-              .toInt
-          )
-        )
-        .getOrElse(config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes),
+      numNodes = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes,
       autoscalingEnabled = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.autoscalingEnabled,
       autoscalingConfig = None
     )
@@ -820,7 +808,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
     } yield SaveKubernetesCluster(
       cloudContext = cloudContext,
-      clusterName = clusterName.getOrElse(defaultClusterName),
+      clusterName = defaultClusterName,
       location = config.leoKubernetesConfig.clusterConfig.location,
       region = config.leoKubernetesConfig.clusterConfig.region,
       status =
@@ -828,8 +816,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
-      defaultNodepool = nodepool,
-      workspaceId = workspaceId
+      defaultNodepool = nodepool
     )
   }
 
@@ -1061,6 +1048,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      lastUsedApp: Option[LastUsedApp],
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
+                                     workspaceId: Option[WorkspaceId],
                                      ctx: AppContext
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
@@ -1148,6 +1136,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         nodepoolId,
         req.appType,
         appName,
+        workspaceId,
         AppStatus.Precreating,
         chart,
         release,
