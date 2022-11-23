@@ -1456,13 +1456,13 @@ class LeoPubsubMessageSubscriber[F[_]](
           val task =
             azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, msg.landingZoneResourcesOpt, c)
           asyncTasks.offer(
-            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
+            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2")
           )
         case CloudContext.Gcp(c) =>
           F.raiseError(
             PubsubKubernetesError(
               AppError(
-                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: CreateAppV2 not supported for GCP",
+                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: DeleteAppV2 not supported for GCP",
                 ctx.now,
                 ErrorAction.CreateApp,
                 ErrorSource.App,
