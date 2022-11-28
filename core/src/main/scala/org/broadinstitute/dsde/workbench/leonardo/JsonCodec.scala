@@ -89,6 +89,7 @@ object JsonCodec {
   implicit val cloudProviderEncoder: Encoder[CloudProvider] = Encoder.encodeString.contramap(_.asString)
   implicit val diskLinkEncoder: Encoder[DiskLink] = Encoder.encodeString.contramap(_.asString)
   implicit val formattedByEncoder: Encoder[FormattedBy] = Encoder.encodeString.contramap(_.asString)
+  implicit val toolEncoder: Encoder[Tool] = Encoder.encodeString.contramap(_.asString)
 
   implicit val cloudContextEncoder: Encoder[CloudContext] = Encoder.forProduct2(
     "cloudProvider",
@@ -345,6 +346,8 @@ object JsonCodec {
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
   )
+  implicit val toolDecoder: Decoder[Tool] =
+    Decoder.decodeString.emap(s => Tool.withNameOption(s).toRight(s"Unsupported Tool ${s}"))
 
   implicit val cloudContextDecoder: Decoder[CloudContext] = Decoder.instance { x =>
     for {

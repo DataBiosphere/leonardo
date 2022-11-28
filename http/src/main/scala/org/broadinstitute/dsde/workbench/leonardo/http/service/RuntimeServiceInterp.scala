@@ -848,6 +848,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 }
 
 object RuntimeServiceInterp {
+
+  private def getToolFromImages(clusterImages: Set[RuntimeImage]): Option[Tool] =
+    Some(Tool.withName(clusterImages.find(s => Tool.namesToValuesMap.contains(s.imageType.toString)).toString))
+
   private[service] def convertToRuntime(userInfo: UserInfo,
                                         serviceAccountInfo: WorkbenchEmail,
                                         cloudContext: CloudContext,
@@ -867,7 +871,7 @@ object RuntimeServiceInterp {
       Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+      getToolFromImages(clusterImages)
     ).toMap
 
     // combine default and given labels and add labels for extensions
