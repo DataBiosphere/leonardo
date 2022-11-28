@@ -481,7 +481,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                     "delete namespace timed out"
       )
 
-      userEmail = dbApp.app.googleServiceAccount
+      userEmail = app.auditInfo.creator
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
 
       _ <- tokenOpt match {
