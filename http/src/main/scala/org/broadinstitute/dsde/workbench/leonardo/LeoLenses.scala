@@ -97,7 +97,8 @@ object LeoLenses {
         x.diskSize,
         Some(x.bootDiskSize),
         x.zone,
-        x.gpuConfig
+        x.gpuConfig,
+        None
       )
     case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
       RuntimeConfig.GceWithPdConfig(

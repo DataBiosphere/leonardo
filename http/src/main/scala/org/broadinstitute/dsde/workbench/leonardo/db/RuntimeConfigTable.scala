@@ -77,11 +77,13 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
           case CloudService.GCE =>
             diskSize match {
               case Some(size) =>
-                RuntimeConfig.GceConfig(machineType,
-                                        size,
-                                        bootDiskSize,
-                                        zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
-                                        getGpuConfig(gpuConfig._1, gpuConfig._2)
+                RuntimeConfig.GceConfig(
+                  machineType,
+                  size,
+                  bootDiskSize,
+                  zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
+                  getGpuConfig(gpuConfig._1, gpuConfig._2),
+                  None
                 )
               case None =>
                 val bds =

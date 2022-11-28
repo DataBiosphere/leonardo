@@ -20,7 +20,8 @@ object RuntimeConfigRequest {
     machineType: Option[MachineTypeName],
     diskSize: Option[DiskSize],
     zone: Option[ZoneName],
-    gpuConfig: Option[GpuConfig]
+    gpuConfig: Option[GpuConfig],
+    timeoutMinutes: Option[Int]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -63,7 +64,8 @@ final case class CreateRuntimeRequest(
   toolDockerImage: Option[ContainerImage],
   welderRegistry: Option[ContainerRegistry],
   scopes: Set[String],
-  customEnvironmentVariables: Map[String, String]
+  customEnvironmentVariables: Map[String, String],
+  timeoutMinutes: Option[Int]
 )
 
 final case class CreateRuntimeResponse(traceId: TraceId)

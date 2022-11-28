@@ -251,7 +251,8 @@ object RuntimeConfig {
       DiskSize
     ], // This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
     zone: ZoneName,
-    gpuConfig: Option[GpuConfig] // This is optional since not all runtimes use gpus
+    gpuConfig: Option[GpuConfig], // This is optional since not all runtimes use gpus
+    timeoutMinutes: Option[Int]
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }

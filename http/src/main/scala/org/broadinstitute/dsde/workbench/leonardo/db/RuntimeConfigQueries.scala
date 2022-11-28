@@ -52,7 +52,7 @@ object RuntimeConfigQueries {
       val diskId = runtimeConfig match {
         case Some(value) =>
           value match {
-            case RuntimeConfig.GceConfig(_, _, _, _, _)                        => none[DiskId]
+            case RuntimeConfig.GceConfig(_, _, _, _, _, _)                     => none[DiskId]
             case RuntimeConfig.GceWithPdConfig(_, persistentDiskId, _, _, _)   => persistentDiskId
             case RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _) => none[DiskId]
             case RuntimeConfig.AzureConfig(_, persistentDiskId, _)             => persistentDiskId.some

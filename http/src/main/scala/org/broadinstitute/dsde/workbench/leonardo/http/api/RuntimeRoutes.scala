@@ -398,12 +398,13 @@ object RuntimeRoutes {
             pd <- x.downField("persistentDisk").as[Option[PersistentDiskRequest]]
             zone <- x.downField("zone").as[Option[ZoneName]]
             gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
+            timeoutMinutes <- x.downField("timeoutMinutes").as[Option[Int]]
             res <- pd match {
               case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone, gpu).asRight[DecodingFailure]
               case None =>
                 x.downField("diskSize")
                   .as[Option[DiskSize]]
-                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone, gpu))
+                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone, gpu, timeoutMinutes))
             }
           } yield res
         case CloudService.AzureVm =>
@@ -436,6 +437,7 @@ object RuntimeRoutes {
       wr <- c.downField("welderRegistry").as[Option[ContainerRegistry]]
       s <- c.downField("scopes").as[Option[Set[String]]]
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
+      tm <- c.downField("timeoutMinutes").as[Option[Int]]
     } yield CreateRuntimeRequest(
       l.getOrElse(Map.empty),
       us.orElse(jus),
@@ -448,7 +450,8 @@ object RuntimeRoutes {
       tdi,
       wr,
       s.getOrElse(Set.empty),
-      cv.getOrElse(Map.empty)
+      cv.getOrElse(Map.empty),
+      tm
     )
   }
 

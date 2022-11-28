@@ -115,6 +115,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               config.gceConfig.runtimeConfigDefaults.diskSize,
               bootDiskSize,
               config.gceConfig.runtimeConfigDefaults.zone,
+              None,
               None
             )
             runtimeConfig <- req.runtimeConfig
@@ -128,7 +129,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                           gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize),
                           bootDiskSize,
                           gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
-                          gce.gpuConfig
+                          gce.gpuConfig,
+                          gce.timeoutMinutes
                         ): RuntimeConfigInCreateRuntimeMessage
                       )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
@@ -651,7 +653,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
-        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
+        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
             ) =>
           for {

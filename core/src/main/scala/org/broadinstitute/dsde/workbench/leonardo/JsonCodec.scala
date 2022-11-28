@@ -503,13 +503,14 @@ object JsonCodec {
     "zone",
     "gpuConfig"
   )(RuntimeConfig.GceWithPdConfig.apply)
-  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct5(
+  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct6(
     "machineType",
     "diskSize",
     "bootDiskSize",
     "zone",
-    "gpuConfig"
-  )((mt, ds, bds, z, gpu) => RuntimeConfig.GceConfig(mt, ds, bds, z, gpu))
+    "gpuConfig",
+    "timeoutMinutes"
+  )((mt, ds, bds, z, gpu, tm) => RuntimeConfig.GceConfig(mt, ds, bds, z, gpu, tm))
 
   implicit val azureVmConfigDecoder: Decoder[RuntimeConfig.AzureConfig] = Decoder.forProduct3(
     "machineType",
