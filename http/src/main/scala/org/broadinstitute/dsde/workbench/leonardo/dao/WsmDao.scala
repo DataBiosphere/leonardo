@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   googleProjectDecoder,
   relayNamespaceDecoder,
   runtimeNameEncoder,
-  storageAccountNameDecoder,
   storageContainerNameDecoder,
   storageContainerNameEncoder,
   workspaceIdDecoder,
@@ -105,13 +104,9 @@ trait WsmDao[F[_]] {
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
-
-  def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[StorageAccountResponse]]
 }
 
-final case class StorageContainerRequest(storageAccountId: WsmControlledResourceId, storageContainerName: ContainerName)
+final case class StorageContainerRequest(storageContainerName: ContainerName)
 final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
                                                commonFields: ControlledResourceCommonFields,
                                                storageContainerReq: StorageContainerRequest
@@ -197,9 +192,6 @@ object ResourceAttributes {
                                                     region: com.azure.core.management.Region
   ) extends ResourceAttributes
   final case class StorageContainerResourceAttributes(name: ContainerName) extends ResourceAttributes
-  final case class StorageAccountResourceAttributes(storageAccountName: StorageAccountName,
-                                                    region: com.azure.core.management.Region
-  ) extends ResourceAttributes
 }
 
 final case class WsmResourceMetadata(resourceId: WsmControlledResourceId)
@@ -476,17 +468,13 @@ object WsmDecoders {
   implicit val storageContainerResourceAttributesDecoder
     : Decoder[ResourceAttributes.StorageContainerResourceAttributes] =
     Decoder.forProduct1("storageContainerName")(ResourceAttributes.StorageContainerResourceAttributes.apply)
-  implicit val storageAccountResourceAttributesDecoder: Decoder[ResourceAttributes.StorageAccountResourceAttributes] =
-    Decoder.forProduct2("storageAccountName", "region")(ResourceAttributes.StorageAccountResourceAttributes.apply)
   implicit val resourceAttributesDecoder: Decoder[ResourceAttributes] =
     Decoder.instance { x =>
       val decodeAsRelayNamespace =
         x.downField("azureRelayNamespace").as[ResourceAttributes.RelayNamespaceResourceAttributes]
       val decodeAsStorageContainer =
         x.downField("azureStorageContainer").as[ResourceAttributes.StorageContainerResourceAttributes]
-      val decodeAsStorageAccount =
-        x.downField("azureStorage").as[ResourceAttributes.StorageAccountResourceAttributes]
-      decodeAsRelayNamespace orElse decodeAsStorageContainer orElse decodeAsStorageAccount
+      decodeAsRelayNamespace orElse decodeAsStorageContainer
     }
   implicit val wsmResourceMetadataDecoder: Decoder[WsmResourceMetadata] =
     Decoder.forProduct1("resourceId")(WsmResourceMetadata.apply)
@@ -578,7 +566,7 @@ object WsmEncoders {
     Encoder.forProduct3("common", "azureVm", "jobControl")(x => (x.common, x.vmData, x.jobControl))
 
   implicit val storageContainerRequestEncoder: Encoder[StorageContainerRequest] =
-    Encoder.forProduct2("storageAccountId", "storageContainerName")(x => (x.storageAccountId, x.storageContainerName))
+    Encoder.forProduct1("storageContainerName")(x => x.storageContainerName)
 
   implicit val createStorageContainerRequestEncoder: Encoder[CreateStorageContainerRequest] =
     Encoder.forProduct2("common", "azureStorageContainer")(x => (x.commonFields, x.storageContainerReq))
