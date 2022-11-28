@@ -115,7 +115,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       true,
       DbPassword("replace-me"),
       GalaxyOrchUrl("https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/"),
-      GalaxyDrsUrl("https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3"),
+      GalaxyDrsUrl("https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"),
       5,
       3
     )
