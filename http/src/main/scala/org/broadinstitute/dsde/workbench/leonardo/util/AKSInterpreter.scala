@@ -450,7 +450,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // poll until the app pods are deleted
       last <- streamFUntilDone(
-        listPodStatus(client, cloudContext, clusterName, KubernetesNamespace(app.appResources.namespace.name)),
+        listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
         config.appMonitorConfig.deleteApp.maxAttempts,
         config.appMonitorConfig.deleteApp.interval
       ).compile.lastOrError
@@ -472,9 +472,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext)
 
       // delete the namespace only after the helm uninstall completes.
-      _ <- deleteNamespace(client, cloudContext, clusterName, kubernetesNamespace)
+      _ <- deleteNamespace(client, kubernetesNamespace)
 
-      fa = namespaceExists(client, cloudContext, clusterName, kubernetesNamespace)
+      fa = namespaceExists(client, kubernetesNamespace)
         .map(
           !_
         ) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
@@ -525,11 +525,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield new CoreV1Api(client)
   }
 
-  private def deleteNamespace(client: CoreV1Api,
-                              cloudContext: AzureCloudContext,
-                              clusterName: AKSClusterName,
-                              namespace: KubernetesNamespace
-  )(implicit
+  private def deleteNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
     ev: Ask[F, TraceId]
   ): F[Unit] = {
     val delete = for {
@@ -571,11 +567,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private def listPodStatus(client: CoreV1Api,
-                            cloudContext: AzureCloudContext,
-                            clusterName: AKSClusterName,
-                            namespace: KubernetesNamespace
-  )(implicit
+  private def listPodStatus(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
     ev: Ask[F, TraceId]
   ): F[List[PodStatus]] =
     for {
@@ -604,14 +596,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     val certResource = autoClosableResourceF(
       new ByteArrayInputStream(Base64.getDecoder.decode(credentials.certificate.value))
     )
-    val endpoint = KubernetesApiServerIp(credentials.server.value)
 
     for {
       apiClient <- certResource.use { certStream =>
         F.delay(
           Config
             .fromToken(
-              endpoint.url,
+              credentials.server.value,
               credentials.token.value
             )
             .setSslCaCert(certStream)
@@ -620,11 +611,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield apiClient // appending here a .setDebugging(true) prints out useful API request/response info for development
   }
 
-  private def namespaceExists(client: CoreV1Api,
-                              cloudContext: AzureCloudContext,
-                              clusterName: AKSClusterName,
-                              namespace: KubernetesNamespace
-  )(implicit
+  private def namespaceExists(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
     ev: Ask[F, TraceId]
   ): F[Boolean] =
     for {
