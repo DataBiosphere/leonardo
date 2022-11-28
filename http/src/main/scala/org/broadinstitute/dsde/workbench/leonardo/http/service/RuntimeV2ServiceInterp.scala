@@ -103,7 +103,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
 
       runtimeImage: RuntimeImage = RuntimeImage(
-        RuntimeImageType.JupyterLab,
+        RuntimeImageType.Azure,
         config.azureConfig.image.asString,
         None,
         ctx.now
@@ -517,7 +517,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       Some(userInfo.userEmail),
       None,
       None,
-      Some(RuntimeImageType.JupyterLab)
+      Some(Tool.JupyterLab)
     ).toMap
 
     val allLabels = request.labels ++ defaultLabels
