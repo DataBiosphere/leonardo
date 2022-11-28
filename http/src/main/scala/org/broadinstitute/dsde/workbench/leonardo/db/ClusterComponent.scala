@@ -497,12 +497,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
             case CloudProvider.Gcp => head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
             case CloudProvider.Azure =>
               head._2.map { s =>
-                val res = for {
-                  splitted <- Either.catchNonFatal(s.split("/"))
-                  storageAccountName <- Either.catchNonFatal(splitted(0)).map(StorageAccountName)
-                  storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
-                } yield StagingBucket.Azure(storageAccountName, storageContainerName)
-                res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
+                // TODO (11/23/2022): We used to persist storage account as well, but we no longer do. Remove first branch in 6 months.
+                if (s.contains("/")) {
+                  val res = for {
+                    splitted <- Either.catchNonFatal(s.split("/"))
+                    storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
+                  } yield StagingBucket.Azure(storageContainerName)
+                  res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
+                } else StagingBucket.Azure(ContainerName(s))
               }
           }
         }

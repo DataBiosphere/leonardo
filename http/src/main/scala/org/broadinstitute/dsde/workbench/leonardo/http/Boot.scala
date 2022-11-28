@@ -313,7 +313,7 @@ object Boot extends IOApp {
 
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
-      proxyResolver <- Dispatcher[F].map(d => ProxyResolver(hostToIpMapping, d))
+      proxyResolver <- Dispatcher.parallel[F].map(d => ProxyResolver(hostToIpMapping, d))
 
       underlyingRuntimeDnsCache = buildCache[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]](
         runtimeDnsCacheConfig.cacheMaxSize,

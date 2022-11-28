@@ -38,8 +38,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
-                             nodepools: List[Nodepool],
-                             workspaceId: Option[WorkspaceId]
+                             nodepools: List[Nodepool]
 ) {
 
   // TODO consider renaming this method and the KubernetesClusterId class
@@ -364,6 +363,7 @@ final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
                      appName: AppName,
+                     workspaceId: Option[WorkspaceId],
                      status: AppStatus,
                      chart: Chart,
                      release: Release,

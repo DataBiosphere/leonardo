@@ -313,8 +313,10 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   ): F[Unit] =
     // Get the staging bucket path for this cluster, then set the age for it to be deleted the specified number of days after the deletion of the cluster.
     clusterQuery.getStagingBucket(runtime.cloudContext, runtime.runtimeName).transaction.flatMap {
-      case None | Some(StagingBucket.Azure(_, _)) =>
+      case None =>
         logger.warn(s"Could not lookup staging bucket for cluster ${runtime.projectNameString}: cluster not in db")
+      case Some(StagingBucket.Azure(_)) =>
+        logger.info(s"Not setting lifecycle for Azure staging container")
       case Some(StagingBucket.Gcp(bucketName)) =>
         val res = for {
           ctx <- ev.ask

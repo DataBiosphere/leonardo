@@ -1050,8 +1050,8 @@ class LeoPubsubMessageSubscriber[F[_]](
     for {
       ctx <- ev.ask
       dbAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Gcp(msg.project), msg.appId)
-        .transaction // TODO: support Azure
+        .getFullAppById(CloudContext.Gcp(msg.project), msg.appId)
+        .transaction
       dbApp <- F.fromOption(
         dbAppOpt,
         AppNotFoundException(CloudContext.Gcp(msg.project), msg.appName, ctx.traceId, "No active app found in DB")
@@ -1253,7 +1253,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         s"Attempting to clean up resources due to app creation error for app ${appName} in project ${project} due to ${error.getMessage}"
       )
       // we need to look up the app because we always want to clean up the nodepool associated with an errored app, even if it was pre-created
-      appOpt <- KubernetesServiceDbQueries.getFullAppByName(CloudContext.Gcp(project), appId).transaction
+      appOpt <- KubernetesServiceDbQueries.getFullAppById(CloudContext.Gcp(project), appId).transaction
       // note that this will only clean up the disk if it was created as part of this app creation.
       // it should not clean up the disk if it already existed
       _ <- appOpt.traverse { _ =>
