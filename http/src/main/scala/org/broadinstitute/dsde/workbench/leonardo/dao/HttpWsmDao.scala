@@ -288,24 +288,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     }.headOption
   } yield res
 
-  override def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[StorageAccountResponse]] = for {
-    resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureStorageAccount)
-    res <- resp.resources.headOption.traverse { resource =>
-      resource.resourceAttributes match {
-        case x: ResourceAttributes.StorageAccountResourceAttributes =>
-          F.pure(StorageAccountResponse(x.storageAccountName, resource.metadata.resourceId))
-        case _ =>
-          F.raiseError[StorageAccountResponse](
-            new RuntimeException(
-              "WSM bug. Trying to retrieve AZURE_STORAGE_ACCOUNT but none found"
-            )
-          )
-      }
-    }
-  } yield res
-
   private def getWorkspaceResourceHelper(workspaceId: WorkspaceId,
                                          authorization: Authorization,
                                          wsmResourceType: WsmResourceType
@@ -371,5 +353,4 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     else
       Headers(authorization, requestId)
   }
-
 }
