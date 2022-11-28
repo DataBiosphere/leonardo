@@ -288,7 +288,8 @@ object RuntimeRoutes {
         .as[Option[DiskSize]]
       zone <- x.downField("zone").as[Option[ZoneName]]
       gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
-    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize, zone, gpu)
+      timeoutMinutes <- x.downField("timeoutMinutes").as[Option[Int]]
+    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize, zone, gpu, timeoutMinutes)
   }
 
   val invalidPropertiesError =

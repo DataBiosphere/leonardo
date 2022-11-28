@@ -69,7 +69,8 @@ object LeoLenses {
               )
             ),
           x.zone,
-          x.gpuConfig
+          x.gpuConfig,
+          x.timeoutMinutes
         )
       )
     case x: RuntimeConfig.GceWithPdConfig =>

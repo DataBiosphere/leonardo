@@ -246,7 +246,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
               x.diskSize,
               bootDiskSize,
               x.zone,
-              x.gpuConfig
+              x.gpuConfig,
+              x.timeoutMinutes
             ): RuntimeConfigInCreateRuntimeMessage
           case x: RuntimeConfig.GceWithPdConfig =>
             for {
