@@ -605,7 +605,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       dbAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .getFullAppById(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
                             AppNotFoundException(CloudContext.Gcp(params.googleProject),
@@ -704,7 +704,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       dbAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .getFullAppById(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
                             AppNotFoundException(CloudContext.Gcp(params.googleProject),
@@ -793,7 +793,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       dbAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(CloudContext.Gcp(params.googleProject), params.appId)
+        .getFullAppById(CloudContext.Gcp(params.googleProject), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
                             AppNotFoundException(CloudContext.Gcp(params.googleProject),

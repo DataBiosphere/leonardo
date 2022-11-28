@@ -89,7 +89,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Grab records from the database
       dbAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), params.appName)
+        .getFullAppById(CloudContext.Azure(params.cloudContext), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
                             AppNotFoundException(CloudContext.Azure(params.cloudContext),

@@ -16,7 +16,7 @@ brew install chromedriver
 Note: Leonardo integration tests are not currently web-based but may fail due to dependencies without chromedriver
 
 ```bash
-./render-local-env.sh [branch of firecloud-automated-testing] [vault token] [env] [service root]
+BEE_NAME=[Your BEE instance name] ./render-local-env.sh [branch of firecloud-automated-testing] [vault token] [env] [service root]
 ```
 
 **Arguments:** (arguments are positional)
