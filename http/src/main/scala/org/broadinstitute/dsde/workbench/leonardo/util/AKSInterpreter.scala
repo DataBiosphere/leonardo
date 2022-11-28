@@ -601,7 +601,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   // The underlying http client for ApiClient claims that it releases idle threads and that shutdown is not necessary
   // Here is a guide on how to proactively release resource if this proves to be problematic https://square.github.io/okhttp/4.x/okhttp/okhttp3/-ok-http-client/#shutdown-isnt-necessary
   private def createClient(credentials: AKSCredentials): F[ApiClient] = {
-    val certResource = autoClosableResourceF(new ByteArrayInputStream(credentials.certificate.value.getBytes))
+    val certResource = autoClosableResourceF(
+      new ByteArrayInputStream(Base64.getDecoder.decode(credentials.certificate.value))
+    )
     val endpoint = KubernetesApiServerIp(credentials.server.value)
 
     for {
