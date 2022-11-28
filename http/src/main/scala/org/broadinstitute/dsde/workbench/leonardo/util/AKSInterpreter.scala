@@ -24,11 +24,7 @@ import io.kubernetes.client.openapi.models.V1NamespaceList
 import io.kubernetes.client.util.Config
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
-  KubernetesApiServerIp,
-  KubernetesNamespace,
-  PodStatus
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
