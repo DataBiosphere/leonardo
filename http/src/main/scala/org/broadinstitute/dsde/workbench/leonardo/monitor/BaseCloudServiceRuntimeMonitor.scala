@@ -9,6 +9,7 @@ import fs2.Stream
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DataprocRole, GcsBlobName, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.{GceConfig, GceWithPdConfig}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -461,6 +462,15 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
     } yield RuntimeAndRuntimeConfig(cluster, runtimeConfig)
 
+  private def getCustomInterruptablePollMonitorConfig(defaultCheckTools: InterruptablePollMonitorConfig,
+                                                      timeoutMinutes: FiniteDuration
+  ): InterruptablePollMonitorConfig =
+    InterruptablePollMonitorConfig(
+      (timeoutMinutes.toSeconds / defaultCheckTools.interval.toSeconds).toInt,
+      defaultCheckTools.interval,
+      timeoutMinutes
+    )
+
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
@@ -491,12 +501,27 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             ).map(b => (imageType, b))
           )
       }
+      runtimeCheckTools = runtimeAndRuntimeConfig.runtimeConfig match {
+        case gceConf: GceConfig =>
+          gceConf.timeoutMinutes match {
+            case Some(timeoutMinutes) =>
+              getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, timeoutMinutes)
+            case None => monitorConfig.checkTools
+          }
+        case gceWithPdConfig: GceWithPdConfig =>
+          gceWithPdConfig.timeoutMinutes match {
+            case Some(timeoutMinutes) =>
+              getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, timeoutMinutes)
+            case None => monitorConfig.checkTools
+          }
+        case _ => monitorConfig.checkTools
+      }
       // wait for 10 minutes for tools to start up before time out.
       availableTools <- streamFUntilDone(
         checkTools,
-        monitorConfig.checkTools.maxAttempts,
-        monitorConfig.checkTools.interval
-      ).interruptAfter(monitorConfig.checkTools.interruptAfter).compile.lastOrError
+        runtimeCheckTools.maxAttempts,
+        runtimeCheckTools.interval
+      ).interruptAfter(runtimeCheckTools.interruptAfter).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, mainDataprocInstance)
@@ -506,7 +531,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             monitorContext,
             runtimeAndRuntimeConfig,
             RuntimeErrorDetails(
-              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${monitorConfig.checkTools.interruptAfter.toMinutes} minutes.",
+              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${runtimeCheckTools.interruptAfter.toMinutes} minutes.",
               None,
               Some("tool_start_up")
             ),

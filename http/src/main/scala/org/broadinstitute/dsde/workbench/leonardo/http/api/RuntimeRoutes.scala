@@ -288,7 +288,7 @@ object RuntimeRoutes {
         .as[Option[DiskSize]]
       zone <- x.downField("zone").as[Option[ZoneName]]
       gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
-      timeoutMinutes <- x.downField("timeoutMinutes").as[Option[Int]]
+      timeoutMinutes <- x.downField("timeoutMinutes").as[Option[FiniteDuration]]
     } yield RuntimeConfigRequest.GceConfig(machineType, diskSize, zone, gpu, timeoutMinutes)
   }
 
@@ -399,7 +399,7 @@ object RuntimeRoutes {
             pd <- x.downField("persistentDisk").as[Option[PersistentDiskRequest]]
             zone <- x.downField("zone").as[Option[ZoneName]]
             gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
-            timeoutMinutes <- x.downField("timeoutMinutes").as[Option[Int]]
+            timeoutMinutes <- x.downField("timeoutMinutes").as[Option[FiniteDuration]]
             res <- pd match {
               case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone, gpu).asRight[DecodingFailure]
               case None =>
@@ -438,7 +438,7 @@ object RuntimeRoutes {
       wr <- c.downField("welderRegistry").as[Option[ContainerRegistry]]
       s <- c.downField("scopes").as[Option[Set[String]]]
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
-      tm <- c.downField("timeoutMinutes").as[Option[Int]]
+      tm <- c.downField("timeoutMinutes").as[Option[FiniteDuration]]
     } yield CreateRuntimeRequest(
       l.getOrElse(Map.empty),
       us.orElse(jus),

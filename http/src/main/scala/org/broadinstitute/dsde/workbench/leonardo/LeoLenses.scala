@@ -107,7 +107,8 @@ object LeoLenses {
         Some(x.persistentDiskId),
         x.bootDiskSize,
         x.zone,
-        x.gpuConfig
+        x.gpuConfig,
+        None
       )
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
       dataprocInCreateRuntimeMsgToDataprocRuntime(x)

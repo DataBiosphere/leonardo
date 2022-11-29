@@ -94,7 +94,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                     None,
                     bds,
                     zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
-                    getGpuConfig(gpuConfig._1, gpuConfig._2)
+                    getGpuConfig(gpuConfig._1, gpuConfig._2),
+                    None
                   )
                 )(diskId =>
                   RuntimeConfig.GceWithPdConfig(
@@ -102,7 +103,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                     Some(diskId),
                     bds,
                     zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
-                    getGpuConfig(gpuConfig._1, gpuConfig._2)
+                    getGpuConfig(gpuConfig._1, gpuConfig._2),
+                    None
                   )
                 )
             }

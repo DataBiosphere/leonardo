@@ -39,7 +39,7 @@ object RuntimeConfigInCreateRuntimeMessage {
     bootDiskSize: DiskSize,
     zone: ZoneName,
     gpuConfig: Option[GpuConfig],
-    timeoutMinutes: Option[Int]
+    timeoutMinutes: Option[FiniteDuration]
   ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }

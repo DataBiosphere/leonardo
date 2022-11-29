@@ -21,7 +21,7 @@ object RuntimeConfigRequest {
     diskSize: Option[DiskSize],
     zone: Option[ZoneName],
     gpuConfig: Option[GpuConfig],
-    timeoutMinutes: Option[Int]
+    timeoutMinutes: Option[FiniteDuration]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -65,7 +65,7 @@ final case class CreateRuntimeRequest(
   welderRegistry: Option[ContainerRegistry],
   scopes: Set[String],
   customEnvironmentVariables: Map[String, String],
-  timeoutMinutes: Option[Int]
+  timeoutMinutes: Option[FiniteDuration]
 )
 
 final case class CreateRuntimeResponse(traceId: TraceId)

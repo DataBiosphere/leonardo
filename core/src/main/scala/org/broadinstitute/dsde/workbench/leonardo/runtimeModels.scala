@@ -15,6 +15,7 @@ import java.net.URL
 import java.nio.file.Path
 import java.time.Instant
 import scala.collection.immutable
+import scala.concurrent.duration.FiniteDuration
 
 /**
  * This file contains models for Leonardo runtimes.
@@ -252,7 +253,7 @@ object RuntimeConfig {
     ], // This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
     zone: ZoneName,
     gpuConfig: Option[GpuConfig], // This is optional since not all runtimes use gpus
-    timeoutMinutes: Option[Int]
+    timeoutMinutes: Option[FiniteDuration]
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -262,7 +263,8 @@ object RuntimeConfig {
                                    persistentDiskId: Option[DiskId],
                                    bootDiskSize: DiskSize,
                                    zone: ZoneName,
-                                   gpuConfig: Option[GpuConfig]
+                                   gpuConfig: Option[GpuConfig],
+                                   timeoutMinutes: Option[FiniteDuration]
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }

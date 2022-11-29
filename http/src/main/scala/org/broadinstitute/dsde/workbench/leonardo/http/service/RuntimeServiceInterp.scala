@@ -673,7 +673,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                context.traceId
             )
           } yield r
-        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
+        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
             ) =>
           for {

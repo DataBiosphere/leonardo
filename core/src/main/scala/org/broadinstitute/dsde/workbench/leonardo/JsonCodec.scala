@@ -42,6 +42,8 @@ import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContex
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
+import scala.concurrent.duration.FiniteDuration
+
 object JsonCodec {
   // Errors
   val negativeNumberDecodingFailure = DecodingFailure("Negative number is not allowed", List.empty)
@@ -485,6 +487,9 @@ object JsonCodec {
         else none[Region]
       regionOpt.toRight(s"Invalid azure region ${s}")
     }
+  implicit val timeoutMinutesDecoder: Decoder[FiniteDuration] = Decoder.decodeLong.emap { s =>
+    Right(FiniteDuration(s, "Minutes"))
+  }
 
   implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
     "gpuType",
@@ -496,12 +501,13 @@ object JsonCodec {
     "numOfCpus"
   )(AppMachineType.apply)
 
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct5(
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct6(
     "machineType",
     "persistentDiskId",
     "bootDiskSize",
     "zone",
-    "gpuConfig"
+    "gpuConfig",
+    "timeoutMinutes"
   )(RuntimeConfig.GceWithPdConfig.apply)
   implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct6(
     "machineType",
