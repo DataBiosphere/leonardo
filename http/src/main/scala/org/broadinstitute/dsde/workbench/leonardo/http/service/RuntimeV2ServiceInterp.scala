@@ -11,6 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   RuntimeSamResourceId,
@@ -28,6 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   StartRuntimeMessage,
   StopRuntimeMessage
 }
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
@@ -352,10 +354,21 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .map(_.getOrElse(List.empty))
 
       // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
-      samVisibleRuntimeSamResourceIds <- NonEmptyList
-        .fromList(runtimesUserIsNotCreator.map(_.samResource))
-        .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
-        .map(_.getOrElse(List.empty))
+      runtimesAndProjects = runtimesUserIsNotCreator.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
+      samVisibleRuntimesOpt <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
+        authProvider
+          .filterUserVisibleWithProjectFallback(
+            rs,
+            userInfo
+          )
+      }
+
+      samVisibleFallbackRuntimes = samVisibleRuntimesOpt match {
+        case Some(samVisibleRuntimes) =>
+          samVisibleRuntimes.toSet
+            .map[RuntimeSamResourceId](_._2)
+        case None => Set.empty[RuntimeSamResourceId]
+      }
 
       workspaceFilterableRuntimes <- NonEmptyList
         .fromList(
@@ -380,8 +393,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           .map(id => RuntimeSamResourceId(id.resourceId))
           .contains(r.samResource) ||
           // check for visibility fallback for backwards compatibility with runtime v1 sam ids
-          samVisibleRuntimeSamResourceIds
-            .contains(r.samResource) ||
+          samVisibleFallbackRuntimes.contains(r.samResource) ||
           // check for visibility based on whether the user is the owner of the workspace that the runtime belongs to
           r.workspaceId.fold(false)(workspaceId =>
             workspaceFilterableRuntimes.contains((workspaceId, WorkspaceResourceSamResourceId(workspaceId)))
