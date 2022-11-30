@@ -3,11 +3,12 @@ package db
 
 import java.sql.SQLDataException
 import java.time.Instant
-
 import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+
+import scala.concurrent.duration.{FiniteDuration, MINUTES}
 
 class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNTIME_CONFIG") {
   def id = column[RuntimeConfigId]("id", O.PrimaryKey, O.AutoInc)
@@ -26,6 +27,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def zone = column[Option[ZoneName]]("zone", O.Length(254))
   def region = column[Option[RegionName]]("region", O.Length(254))
   def gpuType = column[Option[GpuType]]("gpuType", O.Length(254))
+  def timeoutMinutes = column[Option[Int]]("timeoutMinutes")
   def numOfGpus = column[Option[Int]]("numOfGpus")
   def componentGatewayEnabled = column[Boolean]("componentGatewayEnabled")
   def workerPrivateAccess = column[Boolean]("workerPrivateAccess")
@@ -48,6 +50,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         zone,
         region,
         (gpuType, numOfGpus),
+        timeoutMinutes,
         componentGatewayEnabled,
         workerPrivateAccess
       ),
@@ -68,6 +71,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              zone,
              region,
              gpuConfig,
+             timeoutMinutes,
              componentGatewayEnabled,
              workerPrivateAccess
             ),
@@ -83,7 +87,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                   bootDiskSize,
                   zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
                   getGpuConfig(gpuConfig._1, gpuConfig._2),
-                  None
+                  getTimeoutMinutes(timeoutMinutes)
                 )
               case None =>
                 val bds =
@@ -95,7 +99,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                     bds,
                     zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
                     getGpuConfig(gpuConfig._1, gpuConfig._2),
-                    None
+                    getTimeoutMinutes(timeoutMinutes)
                   )
                 )(diskId =>
                   RuntimeConfig.GceWithPdConfig(
@@ -104,7 +108,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                     bds,
                     zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
                     getGpuConfig(gpuConfig._1, gpuConfig._2),
-                    None
+                    getTimeoutMinutes(timeoutMinutes)
                   )
                 )
             }
@@ -153,6 +157,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              Some(r.zone),
              None,
              (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus)),
+             None,
              false,
              false
             ),
@@ -175,6 +180,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              Some(r.region),
              (None, None),
+             None,
              r.componentGatewayEnabled,
              r.workerPrivateAccess
             ),
@@ -197,6 +203,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              Some(r.zone),
              None,
              (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus)),
+             None,
              false,
              false
             ),
@@ -220,6 +227,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              // TODO: should this be generalized to a type above regionName?
              Some(RegionName(r.region.toString)),
              (None, None),
+             None,
              false,
              false
             ),
@@ -232,6 +240,12 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
     (gpuType, numOfGpus) match {
       case (Some(gpuType), Some(numOfGpus)) => Some(GpuConfig(gpuType, numOfGpus))
       case _                                => None
+    }
+
+  def getTimeoutMinutes(timeoutMinutes: Option[Int]): Option[FiniteDuration] =
+    timeoutMinutes match {
+      case Some(timeoutMinutes) => Some(FiniteDuration(timeoutMinutes, MINUTES))
+      case _                    => None
     }
 }
 

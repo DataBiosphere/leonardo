@@ -514,8 +514,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, timeoutMinutes)
             case None => monitorConfig.checkTools
           }
-        case runtimeConfig =>
-          monitorConfig.checkTools
+        case _ => monitorConfig.checkTools
       }
       // wait for 10 minutes for tools to start up before time out.
       availableTools <- streamFUntilDone(

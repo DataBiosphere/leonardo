@@ -94,7 +94,7 @@ object Config {
       bootDiskSize = Some(config.as[DiskSize]("bootDiskSize")),
       zone = config.as[ZoneName]("zone"),
       gpuConfig = None,
-      None
+      timeoutMinutes = None
     )
   }
 
