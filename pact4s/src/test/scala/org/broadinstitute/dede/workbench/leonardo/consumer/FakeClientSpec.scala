@@ -1,6 +1,6 @@
 package org.broadinstitute.dede.workbench.leonardo.consumer
 
-import au.com.dius.pact.consumer.dsl.PactDslResponse
+import au.com.dius.pact.consumer.dsl.{PactDslResponse, PactDslWithProvider}
 import au.com.dius.pact.consumer.{ConsumerPactBuilder, PactTestExecutionContext}
 import au.com.dius.pact.core.model.RequestResponsePact
 import cats.effect.IO
@@ -8,6 +8,7 @@ import cats.effect.unsafe.implicits.global
 import io.circe.Json
 import io.circe.syntax.EncoderOps
 import org.broadinstitute.dede.workbench.leonardo.consumer.AuthHelper._
+import org.broadinstitute.dede.workbench.leonardo.consumer.PactHelper.buildInteraction
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.http4s.Uri
 import org.http4s.client.Client
@@ -33,59 +34,68 @@ class FakeClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactF
   val conflictResource: Resource = Resource("conflict", 234)
 
   // Build the pact between consumer and provider
-  val pactBuilder: PactDslResponse =
-    ConsumerPactBuilder
-      .consumer("leo-consumer")
-      .hasPactWith("fake-provider")
-      // -------------------------- FETCH RESOURCE --------------------------
-      .`given`(
-        "resource exists", // this is a state identifier that is passed to the provider
-        Map("id" -> testID, "value" -> 123) // we can use parameters to specify details about the provider state
-      )
-      .uponReceiving("Request to fetch extant resource")
-      .method("GET")
-      .path(s"/resource/$testID")
-      .headers("Authorization" -> mockBearerHeader(MockSamDAO.petSA))
-      .willRespondWith()
-      .status(200)
-      .body(
-        Json.obj("id" -> testID.asJson, "value" -> 123.asJson)
-      ) // can use circe json directly for both request and response bodies with `import pact4s.circe.implicits._`
-      .`given`("resource does not exist")
-      .uponReceiving("Request to fetch missing resource")
-      .method("GET")
-      .path(s"/resource/$missingID")
-      .headers("Authorization" -> mockBearerHeader(MockSamDAO.petSA))
-      .willRespondWith()
-      .status(404)
-      .uponReceiving("Request to fetch resource with wrong auth")
-      .method("GET")
-      .path(s"/resource/$testID")
-      .headers("Authorization" -> mockBearerHeader(MockSamDAO.petMI))
-      .willRespondWith()
-      .status(401)
-      // -------------------------- CREATE RESOURCE --------------------------
-      .`given`("resource does not exist")
-      .uponReceiving("Request to create new resource")
-      .method("POST")
-      .path("/resource")
-      .headers("Authorization" -> mockBearerHeader(MockSamDAO.petSA))
-      .body(newResource) // can use classes directly in the body if they are encodable
-      .willRespondWith()
-      .status(204)
-      .`given`(
-        "resource exists",
-        Map("id" -> conflictResource.id, "value" -> conflictResource.value)
-      ) // notice we're using the same state, but with different parameters
-      .uponReceiving("Request to create resource that already exists")
-      .method("POST")
-      .path("/resource")
-      .headers("Authorization" -> mockBearerHeader(MockSamDAO.petSA))
-      .body(conflictResource)
-      .willRespondWith()
-      .status(409)
+  val consumerPactBuilder: ConsumerPactBuilder = ConsumerPactBuilder
+    .consumer("leo-consumer")
 
-  override def pact: RequestResponsePact = pactBuilder.toPact
+  val pactProvider: PactDslWithProvider = consumerPactBuilder
+    .hasPactWith("fake-provider")
+
+  var pactDslResponse: PactDslResponse = buildInteraction(
+    pactProvider,
+    state = "resource exists",
+    stateParams = Map("id" -> testID, "value" -> 123),
+    uponReceiving = "Request to fetch extant resource",
+    method = "GET",
+    path = s"/resource/$testID",
+    requestHeaders = Seq("Authorization" -> mockBearerHeader(MockSamDAO.petSA)),
+    status = 200,
+    responseHeaders = Seq("Content-type" -> "application/json"),
+    Json.obj("id" -> testID.asJson, "value" -> 123.asJson)
+  )
+
+  pactDslResponse = buildInteraction(
+    pactDslResponse,
+    state = "resource does not exist",
+    uponReceiving = "Request to fetch missing resource",
+    method = "GET",
+    path = s"/resource/$missingID",
+    requestHeaders = Seq("Authorization" -> mockBearerHeader(MockSamDAO.petSA)),
+    status = 404
+  )
+
+  pactDslResponse = buildInteraction(
+    pactDslResponse,
+    uponReceiving = "Request to fetch resource with wrong auth",
+    method = "GET",
+    path = s"/resource/$testID",
+    requestHeaders = Seq("Authorization" -> mockBearerHeader(MockSamDAO.petMI)),
+    status = 401
+  )
+
+  pactDslResponse = buildInteraction(
+    pactDslResponse,
+    state = "resource does not exist",
+    uponReceiving = "Request to create new resource",
+    method = "POST",
+    path = "/resource",
+    requestHeaders = Seq("Authorization" -> mockBearerHeader(MockSamDAO.petSA)),
+    requestBody = newResource,
+    status = 204
+  )
+
+  pactDslResponse = buildInteraction(
+    pactDslResponse,
+    state = "resource exists",
+    stateParams = Map("id" -> conflictResource.id, "value" -> conflictResource.value),
+    uponReceiving = "Request to create resource that already exists",
+    method = "POST",
+    path = "/resource",
+    requestHeaders = Seq("Authorization" -> mockBearerHeader(MockSamDAO.petSA)),
+    requestBody = conflictResource,
+    status = 409
+  )
+
+  override def pact: RequestResponsePact = pactDslResponse.toPact
 
   val client: Client[IO] = EmberClientBuilder.default[IO].build.allocated.unsafeRunSync()._1
 
