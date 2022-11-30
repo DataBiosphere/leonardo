@@ -104,7 +104,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
 
   // ---- Dsl for specifying pacts between consumer and provider
   // Lambda Dsl: required for generating matching rules.
-  // Favored over old-style Pact Dsl.
+  // Favored over old-style Pact Dsl using PactDslJsonBody.
   val okSystemStatusDsl: DslPart = newJsonBody { o =>
     o.booleanType("ok", true)
     o.`object`("systems",
@@ -141,30 +141,6 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
                }
     )
   }.build()
-
-  // Old-style Pact Dsl.
-  // Provided here for reference only.
-  val okSystemStatusOldDsl: DslPart = new PactDslJsonBody()
-    .booleanType("ok", true)
-    .`object`("systems")
-    .`object`(GoogleGroups.value)
-    .booleanType("ok", true)
-    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-    .closeObject()
-    .`object`(GooglePubSub.value)
-    .booleanType("ok", true)
-    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-    .closeObject()
-    .`object`(GoogleIam.value)
-    .booleanType("ok", true)
-    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-    .closeObject()
-    .`object`(Database.value)
-    .booleanType("ok", true)
-    // .minArrayLike("messages", 0, PactDslJsonRootValue.stringType())
-    .closeObject()
-    .closeObject()
-  // --- End of Dsl section
 
   val consumerPactBuilder: ConsumerPactBuilder = ConsumerPactBuilder
     .consumer("leo-consumer")
@@ -214,6 +190,6 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
     new SamClientImpl[IO](client, Uri.unsafeFromString(mockServer.getUrl), mockAuthToken(MockSamDAO.petSA))
       .fetchResourcePolicies[WorkspaceResourceSamResourceId](Authorization(mockAuthToken(MockSamDAO.petSA)))
       .attempt
-      .unsafeRunSync() shouldBe Right(workspaceResourceResponse1)
+      .unsafeRunSync() shouldBe Right(workspaceResourceResponse) // workspaceResourceResponse1 also works
   }
 }
