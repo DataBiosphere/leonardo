@@ -723,7 +723,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Step 2: call LZ for LZ resources
       lzResourcesByPurpose <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
       groupedLzResources = lzResourcesByPurpose.foldMap(a =>
-        a.deployedResources.groupBy(b => (a.purpose, b.resourceType))
+        a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
       )
 
       aksClusterName <- getLandingZoneResourceName(groupedLzResources,
@@ -791,7 +791,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     useParent: Boolean
   ): F[String] =
     landingZoneResourcesByPurpose
-      .get((purpose, resourceType))
+      .get((purpose, resourceType.toLowerCase))
       .flatMap(_.headOption)
       .flatMap { r =>
         if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)

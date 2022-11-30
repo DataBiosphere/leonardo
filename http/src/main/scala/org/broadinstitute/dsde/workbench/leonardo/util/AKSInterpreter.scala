@@ -275,6 +275,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cloud=azure",
         // KSA configs
         raw"serviceAccount.name=${ksaName.value}",
+
         // relay configs
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
@@ -283,7 +284,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         raw"relaylistener.samResourceType=kubernetes-app",
-        raw"relaylistener.samAction=connect"
+        raw"relaylistener.samAction=connect",
+
+        // general configs
+        raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")
     )
 
