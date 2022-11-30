@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="qi" id="add_saturnAutoCreated_label">
+        <sql>
+            INSERT into `LABEL` (`key`, `value`, `resourceType`, `resourceId`)
+            SELECT "saturnAutoCreated", "true", "app", APP.id
+            FROM APP where status != "DELETED" and (appName LIKE "saturn%" or appName LIKE "terra-app%");
+        </sql>
+    </changeSet>
+</databaseChangeLog>

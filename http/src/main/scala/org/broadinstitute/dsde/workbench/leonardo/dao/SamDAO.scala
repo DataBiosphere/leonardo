@@ -77,8 +77,14 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  /** Deletes a Sam resource R using the provided user token. */
+  /** Deletes a Sam resource R using the provided user info. */
   def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
+  /** Deletes a Sam resource R using the provided bearer token. */
+  def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
