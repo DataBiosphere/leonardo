@@ -258,29 +258,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       dbCluster = dbApp.cluster
 
       clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
-      client <- buildCoreV1Client(cloudContext, landingZoneResources.clusterName)
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
 
+      // Uninstall the app chart and setup chart
       _ <- helmClient.uninstall(app.release, keepHistory).run(authContext)
-
-      // poll until the app pods are deleted
-      last <- streamFUntilDone(
-        listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
-        config.appMonitorConfig.deleteApp.maxAttempts,
-        config.appMonitorConfig.deleteApp.interval
-      ).compile.lastOrError
-
-      _ <-
-        if (!podDoneCheckable.isDone(last)) {
-          val msg =
-            s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}."
-          logger.error(ctx.loggingCtx)(msg) >>
-            F.raiseError[Unit](AppDeletionException(msg))
-        } else F.unit
-
-      // helm uninstall the setup chart
       _ <- helmClient
         .uninstall(
           getTerraAppSetupChartReleaseName(app.release),
@@ -288,31 +271,36 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-      // delete the namespace only after the helm uninstall completes.
+      client <- buildCoreV1Client(cloudContext, landingZoneResources.clusterName)
+
+      // Poll until all pods in the app namespace are deleted
+      _ <- streamUntilDoneOrTimeout(
+        listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
+        config.appMonitorConfig.deleteApp.maxAttempts,
+        config.appMonitorConfig.deleteApp.interval,
+        "helm deletion timed out"
+      )
+
+      // Delete the namespace only after the helm uninstall completes.
       _ <- deleteNamespace(client, kubernetesNamespace)
 
-      fa = namespaceExists(client, kubernetesNamespace)
-        .map(
-          !_
-        ) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
-
+      // Poll until the namespace is actually deleted
+      // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
+      fa = namespaceExists(client, kubernetesNamespace).map(exists => !exists)
       _ <- streamUntilDoneOrTimeout(fa,
                                     config.appMonitorConfig.deleteApp.maxAttempts,
                                     config.appMonitorConfig.deleteApp.initialDelay,
                                     "delete namespace timed out"
       )
 
+      // Delete the Sam resource
       userEmail = app.auditInfo.creator
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-
       _ <- tokenOpt match {
         case Some(token) =>
-          for {
-            _ <- samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                               Authorization(Credentials.Token(AuthScheme.Bearer, token))
-            )
-
-          } yield ()
+          samDao.deleteResourceInternal(dbApp.app.samResourceId,
+                                        Authorization(Credentials.Token(AuthScheme.Bearer, token))
+          )
         case None =>
           logger.warn(
             s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
