@@ -165,6 +165,10 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object CreateAppV2 extends LeoPubsubMessageType {
     val asString = "createAppV2"
   }
+
+  final case object DeleteAppV2 extends LeoPubsubMessageType {
+    val asString = "deleteAppV2"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -286,10 +290,12 @@ object LeoPubsubMessage {
   final case class DeleteAppV2Message(appId: AppId,
                                       appName: AppName,
                                       workspaceId: WorkspaceId,
+                                      cloudContext: CloudContext,
                                       diskId: Option[DiskId],
+                                      landingZoneResourcesOpt: Option[LandingZoneResources],
                                       traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
-    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAppV2
   }
 
   final case class StopAppMessage(appId: AppId, appName: AppName, project: GoogleProject, traceId: Option[TraceId])
@@ -530,6 +536,18 @@ object LeoPubsubCodec {
       CreateAppV2Message.apply
     )
 
+  implicit val deleteAppV2Decoder: Decoder[DeleteAppV2Message] =
+    Decoder.forProduct7("appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "diskId",
+                        "landingZoneResourcesOpt",
+                        "tradeId"
+    )(
+      DeleteAppV2Message.apply
+    )
+
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
@@ -549,6 +567,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
         case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
+        case LeoPubsubMessageType.DeleteAppV2        => message.as[DeleteAppV2Message]
       }
     } yield value
   }
@@ -882,8 +901,16 @@ object LeoPubsubCodec {
     )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.landingZoneResourcesOpt, x.traceId))
 
   implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
-    Encoder.forProduct6("messageType", "appId", "appName", "workspaceId", "diskId", "traceId")(x =>
-      (x.messageType, x.appId, x.appName, x.workspaceId, x.diskId, x.traceId)
+    Encoder.forProduct8("messageType",
+                        "appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "diskId",
+                        "landingZoneResourcesOpt",
+                        "traceId"
+    )(x =>
+      (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.diskId, x.landingZoneResourcesOpt, x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {

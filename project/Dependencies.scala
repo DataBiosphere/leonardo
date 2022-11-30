@@ -8,7 +8,7 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
-  val scalaTestV = "3.2.13"
+  val scalaTestV = "3.2.14"
   val http4sVersion = "1.0.0-M35"
   val slickV = "3.4.1"
   val guavaV = "31.1-jre"
@@ -17,7 +17,7 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.7.0"
 
-  private val workbenchLibsHash = "6a0d898"
+  private val workbenchLibsHash = "1a6839f"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.22-$workbenchLibsHash"
@@ -58,7 +58,7 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.4"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.5"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
@@ -122,10 +122,10 @@ object Dependencies {
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
-  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.30"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.16.1"
+  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.31"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.17.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.20" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.21" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.2"
   val circeCore =         "io.circe"          %% "circe-core"           % "0.14.3"
@@ -199,7 +199,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.14.0" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.14.1" % "test",
     logbackClassic % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,

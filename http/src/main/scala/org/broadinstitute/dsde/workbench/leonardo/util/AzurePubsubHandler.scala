@@ -274,16 +274,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
     for {
       ctx <- ev.ask[AppContext]
-      storageAccountOpt <- wsmDao.getWorkspaceStorageAccount(params.workspaceId, auth)
-      storageAccount <- F.fromOption(
-        storageAccountOpt,
-        new RuntimeException(s"${params.workspaceId} doesn't have a storage account provisioned properly")
-      )
       resp <- wsmDao.createStorageContainer(
         CreateStorageContainerRequest(
           params.workspaceId,
           storageContainerCommonFields,
-          StorageContainerRequest(storageAccount.resourceId, stagingContainerName)
+          StorageContainerRequest(stagingContainerName)
         ),
         auth
       )
@@ -291,10 +286,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
         .transaction
       _ <- clusterQuery
-        .updateStagingBucket(params.runtime.id,
-                             Some(StagingBucket.Azure(storageAccount.name, stagingContainerName)),
-                             ctx.now
-        )
+        .updateStagingBucket(params.runtime.id, Some(StagingBucket.Azure(stagingContainerName)), ctx.now)
         .transaction
     } yield (stagingContainerName, resp.resourceId)
   }
@@ -770,6 +762,37 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
             ctx.now,
             ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
+    } yield ()
+
+  override def deleteApp(
+    appId: AppId,
+    appName: AppName,
+    workspaceId: WorkspaceId,
+    landingZoneResourcesOpt: Option[LandingZoneResources],
+    cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = DeleteAKSAppParams(appName, workspaceId, landingZoneResourcesOpt, cloudContext)
+      _ <- aksAlgebra.deleteApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error deleting Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.DeleteApp,
             ErrorSource.App,
             None,
             Some(ctx.traceId)
