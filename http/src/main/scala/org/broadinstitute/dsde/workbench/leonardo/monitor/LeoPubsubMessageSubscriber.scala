@@ -1334,28 +1334,17 @@ class LeoPubsubMessageSubscriber[F[_]](
     for {
       ctx <- ev.ask
       _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create runtime ${runtimeId}")
-      errorMessage = e match {
-        case leoEx: LeoException =>
-          Some(ErrorReport.loggableString(leoEx.toErrorReport))
-        case ee: com.google.api.gax.rpc.AbortedException
-            if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
-          None // this could happen when pubsub redelivers an event unexpectedly
-        case _ =>
-          Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
-      }
-      _ <- errorMessage.traverse(m =>
-        (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
-          clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
-      )
       // want to detach persistent disk for runtime
       _ <- cloudService match {
         case CloudService.GCE =>
           for {
-            _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
             runtimeOpt <- clusterQuery.getClusterById(runtimeId).transaction
-            _ <- runtimeOpt.traverse { runtime =>
+
+            _ <- runtimeOpt.traverse_ { runtime =>
+              // If the disk is in Creating status, then it means it hasn't been used previously. Hence delete the disk
+              // if the runtime fails to create.
+              // Otherwise, the disk is most likely used previously by an old runtime, and we don't want to delete it
               if (runtime.status == RuntimeStatus.Creating) {
-                // TODO: delete disk
                 for {
                   googleProject <- runtime.cloudContext match {
                     case CloudContext.Gcp(value) => F.pure(value)
@@ -1363,15 +1352,16 @@ class LeoPubsubMessageSubscriber[F[_]](
                   }
                   runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
                   gceRuntimeConfig <- runtimeConfig match {
-                    case x: RuntimeConfig.GceWithPdConfig => F.pure(Some(x))
+                    case x: RuntimeConfig.GceWithPdConfig => F.pure(x.some)
                     case _                                => F.pure(none[RuntimeConfig.GceWithPdConfig])
                   }
-                  _ <- gceRuntimeConfig.traverse { rc =>
+
+                  _ <- gceRuntimeConfig.traverse_ { rc =>
                     for {
                       persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
                         persistentDiskQuery.getPersistentDiskRecord(did).transaction
                       )
-                      _ <- persistentDiskOpt.traverse(d =>
+                      _ <- persistentDiskOpt.traverse_(d =>
                         googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
                           .updateStatus(d.id, DiskStatus.Deleted, now)
                           .transaction
@@ -1381,7 +1371,20 @@ class LeoPubsubMessageSubscriber[F[_]](
                 } yield ()
               } else F.unit
             }
-
+            errorMessage = e match {
+              case leoEx: LeoException =>
+                Some(ErrorReport.loggableString(leoEx.toErrorReport))
+              case ee: com.google.api.gax.rpc.AbortedException
+                  if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
+                None // this could happen when pubsub redelivers an event unexpectedly
+              case _ =>
+                Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
+            }
+            _ <- errorMessage.traverse(m =>
+              (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
+                clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
+            )
+            _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
           } yield ()
         case CloudService.Dataproc => F.unit
         case CloudService.AzureVm  => F.unit
