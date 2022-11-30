@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
+import org.broadinstitute.dsde.workbench.leonardo.CloudContext
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -663,6 +664,27 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     // Get the disk to delete if specified
     diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
 
+    // Resolve the workspace in WSM to get the cloud context
+    userToken = org.http4s.headers.Authorization(
+      org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
+    )
+    workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+    workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+    cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
+      case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
+      case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+      case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+    }
+
+    // Get the Landing Zone Resources for the app for Azure
+    landingZoneResourcesOpt <- cloudContext.cloudProvider match {
+      case CloudProvider.Gcp => F.pure(None)
+      case CloudProvider.Azure =>
+        for {
+          landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+        } yield Some(landingZoneResources)
+    }
+
     _ <-
       if (appResult.app.status == AppStatus.Error) {
         for {
@@ -677,7 +699,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             appResult.app.id,
             appResult.app.appName,
             workspaceId,
+            cloudContext,
             diskOpt,
+            landingZoneResourcesOpt,
             Some(ctx.traceId)
           )
           _ <- publisherQueue.offer(deleteMessage)
