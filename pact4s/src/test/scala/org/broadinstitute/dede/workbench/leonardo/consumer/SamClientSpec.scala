@@ -1,13 +1,14 @@
 package org.broadinstitute.dede.workbench.leonardo.consumer
 
 import au.com.dius.pact.consumer.dsl.LambdaDsl.newJsonBody
-import au.com.dius.pact.consumer.dsl.{DslPart, PactDslJsonBody, PactDslResponse}
+import au.com.dius.pact.consumer.dsl._
 import au.com.dius.pact.consumer.{ConsumerPactBuilder, PactTestExecutionContext}
 import au.com.dius.pact.core.model.RequestResponsePact
 import cats.effect.IO
 import cats.effect.unsafe.implicits._
 import io.circe.parser._
 import org.broadinstitute.dede.workbench.leonardo.consumer.AuthHelper._
+import org.broadinstitute.dede.workbench.leonardo.consumer.PactHelper._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
@@ -115,16 +116,17 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
 
   val workspaceResourceResponseDsl: DslPart = newJsonBody { o =>
     o.uuid("resourceId", UUID.fromString("cea587e9-9a8e-45b6-b985-9e3803754020"))
-    o.`object`("direct",
-               s => {
-                 s.array("actions", _ => Set())
-                 s.array("roles",
-                         a => {
-                           a.stringType("project-owner")
-                           a.stringType("owner")
-                         }
-                 )
-               }
+    o.`object`(
+      "direct",
+      s => {
+        s.array("actions", _ => Set())
+        s.array("roles",
+                a => {
+                  a.stringType("project-owner")
+                  a.stringType("owner")
+                }
+        )
+      }
     )
     o.`object`("inherited",
                s => {
@@ -164,33 +166,37 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
     .closeObject()
   // --- End of Dsl section
 
-  // Build the pact between consumer and provider
-  val pactBuilder: PactDslResponse =
-    ConsumerPactBuilder
-      .consumer("leo-consumer")
-      .hasPactWith("sam-provider")
-      // -------------------------- GET SUBSYSTEM STATUS --------------------------
-      .`given`("status is healthy")
-      .uponReceiving("Request to status")
-      .method("GET")
-      .path("/status")
-      .headers("Accept" -> "application/json")
-      .willRespondWith()
-      .status(200)
-      .headers("Content-type" -> "application/json")
-      .body(okSystemStatusDsl)
-      // -------------------------- FETCH WORKSPACE RESOURCES with the caller's roles and actions for each resource. --------------------------
-      .`given`("runtime resource type")
-      .uponReceiving("Request to list runtime resources")
-      .method("GET")
-      .path("/api/resources/v2/workspace")
-      .headers("Accept" -> "application/json")
-      .willRespondWith()
-      .status(200)
-      .headers("Content-type" -> "application/json")
-      .body(workspaceResourceResponseDsl)
+  val consumerPactBuilder: ConsumerPactBuilder = ConsumerPactBuilder
+    .consumer("leo-consumer")
 
-  override val pact: RequestResponsePact = pactBuilder.toPact
+  val pactProvider: PactDslWithProvider = consumerPactBuilder
+    .hasPactWith("sam-provider")
+
+  var pactDslResponse: PactDslResponse = buildInteraction(
+    pactProvider,
+    state = "status is healthy",
+    uponReceiving = "Request to status",
+    method = "GET",
+    path = "/status",
+    requestHeaders = Seq("Accept" -> "application/json"),
+    status = 200,
+    responseHeaders = Seq("Content-type" -> "application/json"),
+    okSystemStatusDsl
+  )
+
+  pactDslResponse = buildInteraction(
+    pactDslResponse,
+    state = "runtime resource type",
+    uponReceiving = "Request to list runtime resources",
+    method = "GET",
+    path = "/api/resources/v2/workspace",
+    requestHeaders = Seq("Accept" -> "application/json"),
+    status = 200,
+    responseHeaders = Seq("Content-type" -> "application/json"),
+    workspaceResourceResponseDsl
+  )
+
+  override val pact: RequestResponsePact = pactDslResponse.toPact
 
   val client: Client[IO] = EmberClientBuilder.default[IO].build.allocated.unsafeRunSync()._1
 
