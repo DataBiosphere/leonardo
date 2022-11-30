@@ -50,7 +50,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def deleteApp(appId: AppId,
                 appName: AppName,
                 workspaceId: WorkspaceId,
-                landingZoneResourcesOpt: Option[LandingZoneResources],
+                landingZoneResources: LandingZoneResources,
                 cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]

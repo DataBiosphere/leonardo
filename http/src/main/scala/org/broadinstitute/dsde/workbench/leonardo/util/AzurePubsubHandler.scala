@@ -783,14 +783,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     appId: AppId,
     appName: AppName,
     workspaceId: WorkspaceId,
-    landingZoneResourcesOpt: Option[LandingZoneResources],
+    landingZoneResources: LandingZoneResources,
     cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = DeleteAKSAppParams(appName, workspaceId, landingZoneResourcesOpt, cloudContext)
+      params = DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext)
       _ <- aksAlgebra.deleteApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(

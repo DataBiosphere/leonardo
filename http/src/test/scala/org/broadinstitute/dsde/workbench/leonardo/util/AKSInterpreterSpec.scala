@@ -9,22 +9,11 @@ import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, Virtual
 import com.azure.resourcemanager.containerservice.models.KubernetesCluster
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.{Identities, Identity}
-import io.kubernetes.client.openapi.ApiClient
 import io.kubernetes.client.openapi.apis.CoreV1Api
-import io.kubernetes.client.openapi.models.{
-  V1Namespace,
-  V1NamespaceList,
-  V1NamespaceStatus,
-  V1ObjectMeta,
-  V1Pod,
-  V1PodList,
-  V1PodStatus,
-  V1Status
-}
+import io.kubernetes.client.openapi.models._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
@@ -36,11 +25,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.mockito.ArgumentMatchers.{any, anyBoolean, anyInt, anyString}
+import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import scalacache.Cache
 
 import java.nio.file.Files
 import java.util.{Base64, UUID}
@@ -139,6 +127,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.batchNodesSubnetId=subnet1," +
       s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
       "relay.path=https://relay.com/app," +
+      "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
       "persistence.leoAppInstanceName=app," +
@@ -195,7 +184,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val app = dbApp.get.app
 
     val deletion = for {
-      _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, Option(landingZoneResources), cloudContext))
+      _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, landingZoneResources, cloudContext))
       app <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
         .transaction

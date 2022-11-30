@@ -25,7 +25,7 @@ final case class CreateAKSAppParams(appId: AppId,
 final case class DeleteAKSAppParams(
   appName: AppName,
   workspaceId: WorkspaceId,
-  landingZoneResourcesOpt: Option[LandingZoneResources],
+  landingZoneResourcesOpt: LandingZoneResources,
   cloudContext: AzureCloudContext,
   keepHistory: Boolean = false
 )
