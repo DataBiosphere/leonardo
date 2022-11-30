@@ -1349,7 +1349,40 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
       // want to detach persistent disk for runtime
       _ <- cloudService match {
-        case CloudService.GCE      => clusterQuery.detachPersistentDisk(runtimeId, now).transaction
+        case CloudService.GCE =>
+          for {
+            _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
+            runtimeOpt <- clusterQuery.getClusterById(runtimeId).transaction
+            _ <- runtimeOpt.traverse { runtime =>
+              if (runtime.status == RuntimeStatus.Creating) {
+                // TODO: delete disk
+                for {
+                  googleProject <- runtime.cloudContext match {
+                    case CloudContext.Gcp(value) => F.pure(value)
+                    case CloudContext.Azure(_)   => F.raiseError(new RuntimeException("This should never happen"))
+                  }
+                  runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+                  gceRuntimeConfig <- runtimeConfig match {
+                    case x: RuntimeConfig.GceWithPdConfig => F.pure(Some(x))
+                    case _                                => F.pure(none[RuntimeConfig.GceWithPdConfig])
+                  }
+                  _ <- gceRuntimeConfig.traverse { rc =>
+                    for {
+                      persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
+                        persistentDiskQuery.getPersistentDiskRecord(did).transaction
+                      )
+                      _ <- persistentDiskOpt.traverse(d =>
+                        googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                          .updateStatus(d.id, DiskStatus.Deleted, now)
+                          .transaction
+                      )
+                    } yield ()
+                  }
+                } yield ()
+              } else F.unit
+            }
+
+          } yield ()
         case CloudService.Dataproc => F.unit
         case CloudService.AzureVm  => F.unit
       }
