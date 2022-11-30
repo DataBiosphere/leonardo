@@ -730,6 +730,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           auth
         )
       }.void
+      _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
