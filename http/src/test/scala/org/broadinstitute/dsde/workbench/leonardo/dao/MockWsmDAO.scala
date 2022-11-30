@@ -15,8 +15,10 @@ import org.broadinstitute.dsde.workbench.azure.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
   AKS_NODE_POOL_SUBNET,
+  POSTGRESQL_SUBNET,
   SHARED_RESOURCE,
-  WORKSPACE_BATCH_SUBNET
+  WORKSPACE_BATCH_SUBNET,
+  WORKSPACE_COMPUTE_SUBNET
 }
 import org.http4s.headers.Authorization
 
@@ -179,7 +181,9 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
             buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
             buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
             buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
-            buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage")
+            buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
+            buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "logs"),
+            buildMockLandingZoneResource("microsoft.dbforpostgresql/servers", "postgres")
           )
         ),
         LandingZoneResourcesByPurpose(
@@ -192,6 +196,18 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
           AKS_NODE_POOL_SUBNET,
           List(
             buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          POSTGRESQL_SUBNET,
+          List(
+            buildMockLandingZoneResource("DeployedSubnet", "pgsub", false)
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          WORKSPACE_COMPUTE_SUBNET,
+          List(
+            buildMockLandingZoneResource("DeployedSubnet", "computesub", false)
           )
         )
       )

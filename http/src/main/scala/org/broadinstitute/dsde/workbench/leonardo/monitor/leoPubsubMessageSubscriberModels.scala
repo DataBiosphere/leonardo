@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Name
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
   RuntimeConfigRequest
@@ -272,7 +273,8 @@ object LeoPubsubMessage {
     appName: AppName,
     workspaceId: WorkspaceId,
     cloudContext: CloudContext,
-    landingZoneResourcesOpt: Option[LandingZoneResources],
+    landingZoneResources: Option[LandingZoneResources],
+    storageContainer: Option[StorageContainerResponse],
     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAppV2
@@ -531,8 +533,18 @@ object LeoPubsubCodec {
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
 
+  implicit val storageContainerResponseDecoder: Decoder[StorageContainerResponse] =
+    Decoder.forProduct2("name", "resourceId")(StorageContainerResponse.apply)
+
   implicit val createAppV2Decoder: Decoder[CreateAppV2Message] =
-    Decoder.forProduct6("appId", "appName", "workspaceId", "cloudContext", "landingZoneResourcesOpt", "traceId")(
+    Decoder.forProduct7("appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "landingZoneResources",
+                        "storageContainer",
+                        "traceId"
+    )(
       CreateAppV2Message.apply
     )
 
@@ -889,16 +901,30 @@ object LeoPubsubCodec {
       (x.messageType, x.runtimeId, x.diskId, x.workspaceId, x.wsmResourceId, x.traceId)
     )
 
+  implicit val storageContainerResponseEncoder: Encoder[StorageContainerResponse] =
+    Encoder.forProduct2("name", "resourceId")(x => (x.name, x.resourceId))
+
   implicit val createAppV2MessageEncoder: Encoder[CreateAppV2Message] =
-    Encoder.forProduct7(
+    Encoder.forProduct8(
       "messageType",
       "appId",
       "appName",
       "workspaceId",
       "cloudContext",
-      "landingZoneResourcesOpt",
+      "landingZoneResources",
+      "storageContainer",
       "traceId"
-    )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.landingZoneResourcesOpt, x.traceId))
+    )(x =>
+      (x.messageType,
+       x.appId,
+       x.appName,
+       x.workspaceId,
+       x.cloudContext,
+       x.landingZoneResources,
+       x.storageContainer,
+       x.traceId
+      )
+    )
 
   implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
     Encoder.forProduct8("messageType",
