@@ -30,7 +30,8 @@ object RuntimeConfigRequest {
     machineType: Option[MachineTypeName],
     persistentDisk: PersistentDiskRequest,
     zone: Option[ZoneName],
-    gpuConfig: Option[GpuConfig]
+    gpuConfig: Option[GpuConfig],
+    timeoutMinutes: Option[FiniteDuration]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }

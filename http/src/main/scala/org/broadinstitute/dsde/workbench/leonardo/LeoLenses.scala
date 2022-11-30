@@ -84,7 +84,8 @@ object LeoLenses {
           ),
           x.bootDiskSize,
           x.zone,
-          x.gpuConfig
+          x.gpuConfig,
+          x.timeoutMinutes
         )
       )
     case x: RuntimeConfig.DataprocConfig =>
@@ -99,7 +100,7 @@ object LeoLenses {
         Some(x.bootDiskSize),
         x.zone,
         x.gpuConfig,
-        None
+        x.timeoutMinutes
       )
     case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
       RuntimeConfig.GceWithPdConfig(
@@ -108,7 +109,7 @@ object LeoLenses {
         x.bootDiskSize,
         x.zone,
         x.gpuConfig,
-        None
+        x.timeoutMinutes
       )
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
       dataprocInCreateRuntimeMsgToDataprocRuntime(x)

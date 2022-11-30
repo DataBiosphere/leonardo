@@ -259,7 +259,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
               diskId,
               x.bootDiskSize,
               x.zone,
-              x.gpuConfig
+              x.gpuConfig,
+              x.timeoutMinutes
             ): RuntimeConfigInCreateRuntimeMessage
           case _: RuntimeConfig.DataprocConfig =>
             Right(

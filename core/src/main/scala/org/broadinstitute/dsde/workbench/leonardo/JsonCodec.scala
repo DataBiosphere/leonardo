@@ -42,7 +42,7 @@ import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContex
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{FiniteDuration, MINUTES}
 
 object JsonCodec {
   // Errors
@@ -488,7 +488,7 @@ object JsonCodec {
       regionOpt.toRight(s"Invalid azure region ${s}")
     }
   implicit val timeoutMinutesDecoder: Decoder[FiniteDuration] = Decoder.decodeLong.emap { s =>
-    Right(FiniteDuration(s, "Minutes"))
+    Right(FiniteDuration(s, MINUTES))
   }
 
   implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(

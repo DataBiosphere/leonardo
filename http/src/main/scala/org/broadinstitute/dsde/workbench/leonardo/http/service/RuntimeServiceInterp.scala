@@ -158,7 +158,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                             diskResult.disk.id,
                             bootDiskSize,
                             gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
-                            gce.gpuConfig
+                            gce.gpuConfig,
+                            gce.timeoutMinutes
                           ): RuntimeConfigInCreateRuntimeMessage
                         )
                   }

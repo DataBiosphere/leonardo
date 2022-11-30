@@ -277,7 +277,8 @@ object RuntimeRoutes {
         .as[PersistentDiskRequest]
       zone <- x.downField("zone").as[Option[ZoneName]]
       gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
-    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd, zone, gpu)
+      timeoutMinutes <- x.downField("timeoutMinutes").as[Option[FiniteDuration]]
+    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd, zone, gpu, timeoutMinutes)
   }
 
   implicit val gceConfigRequestDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
@@ -401,7 +402,8 @@ object RuntimeRoutes {
             gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
             timeoutMinutes <- x.downField("timeoutMinutes").as[Option[FiniteDuration]]
             res <- pd match {
-              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone, gpu).asRight[DecodingFailure]
+              case Some(p) =>
+                RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone, gpu, timeoutMinutes).asRight[DecodingFailure]
               case None =>
                 x.downField("diskSize")
                   .as[Option[DiskSize]]

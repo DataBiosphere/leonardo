@@ -48,7 +48,8 @@ object RuntimeConfigInCreateRuntimeMessage {
                                    persistentDiskId: DiskId,
                                    bootDiskSize: DiskSize,
                                    zone: ZoneName,
-                                   gpuConfig: Option[GpuConfig]
+                                   gpuConfig: Option[GpuConfig],
+                                   timeoutMinutes: Option[FiniteDuration]
   ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -670,12 +671,13 @@ object LeoPubsubCodec {
     )(RuntimeConfigInCreateRuntimeMessage.GceConfig.apply)
 
   implicit val gceWithPdConfigInCreateRuntimeMessageDecoder
-    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct5(
+    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct6(
     "machineType",
     "persistentDiskId",
     "bootDiskSize",
     "zone",
-    "gpuConfig"
+    "gpuConfig",
+    "timeoutMinutes"
   )(RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig.apply)
 
   implicit val runtimeConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage] =
