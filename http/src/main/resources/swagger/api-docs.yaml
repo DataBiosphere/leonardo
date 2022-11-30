@@ -900,7 +900,7 @@ paths:
   /api/google/v1/disks/{googleProject}:
     get:
       summary: List all persistent disks within the given Google project that the caller has access to
-      description: List all persistent disks within the given Google project, optionally
+      description: List all persistent disks created by the caller within the given Google project, optionally
         filtering on a set of labels
       operationId: listDisksByProject
       tags:
@@ -1189,7 +1189,7 @@ paths:
   "/api/google/v1/apps/{googleProject}":
     get:
       summary: List apps within a project
-      description: List kubernetes apps the caller has access to with a project filter
+      description: List kubernetes apps created by the caller with a project filter
       operationId: listAppByProject
       tags:
         - apps

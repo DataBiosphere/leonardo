@@ -449,9 +449,10 @@ object LeonardoApiClient {
     val uriWithoutQueryParam = rootUri
       .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}"))
 
-    val uri =
+    val uri = (
       if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
       else uriWithoutQueryParam
+    ).withQueryParam("role", "creator")
 
     for {
       traceIdHeader <- genTraceIdHeader()
@@ -608,9 +609,10 @@ object LeonardoApiClient {
     val uriWithoutQueryParam = rootUri
       .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}"))
 
-    val uri =
+    val uri = (
       if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
       else uriWithoutQueryParam
+    ).withQueryParam("role", "creator")
 
     for {
       traceIdHeader <- genTraceIdHeader()
