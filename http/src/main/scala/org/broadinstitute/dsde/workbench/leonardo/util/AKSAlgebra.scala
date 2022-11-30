@@ -9,7 +9,7 @@ trait AKSAlgebra[F[_]] {
   /** Creates an app and polls it for completion */
   def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  // TODO (TOAZ-230): delete, stop, start
+  def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
 }
 
@@ -18,4 +18,12 @@ final case class CreateAKSAppParams(appId: AppId,
                                     workspaceId: WorkspaceId,
                                     landingZoneResourcesOpt: Option[LandingZoneResources],
                                     cloudContext: AzureCloudContext
+)
+
+final case class DeleteAKSAppParams(
+  appName: AppName,
+  workspaceId: WorkspaceId,
+  landingZoneResourcesOpt: Option[LandingZoneResources],
+  cloudContext: AzureCloudContext,
+  keepHistory: Boolean = false
 )

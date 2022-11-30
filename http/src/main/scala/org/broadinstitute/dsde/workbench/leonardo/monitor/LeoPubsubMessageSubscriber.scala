@@ -122,9 +122,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           }
         case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
-        case _: DeleteAppV2Message   =>
-          // TODO: TOAZ-230
-          F.unit
+        case msg: DeleteAppV2Message => handleDeleteAppV2Message(msg)
       }
     } yield resp
 
@@ -1432,6 +1430,39 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubKubernetesError(
               AppError(
                 s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: CreateAppV2 not supported for GCP",
+                ctx.now,
+                ErrorAction.CreateApp,
+                ErrorSource.App,
+                None,
+                Some(ctx.traceId)
+              ),
+              Some(msg.appId),
+              false,
+              None,
+              None,
+              None
+            )
+          )
+      }
+    } yield ()
+
+  private[monitor] def handleDeleteAppV2Message(
+    msg: DeleteAppV2Message
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- msg.cloudContext match {
+        case CloudContext.Azure(c) =>
+          val task =
+            azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, msg.landingZoneResourcesOpt, c)
+          asyncTasks.offer(
+            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2")
+          )
+        case CloudContext.Gcp(c) =>
+          F.raiseError(
+            PubsubKubernetesError(
+              AppError(
+                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: DeleteAppV2 not supported for GCP",
                 ctx.now,
                 ErrorAction.CreateApp,
                 ErrorSource.App,

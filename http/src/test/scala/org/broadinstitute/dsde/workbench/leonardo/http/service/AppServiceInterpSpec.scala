@@ -1662,7 +1662,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.DeleteApp
+    message.messageType shouldBe LeoPubsubMessageType.DeleteAppV2
     val deleteAppMessage = message.asInstanceOf[DeleteAppV2Message]
     deleteAppMessage.appId shouldBe app.id
     deleteAppMessage.workspaceId shouldBe workspaceId
@@ -1711,7 +1711,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.DeleteApp
+    message.messageType shouldBe LeoPubsubMessageType.DeleteAppV2
     val deleteAppMessage = message.asInstanceOf[DeleteAppV2Message]
     deleteAppMessage.appId shouldBe app.id
     deleteAppMessage.workspaceId shouldBe workspaceId
