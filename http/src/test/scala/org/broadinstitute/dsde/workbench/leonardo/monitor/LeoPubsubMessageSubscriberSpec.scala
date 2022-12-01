@@ -198,6 +198,7 @@ class LeoPubsubMessageSubscriberSpec
             .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
             .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
         )
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -207,9 +208,11 @@ class LeoPubsubMessageSubscriberSpec
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
           runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           error.nonEmpty shouldBe true
           runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+          diskStatus shouldBe Some(DiskStatus.Deleted)
         }
 
         _ <- withInfiniteStream(

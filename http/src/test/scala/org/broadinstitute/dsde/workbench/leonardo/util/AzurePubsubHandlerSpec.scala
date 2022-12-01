@@ -3,6 +3,7 @@ package util
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import cats.implicits._
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -119,6 +120,73 @@ class AzurePubsubHandlerSpec
         resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
         controlledResources.map(_.resourceId).contains(resourceId) shouldBe true
       }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle azure vm creation failure properly" in isolatedDbTest {
+    val vmReturn = mock[VirtualMachine]
+    val ipReturn: PublicIpAddress = mock[PublicIpAddress]
+
+    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+
+    val stubIp = "0.0.0.0"
+    when(vmReturn.getPrimaryPublicIPAddress()).thenReturn(ipReturn)
+    when(ipReturn.ipAddress()).thenReturn(stubIp)
+
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId))),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Failed, 200, ZonedDateTime.now(), None, "url"),
+            None
+          )
+        )
+    }
+    val azurePubsubHandler =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          runtimeStatus <- clusterQuery.getClusterStatus(runtime.id).transaction
+          diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
+          diskStatus <- diskIdOpt.flatTraverse(id => persistentDiskQuery.getStatus(id).transaction)
+        } yield {
+          runtimeStatus shouldBe Some(RuntimeStatus.Error)
+          diskStatus shouldBe (Some(DiskStatus.Deleted))
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        RelayNamespace("relay-ns"),
+                                        storageContainerResourceId,
+                                        None
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azurePubsubHandler.createAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+      } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
