@@ -2,10 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
-import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService
 import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.landingZoneResources
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
@@ -35,7 +33,6 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import scalacache.Cache
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext
@@ -148,7 +145,9 @@ object AKSManualTest {
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
-      appMonitorConfig
+      appMonitorConfig,
+      ConfigReader.appConfig.azure.wsm,
+      ConfigReader.appConfig.drs
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
@@ -176,8 +175,9 @@ object AKSManualTest {
           deps.app.id,
           deps.app.appName,
           workspaceId,
-          Some(landingZoneResources),
-          cloudContext
+          cloudContext,
+          landingZoneResources,
+          None
         )
       )
     }

@@ -536,13 +536,18 @@ object CommonTestData {
     Some(0)
   )
 
-  val landingZoneResources = LandingZoneResources(AKSClusterName(""),
-                                                  BatchAccountName(""),
-                                                  RelayNamespace(""),
-                                                  StorageAccountName(""),
-                                                  NetworkName(""),
-                                                  SubnetworkName(""),
-                                                  SubnetworkName("")
+  val landingZoneResources = LandingZoneResources(
+    AKSClusterName(""),
+    BatchAccountName(""),
+    RelayNamespace(""),
+    StorageAccountName(""),
+    NetworkName(""),
+    PostgresName(""),
+    LogAnalyticsWorkspaceName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
+    SubnetworkName("")
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

@@ -25,7 +25,7 @@ import io.kubernetes.client.util.Config
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
 import org.broadinstitute.dsde.workbench.google2.{
@@ -36,8 +36,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, SamConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -109,16 +109,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      landingZoneResources <- F.fromOption(
-        params.landingZoneResourcesOpt,
-        AppCreationException(
-          s"Landing Zone Resources not found in app creation params for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
-
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
@@ -133,14 +125,26 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
+      // Create relay hybrid connection pool
+      hcName = RelayHybridConnectionName(params.appName.value)
+      relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                                       hcName,
+                                                                       params.cloudContext
+      )
+      relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+
       // Deploy setup chart
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          org.broadinstitute.dsp.Values(
-            s"cloud=azure,serviceAccount.name=${ksaName.value}"
+          buildSetupChartOverrideValues(app.release,
+                                        app.samResourceId,
+                                        ksaName,
+                                        params.landingZoneResources.relayNamespace,
+                                        hcName,
+                                        relayPrimaryKey
           ),
           true
         )
@@ -148,7 +152,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(params.appName.value)
-      primaryKey <- azureRelayService.createRelayHybridConnection(landingZoneResources.relayNamespace,
+      primaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                                   hcName,
                                                                   params.cloudContext
       )
@@ -160,29 +164,41 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
-      _ <- assignVmScaleSet(landingZoneResources.clusterName, params.cloudContext, petMi)
+      _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
-      // Build values and install chart
-      values = buildCromwellChartOverrideValues(app.release,
-                                                params.cloudContext,
-                                                app.samResourceId,
-                                                landingZoneResources,
-                                                hcName,
-                                                primaryKey,
-                                                petMi
-      )
-      _ <- helmClient
-        .installChart(
-          app.release,
-          app.chart.name,
-          app.chart.version,
-          values,
-          createNamespace = true
-        )
-        .run(authContext)
+      // Deploy app chart
+      _ <- app.appType match {
+        case AppType.Cromwell =>
+          for {
+            // Storage container is required for Cromwell app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
+            )
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildCromwellChartOverrideValues(
+                  app.release,
+                  params.appName,
+                  params.cloudContext,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  relayEndpoint,
+                  petMi,
+                  storageContainer
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
+
+        case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
+      }
 
       // Poll app status
-      relayEndpoint = s"https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
       appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint) / app.appName.value)
       _ <-
         if (appOk)
@@ -190,7 +206,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to start in cluster ${params.landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
@@ -204,8 +220,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             IP(relayEndpoint),
             IP("[unset]"),
             NetworkFields(
-              landingZoneResources.vnetName,
-              landingZoneResources.aksSubnetName,
+              params.landingZoneResources.vnetName,
+              params.landingZoneResources.aksSubnetName,
               IpRange("[unset]")
             )
           )
@@ -216,10 +232,90 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
+        s"Finished app creation for app ${params.appName.value} in cluster ${params.landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
       )
 
     } yield ()
+
+  override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    val DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext, keepHistory) = params
+    for {
+      ctx <- ev.ask
+
+      // Grab records from the database
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(cloudContext), params.appName)
+        .transaction
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(CloudContext.Azure(cloudContext), params.appName, ctx.traceId, "No active app found in DB")
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"Deleting app $appName in workspace $workspaceId")
+
+      app = dbApp.app
+      namespaceName = app.appResources.namespace.name
+      kubernetesNamespace = KubernetesNamespace(namespaceName)
+      dbCluster = dbApp.cluster
+
+      clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
+
+      // Authenticate helm client
+      authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
+
+      // Uninstall the app chart and setup chart
+      _ <- helmClient.uninstall(app.release, keepHistory).run(authContext)
+      _ <- helmClient
+        .uninstall(
+          getTerraAppSetupChartReleaseName(app.release),
+          keepHistory
+        )
+        .run(authContext)
+
+      client <- buildCoreV1Client(cloudContext, landingZoneResources.clusterName)
+
+      // Poll until all pods in the app namespace are deleted
+      _ <- streamUntilDoneOrTimeout(
+        listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
+        config.appMonitorConfig.deleteApp.maxAttempts,
+        config.appMonitorConfig.deleteApp.interval,
+        "helm deletion timed out"
+      )
+
+      // Delete the namespace only after the helm uninstall completes.
+      _ <- deleteNamespace(client, kubernetesNamespace)
+
+      // Poll until the namespace is actually deleted
+      // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
+      fa = namespaceExists(client, kubernetesNamespace).map(exists => !exists)
+      _ <- streamUntilDoneOrTimeout(fa,
+                                    config.appMonitorConfig.deleteApp.maxAttempts,
+                                    config.appMonitorConfig.deleteApp.initialDelay,
+                                    "delete namespace timed out"
+      )
+
+      // Delete the Sam resource
+      userEmail = app.auditInfo.creator
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+      _ <- tokenOpt match {
+        case Some(token) =>
+          samDao.deleteResourceInternal(dbApp.app.samResourceId,
+                                        Authorization(Credentials.Token(AuthScheme.Bearer, token))
+          )
+        case None =>
+          logger.warn(
+            s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
+          )
+      }
+
+      _ <- logger.info(
+        s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterName}"
+      )
+
+      _ <- appQuery.updateStatus(app.id, AppStatus.Deleted).transaction
+
+      _ <- logger.info(s"Done deleting app $appName in workspace $workspaceId")
+    } yield ()
+  }
 
   private[util] def pollCromwellAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
     ev: Ask[F, AppContext]
@@ -233,11 +329,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       op = List(
         cbasDao
           .getStatus(relayBaseUri, authHeader)
+          .handleError(_ => false),
+        wdsDao
+          .getStatus(relayBaseUri, authHeader)
           .handleError(_ => false)
-          // TODO: add WDS to status checks once https://github.com/DataBiosphere/terra-workspace-data-service/pull/135 is in a release
-          // wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          // TODO (TOAZ-241): add cromwell to the status checks once it starts up
-          // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        // TODO (TOAZ-241): add cromwell to the status checks once it starts up
+        // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       ).sequence
       cromwellOk <- streamFUntilDone(
         op,
@@ -246,38 +343,63 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk.isDone
 
-  private[util] def buildCromwellChartOverrideValues(release: Release,
-                                                     cloudContext: AzureCloudContext,
-                                                     samResourceId: AppSamResourceId,
-                                                     landingZoneResources: LandingZoneResources,
-                                                     relayHcName: RelayHybridConnectionName,
-                                                     relayPrimaryKey: PrimaryKey,
-                                                     petManagedIdentity: Identity
+  private[util] def buildSetupChartOverrideValues(release: Release,
+                                                  samResourceId: AppSamResourceId,
+                                                  ksaName: ServiceAccountName,
+                                                  relayNamespace: RelayNamespace,
+                                                  relayHcName: RelayHybridConnectionName,
+                                                  relayPrimaryKey: PrimaryKey
   ): Values =
     Values(
       List(
-        // azure resources configs
-        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        // TODO (TOAZ-227): set up Application Insights
-//      raw"config.azureServicesAuthConnectionString=???",
-//      raw"config.applicationInsightsAccountName=???",
-//      raw"config.cosmosDbAccountName=???",
-        raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
-        raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
+        raw"cloud=azure",
+        // KSA configs
+        raw"serviceAccount.name=${ksaName.value}",
 
         // relay configs
-        raw"relaylistener.connectionString=Endpoint=sb://${landingZoneResources.relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
+        raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
-        raw"relaylistener.endpoint=https://${landingZoneResources.relayNamespace.value}.servicebus.windows.net",
+        raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         raw"relaylistener.samResourceType=kubernetes-app",
         raw"relaylistener.samAction=connect",
 
+        // general configs
+        raw"fullnameOverride=setup-${release.asString}"
+      ).mkString(",")
+    )
+
+  private[util] def buildCromwellChartOverrideValues(release: Release,
+                                                     appName: AppName,
+                                                     cloudContext: AzureCloudContext,
+                                                     workspaceId: WorkspaceId,
+                                                     landingZoneResources: LandingZoneResources,
+                                                     relayEndpoint: String,
+                                                     petManagedIdentity: Identity,
+                                                     storageContainer: StorageContainerResponse
+  ): Values =
+    Values(
+      List(
+        // azure resources configs
+        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
+        // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
+        raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
+        raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
+        raw"config.drsUrl=${config.drsConfig.url}",
+
+        // relay configs
+        raw"relay.path=$relayEndpoint",
+
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
         raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
+        raw"persistence.blobContainer=${storageContainer.name.value}",
+        raw"persistence.leoAppInstanceName=${appName.value}",
+        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
+        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
+        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
         raw"identity.name=${petManagedIdentity.name()}",
@@ -405,108 +527,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       .tenantId(config.appRegistrationConfig.managedAppTenantId.value)
       .build
     F.delay(ComputeManager.authenticate(clientSecretCredential, azureProfile))
-  }
-
-  override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val DeleteAKSAppParams(appName, workspaceId, landingZoneResourcesOpt, cloudContext, keepHistory) = params
-    for {
-      ctx <- ev.ask
-
-      // Grab records from the database
-      dbAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(CloudContext.Azure(cloudContext), params.appName)
-        .transaction
-      dbApp <- F.fromOption(
-        dbAppOpt,
-        AppNotFoundException(CloudContext.Azure(cloudContext), params.appName, ctx.traceId, "No active app found in DB")
-      )
-      _ <- logger.info(ctx.loggingCtx)(s"Deleting app $appName in workspace $workspaceId")
-
-      app = dbApp.app
-      namespaceName = app.appResources.namespace.name
-      kubernetesNamespace = KubernetesNamespace(namespaceName)
-      dbCluster = dbApp.cluster
-
-      // Get resources from landing zone
-      landingZoneResources <- F.fromOption(
-        landingZoneResourcesOpt,
-        AppCreationException(
-          s"Landing Zone Resources not found in app creation params for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
-
-      clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
-      client <- buildCoreV1Client(cloudContext, landingZoneResources.clusterName)
-
-      // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
-
-      _ <- helmClient.uninstall(app.release, keepHistory).run(authContext)
-
-      // poll until the app pods are deleted
-      last <- streamFUntilDone(
-        listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
-        config.appMonitorConfig.deleteApp.maxAttempts,
-        config.appMonitorConfig.deleteApp.interval
-      ).compile.lastOrError
-
-      _ <-
-        if (!podDoneCheckable.isDone(last)) {
-          val msg =
-            s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}."
-          logger.error(ctx.loggingCtx)(msg) >>
-            F.raiseError[Unit](AppDeletionException(msg))
-        } else F.unit
-
-      // helm uninstall the setup chart
-      _ <- helmClient
-        .uninstall(
-          getTerraAppSetupChartReleaseName(app.release),
-          keepHistory
-        )
-        .run(authContext)
-
-      // delete the namespace only after the helm uninstall completes.
-      _ <- deleteNamespace(client, kubernetesNamespace)
-
-      fa = namespaceExists(client, kubernetesNamespace)
-        .map(
-          !_
-        ) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
-
-      _ <- streamUntilDoneOrTimeout(fa,
-                                    config.appMonitorConfig.deleteApp.maxAttempts,
-                                    config.appMonitorConfig.deleteApp.initialDelay,
-                                    "delete namespace timed out"
-      )
-
-      userEmail = app.auditInfo.creator
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-
-      _ <- tokenOpt match {
-        case Some(token) =>
-          for {
-            _ <- samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                               Authorization(Credentials.Token(AuthScheme.Bearer, token))
-            )
-
-          } yield ()
-        case None =>
-          logger.warn(
-            s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
-          )
-      }
-
-      _ <- logger.info(
-        s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterName}"
-      )
-
-      _ <- appQuery.updateStatus(app.id, AppStatus.Deleted).transaction
-
-      _ <- logger.info(s"Done deleting app $appName in workspace $workspaceId")
-    } yield ()
-
   }
 
   private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
@@ -640,5 +660,7 @@ final case class AKSInterpreterConfig(
   aadPodIdentityConfig: AadPodIdentityConfig,
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
-  appMonitorConfig: AppMonitorConfig
+  appMonitorConfig: AppMonitorConfig,
+  wsmConfig: HttpWsmDaoConfig,
+  drsConfig: DrsConfig
 )
