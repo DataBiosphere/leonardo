@@ -313,7 +313,7 @@ object Boot extends IOApp {
 
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
-      proxyResolver <- Dispatcher[F].map(d => ProxyResolver(hostToIpMapping, d))
+      proxyResolver <- Dispatcher.parallel[F].map(d => ProxyResolver(hostToIpMapping, d))
 
       underlyingRuntimeDnsCache = buildCache[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]](
         runtimeDnsCacheConfig.cacheMaxSize,
@@ -605,7 +605,9 @@ object Boot extends IOApp {
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
           ConfigReader.appConfig.azure.appRegistration,
           samConfig,
-          appMonitorConfig
+          appMonitorConfig,
+          ConfigReader.appConfig.azure.wsm,
+          ConfigReader.appConfig.drs
         ),
         helmClient,
         azureContainerService,

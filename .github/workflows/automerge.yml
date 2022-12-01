@@ -27,9 +27,9 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           MERGE_METHOD: squash
           MERGE_FORKS: false
-          MERGE_RETRIES: 72 # Retry for 6 minutes instead of 30s
-          MERGE_RETRY_SLEEP: 5000 # 5 seconds
+          MERGE_RETRIES: 180 # Retry for 3 hours
+          MERGE_RETRY_SLEEP: 60000 # 60 seconds
           UPDATE_METHOD: rebase
-          UPDATE_RETRIES: 72 # Retry updates for 6 minutes instead of once
-          UPDATE_RETRY_SLEEP: 5000 # 5 seconds
+          UPDATE_RETRIES: 180 # Retry for 3 hours
+          UPDATE_RETRY_SLEEP: 60000 # 60 seconds
           MERGE_REQUIRED_APPROVALS: 0

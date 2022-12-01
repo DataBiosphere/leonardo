@@ -39,11 +39,14 @@ final case class AadPodIdentityConfig(namespace: Namespace,
                                       values: Values
 )
 
+final case class DrsConfig(url: String)
+
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
 final case class AppConfig(
   terraAppSetupChart: TerraAppSetupChartConfig,
   persistentDisk: PersistentDiskConfig,
   azure: AzureConfig,
-  oidc: OidcAuthConfig
+  oidc: OidcAuthConfig,
+  drs: DrsConfig
 )

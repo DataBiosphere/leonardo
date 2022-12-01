@@ -610,6 +610,9 @@ class AzurePubsubHandlerSpec
     val failAksInterp = new MockAKSInterp {
       override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
         IO.raiseError(HelmException("something went wrong"))
+
+      override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+        IO.raiseError(HelmException("something went wrong"))
     }
     val azureInterp =
       makeAzurePubsubHandler(asyncTaskQueue = queue, aksAlg = failAksInterp)
@@ -622,8 +625,9 @@ class AzurePubsubHandlerSpec
         .createAndPollApp(appId,
                           AppName("app"),
                           WorkspaceId(UUID.randomUUID()),
-                          Some(landingZoneResources),
-                          azureCloudContext
+                          azureCloudContext,
+                          landingZoneResources,
+                          None
         )
         .attempt
     } yield result shouldBe Left(
