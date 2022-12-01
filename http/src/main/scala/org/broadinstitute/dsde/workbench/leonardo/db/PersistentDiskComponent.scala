@@ -221,7 +221,7 @@ object persistentDiskQuery {
   ): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(cloudContext, name)).result.map(aggregateLabels).map(_.headOption)
 
-  def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
+  def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
 
   def updateStatusAndIsFormatted(id: DiskId, newStatus: DiskStatus, formattedBy: FormattedBy, dateAccessed: Instant) =

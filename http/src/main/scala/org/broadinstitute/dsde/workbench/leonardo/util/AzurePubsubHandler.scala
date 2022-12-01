@@ -719,6 +719,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
         .transaction
       _ <- diskResourceOpt.traverse { disk =>
+        // TODO: once we start supporting persistent disk, we should not delete disk anymore
         wsmDao.deleteDisk(
           DeleteWsmResourceRequest(
             e.workspaceId,
@@ -730,6 +731,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           auth
         )
       }.void
+      _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
