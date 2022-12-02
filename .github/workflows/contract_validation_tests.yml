@@ -57,6 +57,7 @@ jobs:
           echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "${$GITHUB_REF//refs\/heads\/}"
+          echo "${GITHUB_REF/refs\/heads\//""}"
 
       - name: list directories
         run: |
