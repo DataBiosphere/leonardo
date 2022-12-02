@@ -39,11 +39,30 @@ jobs:
       - name: Checkout current code
         uses: actions/checkout@v3
 
+      - name: Extract branch
+          id: extract-branch
+          run: |
+            GITHUB_EVENT_NAME=${{ github.event_name }}
+            if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+              GITHUB_REF=${{ github.ref }}
+              GITHUB_SHA=${{ github.sha }}
+            elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+              GITHUB_REF=refs/heads/${{ github.head_ref }}
+              GITHUB_SHA=${{ github.event.pull_request.head.sha }}
+            else
+              echo "Failed to extract branch information"
+              exit 1
+            fi
+            echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
+            echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
+
       - name: list directories
         run: |
           ls -l pact4s
           cd pact4s
           cat README.md
+          echo ${{ steps.extract-branch.outputs.ref }}
+          echo ${{ steps.extract-branch.outputs.sha }}
 
       - name: Run consumer tests
         run: |
@@ -58,3 +77,20 @@ jobs:
         run: |
           cd pact4s
           cat target/pacts/leo-consumer-sam-provider.json
+
+      - name: Publish contract to Pact Broker
+        run: |
+          PACT_DIR=target/pacts/publish
+          cd pact4s
+          mkdir -p $PACT_DIR
+          cp target/pacts/leo*sam*.json $PACT_DIR
+
+          echo Found the following pact files:
+          for file in ${PACT_DIR}/*; do
+            echo "$(basename "$file")"
+          done
+
+          LATEST_COMMIT=$(git rev-parse --short HEAD)
+          PACT_BROKER_BASE_URL=https://pact-broker.dsp-eng-tools.broadinstitute.org/
+          PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }}
