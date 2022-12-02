@@ -83,7 +83,7 @@ jobs:
           PACT_DIR=target/pacts/publish
           cd pact4s
           ls -l
-          chmod +w $PACT_DIR
+          chmod -R 777 target
           ls -l
           mkdir -p $PACT_DIR
           cp target/pacts/leo*sam*.json $PACT_DIR
