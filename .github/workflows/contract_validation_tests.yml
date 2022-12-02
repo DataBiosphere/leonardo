@@ -29,7 +29,7 @@ on:
       - 'README.md'
 
 jobs:
-  tag-publish-job:
+  contract-validation-tests:
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
@@ -39,8 +39,9 @@ jobs:
       - name: Checkout current code
         uses: actions/checkout@v3
 
-      - name: lidt directories
+      - name: list directories
         run: |
           ls -l pact4s
-
+          cd pact4s
+          cat README.md
 
