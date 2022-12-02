@@ -80,11 +80,8 @@ jobs:
 
       - name: Publish contract to Pact Broker
         run: |
-          PACT_DIR=target/pacts/publish
           cd pact4s
-          ls -l
-          chmod -R 777 target
-          ls -l
+          PACT_DIR=publish
           mkdir -p $PACT_DIR
           cp target/pacts/leo*sam*.json $PACT_DIR
 
