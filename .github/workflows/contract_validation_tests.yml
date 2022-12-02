@@ -1,0 +1,46 @@
+name: Contract validation
+# The purpose of this workflow is to validate the service level contract
+# using the Pact framework.
+#
+# The workflow involves two parties: Leo as a consumer. Sam as a provider.
+# Each party owns a set of tests (aka contract tests).
+#
+#   The consumer contract tests (aka consumer tests) are completely independent of
+#   the provider contract tests (aka provider tests), and vice versa.
+#
+# Specifically
+#   Leo runs consumer tests against mock Sam service. Upon success, publish a consumer-provider pact to the Pact Broker.
+#   The Pact Broker is the source of truth to create a contractual obligation between consumer and provider.
+#
+#   Sam obtains contract from Pact Broker and runs provider tests to validate its obligations to consumers.
+#   Sam will provide consumers a way to dispatch provider tests and let consumer use test validation status to
+#   gate releases.
+#
+# The workflow relies on github secrets:
+# - BROADBOT_TOKEN - the broadbot token, so we can avoid two reviewer rule on GHA operations
+on:
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+  push:
+    branches:
+      - QA-2036
+    paths-ignore:
+      - 'README.md'
+
+jobs:
+  tag-publish-job:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout current code
+        uses: actions/checkout@v3
+
+      - name: lidt directories
+        run: |
+          ls -l pact4s
+
+
