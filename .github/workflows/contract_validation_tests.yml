@@ -98,3 +98,16 @@ jobs:
           PACT_BROKER_BASE_URL=https://pact-broker.dsp-eng-tools.broadinstitute.org/
           PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }}
           PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }}
+
+          docker run --rm \
+            -w ${PWD} \
+            -v ${PWD}:/pacts \
+            -e PACT_BROKER_BASE_URL=${PACT_BROKER_BASE_URL} \
+            -e PACT_BROKER_USERNAME=${PACT_BROKER_USERNAME} \
+            -e PACT_BROKER_PASSWORD=${PACT_BROKER_PASSWORD} \
+            pactfoundation/pact-cli:latest \
+            publish \
+            /pacts/${PACT_DIR} \
+            --consumer-app-version ${LATEST_COMMIT} \
+            --tag ${{ steps.extract-branch.outputs.sha_short }} \
+            --branch ${{ steps.extract-branch.outputs.branch }}
