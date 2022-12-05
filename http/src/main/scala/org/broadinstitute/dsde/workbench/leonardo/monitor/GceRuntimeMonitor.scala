@@ -131,8 +131,6 @@ class GceRuntimeMonitor[F[_]: Parallel](
         zoneParam,
         InstanceName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
       )
-      _ <- logger.info("MEEP")
-      _ <- logger.info(timeoutMinutes.toString)
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
           creatingRuntime(instance, monitorContext, runtimeAndRuntimeConfig, timeoutMinutes)
