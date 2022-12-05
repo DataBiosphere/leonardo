@@ -331,6 +331,7 @@ object RuntimeRoutes {
       region <- c.downField("region").as[Option[RegionName]]
       componentGatewayEnabled <- c.downField("componentGatewayEnabled").as[Option[Boolean]]
       workerPrivateAccess <- c.downField("workerPrivateAccess").as[Option[Boolean]]
+
       res <- numberOfWorkersInput match {
         case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case Some(0) =>

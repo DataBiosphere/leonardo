@@ -25,6 +25,7 @@ import slick.dbio.DBIO
 import java.nio.file.Path
 import java.time.Instant
 import java.util.UUID
+import scala.concurrent.duration.FiniteDuration
 
 package object http {
   val includeDeletedKey = "includeDeleted"
@@ -107,8 +108,10 @@ package object http {
 final case class CloudServiceMonitorOps[F[_], A](a: A)(implicit
   monitor: RuntimeMonitor[F, A]
 ) {
-  def process(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
-    monitor.process(a)(runtimeId, action)
+  def process(runtimeId: Long, action: RuntimeStatus, timeoutMinutes: Option[FiniteDuration])(implicit
+    ev: Ask[F, TraceId]
+  ): Stream[F, Unit] =
+    monitor.process(a)(runtimeId, action, timeoutMinutes)
 
   def handlePollCheckCompletion(monitorContext: MonitorContext,
                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig

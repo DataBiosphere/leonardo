@@ -22,7 +22,9 @@ import scala.jdk.CollectionConverters._
  * It doesn't trigger any of the action but only responsible for monitoring the progress and make necessary cleanup when the transition is done
  */
 trait RuntimeMonitor[F[_], A] {
-  def process(a: A)(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit]
+  def process(a: A)(runtimeId: Long, action: RuntimeStatus, timeoutMinutes: Option[FiniteDuration])(implicit
+    ev: Ask[F, TraceId]
+  ): Stream[F, Unit]
 
   def handlePollCheckCompletion(
     a: A

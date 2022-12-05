@@ -189,7 +189,8 @@ object LeoPubsubMessage {
                                         welderEnabled: Boolean,
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
-                                        traceId: Option[TraceId]
+                                        traceId: Option[TraceId],
+                                        timeoutMinutes: Option[FiniteDuration]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
   }
@@ -197,7 +198,8 @@ object LeoPubsubMessage {
   object CreateRuntimeMessage {
     def fromRuntime(runtime: Runtime,
                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
-                    traceId: Option[TraceId]
+                    traceId: Option[TraceId],
+                    timeoutMinutes: Option[FiniteDuration]
     ): CreateRuntimeMessage =
       CreateRuntimeMessage(
         runtime.id,
@@ -214,7 +216,8 @@ object LeoPubsubMessage {
         runtime.welderEnabled,
         runtime.customEnvironmentVariables,
         runtimeConfig,
-        traceId
+        traceId,
+        timeoutMinutes
       )
   }
 
@@ -592,8 +595,13 @@ object LeoPubsubCodec {
     case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => x.asJson
   }
 
+  implicit val timeoutMinutesEncoder: Encoder[Option[FiniteDuration]] = Encoder.instance {
+    case Some(value) => value.toMinutes.asJson
+    case None        => None.asJson
+  }
+
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct16(
+    Encoder.forProduct17(
       "messageType",
       "id",
       "clusterProjectAndName",
@@ -609,6 +617,7 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
+      "timeoutMinutes",
       "traceId"
     )(x =>
       (x.messageType,
@@ -626,6 +635,7 @@ object LeoPubsubCodec {
        x.welderEnabled,
        x.customEnvironmentVariables,
        x.runtimeConfig,
+       x.timeoutMinutes,
        x.traceId
       )
     )
@@ -697,7 +707,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createRuntimeMessageDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct15(
+    Decoder.forProduct16(
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
@@ -712,6 +722,7 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
+      "timeoutMinutes",
       "traceId"
     )(CreateRuntimeMessage.apply)
 

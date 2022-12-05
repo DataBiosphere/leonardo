@@ -56,7 +56,10 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+  override def handleCheck(monitorContext: MonitorContext,
+                           runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                           timeoutMinutes: Option[FiniteDuration]
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
@@ -157,11 +160,13 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                         dataprocInstance.ip match {
                           case Some(ip) =>
                             // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                            F.sleep(8 seconds) >> handleCheckTools(monitorContext,
-                                                                   runtimeAndRuntimeConfig,
-                                                                   ip,
-                                                                   masterInstance,
-                                                                   true
+                            F.sleep(8 seconds) >> handleCheckTools(
+                              monitorContext,
+                              runtimeAndRuntimeConfig,
+                              ip,
+                              masterInstance,
+                              true,
+                              None // TODO Verify dataproc can't have custom timeout
                             )
                           case None =>
                             checkAgain(monitorContext,
@@ -313,7 +318,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                                              runtimeAndRuntimeConfig,
                                                              ip,
                                                              main.map(_._1),
-                                                             false
+                                                             false,
+                                                             None
                       )
                     case None =>
                       checkAgain(monitorContext,
@@ -432,7 +438,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             main.flatMap(_.ip) match {
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait a few seconds before we check jupyter
-                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main, false)
+                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main, false, None)
               case None =>
                 checkAgain(monitorContext,
                            runtimeAndRuntimeConfig,

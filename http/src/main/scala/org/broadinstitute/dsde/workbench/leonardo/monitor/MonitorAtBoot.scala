@@ -289,7 +289,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           runtime.welderEnabled,
           runtime.customEnvironmentVariables,
           rtConfigInMessage,
-          Some(traceId)
+          Some(traceId),
+          timeoutMinutes = None // TODO N8 what
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }

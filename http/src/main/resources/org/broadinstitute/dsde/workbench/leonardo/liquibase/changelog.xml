@@ -94,4 +94,5 @@
     <include file="changesets/20221115_azure_app_refactor.xml" relativeToChangelogFile="true" />
     <include file="changesets/20221117_move_workspace_id_to_app_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20221122_add_saturnAutoCreated_label.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20221130_add_timeout_minutes_to_runtime_config.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

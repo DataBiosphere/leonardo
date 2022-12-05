@@ -171,7 +171,6 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      _ = println("111 starting runtime")
       apiCall = runtimeV2Service.startRuntime(userInfo, runtimeName, workspaceId)
       _ <- metrics.incrementCounter("startRuntimeV2")
       resp <- ctx.span.fold(apiCall)(span =>

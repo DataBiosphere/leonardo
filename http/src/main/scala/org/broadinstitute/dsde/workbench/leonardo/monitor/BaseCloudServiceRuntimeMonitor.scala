@@ -9,7 +9,6 @@ import fs2.Stream
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DataprocRole, GcsBlobName, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.{GceConfig, GceWithPdConfig}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -46,7 +45,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   def monitorConfig: MonitorConfig
 
-  def process(runtimeId: Long, runtimeStatus: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
+  def process(runtimeId: Long, runtimeStatus: RuntimeStatus, timeoutMinutes: Option[FiniteDuration])(implicit
+    ev: Ask[F, TraceId]
+  ): Stream[F, Unit] =
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
@@ -61,13 +62,17 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           _ <- F.sleep(monitorConfig.pollStatus.interval)
           res <- handler(
             monitorContext,
-            s
+            s,
+            timeoutMinutes
           )
         } yield res
       }
     } yield ()
 
-  private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
+  private[monitor] def handler(monitorContext: MonitorContext,
+                               monitorState: MonitorState,
+                               timeoutMinutes: Option[FiniteDuration]
+  ): F[CheckResult] =
     for {
       now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
@@ -89,9 +94,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             .as(((), None))
         case Some(_) =>
           monitorState match {
-            case MonitorState.Initial => handleInitial(monitorContext)
+            case MonitorState.Initial => handleInitial(monitorContext, timeoutMinutes)
             case MonitorState.Check(runtimeAndRuntimeConfig, _) =>
-              handleCheck(monitorContext, runtimeAndRuntimeConfig)
+              handleCheck(monitorContext, runtimeAndRuntimeConfig, timeoutMinutes)
           }
       }
     } yield res
@@ -283,12 +288,16 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
     } yield res
 
-  def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+  def handleCheck(monitorContext: MonitorContext,
+                  runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                  timeoutMinutes: Option[FiniteDuration]
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult]
 
   protected def handleInitial(
-    monitorContext: MonitorContext
+    monitorContext: MonitorContext,
+    timeoutMinutes: Option[FiniteDuration]
   )(implicit ct: Ask[F, AppContext]): F[CheckResult] =
     for {
       statusOpt <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
@@ -302,7 +311,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             _ <- logger.info(monitorContext.loggingContext)(
               s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
             )
-            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig)
+            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig, timeoutMinutes)
           } yield res
         case _ =>
           F.pure(((), None): CheckResult)
@@ -463,19 +472,24 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     } yield RuntimeAndRuntimeConfig(cluster, runtimeConfig)
 
   private def getCustomInterruptablePollMonitorConfig(defaultCheckTools: InterruptablePollMonitorConfig,
-                                                      timeoutMinutes: FiniteDuration
+                                                      timeoutMinutes: Option[FiniteDuration]
   ): InterruptablePollMonitorConfig =
-    InterruptablePollMonitorConfig(
-      (timeoutMinutes.toSeconds / defaultCheckTools.interval.toSeconds).toInt,
-      defaultCheckTools.interval,
-      timeoutMinutes
-    )
+    timeoutMinutes match {
+      case Some(duration) =>
+        InterruptablePollMonitorConfig(
+          (duration.toSeconds / defaultCheckTools.interval.toSeconds).toInt,
+          defaultCheckTools.interval,
+          duration
+        )
+      case None => defaultCheckTools
+    }
 
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
                                         mainDataprocInstance: Option[DataprocInstance],
-                                        deleteRuntimeOnFail: Boolean
+                                        deleteRuntimeOnFail: Boolean,
+                                        timeoutMinutes: Option[FiniteDuration]
   ) // only applies to dataproc
   (implicit
     ev: Ask[F, AppContext]
@@ -501,21 +515,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             ).map(b => (imageType, b))
           )
       }
-      runtimeCheckTools = runtimeAndRuntimeConfig.runtimeConfig match {
-        case gceConf: GceConfig =>
-          gceConf.timeoutMinutes match {
-            case Some(timeoutMinutes) =>
-              getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, timeoutMinutes)
-            case None => monitorConfig.checkTools
-          }
-        case gceWithPdConfig: GceWithPdConfig =>
-          gceWithPdConfig.timeoutMinutes match {
-            case Some(timeoutMinutes) =>
-              getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, timeoutMinutes)
-            case None => monitorConfig.checkTools
-          }
-        case _ => monitorConfig.checkTools
-      }
+
+      // TODO change for check on timeoutMinutes
+      runtimeCheckTools = getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, timeoutMinutes)
       // wait for 10 minutes for tools to start up before time out.
       availableTools <- streamFUntilDone(
         checkTools,
