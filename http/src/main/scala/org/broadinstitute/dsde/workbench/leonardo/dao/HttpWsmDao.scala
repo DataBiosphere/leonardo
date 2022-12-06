@@ -7,13 +7,7 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
-  AKS_NODE_POOL_SUBNET,
-  LandingZoneResourcePurpose,
-  SHARED_RESOURCE,
-  WORKSPACE_BATCH_SUBNET,
-  WORKSPACE_COMPUTE_SUBNET
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, LandingZoneResourcePurpose, POSTGRESQL_SUBNET, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET, WORKSPACE_COMPUTE_SUBNET}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
@@ -25,7 +19,7 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{`Content-Type`, Authorization}
+import org.http4s.headers.{Authorization, `Content-Type`}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
@@ -176,60 +170,76 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
       // Step 2: call LZ for LZ resources
       lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
+      groupedLzResources = lzResourcesByPurpose.foldMap(a =>
+        a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
+      )
 
-      aksClusterName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                   "Microsoft.ContainerService/managedClusters",
-                                                   SHARED_RESOURCE,
-                                                   false
+      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
+        "Microsoft.ContainerService/managedClusters",
+        SHARED_RESOURCE,
+        false
       )
-      batchAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                     "Microsoft.Batch/batchAccounts",
-                                                     SHARED_RESOURCE,
-                                                     false
+      batchAccountName <- getLandingZoneResourceName(groupedLzResources,
+        "Microsoft.Batch/batchAccounts",
+        SHARED_RESOURCE,
+        false
       )
-      relayNamespace <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                   "Microsoft.Relay/namespaces",
-                                                   SHARED_RESOURCE,
-                                                   false
+      relayNamespace <- getLandingZoneResourceName(groupedLzResources,
+        "Microsoft.Relay/namespaces",
+        SHARED_RESOURCE,
+        false
       )
-      storageAccountName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                       "Microsoft.Storage/storageAccounts",
-                                                       SHARED_RESOURCE,
-                                                       false
+      storageAccountName <- getLandingZoneResourceName(groupedLzResources,
+        "Microsoft.Storage/storageAccounts",
+        SHARED_RESOURCE,
+        false
       )
-      vnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
-      batchNodesSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                         "DeployedSubnet",
-                                                         WORKSPACE_BATCH_SUBNET,
-                                                         false
+      postgresName <- getLandingZoneResourceName(groupedLzResources,
+        "microsoft.dbforpostgresql/servers",
+        SHARED_RESOURCE,
+        false
       )
-      aksSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
-      computeSubnetName <- getLandingZoneResourceName(lzResourcesByPurpose,
-                                                      "DeployedSubnet",
-                                                      WORKSPACE_COMPUTE_SUBNET,
-                                                      false
+      logAnalyticsWorkspaceName <- getLandingZoneResourceName(groupedLzResources,
+        "microsoft.operationalinsights/workspaces",
+        SHARED_RESOURCE,
+        false
       )
+      vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
+        "DeployedSubnet",
+        WORKSPACE_BATCH_SUBNET,
+        false
+      )
+      aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
+      computeSubnetName <- getLandingZoneResourceName(groupedLzResources,
+        "DeployedSubnet",
+        WORKSPACE_COMPUTE_SUBNET,
+        false
+      )
+      postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
     } yield LandingZoneResources(
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
       RelayNamespace(relayNamespace),
       StorageAccountName(storageAccountName),
       NetworkName(vnetName),
+      PostgresName(postgresName),
+      LogAnalyticsWorkspaceName(logAnalyticsWorkspaceName),
       SubnetworkName(batchNodesSubnetName),
       SubnetworkName(aksSubnetName),
+      SubnetworkName(postgresSubnetName),
       SubnetworkName(computeSubnetName)
     )
 
-  private def getLandingZoneResourceName(landingZoneResourcesByPurpose: List[LandingZoneResourcesByPurpose],
-                                         resourceType: String,
-                                         purpose: LandingZoneResourcePurpose,
-                                         useParent: Boolean
-  ): F[String] =
+  private def getLandingZoneResourceName(
+                                          landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+                                          resourceType: String,
+                                          purpose: LandingZoneResourcePurpose,
+                                          useParent: Boolean
+                                        ): F[String] =
     landingZoneResourcesByPurpose
-      .filter(_.purpose == purpose)
-      .flatMap(_.deployedResources)
-      .filter(_.resourceType.equalsIgnoreCase(resourceType))
-      .headOption
+      .get((purpose, resourceType.toLowerCase))
+      .flatMap(_.headOption)
       .flatMap { r =>
         if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
         else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
@@ -440,5 +450,4 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     else
       Headers(authorization, requestId)
   }
-
 }

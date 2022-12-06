@@ -23,7 +23,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.3")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.4")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -37,7 +37,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Uri.unsafeFromString("https://sam.test.org:443"),
           Uri.unsafeFromString("https://localhost:8000"),
           "terradevacrpublic.azurecr.io/welder-server",
-          "08b3633",
+          "6648f5c",
           PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           AzureRuntimeDefaults(
@@ -74,7 +74,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.164"),
+          ChartVersion("0.2.173"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -98,6 +98,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         org.broadinstitute.dsde.workbench.oauth2.ClientId("fakeClientId"),
         Some(org.broadinstitute.dsde.workbench.oauth2.ClientSecret("fakeClientSecret")),
         org.broadinstitute.dsde.workbench.oauth2.ClientId("legacyClientSecret")
+      ),
+      DrsConfig(
+        "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
       )
     )
 

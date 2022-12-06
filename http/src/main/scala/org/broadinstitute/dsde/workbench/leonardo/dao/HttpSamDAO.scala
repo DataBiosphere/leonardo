@@ -260,7 +260,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     deleteResourceInternal(resource, Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)))
 
-  private def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
+  def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =

@@ -111,7 +111,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
-      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
+      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(
+        params,
+        auth
+      )
 
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
@@ -725,6 +728,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
         .transaction
       _ <- diskResourceOpt.traverse { disk =>
+        // TODO: once we start supporting persistent disk, we should not delete disk anymore
         wsmDao.deleteDisk(
           DeleteWsmResourceRequest(
             e.workspaceId,
@@ -736,6 +740,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           auth
         )
       }.void
+      _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
@@ -757,20 +762,52 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   override def createAndPollApp(appId: AppId,
                                 appName: AppName,
                                 workspaceId: WorkspaceId,
-                                landingZoneResourcesOpt: Option[LandingZoneResources],
-                                cloudContext: AzureCloudContext
+                                cloudContext: AzureCloudContext,
+                                landingZoneResources: LandingZoneResources,
+                                storageContainer: Option[StorageContainerResponse]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = CreateAKSAppParams(appId, appName, workspaceId, landingZoneResourcesOpt, cloudContext)
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, landingZoneResources, storageContainer)
       _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(
             s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
             ctx.now,
             ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
+    } yield ()
+
+  override def deleteApp(
+    appId: AppId,
+    appName: AppName,
+    workspaceId: WorkspaceId,
+    landingZoneResources: LandingZoneResources,
+    cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext)
+      _ <- aksAlgebra.deleteApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error deleting Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.DeleteApp,
             ErrorSource.App,
             None,
             Some(ctx.traceId)

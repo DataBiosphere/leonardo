@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
-import java.time.Instant
 import cats.syntax.all._
+import com.azure.core.management.Region
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{
@@ -22,8 +22,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, PersistentDiskRequest}
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -31,16 +31,15 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GcsPath,
   GoogleProject
 }
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.http4s.Uri
 
+import java.net.URL
 import java.nio.file.{Path, Paths}
+import java.time.Instant
 import java.util.UUID
 import java.util.stream.Collectors
-import com.azure.core.management.Region
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, RelayNamespace}
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
 object JsonCodec {
   // Errors
@@ -643,6 +642,9 @@ object JsonCodec {
     Decoder.decodeString.emap(s => AppType.stringToObject.get(s).toRight(s"Invalid app type ${s}"))
   implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.decodeString.map(RelayNamespace)
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
+  implicit val postgresNameDecoder: Decoder[PostgresName] = Decoder.decodeString.map(PostgresName)
+  implicit val logAnalyticsWorkspaceNameDecoder: Decoder[LogAnalyticsWorkspaceName] =
+    Decoder.decodeString.map(LogAnalyticsWorkspaceName)
 
   implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
   implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
@@ -710,6 +712,8 @@ object JsonCodec {
   implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
   implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
+  implicit val postgresNameEncoder: Encoder[PostgresName] = Encoder.encodeString.contramap(_.value)
+  implicit val logAnalyticsWorkspaceName: Encoder[LogAnalyticsWorkspaceName] = Encoder.encodeString.contramap(_.value)
 
   implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct4(
     "publisher",
@@ -719,26 +723,33 @@ object JsonCodec {
   )(x => (x.publisher, x.offer, x.sku, x.version))
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct8("clusterName",
-                        "batchAccountName",
-                        "relayNamespace",
-                        "storageAccountName",
-                        "vnetName",
-                        "batchNodesSubnetName",
-                        "aksSubnetName",
-                        "computeSubnetName"
+    Decoder.forProduct11(
+      "clusterName",
+      "batchAccountName",
+      "relayNamespace",
+      "storageAccountName",
+      "vnetName",
+      "postgresName",
+      "logAnalyticsWorkspaceName",
+      "batchNodesSubnetName",
+      "aksSubnetName",
+      "postgresSubnetName",
+      "computeSubnetName"
     )(
       LandingZoneResources.apply
     )
 
-  implicit val landingZoneResourceEncoder: Encoder[LandingZoneResources] = Encoder.forProduct8(
+  implicit val landingZoneResourceEncoder: Encoder[LandingZoneResources] = Encoder.forProduct11(
     "clusterName",
     "batchAccountName",
     "relayNamespace",
     "storageAccountName",
     "vnetName",
+    "postgresName",
+    "logAnalyticsWorkspaceName",
     "batchNodesSubnetName",
     "aksSubnetName",
+    "postgresSubnetName",
     "computeSubnetName"
   )(x =>
     (x.clusterName,
@@ -746,8 +757,11 @@ object JsonCodec {
      x.relayNamespace,
      x.storageAccountName,
      x.vnetName,
+     x.postgresName,
+     x.logAnalyticsWorkspaceName,
      x.batchNodesSubnetName,
      x.aksSubnetName,
+     x.postgresSubnetName,
      x.computeSubnetName
     )
   )

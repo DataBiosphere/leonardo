@@ -277,10 +277,11 @@ object CommonTestData {
   def defaultGceRuntimeWithPDConfig(persistentDiskId: Option[DiskId]) =
     RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                   bootDiskSize = DiskSize(50),
-                                  persistentDiskId = None,
+                                  persistentDiskId = persistentDiskId,
                                   zone = ZoneName("us-west2-b"),
                                   gpuConfig = None
     )
+
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(
       Some(0),
@@ -542,6 +543,9 @@ object CommonTestData {
     RelayNamespace(""),
     StorageAccountName(""),
     NetworkName(""),
+    PostgresName(""),
+    LogAnalyticsWorkspaceName(""),
+    SubnetworkName(""),
     SubnetworkName(""),
     SubnetworkName(""),
     SubnetworkName("")
