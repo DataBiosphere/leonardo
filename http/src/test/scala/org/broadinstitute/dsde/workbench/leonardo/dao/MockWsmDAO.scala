@@ -173,8 +173,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-<<<<<<< HEAD
-=======
+  <<<<<<< HEAD
+    =======
   override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[List[LandingZoneResourcesByPurpose]] =
@@ -227,7 +227,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       "us-east"
     )
 
->>>>>>> develop
+  >>>>>>> develop
   override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[DeleteWsmResourceResult]] =

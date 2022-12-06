@@ -703,7 +703,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
   } yield ()
 
-
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
