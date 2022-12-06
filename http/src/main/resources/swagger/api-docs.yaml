@@ -2550,9 +2550,7 @@ components:
           schema:
             $ref: "#/components/schemas/CreateAppRequest"
           example:
-            diskConfig:
-              name: "disk1"
-            appType: "GALAXY"
+            appType: "CROMWELL"
     CreateAzureRuntimeRequest:
       content:
         application/json:
