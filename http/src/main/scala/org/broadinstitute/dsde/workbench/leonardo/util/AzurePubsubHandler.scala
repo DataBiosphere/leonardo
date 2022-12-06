@@ -103,13 +103,23 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            hcName,
                                                            cloudContext
       )
-      createDiskAction = createDisk(params, auth)
+
+      // TODO check on adding pet support for VMs, network since this moves ownership to the user
+      petTokenOpt <- samDAO.getCachedArbitraryPetAccessToken(params.runtime.auditInfo.creator)
+      petToken <- F.fromOption(
+        petTokenOpt,
+        MonitorAtBootException(s"Failed to get pet access token for ${params.runtime.auditInfo.creator}", ctx.traceId)
+      )
+      petAuth = Authorization(Credentials.Token(AuthScheme.Bearer, petToken))
+
+
+      createDiskAction = createDisk(params, petAuth)
       // TODO make a ticket. We're still calling WSM createVM API, which depends on a WSM owned network. We're migrating
       // to the shared LZ subnet. We could create the new VM directly from Leo or make an updated API in WSM
-      createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
+      createNetworkAction = createNetwork(params, petAuth, params.runtime.runtimeName.asString)
 
       // Creating staging container
-      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
+      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, petAuth)
 
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
@@ -265,7 +275,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     }
   } yield ()
 
-  private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
+  private def createStorageContainer(params: CreateAzureRuntimeParams, petAuth: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[(ContainerName, WsmControlledResourceId)] = {
     val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
@@ -277,13 +287,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
     for {
       ctx <- ev.ask[AppContext]
-
-      petTokenOpt <- samDAO.getCachedArbitraryPetAccessToken(params.runtime.auditInfo.creator)
-      petToken <- F.fromOption(
-        petTokenOpt,
-        MonitorAtBootException(s"Failed to get pet access token for ${params.runtime.auditInfo.creator}", ctx.traceId)
-      )
-      petAuth = Authorization(Credentials.Token(AuthScheme.Bearer, petToken))
 
       resp <- wsmDao.createStorageContainer(
         CreateStorageContainerRequest(
@@ -306,7 +309,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield (stagingContainerName, resp.resourceId)
   }
 
-  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
+  private def createDisk(params: CreateAzureRuntimeParams, petAuth: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateDiskResponse] =
     for {
@@ -328,7 +331,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.runtimeConfig.region
         )
       )
-      diskResp <- wsmDao.createDisk(request, leoAuth)
+      diskResp <- wsmDao.createDisk(request, petAuth)
       _ <- controlledResourceQuery
         .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
         .transaction
@@ -337,7 +340,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def createNetwork(
     params: CreateAzureRuntimeParams,
-    leoAuth: Authorization,
+    petAuth: Authorization,
     nameSuffix: String
   )(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] = {
     val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
@@ -357,7 +360,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
     )
     for {
-      networkResp <- wsmDao.createNetwork(request, leoAuth)
+      networkResp <- wsmDao.createNetwork(request, petAuth)
       _ <- controlledResourceQuery
         .save(params.runtime.id, networkResp.resourceId, WsmResourceType.AzureNetwork)
         .transaction
@@ -373,14 +376,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       name,
       ControlledResourceDescription(resourceDesc),
       CloningInstructions.Nothing,
-      AccessScope.PrivateAccess,
-      ManagedBy.Application,
-      Some(
-        PrivateResourceUser(
+      AccessScope.PrivateAccess, // TODO Shared Access so application can access user's container. This should change so all are user owned.
+      ManagedBy.User, // TODO ManagedBy.User for containers in landing zone
+      None, /*Some(
+        PrivateResourceUser( // TODO PrivateResourceUser must be remove for User owned resource
           userEmail,
           ControlledResourceIamRole.Writer
         )
-      ),
+      ),*/
       resourceId
     )
 
