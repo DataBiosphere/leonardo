@@ -86,7 +86,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      auth <- samDAO.getLeoAuthToken
 
       cloudContext <- params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
@@ -174,7 +173,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           jobControl
         )
       }
-      _ <- wsmDao.createVm(createVmRequest, auth)
+      _ <- wsmDao.createVm(createVmRequest, petAuth)
     } yield ()
 
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
