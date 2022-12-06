@@ -31,7 +31,7 @@ terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.10"
 
 # Not replaced by Jenkins
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.20"
-google_cloud_toolbox="gcr.io/google-containers/toolbox:20201104-00"
+google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20220722"
 docker_composer="docker/compose:1.29.2"
 docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
