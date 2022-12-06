@@ -1333,6 +1333,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
+      _ <- metrics.incrementCounter(s"createRuntimeError", 1)
       _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create runtime ${runtimeId}")
       // want to detach persistent disk for runtime
       _ <- cloudService match {
