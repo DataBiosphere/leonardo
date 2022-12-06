@@ -16,14 +16,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyCo
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage
-}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{MonitorAtBootException, PubsubHandleMessageError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.http4s.{AuthScheme, Credentials}
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
@@ -279,13 +277,21 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
     for {
       ctx <- ev.ask[AppContext]
+
+      petTokenOpt <- samDAO.getCachedArbitraryPetAccessToken(params.runtime.auditInfo.creator)
+      petToken <- F.fromOption(
+        petTokenOpt,
+        MonitorAtBootException(s"Failed to get pet access token for ${params.runtime.auditInfo.creator}", ctx.traceId)
+      )
+      petAuth = Authorization(Credentials.Token(AuthScheme.Bearer, petToken))
+
       resp <- wsmDao.createStorageContainer(
         CreateStorageContainerRequest(
           params.workspaceId,
           storageContainerCommonFields,
           StorageContainerRequest(stagingContainerName)
         ),
-        auth
+        petAuth
       )
       _ <- controlledResourceQuery
         .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
