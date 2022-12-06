@@ -22,12 +22,10 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
-import org.broadinstitute.dsde.workbench.leonardo.CloudContext
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResource, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -675,7 +673,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case CloudProvider.Gcp => F.pure(None)
       case CloudProvider.Azure =>
         for {
-          landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
         } yield Some(landingZoneResources)
     }
 

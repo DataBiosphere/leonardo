@@ -296,7 +296,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- clusterQuery
         .updateStagingBucket(
           params.runtime.id,
-          Some(StagingBucket.Azure(params.landingZoneResources.storageAccountName, stagingContainerName)),
+          Some(StagingBucket.Azure(stagingContainerName)),
           ctx.now
         )
         .transaction
