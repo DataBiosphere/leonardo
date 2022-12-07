@@ -862,7 +862,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 object RuntimeServiceInterp {
 
   private def getToolFromImages(clusterImages: Set[RuntimeImage]): Option[Tool] =
-    Some(Tool.withName(clusterImages.find(s => Tool.namesToValuesMap.contains(s.imageType.toString)).toString))
+    clusterImages.map(_.imageType.toString).find(Tool.namesToValuesMap.contains) match {
+      case Some(value) => Tool.withNameOption(value)
+      case None        => None
+    }
 
   private[service] def convertToRuntime(userInfo: UserInfo,
                                         serviceAccountInfo: WorkbenchEmail,
