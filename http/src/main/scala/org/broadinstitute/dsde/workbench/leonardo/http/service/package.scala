@@ -43,6 +43,7 @@ package object service {
       case None => Right(params)
     }
 
+  // TODO likely need to check for `includeRoleKey` and remove it before processing labels
   private[service] def processListParameters(
     params: LabelMap
   ): Either[ParseLabelsException, (LabelMap, Boolean, List[String])] =
