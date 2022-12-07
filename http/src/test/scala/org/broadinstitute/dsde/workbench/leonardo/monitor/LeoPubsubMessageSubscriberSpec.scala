@@ -166,7 +166,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -184,7 +184,9 @@ class LeoPubsubMessageSubscriberSpec
 
   "createRuntimeErrorHandler" should "handle runtime creation failure properly" in isolatedDbTest {
     val runtimeMonitor = new MockRuntimeMonitor {
-      override def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
+      override def process(
+        a: CloudService
+      )(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
         ev: Ask[IO, TraceId]
       ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
     }
@@ -203,7 +205,7 @@ class LeoPubsubMessageSubscriberSpec
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
@@ -251,7 +253,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -441,7 +443,9 @@ class LeoPubsubMessageSubscriberSpec
     val monitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
-      )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
+      )(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] =
         Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

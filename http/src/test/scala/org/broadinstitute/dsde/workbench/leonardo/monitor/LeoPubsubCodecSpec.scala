@@ -57,7 +57,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                     zone = ZoneName("us-central1-a"),
                                                     None
       ),
-      None
+      None,
+      Some(1)
     )
 
     val res = decode[CreateRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
@@ -87,6 +88,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                           zone = ZoneName("us-central1-a"),
                                                           None
       ),
+      None,
       None
     )
 
