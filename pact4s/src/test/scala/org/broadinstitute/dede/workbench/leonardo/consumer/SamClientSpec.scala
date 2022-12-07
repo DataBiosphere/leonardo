@@ -186,7 +186,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   // val client: Client[IO] = EmberClientBuilder.default[IO].build.allocated.unsafeRunSync()._1
 
   val client: Client[IO] =
-    BlazeClientBuilder[IO](ExecutionContext.global).withMaxTotalConnections(10).resource.allocated.unsafeRunSync()._1
+    BlazeClientBuilder[IO](ExecutionContext.global).resource.allocated.unsafeRunSync()._1
 
   /*
   we should use these tests to ensure that our client class correctly handles responses from the provider - i.e. decoding, error mapping, validation
