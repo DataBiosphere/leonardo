@@ -1,4 +1,4 @@
-name: Contract validation
+name: Consumer contract tests
 # The purpose of this workflow is to validate the service level contract
 # using the Pact framework.
 #
@@ -9,15 +9,20 @@ name: Contract validation
 #   the provider contract tests (aka provider tests), and vice versa.
 #
 # Specifically
-#   Leo runs consumer tests against mock Sam service. Upon success, publish a consumer-provider pact to the Pact Broker.
-#   The Pact Broker is the source of truth to create a contractual obligation between consumer and provider.
+#   Leo runs consumer tests against mock Sam service. Upon success, publish a consumer-provider pact to
+#   Pact Broker https://pact-broker.dsp-eng-tools.broadinstitute.org/. Pact Broker is the source of truth
+#   to forge contractual obligations between consumer and provider.
 #
 #   Sam obtains contract from Pact Broker and runs provider tests to validate its obligations to consumers.
-#   Sam will provide consumers a way to dispatch provider tests and let consumer use test validation status to
-#   gate releases.
+#
+# The Pact Broker is a 2-way street. The consumer can see in the dashboard if the service is able to honor their consumer expectations
+# (which is also true when those expectations are updated).  The provider can validate that a desired deployment would not break any
+# of the consumers' published expectations.  Both the consumer and the provider can gate deployment on availability/honoring of the published pact
+# (contract expectations) between the two.
 #
 # The workflow relies on github secrets:
-# - BROADBOT_TOKEN - the broadbot token, so we can avoid two reviewer rule on GHA operations
+# - PACT_BROKER_USERNAME - the Pact Broker username
+# - PACT_BROKER_PASSWORD - the Pact Broker password
 on:
   pull_request:
     paths-ignore:
@@ -29,7 +34,7 @@ on:
       - 'README.md'
 
 jobs:
-  contract-validation-tests:
+  leo-consumer-contract-tests:
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
