@@ -236,7 +236,7 @@ object RuntimeServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByCreator = creatorOnly match {
-      case Some(creator) => clusterQuery.filterNot(_.creator === creator)
+      case Some(creator) => clusterQuery.filter(_.creator === creator)
       case None          => clusterQuery
     }
     val runtimeQueryFilteredByDeletion =
