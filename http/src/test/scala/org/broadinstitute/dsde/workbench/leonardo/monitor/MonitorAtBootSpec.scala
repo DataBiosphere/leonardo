@@ -4,6 +4,7 @@ import cats.effect.IO
 import cats.Eq
 import cats.syntax.all._
 import cats.effect.std.Queue
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppMachineType,
@@ -21,13 +22,22 @@ import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.scalatest.Assertions
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
+  makeApp,
+  makeAzureCluster,
+  makeKubeCluster,
+  makeNodepool
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.{
   CreateClusterAndNodepool,
   CreateNodepool
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAppMessage,
+  CreateAppV2Message,
+  DeleteAppMessage
+}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -55,7 +65,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
   // See https://github.com/broadinstitute/workbench-libs/blob/develop/google2/src/test/scala/org/broadinstitute/dsde/workbench/google2/mock/FakeGoogleComputeService.scala#L69
   val defaultFakeAppMachineType = AppMachineType(7, 4)
 
-  it should "recover RuntimeStatus.Stopping properly" in isolatedDbTest {
+  it should "recover RuntimeStatus.Stopping properly for gcp apps" in isolatedDbTest {
     val res = for {
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -109,7 +119,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "recover AppStatus.Provisioning properly with cluster and nodepool creation" in isolatedDbTest {
+  it should "recover AppStatus.Provisioning properly with cluster and nodepool creation in GCP" in isolatedDbTest {
     val res = for {
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -133,6 +143,34 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
+        None
+      )
+      (msg eqv Some(expected)) shouldBe true
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "recover AppStatus.Provisioning properly with cluster and nodepool creation in Azure" in isolatedDbTest {
+    val res = for {
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      monitorAtBoot = createMonitorAtBoot(queue)
+      cluster <- IO(makeAzureCluster(1).copy(status = KubernetesClusterStatus.Provisioning).save())
+      nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Provisioning).save())
+      defaultNodepool = cluster.nodepools.find(_.isDefault).get
+      disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
+      app = makeApp(1, nodepool.id).copy(status = AppStatus.Provisioning)
+      appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
+      savedApp <- IO(appWithDisk.save())
+      _ <- monitorAtBoot.process.take(1).compile.drain
+      msg <- queue.tryTake
+    } yield {
+      val expected = CreateAppV2Message(
+        app.id,
+        app.appName,
+        workspaceId,
+        cluster.cloudContext,
+        None,
+        None,
         None
       )
       (msg eqv Some(expected)) shouldBe true

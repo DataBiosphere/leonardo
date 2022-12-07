@@ -315,14 +315,14 @@ object CommonTestData {
                                   None
     )
 
-  def makeCluster(index: Int): Runtime = {
+  def makeCluster(index: Int, cloudContext: CloudContext = cloudContextGcp): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
       id = -1,
       workspaceId = Some(WorkspaceId(UUID.randomUUID())),
       samResource = runtimeSamResource,
       runtimeName = clusterName,
-      cloudContext = cloudContextGcp,
+      cloudContext = cloudContext,
       serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,

@@ -6,14 +6,32 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, NetworkName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  LandingZoneResourcePurpose,
+  POSTGRESQL_SUBNET,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET,
+  WORKSPACE_COMPUTE_SUBNET
+}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResource, SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, LeoException}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAppMessage,
+  CreateAppV2Message,
+  DeleteAppMessage,
+  DeleteAppV2Message
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s.AuthScheme
+import org.http4s.headers.Authorization
 import org.typelevel.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
@@ -51,7 +69,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       .parEvalMapUnordered(10) { case (a, n, c) =>
         for {
           now <- F.realTimeInstant
-          implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitor${now}"))
+          implicit0(traceId: Ask[F, AppContext]) = Ask.const[F, AppContext](
+            AppContext(TraceId(s"BootMonitor${now}"), now = now)
+          )
           _ <- handleApp(a, n, c)
         } yield ()
       }
@@ -120,7 +140,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
     } yield ()
 
   private def handleApp(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(implicit
-    ev: Ask[F, TraceId]
+    ev: Ask[F, AppContext]
   ): F[Unit] = {
     val res = for {
       msg <- appStatusToMessage(app, nodepool, cluster)
@@ -130,9 +150,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
   }
 
   private def appStatusToMessage(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(implicit
-    ev: Ask[F, TraceId]
+    ev: Ask[F, AppContext]
   ): F[LeoPubsubMessage] =
-    ev.ask.flatMap(traceId =>
+    ev.ask.flatMap(appContext =>
       app.status match {
         case AppStatus.Provisioning =>
           for {
@@ -143,7 +163,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   dnp <- F.fromOption(dnpOpt,
                                       MonitorAtBootException(
                                         s"Default nodepool not found for cluster ${cluster.id} in Provisioning status",
-                                        traceId
+                                        appContext.traceId
                                       )
                   )
                 } yield Some(ClusterNodepoolAction.CreateClusterAndNodepool(cluster.id, dnp.id, nodepool.id)): Option[
@@ -157,61 +177,148 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                 F.raiseError[Option[ClusterNodepoolAction]](
                   MonitorAtBootException(
                     s"Unexpected cluster status [${cs.toString} or nodepool status [${ns.toString}] for app ${app.id} in Provisioning status",
-                    traceId
+                    appContext.traceId
                   )
                 )
             }
-            googleProject <- F.fromOption(
-              LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
-              new RuntimeException(
-                "trying to provision app on Azure during MonitorAtBoot. This is not supported yet"
-              ) // TODO: support azure
-            )
-            machineType <- computeService
-              .getMachineType(
-                googleProject,
-                ZoneName("us-central1-a"),
-                nodepool.machineType
-              ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
-              .flatMap(opt =>
-                F.fromOption(
-                  opt,
-                  new LeoException(s"can't find machine config for ${app.appName.value}", traceId = Some(traceId))
-                )
-              )
+            msg <- cluster.cloudContext match {
+              case CloudContext.Gcp(googleProject) =>
+                for {
+                  machineType <- computeService
+                    .getMachineType(
+                      googleProject,
+                      ZoneName("us-central1-a"),
+                      nodepool.machineType
+                    ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+                    .flatMap(opt =>
+                      F.fromOption(
+                        opt,
+                        new LeoException(s"can't find machine config for ${app.appName.value}",
+                                         traceId = Some(appContext.traceId)
+                        )
+                      )
+                    )
 
-            diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
-            msg = CreateAppMessage(
-              googleProject,
-              action,
-              app.id,
-              app.appName,
-              diskIdOpt,
-              app.customEnvironmentVariables,
-              app.appType,
-              app.appResources.namespace.name,
-              Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
-              Some(traceId)
-            )
+                  diskIdOpt = app.appResources.disk.flatMap(d =>
+                    if (d.status == DiskStatus.Creating) Some(d.id) else None
+                  )
+                  msg = CreateAppMessage(
+                    googleProject,
+                    action,
+                    app.id,
+                    app.appName,
+                    diskIdOpt,
+                    app.customEnvironmentVariables,
+                    app.appType,
+                    app.appResources.namespace.name,
+                    Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
+                    Some(appContext.traceId)
+                  )
+                } yield msg
+
+              case CloudContext.Azure(_) =>
+                for {
+                  tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+                  userToken <- F.fromOption(
+                    tokenOpt,
+                    MonitorAtBootException(
+                      s"Unable to get pet token for ${app.auditInfo.creator} for app ${app.id} in Provisioning status",
+                      appContext.traceId
+                    )
+                  )
+                  workspaceId: WorkspaceId = app.workspaceId.getOrElse(
+                    throw MonitorAtBootException(
+                      s"WorkspaceId not found for app ${app.id} in Provisioning status",
+                      appContext.traceId
+                    )
+                  )
+                  bearerAuth = org.http4s.headers.Authorization(
+                    org.http4s.Credentials.Token(AuthScheme.Bearer, userToken)
+                  )
+                  workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, bearerAuth)
+                  workspaceDesc <- F.fromOption(workspaceDescOpt,
+                                                WorkspaceNotFoundException(workspaceId, appContext.traceId)
+                  )
+
+                  landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
+                  storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, bearerAuth)
+                  workspaceId = app.workspaceId.getOrElse(
+                    throw MonitorAtBootException(
+                      s"WorkspaceId not found for app ${app.id} in Provisioning status",
+                      appContext.traceId
+                    )
+                  )
+                  msg = CreateAppV2Message(
+                    app.id,
+                    app.appName,
+                    workspaceId,
+                    cluster.cloudContext,
+                    Some(landingZoneResources),
+                    storageContainer,
+                    Some(appContext.traceId)
+                  )
+                } yield msg
+
+            }
+
           } yield msg
 
         case AppStatus.Deleting =>
-          for {
-            googleProject <- F.fromOption(
-              LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
-              new RuntimeException(
-                "trying to provision app on Azure during MonitorAtBoot. This is not supported yet"
-              ) // TODO: support azure
-            )
-          } yield DeleteAppMessage(
-            app.id,
-            app.appName,
-            googleProject,
-            None, // Assume we do not want to delete the disk, since we don't currently persist that information
-            Some(traceId)
-          )
+          cluster.cloudContext match {
+            case CloudContext.Gcp(googleProject) =>
+              F.pure[LeoPubsubMessage](
+                DeleteAppMessage(
+                  app.id,
+                  app.appName,
+                  googleProject,
+                  None, // Assume we do not want to delete the disk, since we don't currently persist that information
+                  Some(appContext.traceId)
+                )
+              )
+            case CloudContext.Azure(_) =>
+              for {
+                tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+                userToken <- F.fromOption(
+                  tokenOpt,
+                  MonitorAtBootException(
+                    s"Unable to get pet token for ${app.auditInfo.creator} for app ${app.id} in Provisioning status",
+                    appContext.traceId
+                  )
+                )
+                workspaceId: WorkspaceId = app.workspaceId.getOrElse(
+                  throw MonitorAtBootException(
+                    s"WorkspaceId not found for app ${app.id} in Provisioning status",
+                    appContext.traceId
+                  )
+                )
+                bearerAuth = org.http4s.headers.Authorization(
+                  org.http4s.Credentials.Token(AuthScheme.Bearer, userToken)
+                )
+                workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, bearerAuth)
+                workspaceDesc <- F.fromOption(workspaceDescOpt,
+                                              WorkspaceNotFoundException(workspaceId, appContext.traceId)
+                )
 
-        case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", traceId))
+                landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
+                diskOpt <- appQuery.getDiskId(app.id).transaction
+                workspaceId = app.workspaceId.getOrElse(
+                  throw MonitorAtBootException(
+                    s"WorkspaceId not found for app ${app.id} in Provisioning status",
+                    appContext.traceId
+                  )
+                )
+                msg = DeleteAppV2Message(
+                  app.id,
+                  app.appName,
+                  workspaceId,
+                  cluster.cloudContext,
+                  diskOpt,
+                  Some(landingZoneResources),
+                  Some(appContext.traceId)
+                )
+              } yield msg
+          }
+        case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", appContext.traceId))
       }
     )
 
@@ -351,6 +458,101 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
+
+  private def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[LandingZoneResources] =
+    for {
+      // Step 1: call LZ for LZ id
+      landingZoneOpt <- wsmDao.getLandingZone(billingProfileId, userToken)
+      landingZone <- F.fromOption(
+        landingZoneOpt,
+        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
+      )
+      landingZoneId = landingZone.landingZoneId
+
+      // Step 2: call LZ for LZ resources
+      lzResourcesByPurpose <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
+      groupedLzResources = lzResourcesByPurpose.foldMap(a =>
+        a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
+      )
+
+      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
+                                                   "Microsoft.ContainerService/managedClusters",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      batchAccountName <- getLandingZoneResourceName(groupedLzResources,
+                                                     "Microsoft.Batch/batchAccounts",
+                                                     SHARED_RESOURCE,
+                                                     false
+      )
+      relayNamespace <- getLandingZoneResourceName(groupedLzResources,
+                                                   "Microsoft.Relay/namespaces",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      storageAccountName <- getLandingZoneResourceName(groupedLzResources,
+                                                       "Microsoft.Storage/storageAccounts",
+                                                       SHARED_RESOURCE,
+                                                       false
+      )
+      postgresName <- getLandingZoneResourceName(groupedLzResources,
+                                                 "microsoft.dbforpostgresql/servers",
+                                                 SHARED_RESOURCE,
+                                                 false
+      )
+      logAnalyticsWorkspaceName <- getLandingZoneResourceName(groupedLzResources,
+                                                              "microsoft.operationalinsights/workspaces",
+                                                              SHARED_RESOURCE,
+                                                              false
+      )
+      vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
+                                                         "DeployedSubnet",
+                                                         WORKSPACE_BATCH_SUBNET,
+                                                         false
+      )
+      aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
+      computeSubnetName <- getLandingZoneResourceName(groupedLzResources,
+                                                      "DeployedSubnet",
+                                                      WORKSPACE_COMPUTE_SUBNET,
+                                                      false
+      )
+      postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
+
+    } yield LandingZoneResources(
+      AKSClusterName(aksClusterName),
+      BatchAccountName(batchAccountName),
+      RelayNamespace(relayNamespace),
+      StorageAccountName(storageAccountName),
+      NetworkName(vnetName),
+      PostgresName(postgresName),
+      LogAnalyticsWorkspaceName(logAnalyticsWorkspaceName),
+      SubnetworkName(batchNodesSubnetName),
+      SubnetworkName(aksSubnetName),
+      SubnetworkName(postgresSubnetName),
+      SubnetworkName(computeSubnetName)
+    )
+
+  private def getLandingZoneResourceName(
+    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+    resourceType: String,
+    purpose: LandingZoneResourcePurpose,
+    useParent: Boolean
+  ): F[String] =
+    landingZoneResourcesByPurpose
+      .get((purpose, resourceType.toLowerCase))
+      .flatMap(_.headOption)
+      .flatMap { r =>
+        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
+        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
+      }
+      .fold(
+        F.raiseError[String](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
 }
 
 final case class RuntimeToMonitor(
