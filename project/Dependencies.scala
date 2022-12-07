@@ -128,7 +128,6 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.21" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.2"
-  val circeCore =         "io.circe"          %% "circe-core"           % "0.14.3"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
@@ -136,7 +135,6 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
-  val typelevelCat =      "org.typelevel"     %% "munit-cats-effect-3"  % munitCatsEffectV % Test
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
 
@@ -228,8 +226,6 @@ object Dependencies {
     http4sDsl,
     http4sEmberServer,
     http4sCirce,
-    circeCore,
-    typelevelCat,
     scalaTest
   )
 }
