@@ -35,6 +35,7 @@ $ sbt "project pact4s" clean test
 ```
 
 Otherwise, you can run the command inside a docker container with OpenJDK 17 installed. 
+This is especially useful when automating contract tests in a GitHub Action runner which does not guarantee the correct OpenJDK version.
 ```
 docker run --rm -v $PWD:/working \
                 -v jar-cache:/root/.ivy \
