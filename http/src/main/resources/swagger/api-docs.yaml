@@ -1494,7 +1494,7 @@ paths:
           schema:
             type: string
       requestBody:
-        $ref: "#/components/requestBodies/CreateAppRequest"
+        $ref: "#/components/requestBodies/CreateAppRequestV2"
       responses:
         "202":
           description: App creation request has been received
@@ -2550,6 +2550,15 @@ components:
           schema:
             $ref: "#/components/schemas/CreateAppRequest"
           example:
+            diskConfig:
+              name: "disk1"
+            appType: "GALAXY"
+    CreateAppRequestV2:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateAppRequestV2"
+          example:
             appType: "CROMWELL"
     CreateAzureRuntimeRequest:
       content:
@@ -3550,6 +3559,31 @@ components:
         traceId:
           type: string
           description: traceId that's useful for debugging.
+
+    CreateAppRequestV2:
+      description: the configuration of an app, used to create an app, geared towards Azure usage
+      type: object
+      properties:
+        diskConfig:
+          $ref: '#/components/schemas/PersistentDiskRequest'
+        appType:
+          $ref: '#/components/schemas/AppType'
+        kubernetesRuntimeConfig:
+          $ref: '#/components/schemas/KubernetesRuntimeConfig'
+        labels:
+          type: object
+          description: The labels to be placed on the cluster. Of type Map[String,String]
+        customEnvironmentVariables:
+          type: object
+          description: Optional environment variables to be set on the app
+        descriptorPath:
+          type: string
+          description: URL path to an app descriptor file. Only used if appType is CUSTOM.
+        extraArgs:
+          type: array
+          items:
+            type: string
+          description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
 
     CreateAppRequest:
       description: the configuration of an app, used to create an app
