@@ -436,6 +436,7 @@ object RuntimeRoutes {
       wr <- c.downField("welderRegistry").as[Option[ContainerRegistry]]
       s <- c.downField("scopes").as[Option[Set[String]]]
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
+      tm <- c.downField("timeoutInMinutes").as[Option[FiniteDuration]]
     } yield CreateRuntimeRequest(
       l.getOrElse(Map.empty),
       us.orElse(jus),
@@ -448,7 +449,8 @@ object RuntimeRoutes {
       tdi,
       wr,
       s.getOrElse(Set.empty),
-      cv.getOrElse(Map.empty)
+      cv.getOrElse(Map.empty),
+      tm
     )
   }
 

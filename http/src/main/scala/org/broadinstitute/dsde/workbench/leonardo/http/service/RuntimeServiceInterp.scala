@@ -203,7 +203,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.offer(
-              CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
+              CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId), req.timeoutInMinutes)
             )
           } yield ()
       }
