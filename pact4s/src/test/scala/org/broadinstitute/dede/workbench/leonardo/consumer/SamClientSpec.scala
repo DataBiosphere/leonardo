@@ -39,7 +39,8 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   // override val mockProviderConfig: MockProviderConfig = MockProviderConfig.httpConfig("localhost", 9003)
 
   // These fixtures are used for assertions in scala tests
-  val subsystems = List(GoogleGroups, GooglePubSub, GoogleIam, Database)
+  // The subsystems are taken from HttpSamDAOSpec "get Sam ok status"
+  val subsystems = List(GoogleGroups, GooglePubSub, GoogleIam, OpenDJ)
   val okSystemStatus: StatusCheckResponse = StatusCheckResponse(
     ok = true,
     systems = subsystems.map(s => (s, SubsystemStatus(ok = true, messages = None))).toMap
@@ -105,6 +106,9 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   // ---- Dsl for specifying pacts between consumer and provider
   // Lambda Dsl: required for generating matching rules.
   // Favored over old-style Pact Dsl using PactDslJsonBody.
+  // This rule expects Sam to respond with
+  // 1. ok status
+  // 2. ok statuses matching the given subsystem states
   val okSystemStatusDsl: DslPart = newJsonBody { o =>
     o.booleanType("ok", true)
     o.`object`("systems",
@@ -148,10 +152,13 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   val pactProvider: PactDslWithProvider = consumerPactBuilder
     .hasPactWith("sam-provider")
 
+  // stateParams provides the desired subsystem states
+  // for Sam provider to generate the expected response
   var pactDslResponse: PactDslResponse = buildInteraction(
     pactProvider,
-    state = "status is healthy",
-    uponReceiving = "Request to status",
+    state = "Sam is ok",
+    stateParams = subsystems.map(s => s.toString() -> "ok").toMap,
+    uponReceiving = "Request to get Sam ok status",
     method = "GET",
     path = "/status",
     requestHeaders = Seq("Accept" -> "application/json"),
@@ -163,6 +170,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   pactDslResponse = buildInteraction(
     pactDslResponse,
     state = "runtime resource type",
+    stateParams = Map("resource" -> "direct"),
     uponReceiving = "Request to list runtime resources",
     method = "GET",
     path = "/api/resources/v2/workspace",
