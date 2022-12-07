@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   RuntimeNotFoundByWorkspaceIdException,
   RuntimeNotFoundException
 }
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 
 import scala.concurrent.ExecutionContext
@@ -228,13 +229,19 @@ object RuntimeServiceDbQueries {
 
   def listRuntimesForWorkspace(labelMap: LabelMap,
                                includeDeleted: Boolean,
+                               creatorOnly: Option[WorkbenchEmail],
                                workspaceId: Option[WorkspaceId],
                                cloudProvider: Option[CloudProvider]
   )(implicit
     ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
+    val runtimeQueryFilteredByCreator = creatorOnly match {
+      case Some(creator) => clusterQuery.filterNot(_.creator === creator)
+      case None          => clusterQuery
+    }
     val runtimeQueryFilteredByDeletion =
-      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
+      if (includeDeleted) runtimeQueryFilteredByCreator
+      else runtimeQueryFilteredByCreator.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
 
     val runtimeQueryFilteredByWorkspace =
       workspaceId.fold(runtimeQueryFilteredByDeletion)(_ =>
