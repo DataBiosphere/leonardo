@@ -97,5 +97,5 @@ docker run -d --restart always --network host --name welder \
 --env CLOUD_PROVIDER="azure" \
 --env LOCKING_ENABLED=false \
 --env STAGING_BUCKET=$WELDER_STAGING_BUCKET \
---env IS_RSTUDIO_RUNTIME="false" \
+--env SHOULD_BACKGROUND_SYNC="false" \
 $WELDER_WELDER_DOCKER_IMAGE
