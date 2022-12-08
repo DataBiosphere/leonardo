@@ -68,15 +68,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- createRuntime(
         CreateAzureRuntimeParams(msg.workspaceId,
                                  runtime,
-                                 msg.relayNamespace,
                                  msg.storageContainerResourceId,
+                                 msg.landingZoneResources,
                                  azureConfig,
                                  config.runtimeDefaults.image
         ),
         WsmJobControl(createVmJobId)
       )
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
+        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.landingZoneResources.relayNamespace)
       )
     } yield ()
 
@@ -101,8 +101,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
       hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
-      primaryKey <- azureRelay.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext)
+      primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                           hcName,
+                                                           cloudContext
+      )
       createDiskAction = createDisk(params, auth)
+      // TODO make a ticket. We're still calling WSM createVM API, which depends on a WSM owned network. We're migrating
+      // to the shared LZ subnet. We could create the new VM directly from Leo or make an updated API in WSM
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
@@ -120,7 +125,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           Some(samResourceId)
         )
         val arguments = List(
-          params.relayeNamespace.value,
+          params.landingZoneResources.relayNamespace.value,
           hcName.value,
           "localhost",
           primaryKey.value,
@@ -289,7 +294,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
         .transaction
       _ <- clusterQuery
-        .updateStagingBucket(params.runtime.id, Some(StagingBucket.Azure(stagingContainerName)), ctx.now)
+        .updateStagingBucket(
+          params.runtime.id,
+          Some(StagingBucket.Azure(stagingContainerName)),
+          ctx.now
+        )
         .transaction
     } yield (stagingContainerName, resp.resourceId)
   }

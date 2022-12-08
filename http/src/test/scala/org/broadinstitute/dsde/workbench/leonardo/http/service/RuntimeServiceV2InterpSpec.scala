@@ -89,6 +89,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
+      override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[LandingZoneResources] =
+        IO.pure(landingZoneResources)
+
     }
     val azureService = makeInterp(publisherQueue, wsmDao)
     val res = for {
@@ -157,8 +162,8 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        relayNamespace,
         storageContainerResourceId,
+        landingZoneResources,
         Some(context.traceId)
       )
       message shouldBe expectedMessage

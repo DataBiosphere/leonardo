@@ -32,6 +32,8 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials}
+import org.http4s.headers.Authorization
 import org.typelevel.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
@@ -399,7 +401,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 
-  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(
@@ -424,7 +428,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
-        F.raiseError(MonitorAtBootException("Startting Azure runtime is not supported yet", traceId))
+        F.raiseError(MonitorAtBootException("Starting Azure runtime is not supported yet", traceId))
       case RuntimeStatus.Creating =>
         for {
           now <- F.realTimeInstant
@@ -437,8 +441,13 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
             case _ =>
               F.raiseError(MonitorAtBootException("Azure runtime shouldn't have non Azure runtime config", traceId))
           }
+          petTokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+          petToken <- F.fromOption(
+            petTokenOpt,
+            MonitorAtBootException(s"Failed to get pet access token for ${runtime.auditInfo.creator}", traceId)
+          )
+          petAuth = Authorization(Credentials.Token(AuthScheme.Bearer, petToken))
           implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
-          relayNamespaceOpt <- wsmDao.getRelayNamespace(wid, azureRuntimeConfig.region, leoAuth)
           storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(wid, leoAuth)
           storageContainer <- F.fromOption(
             storageContainerOpt,
@@ -446,14 +455,16 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                 Some(traceId)
             )
           )
-          rns <- F.fromOption(relayNamespaceOpt,
-                              MonitorAtBootException(s"no relay namespace found for ${wid}", traceId)
-          )
+          workspaceDescOpt <- wsmDao.getWorkspace(wid, leoAuth)
+          workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
+
+          // Get the Landing Zone Resources for the app for Azure
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, petAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,
           wid,
-          rns,
           storageContainer.resourceId,
+          landingZoneResources,
           Some(traceId)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
