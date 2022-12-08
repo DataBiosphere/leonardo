@@ -9,12 +9,18 @@ import com.google.cloud.storage.Storage
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
+import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.mock.{BaseFakeGoogleStorage, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, RuntimeConfigQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  persistentDiskQuery,
+  DbReference,
+  RuntimeConfigQueries,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
@@ -172,8 +178,15 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       start <- IO.realTimeInstant
       tid <- traceId.ask[TraceId]
       implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
-      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
+      disk <- makePersistentDisk().save()
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Creating)
+          .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+      )
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, runtimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
 
       runCheckTools = Stream.eval(
@@ -188,10 +201,12 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
     } yield {
       // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
       elapsed should be >= 10000L
       status shouldBe Some(RuntimeStatus.Deleted)
+      diskStatus shouldBe (Some(DiskStatus.Deleted))
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -222,6 +237,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     override def logger: StructuredLogger[IO] = loggerIO
 
     override def googleStorage: GoogleStorageService[IO] = googleStorageService
+
+    override def googleDisk: GoogleDiskService[IO] = MockGoogleDiskService
 
     override def monitorConfig: MonitorConfig = MonitorConfig.GceMonitorConfig(
       2 seconds,
