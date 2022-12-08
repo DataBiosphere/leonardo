@@ -216,7 +216,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                       appContext.traceId
                     )
                   )
-                  workspaceId: WorkspaceId = F.fromOption(
+                  workspaceId <- F.fromOption(
                     app.workspaceId,
                     MonitorAtBootException(
                       s"WorkspaceId not found for app ${app.id} in Provisioning status",
