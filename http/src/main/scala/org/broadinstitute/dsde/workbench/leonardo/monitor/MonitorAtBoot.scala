@@ -6,17 +6,8 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, NetworkName, SubnetworkName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
-  AKS_NODE_POOL_SUBNET,
-  LandingZoneResourcePurpose,
-  POSTGRESQL_SUBNET,
-  SHARED_RESOURCE,
-  WORKSPACE_BATCH_SUBNET,
-  WORKSPACE_COMPUTE_SUBNET
-}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResource, SamDAO, WsmDao}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
@@ -27,13 +18,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   DeleteAppMessage,
   DeleteAppV2Message
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.http4s.headers.Authorization
 import org.typelevel.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
@@ -228,12 +216,14 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                       appContext.traceId
                     )
                   )
-                  workspaceId: WorkspaceId = app.workspaceId.getOrElse(
-                    throw MonitorAtBootException(
+                  workspaceId: WorkspaceId = F.fromOption(
+                    app.workspaceId,
+                    MonitorAtBootException(
                       s"WorkspaceId not found for app ${app.id} in Provisioning status",
                       appContext.traceId
                     )
                   )
+
                   bearerAuth = org.http4s.headers.Authorization(
                     org.http4s.Credentials.Token(AuthScheme.Bearer, userToken)
                   )
@@ -242,14 +232,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                                 WorkspaceNotFoundException(workspaceId, appContext.traceId)
                   )
 
-                  landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
+                  landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
                   storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, bearerAuth)
-                  workspaceId = app.workspaceId.getOrElse(
-                    throw MonitorAtBootException(
-                      s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                      appContext.traceId
-                    )
-                  )
+
                   msg = CreateAppV2Message(
                     app.id,
                     app.appName,
@@ -301,7 +286,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                               WorkspaceNotFoundException(workspaceId, appContext.traceId)
                 )
 
-                landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
+                landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
                 diskOpt <- appQuery.getDiskId(app.id).transaction
                 workspaceId = app.workspaceId.getOrElse(
                   throw MonitorAtBootException(
@@ -469,101 +454,6 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
-
-  private def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[LandingZoneResources] =
-    for {
-      // Step 1: call LZ for LZ id
-      landingZoneOpt <- wsmDao.getLandingZone(billingProfileId, userToken)
-      landingZone <- F.fromOption(
-        landingZoneOpt,
-        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
-      )
-      landingZoneId = landingZone.landingZoneId
-
-      // Step 2: call LZ for LZ resources
-      lzResourcesByPurpose <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
-      groupedLzResources = lzResourcesByPurpose.foldMap(a =>
-        a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
-      )
-
-      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
-                                                   "Microsoft.ContainerService/managedClusters",
-                                                   SHARED_RESOURCE,
-                                                   false
-      )
-      batchAccountName <- getLandingZoneResourceName(groupedLzResources,
-                                                     "Microsoft.Batch/batchAccounts",
-                                                     SHARED_RESOURCE,
-                                                     false
-      )
-      relayNamespace <- getLandingZoneResourceName(groupedLzResources,
-                                                   "Microsoft.Relay/namespaces",
-                                                   SHARED_RESOURCE,
-                                                   false
-      )
-      storageAccountName <- getLandingZoneResourceName(groupedLzResources,
-                                                       "Microsoft.Storage/storageAccounts",
-                                                       SHARED_RESOURCE,
-                                                       false
-      )
-      postgresName <- getLandingZoneResourceName(groupedLzResources,
-                                                 "microsoft.dbforpostgresql/servers",
-                                                 SHARED_RESOURCE,
-                                                 false
-      )
-      logAnalyticsWorkspaceName <- getLandingZoneResourceName(groupedLzResources,
-                                                              "microsoft.operationalinsights/workspaces",
-                                                              SHARED_RESOURCE,
-                                                              false
-      )
-      vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
-      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
-                                                         "DeployedSubnet",
-                                                         WORKSPACE_BATCH_SUBNET,
-                                                         false
-      )
-      aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
-      computeSubnetName <- getLandingZoneResourceName(groupedLzResources,
-                                                      "DeployedSubnet",
-                                                      WORKSPACE_COMPUTE_SUBNET,
-                                                      false
-      )
-      postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
-
-    } yield LandingZoneResources(
-      AKSClusterName(aksClusterName),
-      BatchAccountName(batchAccountName),
-      RelayNamespace(relayNamespace),
-      StorageAccountName(storageAccountName),
-      NetworkName(vnetName),
-      PostgresName(postgresName),
-      LogAnalyticsWorkspaceName(logAnalyticsWorkspaceName),
-      SubnetworkName(batchNodesSubnetName),
-      SubnetworkName(aksSubnetName),
-      SubnetworkName(postgresSubnetName),
-      SubnetworkName(computeSubnetName)
-    )
-
-  private def getLandingZoneResourceName(
-    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
-    resourceType: String,
-    purpose: LandingZoneResourcePurpose,
-    useParent: Boolean
-  ): F[String] =
-    landingZoneResourcesByPurpose
-      .get((purpose, resourceType.toLowerCase))
-      .flatMap(_.headOption)
-      .flatMap { r =>
-        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
-        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
-      }
-      .fold(
-        F.raiseError[String](
-          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-        )
-      )(F.pure)
 }
 
 final case class RuntimeToMonitor(
