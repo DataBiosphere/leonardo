@@ -636,6 +636,7 @@ object Boot extends IOApp {
         googleDependencies.googleComputeService,
         authProvider,
         googleDependencies.googleStorageService,
+        googleDependencies.googleDiskService,
         publisherQueue,
         gceInterp
       )
@@ -645,6 +646,7 @@ object Boot extends IOApp {
         googleDependencies.googleComputeService,
         authProvider,
         googleDependencies.googleStorageService,
+        googleDependencies.googleDiskService,
         dataprocInterp,
         googleDependencies.googleDataproc
       )

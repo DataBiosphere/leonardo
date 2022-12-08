@@ -7,7 +7,7 @@ import cats.effect.{Async, Temporal}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleDiskService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.GceInstanceStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.getInstanceIP
@@ -31,6 +31,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
   googleComputeService: GoogleComputeService[F],
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
+  googleDiskService: GoogleDiskService[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
   override val runtimeAlg: RuntimeAlgebra[F]
 )(implicit
@@ -45,6 +46,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
 
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
+  override def googleDisk: GoogleDiskService[F] = googleDiskService
 
   def handlePollCheckCompletion(monitorContext: MonitorContext,
                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
