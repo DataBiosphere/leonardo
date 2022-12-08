@@ -25,11 +25,13 @@ name: Consumer contract tests
 # - PACT_BROKER_PASSWORD - the Pact Broker password
 on:
   pull_request:
+    branches:
+      - develop
     paths-ignore:
       - 'README.md'
   push:
     branches:
-      - QA-2036
+      - develop
     paths-ignore:
       - 'README.md'
 
