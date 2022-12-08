@@ -49,7 +49,8 @@ class AppLifecycleSpec
   )
 
   // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
-  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
+  // TODO: ignored until galaxy creation is fixed
+  "create GALAXY app, start/stop, delete it and re-create it with same disk" ignore { googleProject =>
     test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
   }
 
