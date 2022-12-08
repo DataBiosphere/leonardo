@@ -45,7 +45,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   def monitorConfig: MonitorConfig
 
-  def process(runtimeId: Long, runtimeStatus: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
+  def process(runtimeId: Long, runtimeStatus: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
+    ev: Ask[F, TraceId]
+  ): Stream[F, Unit] =
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
@@ -60,13 +62,17 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           _ <- F.sleep(monitorConfig.pollStatus.interval)
           res <- handler(
             monitorContext,
-            s
+            s,
+            timeoutInMinutes
           )
         } yield res
       }
     } yield ()
 
-  private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
+  private[monitor] def handler(monitorContext: MonitorContext,
+                               monitorState: MonitorState,
+                               timeoutInMinutes: Option[FiniteDuration]
+  ): F[CheckResult] =
     for {
       now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
@@ -88,9 +94,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             .as(((), None))
         case Some(_) =>
           monitorState match {
-            case MonitorState.Initial => handleInitial(monitorContext)
+            case MonitorState.Initial => handleInitial(monitorContext, timeoutInMinutes)
             case MonitorState.Check(runtimeAndRuntimeConfig, _) =>
-              handleCheck(monitorContext, runtimeAndRuntimeConfig)
+              handleCheck(monitorContext, runtimeAndRuntimeConfig, timeoutInMinutes)
           }
       }
     } yield res
@@ -282,12 +288,16 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
     } yield res
 
-  def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+  def handleCheck(monitorContext: MonitorContext,
+                  runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                  timeoutInMinutes: Option[FiniteDuration]
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult]
 
   protected def handleInitial(
-    monitorContext: MonitorContext
+    monitorContext: MonitorContext,
+    timeoutInMinutes: Option[FiniteDuration]
   )(implicit ct: Ask[F, AppContext]): F[CheckResult] =
     for {
       statusOpt <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
@@ -301,7 +311,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             _ <- logger.info(monitorContext.loggingContext)(
               s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
             )
-            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig)
+            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig, timeoutInMinutes)
           } yield res
         case _ =>
           F.pure(((), None): CheckResult)
@@ -467,7 +477,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
                                         mainDataprocInstance: Option[DataprocInstance],
-                                        deleteRuntimeOnFail: Boolean
+                                        deleteRuntimeOnFail: Boolean,
+                                        timeoutInMinutes: Option[FiniteDuration]
   ) // only applies to dataproc
   (implicit
     ev: Ask[F, AppContext]
@@ -493,12 +504,17 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             ).map(b => (imageType, b))
           )
       }
-      // wait for 10 minutes for tools to start up before time out.
+      // wait for tools to start up before time out. Use the timeout value if available
+      // or default to 10 minutes
+      timeout: FiniteDuration = timeoutInMinutes match {
+        case Some(duration) => duration
+        case None           => monitorConfig.checkTools.interruptAfter
+      }
       availableTools <- streamFUntilDone(
         checkTools,
         monitorConfig.checkTools.maxAttempts,
         monitorConfig.checkTools.interval
-      ).interruptAfter(monitorConfig.checkTools.interruptAfter).compile.lastOrError
+      ).interruptAfter(timeout).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, mainDataprocInstance)
@@ -508,7 +524,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             monitorContext,
             runtimeAndRuntimeConfig,
             RuntimeErrorDetails(
-              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${monitorConfig.checkTools.interruptAfter.toMinutes} minutes.",
+              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${timeout.toMinutes} minutes.",
               None,
               Some("tool_start_up")
             ),

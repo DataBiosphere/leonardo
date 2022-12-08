@@ -109,7 +109,10 @@ class GceRuntimeMonitor[F[_]: Parallel](
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+  override def handleCheck(monitorContext: MonitorContext,
+                           runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                           timeoutInMinutes: Option[FiniteDuration]
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
@@ -130,7 +133,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       )
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
-          creatingRuntime(instance, monitorContext, runtimeAndRuntimeConfig)
+          creatingRuntime(instance, monitorContext, runtimeAndRuntimeConfig, timeoutInMinutes)
         // This is needed because during boot time, we no longer have reference to the previous delete operation
         // But this path should only happen during boot and there's on-going delete
         case RuntimeStatus.Deleting =>
@@ -157,7 +160,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
   private[monitor] def creatingRuntime(
     instance: Option[Instance],
     monitorContext: MonitorContext,
-    runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
+    runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+    timeoutInMinutes: Option[FiniteDuration]
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = instance match {
     case None =>
       nowInstant
@@ -217,7 +221,13 @@ class GceRuntimeMonitor[F[_]: Parallel](
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Temporal[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None, true)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext,
+                                                              runtimeAndRuntimeConfig,
+                                                              ip,
+                                                              None,
+                                                              true,
+                                                              timeoutInMinutes
+                      )
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }
@@ -306,7 +316,13 @@ class GceRuntimeMonitor[F[_]: Parallel](
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Temporal[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None, false)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext,
+                                                              runtimeAndRuntimeConfig,
+                                                              ip,
+                                                              None,
+                                                              false,
+                                                              None
+                      )
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }

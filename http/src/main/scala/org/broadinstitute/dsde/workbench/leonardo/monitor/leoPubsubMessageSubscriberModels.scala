@@ -193,7 +193,7 @@ object LeoPubsubMessage {
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
                                         traceId: Option[TraceId],
-                                        timeoutInMinutes: Option[FiniteDuration]
+                                        timeoutInMinutes: Option[Int]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
   }
@@ -220,7 +220,7 @@ object LeoPubsubMessage {
         runtime.customEnvironmentVariables,
         runtimeConfig,
         traceId,
-        timeoutInMinutes
+        timeoutInMinutes.map(x => x.toMinutes.toInt)
       )
   }
 
@@ -622,11 +622,6 @@ object LeoPubsubCodec {
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig  => x.asJson
     case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => x.asJson
     case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => x.asJson
-  }
-
-  implicit val timeoutInMinutesEncoder: Encoder[Option[FiniteDuration]] = Encoder.instance {
-    case Some(value) => value.toMinutes.asJson
-    case None        => None.asJson
   }
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =

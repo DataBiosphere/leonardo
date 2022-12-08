@@ -3036,6 +3036,10 @@ components:
         defaultClientId:
           type: string
           description: The default Google Client ID.
+        timeoutInMinutes:
+          type: integer
+          description: Custom image deployment time out in minutes.
+            If nothing id provided, a default of 10 minutes will be used.
         toolDockerImage:
           type: string
           description: The tool docker image to install. May be Google Container Repository (GCR),

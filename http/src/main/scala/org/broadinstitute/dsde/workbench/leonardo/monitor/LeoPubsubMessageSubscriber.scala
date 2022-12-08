@@ -232,7 +232,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
       taskToRun = for {
         _ <- msg.runtimeConfig.cloudService
-          .process(msg.runtimeId, RuntimeStatus.Creating, msg.timeoutInMinutes)
+          .process(msg.runtimeId, RuntimeStatus.Creating, msg.timeoutInMinutes.map(x => x.minutes))
           .compile
           .drain
       } yield ()
