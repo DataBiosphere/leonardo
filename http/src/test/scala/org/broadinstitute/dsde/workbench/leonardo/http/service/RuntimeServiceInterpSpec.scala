@@ -87,7 +87,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     None,
     None,
     Set.empty,
-    Map.empty
+    Map.empty,
+    None
   )
 
   it should "fail with AuthorizationError if user doesn't have project level permission" in {
