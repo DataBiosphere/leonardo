@@ -34,7 +34,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     val res = for {
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
-      s1 = runtimeMonitor.process(runtime.id, RuntimeStatus.Creating)
+      s1 = runtimeMonitor.process(runtime.id, RuntimeStatus.Creating, None)
       s2 = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now()).transaction
       )
@@ -48,14 +48,17 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     val res = for {
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
       runtimeMonitor = new MockRuntimeMonitor(true, Map(RuntimeStatus.Starting -> 2.seconds)) {
-        override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-          implicit ev: Ask[IO, AppContext]
+        override def handleCheck(monitorContext: MonitorContext,
+                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                 timeoutInMinutes: Option[FiniteDuration]
+        )(implicit
+          ev: Ask[IO, AppContext]
         ): IO[(Unit, Option[MonitorState])] = checkAgain(monitorContext, runtimeAndRuntimeConfig, None, None, None)
       }
       assersions = for {
         status <- clusterQuery.getClusterStatus(runtime.id).transaction
       } yield status.get shouldBe RuntimeStatus.Stopping
-      _ <- withInfiniteStream(runtimeMonitor.process(runtime.id, RuntimeStatus.Starting), assersions)
+      _ <- withInfiniteStream(runtimeMonitor.process(runtime.id, RuntimeStatus.Starting, None), assersions)
     } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -69,7 +72,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -99,7 +102,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -177,7 +180,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
 
       runCheckTools = Stream.eval(
-        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
+        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
       )
       deleteRuntime = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.completeDeletion(runtime.id, start).transaction
@@ -232,7 +235,10 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       Config.imageConfig
     )
 
-    override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+    override def handleCheck(monitorContext: MonitorContext,
+                             runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                             timeoutInMinutes: Option[FiniteDuration]
+    )(implicit
       ev: Ask[IO, AppContext]
     ): IO[(Unit, Option[MonitorState])] = ???
   }

@@ -57,6 +57,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                     zone = ZoneName("us-central1-a"),
                                                     None
       ),
+      None,
       None
     )
 
@@ -87,6 +88,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                           zone = ZoneName("us-central1-a"),
                                                           None
       ),
+      None,
       None
     )
 

@@ -6,9 +6,11 @@ import cats.mtl.Ask
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.model.TraceId
 
+import scala.concurrent.duration.FiniteDuration
+
 class MockRuntimeMonitor extends RuntimeMonitor[IO, CloudService] {
-  def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
-    ev: Ask[IO, TraceId]
+  def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(
+    implicit ev: Ask[IO, TraceId]
   ): Stream[IO, Unit] =
     Stream.emit(()).covary[IO]
 

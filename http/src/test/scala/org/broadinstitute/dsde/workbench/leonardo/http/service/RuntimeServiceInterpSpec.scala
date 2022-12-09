@@ -209,7 +209,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster.cloudContext shouldBe cloudContext
       cluster.runtimeName shouldBe runtimeName
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId))
+        .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
@@ -354,7 +354,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       runtimeConfig shouldBe expectedRuntimeConfig
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
+        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
@@ -424,7 +424,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       runtimeConfig shouldBe Config.dataprocConfig.runtimeConfigDefaults.copy(numberOfWorkers = 2)
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
+        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
@@ -642,7 +642,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         None
       ) // TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
+        .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
