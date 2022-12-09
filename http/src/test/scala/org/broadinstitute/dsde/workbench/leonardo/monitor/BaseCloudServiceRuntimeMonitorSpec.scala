@@ -120,6 +120,44 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "move to failed status if checkTools times out after a custom timeout" in isolatedDbTest {
+    val runtimeMonitor = baseRuntimeMonitor(false)
+
+    val res = for {
+      disk <- makePersistentDisk().save()
+      start <- IO.realTimeInstant
+      tid <- traceId.ask[TraceId]
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Creating)
+          .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+      )
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+      res <- runtimeMonitor.handleCheckTools(monitorContext,
+                                             runtimeAndRuntimeConfig,
+                                             IP("1.2.3.4"),
+                                             None,
+                                             true,
+                                             Some(5 seconds)
+      )
+      end <- IO.realTimeInstant
+      elapsed = end.toEpochMilli - start.toEpochMilli
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      runtimeConfig <- RuntimeConfigQueries
+        .getRuntimeConfig(runtime.runtimeConfigId)(scala.concurrent.ExecutionContext.Implicits.global)
+        .transaction
+    } yield {
+      // handleCheckTools should have been interrupted after 5 seconds and moved the runtime to Error status
+      elapsed shouldBe 5000L +- 1000L
+      status shouldBe Some(RuntimeStatus.Error)
+      res shouldBe (((), None))
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "not fail deleteInitBucket if bucket doesn't exist" in isolatedDbTest {
     val googleStorage = new BaseFakeGoogleStorage {
       override def deleteBucket(googleProject: GoogleProject,
