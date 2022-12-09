@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
+import org.http4s.Uri
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -117,7 +118,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       cloudContext,
       workspaceId,
       lzResources,
-      "https://relay.com/app",
+      Uri.unsafeFromString("https://relay.com/app"),
       setUpMockIdentity,
       storageContainer
     )
