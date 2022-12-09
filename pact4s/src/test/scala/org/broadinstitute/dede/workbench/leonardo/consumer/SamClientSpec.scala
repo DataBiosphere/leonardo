@@ -1,6 +1,6 @@
 package org.broadinstitute.dede.workbench.leonardo.consumer
 
-import au.com.dius.pact.consumer.dsl.LambdaDsl.newJsonBody
+import au.com.dius.pact.consumer.dsl.LambdaDsl.{newJsonArray, newJsonBody}
 import au.com.dius.pact.consumer.dsl._
 import au.com.dius.pact.consumer.{ConsumerPactBuilder, PactTestExecutionContext}
 import au.com.dius.pact.core.model.RequestResponsePact
@@ -57,14 +57,14 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
     )
   )
 
-  val workspaceResourceResponsePlaceholder: ListResourceResponse[WorkspaceResourceSamResourceId] = ListResourceResponse(
+  val workspaceResourceResponsePlaceholder: List[ListResourceResponse[WorkspaceResourceSamResourceId]] = List(ListResourceResponse(
     WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString("00000000-0000-0000-0000-000000000000"))),
     Set()
-  )
+  ))
 
   val workspaceResourceResponseStr: String =
     """
-      |{
+      |[{
       |    "authDomainGroups":
       |    [],
       |    "direct":
@@ -72,10 +72,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
       |        "actions":
       |        [],
       |        "roles":
-      |        [
-      |            "project-owner",
-      |            "owner"
-      |        ]
+      |        []
       |    },
       |    "inherited":
       |    {
@@ -93,13 +90,13 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
       |        "roles":
       |        []
       |    },
-      |    "resourceId": "cea587e9-9a8e-45b6-b985-9e3803754020"
-      |}
+      |    "resourceId": "00000000-0000-0000-0000-000000000000"
+      |}]
       |""".stripMargin
 
   // use implicit listResourceResponseDecoder[R] to decode Json string
-  val workspaceResourceResponse: ListResourceResponse[WorkspaceResourceSamResourceId] =
-    decode[ListResourceResponse[WorkspaceResourceSamResourceId]](workspaceResourceResponseStr)
+  val workspaceResourceResponse: List[ListResourceResponse[WorkspaceResourceSamResourceId]] =
+    decode[List[ListResourceResponse[WorkspaceResourceSamResourceId]]](workspaceResourceResponseStr)
       .getOrElse(workspaceResourceResponsePlaceholder)
 
   // --- End of fixtures section
@@ -119,32 +116,30 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
     )
   }.build()
 
-  val workspaceResourceResponseDsl: DslPart = newJsonBody { o =>
-    o.uuid("resourceId", UUID.fromString("cea587e9-9a8e-45b6-b985-9e3803754020"))
-    o.`object`(
-      "direct",
-      s => {
-        s.array("actions", _ => Set())
-        s.array("roles",
-                a => {
-                  a.stringType("project-owner")
-                  a.stringType("owner")
-                }
+  val workspaceResourceResponseDsl: DslPart = newJsonArray { a =>
+    a.`object`(
+      o => {
+        o.uuid("resourceId", UUID.fromString("00000000-0000-0000-0000-000000000000"))
+        o.`object`(
+          "direct",
+          s => {
+            s.array("actions", _ => Set())
+            s.array("roles",_ => Set())
+          }
         )
-      }
-    )
-    o.`object`("inherited",
-               s => {
-                 s.array("actions", _ => Set())
-                 s.array("roles", _ => Set())
-               }
-    )
-    o.`object`("public",
-               s => {
-                 s.array("actions", _ => Set())
-                 s.array("roles", _ => Set())
-               }
-    )
+        o.`object`("inherited",
+          s => {
+            s.array("actions", _ => Set())
+            s.array("roles", _ => Set())
+          }
+        )
+        o.`object`("public",
+          s => {
+            s.array("actions", _ => Set())
+            s.array("roles", _ => Set())
+          }
+        )
+      })
   }.build()
 
   val consumerPactBuilder: ConsumerPactBuilder = ConsumerPactBuilder

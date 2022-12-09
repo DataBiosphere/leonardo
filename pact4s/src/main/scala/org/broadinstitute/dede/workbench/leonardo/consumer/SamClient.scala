@@ -20,7 +20,7 @@ trait SamClient[F[_]] {
   )(implicit
     sr: SamResource[R],
     decoder: Decoder[R]
-  ): F[ListResourceResponse[R]]
+  ): F[Iterable[ListResourceResponse[R]]]
 
   def fetchSystemStatus(): F[StatusCheckResponse]
 }
@@ -50,14 +50,14 @@ class SamClientImpl[F[_]: Concurrent](client: Client[F], baseUrl: Uri, bearer: T
   )(implicit
     sr: SamResource[R],
     decoder: Decoder[R]
-  ): F[ListResourceResponse[R]] = {
+  ): F[Iterable[ListResourceResponse[R]]] = {
     val request = Request[F](uri = baseUrl / "api" / "resources" / "v2" / sr.resourceType.asString).withHeaders(
       org.http4s.headers.Accept(MediaType.application.json),
       authHeader
     )
     client.run(request).use { resp =>
       resp.status match {
-        case Status.Ok => resp.as[ListResourceResponse[R]]
+        case Status.Ok => resp.as[Iterable[ListResourceResponse[R]]]
         case _         => UnknownError.raiseError
       }
     }
