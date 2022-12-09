@@ -31,7 +31,7 @@ on:
       - 'README.md'
   push:
     branches:
-      - IA-3814
+      - develop
     paths-ignore:
       - 'README.md'
 
