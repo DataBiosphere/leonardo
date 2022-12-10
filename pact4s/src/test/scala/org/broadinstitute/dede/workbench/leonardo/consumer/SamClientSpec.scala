@@ -57,14 +57,17 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
     )
   )
 
-  val workspaceResourceResponsePlaceholder: List[ListResourceResponse[WorkspaceResourceSamResourceId]] = List(ListResourceResponse(
-    WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString("00000000-0000-0000-0000-000000000000"))),
-    Set()
-  ))
+  val workspaceResourceResponsePlaceholder: List[ListResourceResponse[WorkspaceResourceSamResourceId]] = List(
+    ListResourceResponse(
+      WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString("00000000-0000-0000-0000-000000000000"))),
+      Set()
+    )
+  )
 
   val workspaceResourceResponseStr: String =
     """
-      |[{
+      |[
+      |{
       |    "authDomainGroups":
       |    [],
       |    "direct":
@@ -91,7 +94,8 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
       |        []
       |    },
       |    "resourceId": "00000000-0000-0000-0000-000000000000"
-      |}]
+      |}
+      |]
       |""".stripMargin
 
   // use implicit listResourceResponseDecoder[R] to decode Json string
@@ -117,29 +121,28 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   }.build()
 
   val workspaceResourceResponseDsl: DslPart = newJsonArray { a =>
-    a.`object`(
-      o => {
-        o.uuid("resourceId", UUID.fromString("00000000-0000-0000-0000-000000000000"))
-        o.`object`(
-          "direct",
-          s => {
-            s.array("actions", _ => Set())
-            s.array("roles",_ => Set())
-          }
-        )
-        o.`object`("inherited",
-          s => {
-            s.array("actions", _ => Set())
-            s.array("roles", _ => Set())
-          }
-        )
-        o.`object`("public",
-          s => {
-            s.array("actions", _ => Set())
-            s.array("roles", _ => Set())
-          }
-        )
-      })
+    a.`object` { o =>
+      o.uuid("resourceId", UUID.fromString("00000000-0000-0000-0000-000000000000"))
+      o.`object`(
+        "direct",
+        s => {
+          s.array("actions", _ => Set())
+          s.array("roles", _ => Set())
+        }
+      )
+      o.`object`("inherited",
+                 s => {
+                   s.array("actions", _ => Set())
+                   s.array("roles", _ => Set())
+                 }
+      )
+      o.`object`("public",
+                 s => {
+                   s.array("actions", _ => Set())
+                   s.array("roles", _ => Set())
+                 }
+      )
+    }
   }.build()
 
   val consumerPactBuilder: ConsumerPactBuilder = ConsumerPactBuilder
