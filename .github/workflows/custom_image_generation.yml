@@ -2,18 +2,26 @@
 name: Custom Image Generation
 
 #TODO: should only be `workflow_dispatch` eventually, after testing
-#TODO setup param to force image scripts to run
 on:
   workflow_dispatch:
-  push:
-    branches: [develop]
+    inputs:
+      run-dataproc-override:
+        description: 'Set this to `true` to force dataproc image generation script to run regardless of if there are changes to generation script.'
+        required: false
+        default: false
+        type: boolean
+      run-gce-override:
+        description: 'Set this to `true` to force gce image generation script to run regardless of if there are changes to generation script.'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   inspect-changes:
     runs-on: ubuntu-latest
     outputs:
-      should-run-dataproc: ${{ steps.filter.outputs.dataproc }}
-      should-run-gce: ${{ steps.filter.outputs.gce }}
+      has-dataproc-changes: ${{ steps.filter.outputs.dataproc }}
+      has-gce-changes: ${{ steps.filter.outputs.gce }}
 
     steps:
     - uses: actions/checkout@v3
@@ -28,12 +36,13 @@ jobs:
             - 'jenkins/gce-custom-images/**' 
 
     - name: display progress
-      run: echo "finished inspecting the repo to determine which image generation scripts to run"
+      run: | 
+        echo "finished inspecting the repo to determine which image generation scripts to run"
 
   run-image-generation-script-gce:
     runs-on: ubuntu-latest
     needs: inspect-changes
-    if: needs.inspect-changes.outputs.should-run-gce == 'true'
+    if: needs.inspect-changes.outputs.has-gce-changes == 'true' && github.event.inputs.run-gce-override == 'true'
 
     steps:
     - uses: actions/checkout@v3
@@ -41,11 +50,20 @@ jobs:
     - name: test step 1
       run: echo "test 1"
 
+      #run script
+      #make changes to reference.conf or have a nice output with instructions
+
   run-image-generate-script-dataproc:
     runs-on: ubuntu-latest
     needs: inspect-changes
-    if: needs.inspect-changes.outputs.should-run-dataproc == 'true'
+    if: needs.inspect-changes.outputs.has-dataproc-changes == 'true' && github.event.inputs.run-dataproc-override == 'true'
 
     steps:
+      - uses: actions/checkout@v3
+
       - name: test step 2
         run: echo "test 2"
+
+        #run script
+        #make changes to reference.conf or have a nice output with instructions
+
