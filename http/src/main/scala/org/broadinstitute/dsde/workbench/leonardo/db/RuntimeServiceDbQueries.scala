@@ -4,8 +4,10 @@ package db
 import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.OperationName
+import org.broadinstitute.dsde.workbench.leonardo.Runtime
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.db.GetResultInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -19,12 +21,42 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   RuntimeNotFoundByWorkspaceIdException,
   RuntimeNotFoundException
 }
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import slick.jdbc.GetResult
 
 import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
+
+  implicit val getResultListRuntimeResponse2 = GetResult { r =>
+    val id = r.<<[Long]
+    val workspaceId = r.<<?[WorkspaceId]
+    val runtimeName = r.<<[RuntimeName]
+    val cloudContext = r.<<[CloudContext]
+    val ip = r.<<[Option[IP]]
+    val auditInfo = r.<<[AuditInfo]
+    val status = r.<<[RuntimeStatus]
+    val samId = r.<<[RuntimeSamResourceId]
+    val runtimeConfig = r.<<[RuntimeConfig]
+    val labelMap = r.<<[LabelMap]
+    val proxyUrl =
+      Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, cloudContext, runtimeName, Set.empty, ip, labelMap)
+
+    ListRuntimeResponse2(
+      id,
+      workspaceId,
+      samId,
+      runtimeName,
+      cloudContext,
+      auditInfo,
+      runtimeConfig,
+      proxyUrl,
+      status,
+      labelMap,
+      r.nextBoolean()
+    )
+  }
 
   type RuntimeJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
 
@@ -232,29 +264,147 @@ object RuntimeServiceDbQueries {
                                creatorOnly: Option[WorkbenchEmail],
                                workspaceId: Option[WorkspaceId],
                                cloudProvider: Option[CloudProvider]
-  )(implicit
-    ec: ExecutionContext
-  ): DBIO[List[ListRuntimeResponse2]] = {
+  ): DBIO[Vector[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByCreator = creatorOnly match {
-      case Some(creator) => clusterQuery.filter(_.creator === creator)
-      case None          => clusterQuery
+      case Some(creator) => List(s"C.`creator` = '${creator.value}'")
+      case None          => List.empty
     }
     val runtimeQueryFilteredByDeletion =
-      if (includeDeleted) runtimeQueryFilteredByCreator
-      else runtimeQueryFilteredByCreator.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
+      if (includeDeleted) List.empty
+      else List("C.`status` != 'Deleted'")
 
-    val runtimeQueryFilteredByWorkspace =
-      workspaceId.fold(runtimeQueryFilteredByDeletion)(_ =>
-        runtimeQueryFilteredByDeletion
-          .filter(c => c.workspaceId.isDefined && c.workspaceId === workspaceId)
-      )
+    val runtimeQueryFilteredByWorkspace = workspaceId match {
+      case Some(wid) =>
+        List(s"C.`workspaceId` = '${wid.value.toString}'")
+      case None => List.empty
+    }
 
-    val runtimeQueryFilteredByProvider = cloudProvider.fold(runtimeQueryFilteredByWorkspace)(provider =>
-      runtimeQueryFilteredByWorkspace
-        .filter(_.cloudProvider === provider)
-    )
+    val runtimeQueryFilteredByProvider = cloudProvider match {
+      case Some(provider) =>
+        List(s"C.`cloudProvider` = '${provider.asString}'")
+      case None => List.empty
+    }
 
-    joinAndFilterByLabelForList(labelMap, runtimeQueryFilteredByProvider)
+    val clusterFilters =
+      (runtimeQueryFilteredByCreator ++ runtimeQueryFilteredByDeletion ++ runtimeQueryFilteredByWorkspace ++ runtimeQueryFilteredByProvider)
+        .mkString(" AND ")
+
+    val clusterFiltersFinal = if (clusterFilters.isEmpty) "" else s"where ${clusterFilters}"
+
+    val labelMapFilters =
+      if (labelMap.isEmpty)
+        ""
+      else {
+        val query = labelMap
+          .map { case (k, v) =>
+            s"(LABEL.key = '${k}' and LABEL.value = '${v}')"
+          }
+          .mkString(" or ")
+
+        s"""where (
+           |   select 
+           |     count(1) 
+           |   from 
+           |     `LABEL` 
+           |   where 
+           |     (`resourceId` = FILTERED_CLUSTER.id) 
+           |     AND (`resourceType` = 'runtime')
+           |     AND (${query})
+           |    ) = ${labelMap.size}""".stripMargin
+      }
+
+    val sqlStatement =
+      sql"""
+         select  
+          LABEL_FILTERED.`id`, 
+          LABEL_FILTERED.`workspaceId`, 
+          LABEL_FILTERED.`runtimeName`, 
+          LABEL_FILTERED.`cloudProvider`, 
+          LABEL_FILTERED.`cloudContext`,
+          LABEL_FILTERED.`hostIp`,
+          LABEL_FILTERED.`creator`,
+          LABEL_FILTERED.`createdDate`,
+          LABEL_FILTERED.`destroyedDate`,
+          LABEL_FILTERED.`dateAccessed`,
+          LABEL_FILTERED.`status`,
+          LABEL_FILTERED.`internalId`,
+          RG.`cloudService`, 
+          RG.`numberOfWorkers`, 
+          RG.`machineType`, 
+          RG.`diskSize`, 
+          RG.`bootDiskSize`, 
+          RG.`workerMachineType`, 
+          RG.`workerDiskSize`, 
+          RG.`numberOfWorkerLocalSSDs`, 
+          RG.`numberOfPreemptibleWorkers`, 
+          RG.`dataprocProperties`, 
+          RG.`persistentDiskId`, 
+          RG.`zone`, 
+          RG.`region`, 
+          RG.`gpuType`, 
+          RG.`numOfGpus`, 
+          RG.`componentGatewayEnabled`, 
+          RG.`workerPrivateAccess`,
+          GROUP_CONCAT(labelKey) labelKeys, 
+          GROUP_CONCAT(labelValue) labelValues,
+          CP.`inProgress`
+        from 
+          (
+            select
+              `id`,
+              `status`, 
+              `cloudContext`, 
+              `serviceAccount`, 
+              `dateAccessed`, 
+              `createdDate`, 
+              `deletedFrom`, 
+              `destroyedDate`, 
+              `autopauseThreshold`, 
+              `hostIp`, 
+              `internalId`,
+              `workspaceId`, 
+              `cloudProvider`, 
+              `runtimeName`, 
+              `kernelFoundBusyDate`, 
+              `creator`, 
+              `proxyHostName`,
+              `runtimeConfigId`,
+              L.`key` as labelKey,
+              L.`value` as labelValue
+            from 
+              (
+                select
+                  C.`status`, 
+                  C.`cloudContext`, 
+                  C.`serviceAccount`, 
+                  C.`dateAccessed`, 
+                  C.`createdDate`, 
+                  C.`deletedFrom`, 
+                  C.`destroyedDate`, 
+                  C.`autopauseThreshold`, 
+                  C.`hostIp`,
+                  C.`internalId`, 
+                  C.`workspaceId`, 
+                  C.`cloudProvider`, 
+                  C.`id`, 
+                  C.`runtimeName`, 
+                  C.`kernelFoundBusyDate`, 
+                  C.`creator`, 
+                  C.`proxyHostName`,
+                  C.`runtimeConfigId`
+                from 
+                  `CLUSTER` AS C
+                #${clusterFiltersFinal}
+              ) AS FILTERED_CLUSTER 
+              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) 
+              and (L.`resourceType` = 'runtime') 
+              #${labelMapFilters}
+          ) AS LABEL_FILTERED 
+          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.id = RG.`id` 
+          left join `CLUSTER_PATCH` CP on LABEL_FILTERED.id = CP.`clusterId`
+          GROUP BY LABEL_FILTERED.id"""
+
+    sqlStatement.as[ListRuntimeResponse2]
   }
 
   private def joinAndFilterByLabelForList(labelMap: LabelMap, baseQuery: Query[ClusterTable, ClusterRecord, Seq])(
@@ -321,5 +471,4 @@ object RuntimeServiceDbQueries {
       }.toList
     }
   }
-
 }

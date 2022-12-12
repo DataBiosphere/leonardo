@@ -137,6 +137,59 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  "listRuntimesForWorkspace" should "list runtimes by labels properly" in isolatedDbTest {
+    val res = for {
+      start <- IO.realTimeInstant
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = ZoneName("us-west2-b"),
+                                                      CommonTestData.gpuConfig
+      )
+      c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d2.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = ZoneName("us-west2-b"),
+                                                      None
+      )
+      c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
+      labels1 = Map("googleProject" -> c1.cloudContext.asString,
+                    "clusterName" -> c1.runtimeName.asString,
+                    "creator" -> c1.auditInfo.creator.value
+      )
+      labels2 = Map("googleProject" -> c2.cloudContext.asString,
+                    "clusterName" -> c2.runtimeName.asString,
+                    "creator" -> c2.auditInfo.creator.value
+      )
+      list1 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels1, false, None, None, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels2, false, None, None, None).transaction
+      _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
+      _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
+      list3 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels1, false, None, None, None).transaction
+      list4 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels2, false, None, None, None).transaction
+      list5 <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map("googleProject" -> c1.cloudContext.asString), false, None, None, None)
+        .transaction
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
+    } yield {
+      list1 shouldEqual List.empty
+      list2 shouldEqual List.empty
+      val c1Expected = toListRuntimeResponse(c1, labels1, c1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, labels2, c2RuntimeConfig)
+      list3 shouldEqual List(c1Expected)
+      list4 shouldEqual List(c2Expected)
+      list5.toSet shouldEqual Set(c1Expected, c2Expected)
+      elapsed should be < maxElapsed
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "list runtimes by project" in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
