@@ -33,6 +33,7 @@ ZONE="${REGION}-a"
 # the Daisy workflow cleans up all but daisy.log at the end.
 DAISY_BUCKET_PATH="gs://gce_custom_image_test"
 
+
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="release"
 
