@@ -2,7 +2,11 @@
 name: Custom Image Generation
 
 #TODO: should only be `workflow_dispatch` eventually, after testing
-on: [workflow_dispatch, push]
+#TODO setup param to force image scripts to run
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
 
 jobs:
   inspect-changes:
@@ -16,6 +20,7 @@ jobs:
     - uses: dorny/paths-filter@v2
       id: filter
       with:
+        base: 'develop'
         filters: |
           dataproc:
             - 'jenkins/dataproc-custom-images/**' 
