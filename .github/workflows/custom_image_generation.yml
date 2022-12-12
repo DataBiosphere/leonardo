@@ -1,0 +1,46 @@
+# This will automatically use the sbt version in project/build.properties
+name: Custom Image Generation
+
+#TODO: should only be `workflow_dispatch` eventually, after testing
+on: [workflow_dispatch, push]
+
+jobs:
+  inspect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run-dataproc: ${{ steps.filter.outputs.dataproc }}
+      should-run-gce: ${{ steps.filter.outputs.gce }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dorny/paths-filter@v2
+      id: filter
+      with:
+        filters: |
+          dataproc:
+            - 'jenkins/dataproc-custom-images/**' 
+          gce:
+            - 'jenkins/gce-custom-images/**' 
+
+    - name: display progress
+      run: echo "finished inspecting the repo to determine which image generation scripts to run"
+
+  run-image-generation-script-gce:
+    runs-on: ubuntu-latest
+    needs: inspect-changes
+    if: needs.inspect-changes.outputs.should-run-gce == 'true'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: test step 1
+      run: echo "test 1"
+
+  run-image-generate-script-dataproc:
+    runs-on: ubuntu-latest
+    needs: inspect-changes
+    if: needs.inspect-changes.outputs.should-run-dataproc == 'true'
+
+    steps:
+      - name: test step 2
+        run: echo "test 2"
