@@ -49,7 +49,7 @@ jobs:
         JAVA_OPTS: -Xmx4G -Xms4G -Xss2M -Duser.timezone=UTC -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307
         JVM_OPTS:  -Xmx4G -Xms4G -Xss2M
       run: |
-        sbt "project http" coverage "testOnly -- -n SlickPlainQueryTest" coverageReport
+        sbt "project http" coverage "testOnly org.broadinstitute.dsde.workbench.leonardo.http.db.RuntimeServiceDbQueriesSpec org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceV2InterpSpec org.broadinstitute.dsde.workbench.leonardo.http.db.RuntimeServiceDbQueriesSpec" coverageReport
         sbt "project core" coverage test coverageReport
         sbt "project http" coverage "testOnly -- -l SlickPlainQueryTest" coverageReport
 
