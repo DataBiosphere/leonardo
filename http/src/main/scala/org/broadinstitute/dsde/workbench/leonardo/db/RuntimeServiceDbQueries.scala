@@ -58,15 +58,6 @@ object RuntimeServiceDbQueries {
     )
   }
 
-  type RuntimeJoinLabel = Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq]
-
-  def runtimeLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): RuntimeJoinLabel =
-    for {
-      (runtime, label) <- baseQuery.joinLeft(labelQuery).on { case (r, lbl) =>
-        lbl.resourceId === r.id && lbl.resourceType === LabelResourceType.runtime
-      }
-    } yield (runtime, label)
-
   def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(implicit
     ec: ExecutionContext
   ): DBIO[Option[RuntimeStatus]] = {
@@ -248,15 +239,13 @@ object RuntimeServiceDbQueries {
   def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, cloudContext: Option[CloudContext] = None)(implicit
     ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
-    val runtimeQueryFilteredByDeletion =
-      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
-    val clusterQueryFilteredByProject = cloudContext.fold(runtimeQueryFilteredByDeletion)(p =>
-      runtimeQueryFilteredByDeletion
-        .filter(_.cloudContextDb === p.asCloudContextDb)
-        .filter(_.cloudProvider === p.cloudProvider)
-    )
-
-    joinAndFilterByLabelForList(labelMap, clusterQueryFilteredByProject)
+    val cloudContextFilter = cloudContext match {
+      case Some(cc) => Some(Left(cc))
+      case None     => None
+    }
+    listRuntimesHelper(labelMap, includeDeleted, None, None, cloudContextFilter).map(
+      _.toList
+    ) // TODO: we should take advantage of creatorOnly filter with Lily's ticket
   }
 
   def listRuntimesForWorkspace(labelMap: LabelMap,
@@ -264,6 +253,16 @@ object RuntimeServiceDbQueries {
                                creatorOnly: Option[WorkbenchEmail],
                                workspaceId: Option[WorkspaceId],
                                cloudProvider: Option[CloudProvider]
+  ): DBIO[Vector[ListRuntimeResponse2]] = {
+    val cp = cloudProvider.map(cp => Right(cp))
+    listRuntimesHelper(labelMap, includeDeleted, creatorOnly, workspaceId, cp)
+  }
+
+  def listRuntimesHelper(labelMap: LabelMap,
+                         includeDeleted: Boolean,
+                         creatorOnly: Option[WorkbenchEmail],
+                         workspaceId: Option[WorkspaceId],
+                         cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByCreator = creatorOnly match {
       case Some(creator) => List(s"C.`creator` = '${creator.value}'")
@@ -279,14 +278,15 @@ object RuntimeServiceDbQueries {
       case None => List.empty
     }
 
-    val runtimeQueryFilteredByProvider = cloudProvider match {
-      case Some(provider) =>
-        List(s"C.`cloudProvider` = '${provider.asString}'")
-      case None => List.empty
+    val runtimeQueryFilteredByCloud = cloudContextOrCloudProvider match {
+      case Some(Left(CloudContext.Gcp(gp)))     => List(s"C.`cloudContext` = '${gp.value}'")
+      case Some(Left(CloudContext.Azure(actx))) => List(s"C.`cloudContext` = '${actx.asString}'")
+      case Some(Right(cloudProvider))           => List(s"C.`cloudProvider` = '${cloudProvider.asString}'")
+      case None                                 => List.empty
     }
 
     val clusterFilters =
-      (runtimeQueryFilteredByCreator ++ runtimeQueryFilteredByDeletion ++ runtimeQueryFilteredByWorkspace ++ runtimeQueryFilteredByProvider)
+      (runtimeQueryFilteredByCreator ++ runtimeQueryFilteredByDeletion ++ runtimeQueryFilteredByWorkspace ++ runtimeQueryFilteredByCloud)
         .mkString(" AND ")
 
     val clusterFiltersFinal = if (clusterFilters.isEmpty) "" else s"where ${clusterFilters}"
@@ -405,70 +405,5 @@ object RuntimeServiceDbQueries {
           GROUP BY LABEL_FILTERED.id"""
 
     sqlStatement.as[ListRuntimeResponse2]
-  }
-
-  private def joinAndFilterByLabelForList(labelMap: LabelMap, baseQuery: Query[ClusterTable, ClusterRecord, Seq])(
-    implicit ec: ExecutionContext
-  ): DBIO[List[ListRuntimeResponse2]] = {
-    val runtimeQueryJoinedWithLabel = runtimeLabelQuery(baseQuery)
-
-    val runtimeQueryFilteredByLabel = if (labelMap.isEmpty) {
-      runtimeQueryJoinedWithLabel
-    } else {
-      runtimeQueryJoinedWithLabel.filter { case (runtimeRec, _) =>
-        labelQuery
-          .filter(lbl => lbl.resourceId === runtimeRec.id && lbl.resourceType === LabelResourceType.runtime)
-          // The following confusing line is equivalent to the much simpler:
-          // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
-          // Unfortunately slick doesn't support inSet/inSetBind for tuples.
-          // https://github.com/slick/slick/issues/517
-          .filter(lbl =>
-            labelMap
-              .map { case (k, v) => lbl.key === k && lbl.value === v }
-              .fold[Rep[Boolean]](false)(_ || _)
-          )
-          .length === labelMap.size
-      }
-    }
-
-    val runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch = runtimeLabelRuntimeConfigQuery(
-      runtimeQueryFilteredByLabel
-    )
-
-    runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
-      val runtimeLabelMap: Map[(ClusterRecord, RuntimeConfig, Option[PatchRecord]), Map[String, Chain[String]]] =
-        x.toList.foldMap { case (((runtimeRec, labelRecOpt), runtimeConfigRec), patchRecOpt) =>
-          val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-          Map((runtimeRec, runtimeConfigRec.runtimeConfig, patchRecOpt) -> labelMap)
-        }
-
-      runtimeLabelMap.map { case ((runtimeRec, runtimeConfig, patchRecOpt), labelMap) =>
-        val lmp = labelMap.view.mapValues(_.toList.toSet.headOption.getOrElse("")).toMap
-
-        val patchInProgress = patchRecOpt match {
-          case Some(patchRec) => patchRec.inProgress
-          case None           => false
-        }
-        ListRuntimeResponse2(
-          runtimeRec.id,
-          runtimeRec.workspaceId,
-          RuntimeSamResourceId(runtimeRec.internalId),
-          runtimeRec.runtimeName,
-          runtimeRec.cloudContext,
-          runtimeRec.auditInfo,
-          runtimeConfig,
-          Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                              runtimeRec.cloudContext,
-                              runtimeRec.runtimeName,
-                              Set.empty,
-                              runtimeRec.hostIp,
-                              lmp
-          ),
-          runtimeRec.status,
-          lmp,
-          patchInProgress
-        )
-      }.toList
-    }
   }
 }

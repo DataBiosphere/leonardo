@@ -339,17 +339,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             .exists(_ == creatorOnlyValue) || labelMap.get("creator").exists(_ == userInfo.userEmail)
         ) Some(userInfo.userEmail)
         else None
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"1111 start DB lookup runtimes ${userInfo.userEmail}"
-      )
       runtimes <- RuntimeServiceDbQueries
         .listRuntimesForWorkspace(labelMap, includeDeleted, creatorOnly, workspaceId, cloudProvider)
         .map(_.toList)
         .transaction
-      _ <- logger.info(ctx.loggingCtx)(
-        s"1111 finish DB lookup runtimes"
-      )
       filteredRuntimes <-
         if (creatorOnly.isDefined) {
           F.pure(runtimes)
