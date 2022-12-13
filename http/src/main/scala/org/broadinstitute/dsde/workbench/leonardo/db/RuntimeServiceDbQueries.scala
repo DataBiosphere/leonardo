@@ -396,13 +396,12 @@ object RuntimeServiceDbQueries {
                   `CLUSTER` AS C
                 #${clusterFiltersFinal}
               ) AS FILTERED_CLUSTER 
-              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) 
-              and (L.`resourceType` = 'runtime') 
+              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) and (L.`resourceType` = 'runtime') 
               #${labelMapFilters}
           ) AS LABEL_FILTERED 
           inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.id = RG.`id` 
           left join `CLUSTER_PATCH` CP on LABEL_FILTERED.id = CP.`clusterId`
-          GROUP BY LABEL_FILTERED.id"""
+          GROUP BY LABEL_FILTERED.id""".stripMargin
 
     sqlStatement.as[ListRuntimeResponse2]
   }
