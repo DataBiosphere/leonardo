@@ -327,8 +327,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
     for {
-      ctx <- as.ask
-
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
 
       creatorOnly =
@@ -357,26 +355,21 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimesUserIsNotCreator
               .partition(_.workspaceId.isDefined)
 
+          // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
+          // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
+
+          // -----------   Filter runtimes that's in runtimesUserIsNotCreatorWithWorkspaceId   -----------
+          val runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId = runtimesUserIsNotCreatorWithWorkspaceId
+            .flatMap { r =>
+              val samResourceId = for {
+                uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId)) match {
+                  case Right(id) => List(id)
+                  case Left(_)   => List.empty
+                }
+              } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
+              samResourceId.map(sid => (r, sid))
+            }
           for {
-            _ <- logger.info(ctx.loggingCtx)(
-              s"performing sam lookups in listRuntimes for user ${userInfo.userEmail}"
-            )
-
-            // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
-            // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
-
-            // -----------   Filter runtimes that's in runtimesUserIsNotCreatorWithWorkspaceId   -----------
-            runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId = runtimesUserIsNotCreatorWithWorkspaceId
-              .flatMap { r =>
-                val samResourceId = for {
-                  uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId)) match {
-                    case Right(id) => List(id)
-                    case Left(_)   => List.empty
-                  }
-                } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
-                samResourceId.map(sid => (r, sid))
-              }
-
             samVisibleWsmControlledResourceSamIds <- NonEmptyList
               .fromList(runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId.map(_._2))
               .traverse { ids =>
@@ -413,9 +406,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             }
 
             samVisibleRuntimesWithoutWorkspaceId = samProjectVisibleSamIds match {
-              case Some(samIds) =>
+              case Some(projectsAndSamIds) =>
                 runtimesAndProjects.mapFilter { case (rt, _, runtimeSamId) =>
-                  if (samIds.contains(runtimeSamId))
+                  if (projectsAndSamIds.map(_._2).contains(runtimeSamId))
                     Some(rt)
                   else None
                 }
