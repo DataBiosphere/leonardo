@@ -744,8 +744,8 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
-      "timeoutInMinutes",
-      "traceId"
+      "traceId",
+      "timeoutInMinutes"
     )(CreateRuntimeMessage.apply)
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =

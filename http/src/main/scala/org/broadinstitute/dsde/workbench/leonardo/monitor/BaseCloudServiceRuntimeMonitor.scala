@@ -508,7 +508,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       // or default to 10 minutes
       timeout: FiniteDuration = timeoutInMinutes match {
         case Some(duration) => duration
-        case None           => monitorConfig.checkTools.interruptAfter
+        case None =>
+          monitorConfig.checkTools.interruptAfter
       }
       availableTools <- streamFUntilDone(
         checkTools,

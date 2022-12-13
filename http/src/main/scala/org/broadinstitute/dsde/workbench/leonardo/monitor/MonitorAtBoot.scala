@@ -38,6 +38,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           now <- F.realTimeInstant
           implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitor${now}"))
           _ <- handleRuntime(r, None) // Should we pass in the custom timeout here, and if so how?
+          // from Qi Wang: let's leave it out for now...
+          // this class is for recovering cases when runtimes are left in transit status after Leo is restarted
           _ <- handleRuntimePatchInProgress(r)
         } yield ()
       }
