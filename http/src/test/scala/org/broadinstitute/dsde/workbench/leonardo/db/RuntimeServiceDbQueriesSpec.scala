@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   labelQuery,
   LabelResourceType,
   RuntimeServiceDbQueries,
+  SlickPlainQueryTest,
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
@@ -43,7 +44,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes" in isolatedDbTest {
+  it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
@@ -84,7 +85,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes by labels" in isolatedDbTest {
+  it should "list runtimes by labels" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -137,7 +138,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "listRuntimesForWorkspace" should "list runtimes by labels properly" in isolatedDbTest {
+  "listRuntimesForWorkspace" should "list runtimes by labels properly" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -190,7 +191,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes by project" in isolatedDbTest {
+  it should "list runtimes by project" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -229,7 +230,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes including deleted" in isolatedDbTest {
+  it should "list runtimes including deleted" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -290,7 +291,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimesV2 including deleted" in isolatedDbTest {
+  it should "list runtimesV2 including deleted" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -341,7 +342,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimesV2 by workspace" in isolatedDbTest {
+  it should "list runtimesV2 by workspace" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
 
@@ -404,7 +405,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimesV2 by cloudProvider and workspace" in isolatedDbTest {
+  it should "list runtimesV2 by cloudProvider and workspace" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
 
