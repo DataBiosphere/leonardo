@@ -17,7 +17,7 @@ class CloudServiceRuntimeMonitor[F[_]: Async](
   )(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
     ev: Ask[F, TraceId]
   ): Stream[F, Unit] = a match {
-    case CloudService.GCE => gceRuntimeMonitorInterp.process(runtimeId, action, timeoutInMinutes)
+    case CloudService.GCE      => gceRuntimeMonitorInterp.process(runtimeId, action, timeoutInMinutes)
     case CloudService.Dataproc => dataprocRuntimeMonitorInterp.process(runtimeId, action, timeoutInMinutes)
     case CloudService.AzureVm =>
       Stream.eval(
