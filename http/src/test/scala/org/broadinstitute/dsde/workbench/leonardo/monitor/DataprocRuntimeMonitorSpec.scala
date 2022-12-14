@@ -11,7 +11,8 @@ import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.mock.{
   BaseFakeGoogleDataprocService,
   FakeGoogleComputeService,
-  FakeGoogleDataprocService
+  FakeGoogleDataprocService,
+  MockGoogleDiskService
 }
 import org.broadinstitute.dsde.workbench.google2.{
   ClusterError,
@@ -583,6 +584,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       googleComputeService,
       MockAuthProvider,
       FakeGoogleStorageService,
+      MockGoogleDiskService,
       FakeDataproInterp,
       dataprocService
     )

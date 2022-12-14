@@ -7,7 +7,7 @@ import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -619,6 +619,7 @@ class GceRuntimeMonitorSpec
       googleComputeService,
       MockAuthProvider,
       FakeGoogleStorageService,
+      MockGoogleDiskService,
       publisherQueue,
       GceInterp
     )

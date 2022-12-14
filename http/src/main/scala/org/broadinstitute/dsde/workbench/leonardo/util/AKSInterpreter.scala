@@ -132,6 +132,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                                        params.cloudContext
       )
       relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+      relayPath = Uri.unsafeFromString(relayEndpoint) / params.appName.value
 
       // Deploy setup chart
       _ <- helmClient
@@ -186,7 +187,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.cloudContext,
                   params.workspaceId,
                   params.landingZoneResources,
-                  relayEndpoint,
+                  relayPath,
                   petMi,
                   storageContainer
                 ),
@@ -199,7 +200,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Poll app status
-      appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint) / app.appName.value)
+      appOk <- pollCromwellAppCreation(app.auditInfo.creator, relayPath)
       _ <-
         if (appOk)
           F.unit
@@ -376,7 +377,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      cloudContext: AzureCloudContext,
                                                      workspaceId: WorkspaceId,
                                                      landingZoneResources: LandingZoneResources,
-                                                     relayEndpoint: String,
+                                                     relayPath: Uri,
                                                      petManagedIdentity: Identity,
                                                      storageContainer: StorageContainerResponse
   ): Values =
@@ -390,7 +391,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.drsUrl=${config.drsConfig.url}",
 
         // relay configs
-        raw"relay.path=$relayEndpoint",
+        raw"relay.path=${relayPath.renderString}",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",

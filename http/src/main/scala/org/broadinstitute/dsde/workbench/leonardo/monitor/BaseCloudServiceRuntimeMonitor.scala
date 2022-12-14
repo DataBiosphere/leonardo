@@ -8,7 +8,13 @@ import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DataprocRole, GcsBlobName, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  DataprocRole,
+  GcsBlobName,
+  GoogleDiskService,
+  GoogleStorageService
+}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -42,6 +48,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def runtimeAlg: RuntimeAlgebra[F]
   def logger: StructuredLogger[F]
   def googleStorage: GoogleStorageService[F]
+  def googleDisk: GoogleDiskService[F]
 
   def monitorConfig: MonitorConfig
 
@@ -141,6 +148,34 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         runtimeAndRuntimeConfig.runtimeConfig.cloudService
       )
 
+      // If the disk is in Creating status, then it means it hasn't been used previously. Hence delete the disk
+      // if the runtime fails to create.
+      // Otherwise, the disk is most likely used previously by an old runtime, and we don't want to delete it
+      _ <-
+        if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Creating) {
+          for {
+            googleProject <- runtimeAndRuntimeConfig.runtime.cloudContext match {
+              case CloudContext.Gcp(value) => F.pure(value)
+              case CloudContext.Azure(_)   => F.raiseError(new RuntimeException("This should never happen"))
+            }
+            gceRuntimeConfig <- runtimeAndRuntimeConfig.runtimeConfig match {
+              case x: RuntimeConfig.GceWithPdConfig => F.pure(x.some)
+              case _                                => F.pure(none[RuntimeConfig.GceWithPdConfig])
+            }
+            _ <- gceRuntimeConfig.traverse_ { rc =>
+              for {
+                persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
+                  persistentDiskQuery.getPersistentDiskRecord(did).transaction
+                )
+                _ <- persistentDiskOpt.traverse_(d =>
+                  googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                    .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
+                    .transaction
+                )
+              } yield ()
+            }
+          } yield ()
+        } else F.unit
       // Update the cluster status to Error only if the runtime is non-Deleted.
       // If the user has explicitly deleted their runtime by this point then
       // we don't want to move it back to Error status.

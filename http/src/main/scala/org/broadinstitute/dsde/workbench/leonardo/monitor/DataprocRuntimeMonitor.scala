@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDataprocInterpreter,
   GoogleDataprocService,
+  GoogleDiskService,
   GoogleStorageService,
   ZoneName
 }
@@ -38,6 +39,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   googleComputeService: GoogleComputeService[F],
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
+  googleDiskService: GoogleDiskService[F],
   override val runtimeAlg: RuntimeAlgebra[F],
   googleDataprocService: GoogleDataprocService[F]
 )(implicit
@@ -51,6 +53,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
 ) extends BaseCloudServiceRuntimeMonitor[F] {
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
+  override def googleDisk: GoogleDiskService[F] = googleDiskService
 
   /**
    * Queries Google for the cluster status and takes appropriate action depending on the result.
