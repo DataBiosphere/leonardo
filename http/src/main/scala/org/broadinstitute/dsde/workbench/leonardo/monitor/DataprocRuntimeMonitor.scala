@@ -61,7 +61,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
    */
   override def handleCheck(monitorContext: MonitorContext,
                            runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                           timeoutInMinutes: Option[FiniteDuration]
+                           checkToolsInterruptAfter: Option[FiniteDuration]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
@@ -91,7 +91,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         }
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
-          creatingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig.runtime, dataprocConfig, timeoutInMinutes)
+          creatingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig.runtime, dataprocConfig, checkToolsInterruptAfter)
         case RuntimeStatus.Deleting =>
           deletedRuntime(cluster, monitorContext, runtimeAndRuntimeConfig)
         case RuntimeStatus.Starting =>
@@ -114,7 +114,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     monitorContext: MonitorContext,
     runtime: Runtime,
     dataprocConfig: RuntimeConfig.DataprocConfig,
-    timeoutInMinutes: Option[FiniteDuration]
+    checkToolsInterruptAfter: Option[FiniteDuration]
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = {
     val runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, dataprocConfig)
     cluster match {
@@ -169,7 +169,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                                                    ip,
                                                                    masterInstance,
                                                                    true,
-                                                                   timeoutInMinutes
+                                                                   checkToolsInterruptAfter
                             )
                           case None =>
                             checkAgain(monitorContext,

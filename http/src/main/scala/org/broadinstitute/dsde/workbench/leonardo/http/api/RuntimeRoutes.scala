@@ -450,6 +450,8 @@ object RuntimeRoutes {
       wr,
       s.getOrElse(Set.empty),
       cv.getOrElse(Map.empty),
+      // Note that the timeoutInMinutes provided by the UI corresponds to the checkToolsInterruptAfter parameter
+      // within the backend environment
       tm.map(x => x minutes)
     )
   }

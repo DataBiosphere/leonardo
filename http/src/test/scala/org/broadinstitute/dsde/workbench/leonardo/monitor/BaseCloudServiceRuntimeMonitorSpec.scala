@@ -56,7 +56,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtimeMonitor = new MockRuntimeMonitor(true, Map(RuntimeStatus.Starting -> 2.seconds)) {
         override def handleCheck(monitorContext: MonitorContext,
                                  runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                                 timeoutInMinutes: Option[FiniteDuration]
+                                 checkToolsInterruptAfter: Option[FiniteDuration]
         )(implicit
           ev: Ask[IO, AppContext]
         ): IO[(Unit, Option[MonitorState])] = checkAgain(monitorContext, runtimeAndRuntimeConfig, None, None, None)
@@ -129,6 +129,13 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
   it should "move to failed status if checkTools times out after a custom timeout" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(false)
 
+    val customcheckToolsInterruptAfter = Some(5 seconds)
+    val customCheckTools =
+      runtimeMonitor.getCustomInterruptablePollMonitorConfig(InterruptablePollMonitorConfig(5, 5 seconds, 25 seconds),
+                                                             customcheckToolsInterruptAfter
+      )
+    val customInterval = customCheckTools.interval
+
     val res = for {
       disk <- makePersistentDisk().save()
       start <- IO.realTimeInstant
@@ -145,7 +152,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
                                              IP("1.2.3.4"),
                                              None,
                                              true,
-                                             Some(5 seconds)
+                                             customcheckToolsInterruptAfter
       )
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
@@ -154,6 +161,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
         .getRuntimeConfig(runtime.runtimeConfigId)(scala.concurrent.ExecutionContext.Implicits.global)
         .transaction
     } yield {
+      customInterval shouldBe 1.seconds
       // handleCheckTools should have been interrupted after 5 seconds and moved the runtime to Error status
       elapsed shouldBe 5000L +- 1000L
       status shouldBe Some(RuntimeStatus.Error)
@@ -292,7 +300,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     override def handleCheck(monitorContext: MonitorContext,
                              runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                             timeoutInMinutes: Option[FiniteDuration]
+                             checkToolsInterruptAfter: Option[FiniteDuration]
     )(implicit
       ev: Ask[IO, AppContext]
     ): IO[(Unit, Option[MonitorState])] = ???

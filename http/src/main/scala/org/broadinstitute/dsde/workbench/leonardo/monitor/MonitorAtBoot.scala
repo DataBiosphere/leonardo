@@ -72,14 +72,14 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       a <- Stream.emits(n.apps)
     } yield (a, n, c)
 
-  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor, timeoutInMinutes: Option[Int])(implicit
+  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor, checkToolsInterruptAfter: Option[Int])(implicit
     ev: Ask[F, TraceId]
   ): F[Unit] = {
     val res = for {
       traceId <- ev.ask[TraceId]
       msg <- runtimeToMonitor.cloudContext match {
         case CloudContext.Gcp(_) =>
-          runtimeStatusToMessageGCP(runtimeToMonitor, traceId, timeoutInMinutes)
+          runtimeStatusToMessageGCP(runtimeToMonitor, traceId, checkToolsInterruptAfter)
         case CloudContext.Azure(_) =>
           runtimeStatusToMessageAzure(runtimeToMonitor, traceId)
       }
@@ -222,7 +222,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
 
   private def runtimeStatusToMessageGCP(runtime: RuntimeToMonitor,
                                         traceId: TraceId,
-                                        timeoutInMinutes: Option[Int]
+                                        checkToolsInterruptAfter: Option[Int]
   ): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
@@ -296,7 +296,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           runtime.customEnvironmentVariables,
           rtConfigInMessage,
           Some(traceId),
-          timeoutInMinutes
+          checkToolsInterruptAfter
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }

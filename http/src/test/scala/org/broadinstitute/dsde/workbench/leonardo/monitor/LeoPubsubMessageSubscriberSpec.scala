@@ -186,7 +186,7 @@ class LeoPubsubMessageSubscriberSpec
     val runtimeMonitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
-      )(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
         ev: Ask[IO, TraceId]
       ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
     }
@@ -443,7 +443,7 @@ class LeoPubsubMessageSubscriberSpec
     val monitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
-      )(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
         ev: Ask[IO, TraceId]
       ): Stream[IO, Unit] =
         Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)

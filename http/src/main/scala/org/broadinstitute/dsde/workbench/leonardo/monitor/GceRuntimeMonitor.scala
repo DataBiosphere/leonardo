@@ -113,7 +113,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
    */
   override def handleCheck(monitorContext: MonitorContext,
                            runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                           timeoutInMinutes: Option[FiniteDuration]
+                           checkToolsInterruptAfter: Option[FiniteDuration]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
@@ -135,7 +135,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       )
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
-          creatingRuntime(instance, monitorContext, runtimeAndRuntimeConfig, timeoutInMinutes)
+          creatingRuntime(instance, monitorContext, runtimeAndRuntimeConfig, checkToolsInterruptAfter)
         // This is needed because during boot time, we no longer have reference to the previous delete operation
         // But this path should only happen during boot and there's on-going delete
         case RuntimeStatus.Deleting =>
@@ -163,7 +163,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
     instance: Option[Instance],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-    timeoutInMinutes: Option[FiniteDuration]
+    checkToolsInterruptAfter: Option[FiniteDuration]
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = instance match {
     case None =>
       nowInstant
@@ -228,7 +228,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                                               ip,
                                                               None,
                                                               true,
-                                                              timeoutInMinutes
+                                                              checkToolsInterruptAfter
                       )
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))

@@ -99,7 +99,7 @@ object RuntimeRoutesTestJsonCodec {
     "welderRegistry",
     "scopes",
     "customEnvironmentVariables",
-    "timeoutInMinutes"
+    "checkToolsInterruptAfter"
   )(x =>
     (
       x.labels,
@@ -114,7 +114,7 @@ object RuntimeRoutesTestJsonCodec {
       x.welderRegistry,
       x.scopes,
       x.customEnvironmentVariables,
-      x.timeoutInMinutes.map(_.toMinutes)
+      x.checkToolsInterruptAfter.map(_.toMinutes)
     )
   )
 
