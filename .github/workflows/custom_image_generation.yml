@@ -16,6 +16,13 @@ on:
         default: false
         type: boolean
 
+env:
+  GOOGLE_PROJECT: broad-dsp-gcr-public
+  GOOGLE_CREDENTIAL_FILE_NAME: image-build-account.json
+  REGION: us-central1
+  ZONE: us-central1-a
+  OUTPUT_BASE_NAME: custom-leo
+
 jobs:
   inspect-changes:
     runs-on: ubuntu-latest
@@ -42,13 +49,43 @@ jobs:
   run-image-generation-script-gce:
     runs-on: ubuntu-latest
     needs: inspect-changes
+    env:
+      GCE_IMAGE_BUCKET: gs://leo-gce-image-creation-logs
+      DAISY_IMAGE: gcr.io/compute-image-tools/daisy:release
+      TEST:
+
     if: needs.inspect-changes.outputs.has-gce-changes == 'true' && github.event.inputs.run-gce-override == 'true'
 
     steps:
     - uses: actions/checkout@v3
 
     - name: test step 1
-      run: echo "test 1"
+      run: |
+        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
+        docker pull $DAISY_IMAGE
+        docker run -i --rm -v $GITHUB_WORKSPACE/jenkins/gce-custom-images:/gce-custom-images \
+        $daisyImage \
+        -project $GOOGLE_PROJECT \
+        -zone $ZONE \
+        -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
+        -gcs_path $GCE_IMAGE_BUCKET \
+        -default_timeout 45m \
+        -var:base_image $GCE_BASE_IMAGE \
+        -var:output_image "${customGceImageBaseName}-${imageID}" \
+        -var:gce_images_dir /gce-custom-images \
+        -var:installation_script_name prepare_gce_image.sh \
+        /gce-custom-images/gce_image.wf.json
+        docker stop daisy || true
+        docker rm -f daisy || true
+        
+        # Daisy doesn't clean it up all so we remove the bucket manually
+        gsutil rm -r $GCE_IMAGE_BUCKET
+        
+        # Make the image public
+        gcloud beta compute images add-iam-policy-binding \
+        projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \
+        --member='allAuthenticatedUsers' \
+        --role='roles/compute.imageUser'
 
       #run script
       #make changes to reference.conf or have a nice output with instructions
@@ -63,6 +100,30 @@ jobs:
 
       - name: test step 2
         run: echo "test 2"
+
+#        git submodule sync
+#        git submodule update --init --recursive
+
+#        sed -i 's/python_version=.*/python_version="$python_version"/' jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+#        cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+#        cd jenkins/dataproc-custom-images
+#        docker run --rm -v `pwd`:/work:ro gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
+#        && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
+#        && gcloud auth configure-docker --quiet \
+#        && gcloud config set dataproc/region us-central1 \
+#        && python generate_custom_image.py \
+#        --image-name "$customDataprocImageBaseName-$dp_version_formatted-$imageID" \
+#        --dataproc-version "$dp_version" \
+#        --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+#        --zone $ZONE \
+#        --gcs-bucket $DATAPROC_IMAGE_BUCKET \
+#        --project-id=$GOOGLE_PROJECT \
+#        --disk-size=120"
+
+# TODO : investigate this from `create_dataproc_image.sh`
+        ## application_default_credentials.json needs to be copied to jenkins/dataproc-custom-images/ which is mounted on Daisy container
+        ## Credentials can be refreshed via 'gcloud auth application-default login' with project set to 'broad-dsde-dev' using
+        ## Broad account. They are saved at '~/.config/gcloud/application_default_credentials.json' by default.
 
         #run script
         #make changes to reference.conf or have a nice output with instructions
