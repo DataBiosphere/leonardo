@@ -144,7 +144,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
+                          sbtscala/scala-sbt:openjdk-17.0.2_1.8.0_2.13.10 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db

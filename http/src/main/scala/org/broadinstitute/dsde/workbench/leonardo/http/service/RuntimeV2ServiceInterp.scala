@@ -11,6 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   RuntimeSamResourceId,
@@ -331,69 +332,103 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
     for {
-      paramMap <- F.fromEither(processListParameters(params))
+      (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
 
+      creatorOnly =
+        // Support filtering by creator either by role=creator query string, or creator=<user email> label
+        if (
+          params
+            .get(creatorOnlyKey)
+            .exists(_ == creatorOnlyValue) || labelMap.get(creatorOnlyValue).exists(_ == userInfo.userEmail)
+        ) Some(userInfo.userEmail)
+        else None
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(paramMap._1, paramMap._2, workspaceId, cloudProvider)
+        .listRuntimesForWorkspace(labelMap, includeDeleted, creatorOnly, workspaceId, cloudProvider)
+        .map(_.toList)
         .transaction
+      filteredRuntimes <-
+        if (creatorOnly.isDefined) {
+          F.pure(runtimes)
+        } else {
+          val (runtimesUserIsCreator, runtimesUserIsNotCreator) =
+            runtimes.partition(_.auditInfo.creator == userInfo.userEmail)
 
-      (runtimesUserIsCreator, runtimesUserIsNotCreator) = runtimes.partition(_.auditInfo.creator == userInfo.userEmail)
+          // Here, we optimize the SAM lookups based on whether we will need to use the google project fallback
+          // IF (workspaceId) EXISTS we need WSM resource ID sam lookup + workspaceId Fallback
+          // ELSE we need googleProject fallback
+          val (runtimesUserIsNotCreatorWithWorkspaceId, runtimesUserIsNotCreatorWithoutWorkspaceId) =
+            runtimesUserIsNotCreator
+              .partition(_.workspaceId.isDefined)
 
-      // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
-      // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
-      wsmControlledResourceSamIds = runtimesUserIsNotCreator
-        .flatMap { r =>
-          for {
-            uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId)) match {
-              case Right(id) => List(id)
-              case Left(_)   => List.empty
+          // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
+          // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
+
+          // -----------   Filter runtimes that's in runtimesUserIsNotCreatorWithWorkspaceId   -----------
+          val runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId = runtimesUserIsNotCreatorWithWorkspaceId
+            .flatMap { r =>
+              val samResourceId = for {
+                uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId)) match {
+                  case Right(id) => List(id)
+                  case Left(_)   => List.empty
+                }
+              } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
+              samResourceId.map(sid => (r, sid))
             }
-          } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
+          for {
+            samVisibleWsmControlledResourceSamIds <- NonEmptyList
+              .fromList(runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId.map(_._2))
+              .traverse { ids =>
+                authProvider.filterUserVisible(ids, userInfo)
+              }
+              .map(_.getOrElse(List.empty))
+
+            samUserVisibleRuntimesUserIsNotCreatorWithWorkspace =
+              runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId.mapFilter(runtimeAndSamId =>
+                if (samVisibleWsmControlledResourceSamIds.contains(runtimeAndSamId._2))
+                  Some(runtimeAndSamId._1)
+                else None
+              )
+
+            // -----------   Filter runtimes that's in runtimesUserIsNotCreatorWithoutWorkspaceId   -----------
+            // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
+            runtimesAndProjects = runtimesUserIsNotCreatorWithoutWorkspaceId
+              .mapFilter { case rt =>
+                rt.cloudContext match {
+                  case CloudContext.Gcp(googleProject) =>
+                    Some((rt, googleProject, rt.samResource))
+                  case CloudContext.Azure(_) =>
+                    None // This should never happen cuz all Azure runtimes has a workspaceId
+                }
+              }
+
+            samProjectVisibleSamIds <- NonEmptyList.fromList(runtimesAndProjects.map(x => (x._2, x._3))).traverse {
+              rs =>
+                authProvider
+                  .filterUserVisibleWithProjectFallback(
+                    rs,
+                    userInfo
+                  )
+            }
+
+            samVisibleRuntimesWithoutWorkspaceId = samProjectVisibleSamIds match {
+              case Some(projectsAndSamIds) =>
+                runtimesAndProjects.mapFilter { case (rt, _, runtimeSamId) =>
+                  if (projectsAndSamIds.map(_._2).contains(runtimeSamId))
+                    Some(rt)
+                  else None
+                }
+              case None => List.empty
+            }
+          } yield
+          // runtimesUserIsCreator: runtimes user is creator
+          // samUserVisibleRuntimesUserIsNotCreatorWithWorkspace: runtimes user is not creator, but it's visible by checking with Sam directly.
+          //                                                      Note here we don't need to check workspace level permission because for WSM created resources, permissions
+          //                                                      built hierarchically. So by asking Sam if user can read a runtime will implicitly check user's permission at workspace level
+          // samVisibleRuntimesWithoutWorkspaceId: runtimes user is not creator, but user can view the runtime according to Sam
+          runtimesUserIsCreator ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
         }
 
-      samVisibleWsmControlledResourceSamIds <- NonEmptyList
-        .fromList(wsmControlledResourceSamIds)
-        .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
-        .map(_.getOrElse(List.empty))
-
-      // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
-      samVisibleRuntimeSamResourceIds <- NonEmptyList
-        .fromList(runtimesUserIsNotCreator.map(_.samResource))
-        .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
-        .map(_.getOrElse(List.empty))
-
-      workspaceFilterableRuntimes <- NonEmptyList
-        .fromList(
-          runtimesUserIsNotCreator.flatMap(runtime =>
-            runtime.workspaceId match {
-              case Some(id) => List((id, WorkspaceResourceSamResourceId(id)))
-              case None     => List.empty
-            }
-          )
-        )
-        .traverse(workspaces =>
-          authProvider.filterUserVisibleWithWorkspaceFallback(
-            workspaces,
-            userInfo
-          )
-        )
-        .map(_.getOrElse(List.empty))
-
-      userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r =>
-        // check for visibility based on vms that are wsm controlled resoources
-        samVisibleWsmControlledResourceSamIds
-          .map(id => RuntimeSamResourceId(id.resourceId))
-          .contains(r.samResource) ||
-          // check for visibility fallback for backwards compatibility with runtime v1 sam ids
-          samVisibleRuntimeSamResourceIds
-            .contains(r.samResource) ||
-          // check for visibility based on whether the user is the owner of the workspace that the runtime belongs to
-          r.workspaceId.fold(false)(workspaceId =>
-            workspaceFilterableRuntimes.contains((workspaceId, WorkspaceResourceSamResourceId(workspaceId)))
-          )
-      )
-
-    } yield userVisibleRuntimes.toVector
+    } yield filteredRuntimes.toVector
 
   private[service] def convertToDisk(userInfo: UserInfo,
                                      cloudContext: CloudContext,

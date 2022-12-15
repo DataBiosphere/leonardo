@@ -73,6 +73,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
 
   def dbFutureValue[T](f: DBIO[T]): T =
     testDbRef.inTransaction(f).timeout(60 seconds).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
   def dbFailure[T](f: DBIO[T]): Throwable =
     testDbRef
       .inTransaction(f)
