@@ -236,16 +236,20 @@ object RuntimeServiceDbQueries {
     }.toSeq
   }
 
-  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, cloudContext: Option[CloudContext] = None)(implicit
+  def listRuntimes(labelMap: LabelMap,
+                   includeDeleted: Boolean,
+                   creatorOnly: Option[WorkbenchEmail],
+                   cloudContext: Option[CloudContext] = None
+  )(implicit
     ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val cloudContextFilter = cloudContext match {
       case Some(cc) => Some(Left(cc))
       case None     => None
     }
-    listRuntimesHelper(labelMap, includeDeleted, None, None, cloudContextFilter).map(
+    listRuntimesHelper(labelMap, includeDeleted, creatorOnly, None, cloudContextFilter).map(
       _.toList
-    ) // TODO: we should take advantage of creatorOnly filter with Lily's ticket
+    )
   }
 
   def listRuntimesForWorkspace(labelMap: LabelMap,

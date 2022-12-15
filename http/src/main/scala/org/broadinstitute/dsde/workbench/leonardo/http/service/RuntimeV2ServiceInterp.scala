@@ -334,7 +334,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         if (
           params
             .get(creatorOnlyKey)
-            .exists(_ == creatorOnlyValue) || labelMap.get("creator").exists(_ == userInfo.userEmail)
+            .exists(_ == creatorOnlyValue) || labelMap.get(creatorOnlyValue).exists(_ == userInfo.userEmail)
         ) Some(userInfo.userEmail)
         else None
       runtimes <- RuntimeServiceDbQueries
