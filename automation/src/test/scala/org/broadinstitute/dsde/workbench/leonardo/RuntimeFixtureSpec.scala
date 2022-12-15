@@ -193,7 +193,7 @@ object RuntimeFixtureSpec {
       welderRegistry = welderRegistry,
       scopes = Set.empty,
       customEnvironmentVariables = getCustomEnvironmentVariables,
-      timeoutInMinutes = None
+      checkToolsInterruptAfter = None
     )
   }
 }

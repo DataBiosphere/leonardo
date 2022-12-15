@@ -14,11 +14,11 @@ class CloudServiceRuntimeMonitor[F[_]: Async](
 ) extends RuntimeMonitor[F, CloudService] {
   def process(
     a: CloudService
-  )(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
+  )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
     ev: Ask[F, TraceId]
   ): Stream[F, Unit] = a match {
-    case CloudService.GCE      => gceRuntimeMonitorInterp.process(runtimeId, action, timeoutInMinutes)
-    case CloudService.Dataproc => dataprocRuntimeMonitorInterp.process(runtimeId, action, timeoutInMinutes)
+    case CloudService.GCE      => gceRuntimeMonitorInterp.process(runtimeId, action, checkToolsInterruptAfter)
+    case CloudService.Dataproc => dataprocRuntimeMonitorInterp.process(runtimeId, action, checkToolsInterruptAfter)
     case CloudService.AzureVm =>
       Stream.eval(
         Async[F].raiseError(

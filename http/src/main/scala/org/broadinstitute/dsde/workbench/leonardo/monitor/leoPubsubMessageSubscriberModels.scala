@@ -193,7 +193,7 @@ object LeoPubsubMessage {
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
                                         traceId: Option[TraceId],
-                                        timeoutInMinutes: Option[Int]
+                                        checkToolsInterruptAfter: Option[Int]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
   }
@@ -202,7 +202,7 @@ object LeoPubsubMessage {
     def fromRuntime(runtime: Runtime,
                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
                     traceId: Option[TraceId],
-                    timeoutInMinutes: Option[FiniteDuration]
+                    checkToolsInterruptAfter: Option[FiniteDuration]
     ): CreateRuntimeMessage =
       CreateRuntimeMessage(
         runtime.id,
@@ -220,7 +220,7 @@ object LeoPubsubMessage {
         runtime.customEnvironmentVariables,
         runtimeConfig,
         traceId,
-        timeoutInMinutes.map(x => x.toMinutes.toInt)
+        checkToolsInterruptAfter.map(x => x.toMinutes.toInt)
       )
   }
 
@@ -641,7 +641,7 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
-      "timeoutInMinutes",
+      "checkToolsInterruptAfter",
       "traceId"
     )(x =>
       (x.messageType,
@@ -659,7 +659,7 @@ object LeoPubsubCodec {
        x.welderEnabled,
        x.customEnvironmentVariables,
        x.runtimeConfig,
-       x.timeoutInMinutes,
+       x.checkToolsInterruptAfter,
        x.traceId
       )
     )
@@ -745,7 +745,7 @@ object LeoPubsubCodec {
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "traceId",
-      "timeoutInMinutes"
+      "checkToolsInterruptAfter"
     )(CreateRuntimeMessage.apply)
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =

@@ -108,10 +108,10 @@ package object http {
 final case class CloudServiceMonitorOps[F[_], A](a: A)(implicit
   monitor: RuntimeMonitor[F, A]
 ) {
-  def process(runtimeId: Long, action: RuntimeStatus, timeoutInMinutes: Option[FiniteDuration])(implicit
+  def process(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
     ev: Ask[F, TraceId]
   ): Stream[F, Unit] =
-    monitor.process(a)(runtimeId, action, timeoutInMinutes)
+    monitor.process(a)(runtimeId, action, checkToolsInterruptAfter)
 
   def handlePollCheckCompletion(monitorContext: MonitorContext,
                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig

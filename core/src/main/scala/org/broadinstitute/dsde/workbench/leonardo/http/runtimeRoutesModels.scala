@@ -64,7 +64,7 @@ final case class CreateRuntimeRequest(
   welderRegistry: Option[ContainerRegistry],
   scopes: Set[String],
   customEnvironmentVariables: Map[String, String],
-  timeoutInMinutes: Option[FiniteDuration]
+  checkToolsInterruptAfter: Option[FiniteDuration]
 )
 
 final case class CreateRuntimeResponse(traceId: TraceId)
