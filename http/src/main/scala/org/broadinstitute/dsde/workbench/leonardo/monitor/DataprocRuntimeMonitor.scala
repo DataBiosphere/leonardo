@@ -91,7 +91,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         }
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
-          creatingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig.runtime, dataprocConfig, checkToolsInterruptAfter)
+          creatingRuntime(cluster,
+                          monitorContext,
+                          runtimeAndRuntimeConfig.runtime,
+                          dataprocConfig,
+                          checkToolsInterruptAfter
+          )
         case RuntimeStatus.Deleting =>
           deletedRuntime(cluster, monitorContext, runtimeAndRuntimeConfig)
         case RuntimeStatus.Starting =>
