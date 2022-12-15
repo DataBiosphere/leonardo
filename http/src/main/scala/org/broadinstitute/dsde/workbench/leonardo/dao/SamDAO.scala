@@ -77,8 +77,14 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  /** Deletes a Sam resource R using the provided user token. */
+  /** Deletes a Sam resource R using the provided user info. */
   def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
+  /** Deletes a Sam resource R using the provided bearer token. */
+  def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
@@ -96,8 +102,13 @@ trait SamDAO[F[_]] {
   /** Gets the GCP proxy group for provided user email. */
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]]
 
-  /** Gets a GCP pet access token from cache for the provider user/project. */
+  /** Gets a GCP pet access token from cache for the provided user/project. */
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[String]]
+
+  /** Gets a GCP pet access token from cache for the provided user in a shell project. */
+  def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[String]]
 

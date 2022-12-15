@@ -91,4 +91,7 @@
     <include file="changesets/20220726_support_azure_for_app.xml" relativeToChangelogFile="true" />
     <include file="changesets/20220804_add_non_null_for_cloud_context_app.xml" relativeToChangelogFile="true" />
     <include file="changesets/20221017_add_workspace_id_to_kubernetes_cluster.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20221115_azure_app_refactor.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20221117_move_workspace_id_to_app_table.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20221122_add_saturnAutoCreated_label.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

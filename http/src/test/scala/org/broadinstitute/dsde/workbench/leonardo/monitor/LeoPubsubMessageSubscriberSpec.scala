@@ -198,6 +198,7 @@ class LeoPubsubMessageSubscriberSpec
             .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
             .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
         )
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -207,9 +208,11 @@ class LeoPubsubMessageSubscriberSpec
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
           runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           error.nonEmpty shouldBe true
           runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+          diskStatus shouldBe Some(DiskStatus.Deleted)
         }
 
         _ <- withInfiniteStream(
@@ -1037,7 +1040,7 @@ class LeoPubsubMessageSubscriberSpec
       .save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
@@ -1086,7 +1089,7 @@ class LeoPubsubMessageSubscriberSpec
       .save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
@@ -1124,7 +1127,7 @@ class LeoPubsubMessageSubscriberSpec
     val mockAckConsumer = mock[AckReplyConsumer]
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
@@ -1276,7 +1279,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
+        .getFullAppById(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
@@ -1364,7 +1367,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
+        .getFullAppById(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
@@ -1436,7 +1439,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.cloudContext, savedApp1.id)
+        .getFullAppById(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -1534,7 +1537,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Starting).save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
@@ -1670,7 +1673,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
 
     val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.cloudContext, savedApp1.id).transaction
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedApp1.id).transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 0

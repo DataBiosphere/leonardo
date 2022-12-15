@@ -106,7 +106,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
-      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
+      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(
+        params,
+        auth
+      )
 
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
@@ -274,16 +277,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
     for {
       ctx <- ev.ask[AppContext]
-      storageAccountOpt <- wsmDao.getWorkspaceStorageAccount(params.workspaceId, auth)
-      storageAccount <- F.fromOption(
-        storageAccountOpt,
-        new RuntimeException(s"${params.workspaceId} doesn't have a storage account provisioned properly")
-      )
       resp <- wsmDao.createStorageContainer(
         CreateStorageContainerRequest(
           params.workspaceId,
           storageContainerCommonFields,
-          StorageContainerRequest(storageAccount.resourceId, stagingContainerName)
+          StorageContainerRequest(stagingContainerName)
         ),
         auth
       )
@@ -291,10 +289,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
         .transaction
       _ <- clusterQuery
-        .updateStagingBucket(params.runtime.id,
-                             Some(StagingBucket.Azure(storageAccount.name, stagingContainerName)),
-                             ctx.now
-        )
+        .updateStagingBucket(params.runtime.id, Some(StagingBucket.Azure(stagingContainerName)), ctx.now)
         .transaction
     } yield (stagingContainerName, resp.resourceId)
   }
@@ -396,6 +391,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
 
       isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
+      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
         _ <- F.sleep(
@@ -445,6 +441,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.maxAttempts,
                 config.createVmPollConfig.interval,
                 s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+              )
+              _ <- streamUntilDoneOrTimeout(
+                isWelderUp,
+                config.createVmPollConfig.maxAttempts,
+                config.createVmPollConfig.interval,
+                s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
               _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
@@ -717,6 +719,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
         .transaction
       _ <- diskResourceOpt.traverse { disk =>
+        // TODO: once we start supporting persistent disk, we should not delete disk anymore
         wsmDao.deleteDisk(
           DeleteWsmResourceRequest(
             e.workspaceId,
@@ -728,6 +731,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           auth
         )
       }.void
+      _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
@@ -749,19 +753,52 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   override def createAndPollApp(appId: AppId,
                                 appName: AppName,
                                 workspaceId: WorkspaceId,
-                                cloudContext: AzureCloudContext
+                                cloudContext: AzureCloudContext,
+                                landingZoneResources: LandingZoneResources,
+                                storageContainer: Option[StorageContainerResponse]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext)
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, landingZoneResources, storageContainer)
       _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(
             s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
             ctx.now,
             ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
+    } yield ()
+
+  override def deleteApp(
+    appId: AppId,
+    appName: AppName,
+    workspaceId: WorkspaceId,
+    landingZoneResources: LandingZoneResources,
+    cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext)
+      _ <- aksAlgebra.deleteApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error deleting Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.DeleteApp,
             ErrorSource.App,
             None,
             Some(ctx.traceId)

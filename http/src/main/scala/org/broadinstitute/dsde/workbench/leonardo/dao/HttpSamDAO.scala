@@ -39,7 +39,7 @@ import scala.util.control.NoStackTrace
 
 class HttpSamDAO[F[_]](httpClient: Client[F],
                        config: HttpSamDaoConfig,
-                       petTokenCache: Cache[F, UserEmailAndProject, Option[String]]
+                       petKeyCache: Cache[F, UserEmailAndProject, Option[Json]]
 )(implicit
   logger: StructuredLogger[F],
   F: Async[F],
@@ -146,15 +146,12 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     for {
       traceId <- ev.ask
-      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
+      tokenOpt <- getCachedPetAccessToken(creatorEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- createResourceInternal(resource, authHeader)
@@ -204,15 +201,12 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     for {
       traceId <- ev.ask
-      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
+      tokenOpt <- getCachedPetAccessToken(creatorEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       loggingCtx = Map("traceId" -> traceId.asString)
@@ -249,15 +243,12 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     for {
       traceId <- ev.ask
-      token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
+      tokenOpt <- getCachedPetAccessToken(creatorEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${creatorEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- deleteResourceInternal(resource, authHeader)
@@ -269,7 +260,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     deleteResourceInternal(resource, Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)))
 
-  private def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
+  def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
@@ -350,13 +341,33 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[String]] =
-    if (config.petCacheEnabled) {
-      petTokenCache.cachingF(UserEmailAndProject(userEmail, googleProject))(None)(
-        getPetAccessToken(userEmail, googleProject)
-      )
-    } else {
-      getPetAccessToken(userEmail, googleProject)
-    }
+    for {
+      keyOpt <-
+        if (config.petCacheEnabled) {
+          petKeyCache.cachingF(UserEmailAndProject(userEmail, googleProject))(None)(
+            getPetKey(userEmail, googleProject)
+          )
+        } else {
+          getPetKey(userEmail, googleProject)
+        }
+      token <- keyOpt.traverse(getTokenFromKey)
+    } yield token
+
+  override def getCachedArbitraryPetAccessToken(
+    userEmail: WorkbenchEmail
+  )(implicit ev: Ask[F, TraceId]): F[Option[String]] =
+    for {
+      keyOpt <-
+        if (config.petCacheEnabled) {
+          // Cache only by email in the "arbitrary pet" case
+          petKeyCache.cachingF(UserEmailAndProject(userEmail, GoogleProject("user-shell-project")))(None)(
+            getArbitraryPetKey(userEmail)
+          )
+        } else {
+          getArbitraryPetKey(userEmail)
+        }
+      token <- keyOpt.traverse(getTokenFromKey)
+    } yield token
 
   override def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
@@ -364,22 +375,18 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     for {
       traceId <- ev.ask
       _ <- metrics.incrementCounter("sam/getSubjectId")
-      token <- getCachedPetAccessToken(userEmail, googleProject).flatMap(
-        _.fold(
-          F.raiseError[String](
-            AuthProviderException(traceId,
-                                  s"No pet SA found for ${userEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized
-            )
-          )
-        )(s => F.pure(s))
+      tokenOpt <- getCachedPetAccessToken(userEmail, googleProject)
+      token <- F.fromOption(tokenOpt,
+                            AuthProviderException(traceId,
+                                                  s"No pet SA found for ${userEmail} in ${googleProject}",
+                                                  StatusCodes.Unauthorized
+                            )
       )
       userInfo <- getSamUserInfo(token)
     } yield userInfo.map(_.userSubjectId)
 
   override def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-
     for {
       resp <- httpClient.expectOptionOr[SamUserInfo](
         Request[F](
@@ -442,9 +449,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       F.delay(scopedCredential.refresh).map(_ => scopedCredential.getAccessToken)
     }
 
-  private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
-  ): F[Option[String]] =
+  ): F[Option[Json]] =
     for {
       leoAuth <- getLeoAuthToken
       _ <- metrics.incrementCounter("sam/getPetServiceAccount")
@@ -460,12 +467,31 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           headers = Headers(leoAuth)
         )
       )(onError)
-      token <- userPetKey.traverse { key =>
-        val keyStream = new ByteArrayInputStream(key.toString().getBytes)
-        F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
-          .map(_.refreshAccessToken.getTokenValue)
-      }
-    } yield token
+    } yield userPetKey
+
+  private def getArbitraryPetKey(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[Json]] =
+    for {
+      leoAuth <- getLeoAuthToken
+      _ <- metrics.incrementCounter("sam/getArbitraryPetServiceAccount")
+      // fetch user's pet SA key with leo's authorization token
+      userPetKey <- httpClient.expectOptionOr[Json](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            Uri.Path.unsafeFromString(
+              s"/api/google/v1/petServiceAccount/${URLEncoder.encode(userEmail.value, UTF_8.name)}/key"
+            )
+          ),
+          headers = Headers(leoAuth)
+        )
+      )(onError)
+    } yield userPetKey
+
+  private def getTokenFromKey(key: Json): F[String] = {
+    val keyStream = new ByteArrayInputStream(key.toString().getBytes)
+    F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
+      .map(_.refreshAccessToken.getTokenValue)
+  }
 
   private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
     for {
@@ -481,9 +507,9 @@ object HttpSamDAO {
   def apply[F[_]: Async](
     httpClient: Client[F],
     config: HttpSamDaoConfig,
-    petTokenCache: Cache[F, UserEmailAndProject, Option[String]]
+    petKeyCache: Cache[F, UserEmailAndProject, Option[Json]]
   )(implicit logger: StructuredLogger[F], metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
-    new HttpSamDAO[F](httpClient, config, petTokenCache)
+    new HttpSamDAO[F](httpClient, config, petKeyCache)
 
   implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)
   implicit val projectActionEncoder: Encoder[ProjectAction] = Encoder.encodeString.contramap(_.asString)

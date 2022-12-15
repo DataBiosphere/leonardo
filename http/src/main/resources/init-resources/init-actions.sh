@@ -134,6 +134,8 @@ function apply_start_user_script() {
 # .. after jupyter notebook start
 # END
 STEP_TIMINGS=($(date +%s))
+# temp workaround for https://github.com/docker/compose/issues/5930
+export CLOUDSDK_PYTHON=python3
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
@@ -182,9 +184,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     PROXY_SITE_CONF=$(proxySiteConf)
     export HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-      export IS_RSTUDIO_RUNTIME="true"
+      export SHOULD_BACKGROUND_SYNC="true"
     else
-      export IS_RSTUDIO_RUNTIME="false"
+      export SHOULD_BACKGROUND_SYNC="false"
     fi
 
     SERVER_CRT=$(proxyServerCrt)
@@ -538,7 +540,7 @@ END
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL
-IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
+SHOULD_BACKGROUND_SYNC=$SHOULD_BACKGROUND_SYNC" >> /usr/local/lib/R/etc/Renviron.site'
 
       # Add custom_env_vars.env to Renviron.site
       CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env

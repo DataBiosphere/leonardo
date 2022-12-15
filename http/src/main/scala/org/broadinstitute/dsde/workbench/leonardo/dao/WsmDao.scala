@@ -1,12 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.util.UUID
+import _root_.io.circe._
+import _root_.io.circe.syntax._
 import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import _root_.io.circe._
-import _root_.io.circe.syntax._
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   googleProjectDecoder,
   relayNamespaceDecoder,
   runtimeNameEncoder,
-  storageAccountNameDecoder,
   storageContainerNameDecoder,
   storageContainerNameEncoder,
   workspaceIdDecoder,
@@ -24,20 +23,14 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   wsmJobIdDecoder,
   wsmJobIdEncoder
 }
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.azure.{
-  AzureCloudContext,
-  ContainerName,
-  ManagedResourceGroupName,
-  RelayNamespace,
-  SubscriptionId,
-  TenantId
-}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import java.util.UUID
 
 trait WsmDao[F[_]] {
   def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
@@ -92,6 +85,14 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 
+  def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[LandingZone]]
+
+  def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[List[LandingZoneResourcesByPurpose]]
+
   // TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
   def getRelayNamespace(workspaceId: WorkspaceId,
                         region: com.azure.core.management.Region,
@@ -103,13 +104,9 @@ trait WsmDao[F[_]] {
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
-
-  def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[StorageAccountResponse]]
 }
 
-final case class StorageContainerRequest(storageAccountId: WsmControlledResourceId, storageContainerName: ContainerName)
+final case class StorageContainerRequest(storageContainerName: ContainerName)
 final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
                                                commonFields: ControlledResourceCommonFields,
                                                storageContainerReq: StorageContainerRequest
@@ -117,9 +114,39 @@ final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
 final case class CreateStorageContainerResult(resourceId: WsmControlledResourceId)
 final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
+                                      spendProfile: String,
                                       azureContext: Option[AzureCloudContext],
                                       gcpContext: Option[GoogleProject]
 )
+
+//Landing Zone models
+final case class LandingZone(landingZoneId: UUID,
+                             billingProfileId: UUID,
+                             definition: String,
+                             version: String,
+                             createdDate: String
+)
+final case class ListLandingZonesResult(landingzones: List[LandingZone])
+
+// A LandingZoneResource will have either a resourceId or a resourceName + resourceParentId
+final case class LandingZoneResource(resourceId: Option[String],
+                                     resourceType: String,
+                                     resourceName: Option[String],
+                                     resourceParentId: Option[String],
+                                     region: String
+)
+
+object LandingZoneResourcePurpose extends Enumeration {
+  type LandingZoneResourcePurpose = Value
+  val SHARED_RESOURCE, WLZ_RESOURCE = Value
+  val WORKSPACE_COMPUTE_SUBNET, WORKSPACE_STORAGE_SUBNET, AKS_NODE_POOL_SUBNET, POSTGRESQL_SUBNET,
+    WORKSPACE_BATCH_SUBNET = Value
+}
+
+final case class LandingZoneResourcesByPurpose(purpose: LandingZoneResourcePurpose,
+                                               deployedResources: List[LandingZoneResource]
+)
+final case class ListLandingZoneResourcesResult(id: UUID, resources: List[LandingZoneResourcesByPurpose])
 
 //Azure Vm Models
 final case class CreateVmRequest(workspaceId: WorkspaceId,
@@ -165,9 +192,6 @@ object ResourceAttributes {
                                                     region: com.azure.core.management.Region
   ) extends ResourceAttributes
   final case class StorageContainerResourceAttributes(name: ContainerName) extends ResourceAttributes
-  final case class StorageAccountResourceAttributes(storageAccountName: StorageAccountName,
-                                                    region: com.azure.core.management.Region
-  ) extends ResourceAttributes
 }
 
 final case class WsmResourceMetadata(resourceId: WsmControlledResourceId)
@@ -379,6 +403,25 @@ object WsmDecoders {
     )
   }
 
+  implicit val landingZoneDecoder: Decoder[LandingZone] =
+    Decoder.forProduct5("landingZoneId", "billingProfileId", "definition", "version", "createdDate")(LandingZone.apply)
+  implicit val listLandingZonesResultDecoder: Decoder[ListLandingZonesResult] =
+    Decoder.forProduct1("landingzones")(ListLandingZonesResult.apply)
+
+  implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
+    Decoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(
+      LandingZoneResource.apply
+    )
+
+  implicit val landingZoneResourcePurposeDecoder: Decoder[LandingZoneResourcePurpose] =
+    Decoder.decodeString.emap(s =>
+      LandingZoneResourcePurpose.values.find(_.toString == s).toRight(s"Invalid LandingZoneResourcePurpose found: ${s}")
+    )
+  implicit val landingZoneResourcesByPurposeDecoder: Decoder[LandingZoneResourcesByPurpose] =
+    Decoder.forProduct2("purpose", "deployedResources")(LandingZoneResourcesByPurpose.apply)
+  implicit val listLandingZoneResourcesResultDecoder: Decoder[ListLandingZoneResourcesResult] =
+    Decoder.forProduct2("id", "resources")(ListLandingZoneResourcesResult.apply)
+
   implicit val wsmGcpContextDecoder: Decoder[WsmGcpContext] =
     Decoder.forProduct1("gcpContext")(WsmGcpContext.apply)
 
@@ -386,9 +429,10 @@ object WsmDecoders {
     for {
       id <- c.downField("id").as[WorkspaceId]
       displayName <- c.downField("displayName").as[String]
+      spendProfile <- c.downField("spendProfile").as[String]
       azureContext <- c.downField("azureContext").as[Option[AzureCloudContext]]
       gcpContext <- c.downField("gcpContext").as[Option[WsmGcpContext]]
-    } yield WorkspaceDescription(id, displayName, azureContext, gcpContext.map(_.projectId))
+    } yield WorkspaceDescription(id, displayName, spendProfile, azureContext, gcpContext.map(_.projectId))
   }
 
   implicit val wsmJobStatusDecoder: Decoder[WsmJobStatus] =
@@ -424,17 +468,13 @@ object WsmDecoders {
   implicit val storageContainerResourceAttributesDecoder
     : Decoder[ResourceAttributes.StorageContainerResourceAttributes] =
     Decoder.forProduct1("storageContainerName")(ResourceAttributes.StorageContainerResourceAttributes.apply)
-  implicit val storageAccountResourceAttributesDecoder: Decoder[ResourceAttributes.StorageAccountResourceAttributes] =
-    Decoder.forProduct2("storageAccountName", "region")(ResourceAttributes.StorageAccountResourceAttributes.apply)
   implicit val resourceAttributesDecoder: Decoder[ResourceAttributes] =
     Decoder.instance { x =>
       val decodeAsRelayNamespace =
         x.downField("azureRelayNamespace").as[ResourceAttributes.RelayNamespaceResourceAttributes]
       val decodeAsStorageContainer =
         x.downField("azureStorageContainer").as[ResourceAttributes.StorageContainerResourceAttributes]
-      val decodeAsStorageAccount =
-        x.downField("azureStorage").as[ResourceAttributes.StorageAccountResourceAttributes]
-      decodeAsRelayNamespace orElse decodeAsStorageContainer orElse decodeAsStorageAccount
+      decodeAsRelayNamespace orElse decodeAsStorageContainer
     }
   implicit val wsmResourceMetadataDecoder: Decoder[WsmResourceMetadata] =
     Decoder.forProduct1("resourceId")(WsmResourceMetadata.apply)
@@ -526,7 +566,7 @@ object WsmEncoders {
     Encoder.forProduct3("common", "azureVm", "jobControl")(x => (x.common, x.vmData, x.jobControl))
 
   implicit val storageContainerRequestEncoder: Encoder[StorageContainerRequest] =
-    Encoder.forProduct2("storageAccountId", "storageContainerName")(x => (x.storageAccountId, x.storageContainerName))
+    Encoder.forProduct1("storageContainerName")(x => x.storageContainerName)
 
   implicit val createStorageContainerRequestEncoder: Encoder[CreateStorageContainerRequest] =
     Encoder.forProduct2("common", "azureStorageContainer")(x => (x.commonFields, x.storageContainerReq))

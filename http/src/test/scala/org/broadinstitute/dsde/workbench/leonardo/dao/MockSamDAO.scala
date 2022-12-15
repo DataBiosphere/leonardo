@@ -303,7 +303,7 @@ class MockSamDAO extends SamDAO[IO] {
   override def getLeoAuthToken: IO[Authorization] =
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
 
-  def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
+  override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
     IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
 
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
@@ -316,6 +316,16 @@ class MockSamDAO extends SamDAO[IO] {
   ): IO[Unit] = ???
 
   override def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
+
+  override def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Option[String]] = IO.pure(Some("token"))
+
+  /** Deletes a Sam resource R using the provided bearer token. */
+  override def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = ???

@@ -5,11 +5,13 @@ import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.landingZoneResources
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dbConcurrency, liquibaseConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -29,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
+import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.util.UUID
@@ -97,8 +100,7 @@ object AKSManualTest {
             DefaultNodepool.fromNodepool(
               cluster.nodepools.headOption
                 .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
-            ),
-            None
+            )
           )
           for {
             saveClusterResult <- dbRef.inTransaction(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster))
@@ -142,9 +144,22 @@ object AKSManualTest {
       ConfigReader.appConfig.azure.coaAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
-      SamConfig("https://sam.dsde-dev.broadinstitute.org/")
+      SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
+      appMonitorConfig,
+      ConfigReader.appConfig.azure.wsm,
+      ConfigReader.appConfig.drs
     )
-  } yield new AKSInterpreter(config, helmClient, containerService, relayService)
+    // TODO Sam and Cromwell should not be using mocks
+  } yield new AKSInterpreter(
+    config,
+    helmClient,
+    containerService,
+    relayService,
+    mock[SamDAO[IO]],
+    mock[CromwellDAO[IO]],
+    mock[CbasDAO[IO]],
+    mock[WdsDAO[IO]]
+  )
 
   /** Deploys a CoA app */
   def deployApp: IO[Unit] = {
@@ -160,7 +175,9 @@ object AKSManualTest {
           deps.app.id,
           deps.app.appName,
           workspaceId,
-          cloudContext
+          cloudContext,
+          landingZoneResources,
+          None
         )
       )
     }

@@ -191,7 +191,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/b9c7fc1ec10697f8d8e278188ebbf30f6d124d67/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/d6f5eea1a9299f8ef95cf1dc3eaf40594af26782/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
@@ -284,59 +284,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |                "azureRelayNamespace":
          |                {
          |                    "namespaceName": "qi-relay-ns-5-2-1",
-         |                    "region": "westcentralus"
-         |                }
-         |            }
-         |        }
-         |    ]
-         |}
-         |""".stripMargin.replaceAll("\\s", "")
-    )
-
-    decodedResp shouldBe Right(expected)
-  }
-
-  it should "decode storage account resource response" in {
-    val expected = GetWsmResourceResponse(
-      List(
-        WsmResource(
-          WsmResourceMetadata(WsmControlledResourceId(UUID.fromString("5f22f3ce-63d7-4790-aa98-fb5b4e5b0430"))),
-          ResourceAttributes.StorageAccountResourceAttributes(
-            StorageAccountName("sa669fad7530d38436c0eb"),
-            region = com.azure.core.management.Region.US_WEST_CENTRAL
-          )
-        )
-      )
-    )
-    val decodedResp = decode[GetWsmResourceResponse](
-      s"""
-         |{
-         |    "resources":
-         |    [
-         |        {
-         |            "metadata":
-         |            {
-         |                "workspaceId": "bab2beee-bc29-42d0-bc1e-d2b8baa583c3",
-         |                "resourceId": "5f22f3ce-63d7-4790-aa98-fb5b4e5b0430",
-         |                "name": "sa-669fad75-b498-4633-a244-30d38436c0eb",
-         |                "description": "relay-ns",
-         |                "resourceType": "AZURE_RELAY_NAMESPACE",
-         |                "stewardshipType": "CONTROLLED",
-         |                "cloningInstructions": "COPY_NOTHING",
-         |                "controlledResourceMetadata":
-         |                {
-         |                    "accessScope": "SHARED_ACCESS",
-         |                    "managedBy": "USER",
-         |                    "privateResourceUser":
-         |                    {},
-         |                    "privateResourceState": "NOT_APPLICABLE"
-         |                }
-         |            },
-         |            "resourceAttributes":
-         |            {
-         |                "azureStorage":
-         |                {
-         |                    "storageAccountName": "sa669fad7530d38436c0eb",
          |                    "region": "westcentralus"
          |                }
          |            }

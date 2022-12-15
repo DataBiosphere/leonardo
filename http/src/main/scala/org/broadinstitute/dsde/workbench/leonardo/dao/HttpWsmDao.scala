@@ -20,6 +20,8 @@ import org.http4s.headers.{`Content-Type`, Authorization}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
+import java.util.UUID
+
 class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   logger: StructuredLogger[F],
   F: Async[F],
@@ -151,6 +153,41 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
+  override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[LandingZone]] =
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOptionOr[ListLandingZonesResult](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(Uri.Path.unsafeFromString("/api/landingzones/v1/azure"))
+            .withQueryParam("billingProfileId", billingProfileId),
+          headers = headers(authorization, ctx.traceId, withBody = false)
+        )
+      )(onError)
+      landingZoneOption = res.flatMap(listLandingZoneResult => listLandingZoneResult.landingzones.headOption)
+    } yield landingZoneOption
+
+  override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[List[LandingZoneResourcesByPurpose]] =
+    for {
+      ctx <- ev.ask
+      resOpt <- httpClient.expectOptionOr[ListLandingZoneResourcesResult](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(s"/api/landingzones/v1/azure/${landingZoneId}/resources")
+            ),
+          headers = headers(authorization, ctx.traceId, withBody = false)
+        )
+      )(onError)
+    } yield resOpt.fold(List.empty[LandingZoneResourcesByPurpose])(res => res.resources)
+
   override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]] =
@@ -251,24 +288,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     }.headOption
   } yield res
 
-  override def getWorkspaceStorageAccount(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[StorageAccountResponse]] = for {
-    resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureStorageAccount)
-    res <- resp.resources.headOption.traverse { resource =>
-      resource.resourceAttributes match {
-        case x: ResourceAttributes.StorageAccountResourceAttributes =>
-          F.pure(StorageAccountResponse(x.storageAccountName, resource.metadata.resourceId))
-        case _ =>
-          F.raiseError[StorageAccountResponse](
-            new RuntimeException(
-              "WSM bug. Trying to retrieve AZURE_STORAGE_ACCOUNT but none found"
-            )
-          )
-      }
-    }
-  } yield res
-
   private def getWorkspaceResourceHelper(workspaceId: WorkspaceId,
                                          authorization: Authorization,
                                          wsmResourceType: WsmResourceType
@@ -334,5 +353,4 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     else
       Headers(authorization, requestId)
   }
-
 }

@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -497,12 +498,14 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
             case CloudProvider.Gcp => head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
             case CloudProvider.Azure =>
               head._2.map { s =>
-                val res = for {
-                  splitted <- Either.catchNonFatal(s.split("/"))
-                  storageAccountName <- Either.catchNonFatal(splitted(0)).map(StorageAccountName)
-                  storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
-                } yield StagingBucket.Azure(storageAccountName, storageContainerName)
-                res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
+                // TODO (11/23/2022): We used to persist storage account as well, but we no longer do. Remove first branch in 6 months.
+                if (s.contains("/")) {
+                  val res = for {
+                    splitted <- Either.catchNonFatal(s.split("/"))
+                    storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
+                  } yield StagingBucket.Azure(storageContainerName)
+                  res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
+                } else StagingBucket.Azure(ContainerName(s))
               }
           }
         }
@@ -664,6 +667,18 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     for {
       _ <- findByIdQuery(id).map(c => (c.welderEnabled, c.dateAccessed)).update((true, dateAccessed))
       _ <- clusterImageQuery.upsert(id, welderImage)
+    } yield ()
+
+  def updateDiskStatus(runtimeId: Long, dateAccessed: Instant)(implicit
+    ec: ExecutionContext
+  ): DBIO[Unit] =
+    for {
+      runtimeConfigId <- findByIdQuery(runtimeId)
+        .map(_.runtimeConfigId)
+        .result
+        .headOption
+      diskIdOpt <- runtimeConfigId.flatTraverse(rid => RuntimeConfigQueries.getDiskId(rid))
+      _ <- diskIdOpt.traverse(diskId => persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, dateAccessed))
     } yield ()
 
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =

@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Name
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
   RuntimeConfigRequest
@@ -165,6 +166,10 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object CreateAppV2 extends LeoPubsubMessageType {
     val asString = "createAppV2"
   }
+
+  final case object DeleteAppV2 extends LeoPubsubMessageType {
+    val asString = "deleteAppV2"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -268,6 +273,8 @@ object LeoPubsubMessage {
     appName: AppName,
     workspaceId: WorkspaceId,
     cloudContext: CloudContext,
+    landingZoneResources: Option[LandingZoneResources],
+    storageContainer: Option[StorageContainerResponse],
     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAppV2
@@ -285,10 +292,12 @@ object LeoPubsubMessage {
   final case class DeleteAppV2Message(appId: AppId,
                                       appName: AppName,
                                       workspaceId: WorkspaceId,
+                                      cloudContext: CloudContext,
                                       diskId: Option[DiskId],
+                                      landingZoneResourcesOpt: Option[LandingZoneResources],
                                       traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
-    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAppV2
   }
 
   final case class StopAppMessage(appId: AppId, appName: AppName, project: GoogleProject, traceId: Option[TraceId])
@@ -524,8 +533,32 @@ object LeoPubsubCodec {
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
 
+  implicit val storageContainerResponseDecoder: Decoder[StorageContainerResponse] =
+    Decoder.forProduct2("name", "resourceId")(StorageContainerResponse.apply)
+
   implicit val createAppV2Decoder: Decoder[CreateAppV2Message] =
-    Decoder.forProduct5("appId", "appName", "workspaceId", "cloudContext", "traceId")(CreateAppV2Message.apply)
+    Decoder.forProduct7("appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "landingZoneResources",
+                        "storageContainer",
+                        "traceId"
+    )(
+      CreateAppV2Message.apply
+    )
+
+  implicit val deleteAppV2Decoder: Decoder[DeleteAppV2Message] =
+    Decoder.forProduct7("appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "diskId",
+                        "landingZoneResourcesOpt",
+                        "tradeId"
+    )(
+      DeleteAppV2Message.apply
+    )
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
@@ -546,6 +579,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
         case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
+        case LeoPubsubMessageType.DeleteAppV2        => message.as[DeleteAppV2Message]
       }
     } yield value
   }
@@ -867,19 +901,42 @@ object LeoPubsubCodec {
       (x.messageType, x.runtimeId, x.diskId, x.workspaceId, x.wsmResourceId, x.traceId)
     )
 
+  implicit val storageContainerResponseEncoder: Encoder[StorageContainerResponse] =
+    Encoder.forProduct2("name", "resourceId")(x => (x.name, x.resourceId))
+
   implicit val createAppV2MessageEncoder: Encoder[CreateAppV2Message] =
-    Encoder.forProduct6(
+    Encoder.forProduct8(
       "messageType",
       "appId",
       "appName",
       "workspaceId",
       "cloudContext",
+      "landingZoneResources",
+      "storageContainer",
       "traceId"
-    )(x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.traceId))
+    )(x =>
+      (x.messageType,
+       x.appId,
+       x.appName,
+       x.workspaceId,
+       x.cloudContext,
+       x.landingZoneResources,
+       x.storageContainer,
+       x.traceId
+      )
+    )
 
   implicit val deleteAppV2MessageEncoder: Encoder[DeleteAppV2Message] =
-    Encoder.forProduct6("messageType", "appId", "appName", "workspaceId", "diskId", "traceId")(x =>
-      (x.messageType, x.appId, x.appName, x.workspaceId, x.diskId, x.traceId)
+    Encoder.forProduct8("messageType",
+                        "appId",
+                        "appName",
+                        "workspaceId",
+                        "cloudContext",
+                        "diskId",
+                        "landingZoneResourcesOpt",
+                        "traceId"
+    )(x =>
+      (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.diskId, x.landingZoneResourcesOpt, x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {

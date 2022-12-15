@@ -67,7 +67,14 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  AzureCloudContext,
+  ManagedResourceGroupName,
+  RelayNamespace,
+  SubscriptionId,
+  TenantId
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
 import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.util2.InstanceName
@@ -270,10 +277,11 @@ object CommonTestData {
   def defaultGceRuntimeWithPDConfig(persistentDiskId: Option[DiskId]) =
     RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                   bootDiskSize = DiskSize(50),
-                                  persistentDiskId = None,
+                                  persistentDiskId = persistentDiskId,
                                   zone = ZoneName("us-west2-b"),
                                   gpuConfig = None
     )
+
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(
       Some(0),
@@ -527,6 +535,20 @@ object CommonTestData {
       None
     ),
     Some(0)
+  )
+
+  val landingZoneResources = LandingZoneResources(
+    AKSClusterName(""),
+    BatchAccountName(""),
+    RelayNamespace(""),
+    StorageAccountName(""),
+    NetworkName(""),
+    PostgresName(""),
+    LogAnalyticsWorkspaceName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
+    SubnetworkName("")
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
