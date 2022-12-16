@@ -94,17 +94,6 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 
-  override def filterUserVisibleWithWorkspaceFallback[R](
-    resources: NonEmptyList[(WorkspaceId, R)],
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(WorkspaceId, R)]] =
-    resources.toList.traverseFilter { a =>
-      checkWhitelist(userInfo).map {
-        case true  => Some(a)
-        case false => None
-      }
-    }
-
   override def isUserWorkspaceOwner[R](
     workspaceId: WorkspaceId,
     workspaceResource: R,
