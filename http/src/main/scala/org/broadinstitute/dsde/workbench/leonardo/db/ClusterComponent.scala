@@ -392,6 +392,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           rec._1._1.cloudContext,
           rec._1._1.runtimeName,
           rec._1._1.status,
+          rec._1._1.internalId,
           rec._2.map(_.inProgress).getOrElse(false),
           rec._1._2.runtimeConfig,
           rec._1._1.serviceAccountInfo,

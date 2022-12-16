@@ -224,7 +224,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       cluster = clusterOpt.get
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       getResponse <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
     } yield {
       getResponse.clusterName shouldBe runtimeName
@@ -272,7 +271,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       r <- defaultAzureService
         .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
@@ -360,7 +358,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       r <- defaultAzureService
         .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
@@ -477,7 +474,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       cluster = clusterOpt.get
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- azureService.getRuntime(badUserInfo, runtimeName, workspaceId)
     } yield ()
 
@@ -516,7 +512,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       preDeleteCluster = preDeleteClusterOpt.get
-      _ <- controlledResourceQuery.save(preDeleteCluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
 
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId)
@@ -576,7 +571,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       preDeleteCluster = preDeleteClusterOpt.get
-      _ <- controlledResourceQuery.save(preDeleteCluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId)
     } yield ()
 
@@ -618,7 +612,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       cluster = clusterOpt.get
       now <- IO.realTimeInstant
       _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Running, now).transaction
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- azureService.deleteRuntime(badUserInfo, runtimeName, workspaceId)
     } yield ()
 
@@ -782,7 +775,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
 
       cluster = clusterOpt.get
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
     } yield ()
     setupControlledResource1.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -822,11 +814,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), clusterName2)(
           scala.concurrent.ExecutionContext.global
         )
-        .transaction
-
-      cluster = clusterOpt.get
-      _ <- controlledResourceQuery
-        .save(cluster.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureVm)
         .transaction
     } yield ()
     setupControlledResource2.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

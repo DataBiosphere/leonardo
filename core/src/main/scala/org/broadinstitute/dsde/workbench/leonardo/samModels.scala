@@ -238,6 +238,9 @@ object SamPolicyName {
   final case object Creator extends SamPolicyName {
     override def toString = "creator"
   }
+  final case object Writer extends SamPolicyName {
+    override def toString = "writer"
+  }
   final case object Owner extends SamPolicyName {
     override def toString = "owner"
   }

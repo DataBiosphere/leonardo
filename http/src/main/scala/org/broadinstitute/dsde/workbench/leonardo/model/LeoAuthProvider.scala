@@ -51,7 +51,7 @@ object SamResource {
   }
   class WsmResource extends SamResource[WsmResourceSamResourceId] {
     val resourceType = SamResourceType.WsmResource
-    val policyNames = Set(SamPolicyName.Creator) // TODO: is this policy name correct?
+    val policyNames = Set(SamPolicyName.Writer)
     def resourceIdAsString(r: WsmResourceSamResourceId): String = r.resourceId
   }
 
