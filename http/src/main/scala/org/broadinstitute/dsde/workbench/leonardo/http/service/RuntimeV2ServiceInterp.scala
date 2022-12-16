@@ -233,7 +233,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           F.pure(true)
         else
           authProvider
-            .isUserWorkspaceOwner(workspaceId, WorkspaceResourceSamResourceId(workspaceId), userInfo)
+            .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
@@ -341,28 +341,33 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
 
           // -----------   Filter runtimes that's in runtimesUserIsNotCreatorWithWorkspaceId   -----------
-          val runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId = runtimesUserIsNotCreatorWithWorkspaceId
-            .flatMap { r =>
-              val samResourceId = for {
-                uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId)) match {
-                  case Right(id) => List(id)
-                  case Left(_)   => List.empty
+          val runtimesUserIsNotCreatorWithWorkspaceSamIds = NonEmptyList
+            .fromList(
+              runtimesUserIsNotCreatorWithWorkspaceId.flatMap(runtime =>
+                runtime.workspaceId match {
+                  case Some(id) => List((runtime, WorkspaceResourceSamResourceId(id)))
+                  case None     => List.empty
                 }
-              } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
-              samResourceId.map(sid => (r, sid))
-            }
+              )
+            )
           for {
-            samVisibleWsmControlledResourceSamIds <- NonEmptyList
-              .fromList(runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId.map(_._2))
-              .traverse { ids =>
-                authProvider.filterUserVisible(ids, userInfo)
-              }
-              .map(_.getOrElse(List.empty))
+            // If user is not creator for the runtime, then we check if they're workspace owner
+            runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId <- runtimesUserIsNotCreatorWithWorkspaceSamIds
+              .traverse(workspaces =>
+                authProvider.filterWorkspaceOwner(
+                  workspaces.map(_._2),
+                  userInfo
+                )
+              )
+              .map(_.getOrElse(Set.empty))
 
             samUserVisibleRuntimesUserIsNotCreatorWithWorkspace =
-              runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId.mapFilter { runtimeAndSamId =>
-                if (samVisibleWsmControlledResourceSamIds.contains(runtimeAndSamId._2)) {
-                  Some(runtimeAndSamId._1)
+              runtimesUserIsNotCreatorWithWorkspaceId.mapFilter { runtime =>
+                if (
+                  runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId
+                    .exists(workspaceSamId => workspaceSamId.workspaceId == runtime.workspaceId.get)
+                ) {
+                  Some(runtime)
                 } else None
               }
 

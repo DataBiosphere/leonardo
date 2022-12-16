@@ -6,26 +6,36 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait SamResourceId {
   def resourceId: String
+  def resourceType: SamResourceType
   def asString: String = resourceId
 }
 
 object SamResourceId {
-  final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId
+  final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId {
+    override def resourceType: SamResourceType = SamResourceType.Runtime
+  }
 
-  final case class PersistentDiskSamResourceId(resourceId: String) extends SamResourceId
+  final case class PersistentDiskSamResourceId(resourceId: String) extends SamResourceId {
+    override def resourceType: SamResourceType = SamResourceType.PersistentDisk
+  }
 
   final case class ProjectSamResourceId(googleProject: GoogleProject) extends SamResourceId {
     override def resourceId: String = googleProject.value
+    override def resourceType: SamResourceType = SamResourceType.Project
   }
 
-  final case class AppSamResourceId(resourceId: String) extends SamResourceId
+  final case class AppSamResourceId(resourceId: String) extends SamResourceId {
+    override def resourceType: SamResourceType = SamResourceType.App
+  }
 
   final case class WorkspaceResourceSamResourceId(workspaceId: WorkspaceId) extends SamResourceId {
     override def resourceId: String = workspaceId.value.toString
+    override def resourceType: SamResourceType = SamResourceType.Workspace
   }
 
   final case class WsmResourceSamResourceId(controlledResourceId: WsmControlledResourceId) extends SamResourceId {
     override def resourceId: String = controlledResourceId.value.toString
+    override def resourceType: SamResourceType = SamResourceType.WsmResource
   }
 }
 
@@ -228,6 +238,9 @@ object SamRole {
   }
   final case object Manager extends SamRole {
     val asString = "manager"
+  }
+  final case object Owner extends SamRole {
+    val asString = "owner"
   }
   final case class Other(asString: String) extends SamRole
   val stringToRole = sealerate.collect[SamRole].map(p => (p.asString, p)).toMap

@@ -8,6 +8,7 @@ import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -94,11 +95,10 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 
-  override def isUserWorkspaceOwner[R](
-    workspaceId: WorkspaceId,
-    workspaceResource: R,
+  override def isUserWorkspaceOwner(
+    workspaceResource: WorkspaceResourceSamResourceId,
     userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[Boolean] =
+  )(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
     checkWhitelist(userInfo)
 
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit
@@ -121,4 +121,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
+
+  override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Set[WorkspaceResourceSamResourceId]] = IO.pure(Set.empty)
 }
