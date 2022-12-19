@@ -47,7 +47,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   def makeInterp(queue: Queue[IO, LeoPubsubMessage], wsmDao: WsmDao[IO] = wsmDao) =
     new RuntimeV2ServiceInterp[IO](serviceConfig, whitelistAuthProvider, wsmDao, mockSamDAO, queue)
 
-  val defaultAzureService =
+  val runtimeV2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
@@ -162,7 +162,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val thrown = the[ForbiddenError] thrownBy {
-      defaultAzureService
+      runtimeV2Service
         .createRuntime(userInfo, runtimeName, workspaceId, defaultCreateAzureRuntimeReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -171,11 +171,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "throw RuntimeAlreadyExistsException when creating a runtime with same name and context as an existing runtime" in isolatedDbTest {
-    defaultAzureService
+    runtimeV2Service
       .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val exc = defaultAzureService
+    val exc = runtimeV2Service
       .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -261,7 +261,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      r <- defaultAzureService
+      r <- runtimeV2Service
         .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -278,7 +278,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val res =
-      defaultAzureService
+      runtimeV2Service
         .startRuntime(userInfo, runtimeName, workspaceId)
         .attempt
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -300,7 +300,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      res <- defaultAzureService
+      res <- runtimeV2Service
         .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -348,7 +348,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      r <- defaultAzureService
+      r <- runtimeV2Service
         .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -365,7 +365,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val res =
-      defaultAzureService
+      runtimeV2Service
         .stopRuntime(userInfo, runtimeName, workspaceId)
         .attempt
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -387,7 +387,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      res <- defaultAzureService
+      res <- runtimeV2Service
         .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -585,7 +585,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .copy(samResource = samResource2, cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
           .save()
       )
-      listResponse <- defaultAzureService.listRuntimes(userInfo, None, None, Map.empty)
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -604,7 +604,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       _ <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = workspace).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      listResponse <- defaultAzureService.listRuntimes(userInfo, workspace, None, Map.empty)
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, workspace, None, Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -641,10 +641,10 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .save()
       )
       _ <- IO(makeCluster(3).copy(samResource = samResource3, workspaceId = workspace2).save())
-      listResponse1 <- defaultAzureService.listRuntimes(userInfo, workspace, Some(CloudProvider.Azure), Map.empty)
-      listResponse2 <- defaultAzureService.listRuntimes(userInfo, workspace2, Some(CloudProvider.Azure), Map.empty)
-      listResponse3 <- defaultAzureService.listRuntimes(userInfo, workspace2, Some(CloudProvider.Gcp), Map.empty)
-      listResponse4 <- defaultAzureService.listRuntimes(userInfo, workspace, Some(CloudProvider.Gcp), Map.empty)
+      listResponse1 <- runtimeV2Service.listRuntimes(userInfo, workspace, Some(CloudProvider.Azure), Map.empty)
+      listResponse2 <- runtimeV2Service.listRuntimes(userInfo, workspace2, Some(CloudProvider.Azure), Map.empty)
+      listResponse3 <- runtimeV2Service.listRuntimes(userInfo, workspace2, Some(CloudProvider.Gcp), Map.empty)
+      listResponse4 <- runtimeV2Service.listRuntimes(userInfo, workspace, Some(CloudProvider.Gcp), Map.empty)
     } yield {
       listResponse1.map(_.samResource).toSet shouldBe Set(samResource1)
       listResponse2.map(_.samResource) shouldBe List(samResource2)
@@ -668,7 +668,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
-      listResponse <- defaultAzureService.listRuntimes(userInfo, None, None, Map("foo" -> "bar"))
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map("foo" -> "bar"))
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -695,7 +695,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
       _ <- IO(runtime1.save())
       _ <- IO(runtime2.save())
-      listResponse <- defaultAzureService.listRuntimes(userInfo, None, None, Map.empty)
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map.empty)
     } yield
     // Since the calling user is whitelisted in the auth provider, it should return
     // the runtimes belonging to other users.
@@ -711,7 +711,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val req = defaultCreateAzureRuntimeReq.copy(
       labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")
     )
-    defaultAzureService
+    runtimeV2Service
       .createRuntime(userInfo, clusterName1, workspaceId, req)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -727,7 +727,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     } yield ()
     setupControlledResource1.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val runtime1 = defaultAzureService
+    val runtime1 = runtimeV2Service
       .getRuntime(userInfo, clusterName1, workspaceId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse1 = ListRuntimeResponse2(
@@ -746,7 +746,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val clusterName2 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     val wsmJobId2 = WsmJobId("job2")
-    defaultAzureService
+    runtimeV2Service
       .createRuntime(
         userInfo,
         clusterName2,
@@ -767,7 +767,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     } yield ()
     setupControlledResource2.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val runtime2 = defaultAzureService
+    val runtime2 = runtimeV2Service
       .getRuntime(userInfo, clusterName2, workspaceId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse2 = ListRuntimeResponse2(
@@ -784,41 +784,41 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       runtime2.patchInProgress
     )
 
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1,
       listRuntimeResponse2
     )
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam=yes"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1
     )
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
       .futureValue
       .toSet shouldBe Set(listRuntimeResponse1)
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "a=b"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     )
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "baz=biz"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set.empty
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "A=B"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     ) // labels are not case sensitive because MySQL
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo%3Dbar"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -826,7 +826,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar;bam=yes"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -834,7 +834,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -843,7 +843,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
 
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "bogus"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -852,7 +852,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
 
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "a,b"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

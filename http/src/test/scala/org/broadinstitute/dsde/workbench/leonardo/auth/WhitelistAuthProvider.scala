@@ -124,5 +124,5 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
-  ): IO[Set[WorkspaceResourceSamResourceId]] = IO.pure(Set.empty)
+  ): IO[Set[WorkspaceResourceSamResourceId]] = IO.pure(resources.toList.toSet)
 }
