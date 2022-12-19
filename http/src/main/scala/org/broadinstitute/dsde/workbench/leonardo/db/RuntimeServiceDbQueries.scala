@@ -262,11 +262,11 @@ object RuntimeServiceDbQueries {
     listRuntimesHelper(labelMap, includeDeleted, creatorOnly, workspaceId, cp)
   }
 
-  def listRuntimesHelper(labelMap: LabelMap,
-                         includeDeleted: Boolean,
-                         creatorOnly: Option[WorkbenchEmail],
-                         workspaceId: Option[WorkspaceId],
-                         cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]]
+  private def listRuntimesHelper(labelMap: LabelMap,
+                                 includeDeleted: Boolean,
+                                 creatorOnly: Option[WorkbenchEmail],
+                                 workspaceId: Option[WorkspaceId],
+                                 cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByCreator = creatorOnly match {
       case Some(creator) => List(s"C.`creator` = '${creator.value}'")
@@ -403,7 +403,7 @@ object RuntimeServiceDbQueries {
               left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) and (L.`resourceType` = 'runtime') 
               #${labelMapFilters}
           ) AS LABEL_FILTERED 
-          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.id = RG.`id` 
+          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.runtimeConfigId = RG.`id` 
           left join `CLUSTER_PATCH` CP on LABEL_FILTERED.id = CP.`clusterId`
           GROUP BY LABEL_FILTERED.id""".stripMargin
 
