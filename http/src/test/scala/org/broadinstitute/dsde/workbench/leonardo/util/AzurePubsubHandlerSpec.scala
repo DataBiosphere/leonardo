@@ -117,7 +117,6 @@ class AzurePubsubHandlerSpec
         resourceTypes.contains(WsmResourceType.AzureNetwork) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
-        controlledResources.map(_.resourceId).contains(resourceId) shouldBe true
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
