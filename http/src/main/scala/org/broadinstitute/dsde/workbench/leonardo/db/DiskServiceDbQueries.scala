@@ -17,13 +17,13 @@ object DiskServiceDbQueries {
 
   def listDisks(labelMap: LabelMap,
                 includeDeleted: Boolean,
-                createdBy: Option[WorkbenchEmail],
+                creatorOnly: Option[WorkbenchEmail],
                 cloudContextOpt: Option[CloudContext] = None
   )(implicit
     ec: ExecutionContext
   ): DBIO[List[PersistentDisk]] = {
     // filtered by creator first as it may have great impact
-    val diskQueryFilteredByCreator = createdBy match {
+    val diskQueryFilteredByCreator = creatorOnly match {
       case Some(email) => persistentDiskQuery.tableQuery.filter(_.creator === email)
       case None        => persistentDiskQuery.tableQuery
     }

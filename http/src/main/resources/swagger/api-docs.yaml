@@ -861,6 +861,14 @@ paths:
           schema:
             type: string
         - in: query
+          name: creator
+          description: >
+            Optional filter that includes only persistent disks created by the given user. Accepts an email.
+            Note: currently only the requesting user's email is supported (making this a duplicate of "role=creator").
+          required: false
+          schema:
+            type: string
+        - in: query
           name: includeDeleted
           description: Optional filter that includes any persistent disks with a Deleted status.
           required: false
@@ -873,6 +881,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -925,6 +939,14 @@ paths:
           schema:
             type: string
         - in: query
+          name: creator
+          description: >
+            Optional filter that includes only persistent disks created by the given user. Accepts an email.
+            Note: currently only the requesting user's email is supported (making this a duplicate of "role=creator").
+          required: false
+          schema:
+            type: string
+        - in: query
           name: includeDeleted
           description: Optional filter that includes any persistent disks with a Deleted status.
           required: false
@@ -937,6 +959,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string

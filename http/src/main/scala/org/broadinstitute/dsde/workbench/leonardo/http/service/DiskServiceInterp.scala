@@ -192,13 +192,16 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
       ctx <- as.ask
-      // TODO processListParameters may parse the key-value param "includeRole=creator" as a label
       paramMap <- F.fromEither(processListParameters(params))
-      // TODO includeRole in processListParameters
-      // TODO where do we enforce the acceptable values for an API param? includeRole may only be 'creator' or nothing
-      creatorOnly = params.get(includeRoleKey).contains(SamRole.Creator.asString)
-      createdBy = if (creatorOnly) Some(userInfo.userEmail) else None
-      disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, createdBy, cloudContext).transaction
+      creatorOnly =
+        // Support filtering by creator either by role=creator query string, or creator=<user email> label
+        if (
+          params
+            .get(creatorOnlyKey)
+            .contains(creatorOnlyValue) || params.get(creatorOnlyValue).exists(_ == userInfo.userEmail.toString)
+        ) Some(userInfo.userEmail)
+        else None
+      disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, creatorOnly, cloudContext).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
       diskAndProjects = disks.map(d =>
         (GoogleProject(d.cloudContext.asString), d.samResource)
@@ -363,7 +366,6 @@ object DiskServiceInterp {
 
     for {
       // check the labels do not contain forbidden keys
-      // TODO also blacklist `includeRoleKey`
       labels <-
         if (allLabels.contains(includeDeletedKey))
           Left(IllegalLabelKeyException(includeDeletedKey))
