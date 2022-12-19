@@ -134,11 +134,6 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
 
-  override def filterUserVisibleWithWorkspaceFallback[R](
-    resources: NonEmptyList[(WorkspaceId, R)],
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(WorkspaceId, R)]] = ???
-
   override def isUserWorkspaceOwner[R](workspaceId: WorkspaceId, workspaceResource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     decoder: Decoder[R],

@@ -163,15 +163,6 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]]
 
-  def filterUserVisibleWithWorkspaceFallback[R](
-    resources: NonEmptyList[(WorkspaceId, R)],
-    userInfo: UserInfo
-  )(implicit
-    sr: SamResource[R],
-    decoder: Decoder[R],
-    ev: Ask[F, TraceId]
-  ): F[List[(WorkspaceId, R)]]
-
   // Creates a resource in Sam
   def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],

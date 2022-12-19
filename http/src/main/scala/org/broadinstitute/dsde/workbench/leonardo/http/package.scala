@@ -30,6 +30,8 @@ import scala.concurrent.duration.FiniteDuration
 package object http {
   val includeDeletedKey = "includeDeleted"
   val includeLabelsKey = "includeLabels"
+  val creatorOnlyKey = "role"
+  val creatorOnlyValue = "creator"
   val bucketPathMaxLength = 1024
   val WORKSPACE_NAME_KEY = "WORKSPACE_NAME"
 

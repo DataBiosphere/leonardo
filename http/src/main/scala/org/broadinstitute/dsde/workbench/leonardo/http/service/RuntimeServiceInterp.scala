@@ -240,9 +240,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
-      paramMap <- F.fromEither(processListParameters(params))
+      (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
+      creatorOnly =
+        // Support filtering by creator either by role=creator query string, or creator=<user email> label
+        if (
+          params
+            .get(creatorOnlyKey)
+            .exists(_ == creatorOnlyValue) || labelMap.get(creatorOnlyValue).exists(_ == userInfo.userEmail)
+        ) Some(userInfo.userEmail)
+        else None
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimes(paramMap._1, paramMap._2, cloudContext)
+        .listRuntimes(labelMap, includeDeleted, creatorOnly, cloudContext)
         .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))

@@ -772,7 +772,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     exc shouldBe a[RuntimeNotFoundException]
   }
 
-  it should "list runtimes" in isolatedDbTest {
+  it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -790,7 +790,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with a project" in isolatedDbTest {
+  it should "list runtimes with a project" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -808,7 +808,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with parameters" in isolatedDbTest {
+  it should "list runtimes with parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -829,7 +829,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
-  it should "list runtimes belonging to other users" in isolatedDbTest {
+  it should "list runtimes belonging to other users" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -857,7 +857,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with labels" in isolatedDbTest {
+  it should "list runtimes with labels" taggedAs SlickPlainQueryTest in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     val req = emptyCreateRuntimeReq.copy(
