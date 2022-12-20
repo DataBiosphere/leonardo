@@ -432,6 +432,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             0
     ) // this email is white listed
 
+    // Make disks belonging to different users than the calling user
     val res = for {
       disk1 <- LeoLenses.diskToCreator
         .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d1"))))
