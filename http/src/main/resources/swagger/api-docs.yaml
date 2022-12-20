@@ -25,10 +25,6 @@ tags:
   - name: service_info
     description: Service Info API
 security:
-  - googleoauth:
-      - openid
-      - email
-      - profile
   - oidc:
       - openid
       - email
@@ -2589,15 +2585,6 @@ components:
             disk: { labels: {}, name: "disk1", size: 50 }
 
   securitySchemes:
-    googleoauth:
-      type: oauth2
-      flows:
-        implicit:
-          authorizationUrl: https://accounts.google.com/o/oauth2/auth
-          scopes:
-            openid: open id authorization
-            email: email authorization
-            profile: profile authorization
     oidc:
       type: oauth2
       flows:
