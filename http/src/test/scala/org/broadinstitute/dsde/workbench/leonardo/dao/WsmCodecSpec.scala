@@ -153,7 +153,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
           )
         ),
         VMCredential("username", "password"),
-        WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
       ),
       WsmJobControl(WsmJobId("job1"))
@@ -200,8 +199,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      ]
          |    },
          |    "vmUser":{"name":"username","password":"password"},
-         |    "diskId": "${fixedUUID.toString}",
-         |    "networkId": "${fixedUUID.toString}"
+         |    "diskId": "${fixedUUID.toString}"
          |  },
          |  "jobControl": {
          |    "id": "job1"
