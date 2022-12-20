@@ -329,6 +329,11 @@ class MockSamDAO extends SamDAO[IO] {
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = ???
+
+  /** Returns all roles for the user for a given resource.  */
+  override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Set[SamRole]] = ???
 }
 
 object MockSamDAO {
