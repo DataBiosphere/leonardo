@@ -51,6 +51,11 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[(R, SamPolicyName)]]
 
+  /** Returns all roles for the user for a given resource.*/
+  def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[SamRole]]
+
   /** Creates a Sam resource R using a GCP pet credential for the given email/project. */
   def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
