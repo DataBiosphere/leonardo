@@ -517,6 +517,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       Some(userInfo.userEmail),
       None,
       None,
+      // TODO: Will need to be updated when we support RStudio on Azure or JupyterLab on GCP V2 endpoint
       Some(Tool.JupyterLab)
     ).toMap
 
