@@ -122,9 +122,13 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
+      ctx <- ev.ask
+
       resourcePolicies <- samDao
         .getResourcePolicies[R](authHeader)
-      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
+      res = resourcePolicies.filter { case (_, pn) =>
+        sr.policyNames.contains(pn)
+      }
     } yield resources.filter(r => res.exists(_._1 == r))
   }
 
@@ -150,21 +154,29 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     }
   }
 
-  def isUserWorkspaceOwner[R](
-    workspaceId: WorkspaceId,
-    workspaceResource: R,
+  def filterWorkspaceOwner(
+    resources: NonEmptyList[WorkspaceResourceSamResourceId],
     userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[Boolean] = {
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[WorkspaceResourceSamResourceId]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       workspacePolicies <- samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader)
       owningWorkspaces = workspacePolicies.collect { case (r, SamPolicyName.Owner) =>
-        r.workspaceId
+        r
       }
-      resourcePolicies <- samDao
-        .getResourcePolicies[R](authHeader)
-      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
-    } yield owningWorkspaces.contains(workspaceId) || res.exists(_._1 == workspaceResource)
+    } yield owningWorkspaces.toSet
+  }
+
+  def isUserWorkspaceOwner(
+    workspaceResource: WorkspaceResourceSamResourceId,
+    userInfo: UserInfo
+  )(implicit ev: Ask[F, TraceId]): F[Boolean] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      roles <- samDao.getResourceRoles(authHeader, workspaceResource)
+    } yield roles.contains(SamRole.Owner)
   }
 
   override def notifyResourceCreated[R](
