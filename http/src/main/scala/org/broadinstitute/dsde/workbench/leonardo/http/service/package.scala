@@ -51,10 +51,9 @@ package object service {
     // 2) includeDeleted - Boolean which determines if we include deleted resources in the response
     // 3) includeLabels - List of label keys which represent the labels (key, value pairs) that will be returned in response
     // Note that optional parameter `role` or `creator` (represented by creatorOnlyKey and creatorOnlyValue) is omitted
-    // from this logic; once it is generally supported it should likely be processed here rather than separately in
-    // the various services.
+    // from this logic; once it is generally supported it should likely be processed in this service rather than elsewhere.
     for {
-      labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey - creatorOnlyKey)
+      labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey - creatorOnlyKey - creatorOnlyValue)
       includeDeleted = params.get(includeDeletedKey) match {
         case Some(includeDeletedValue) =>
           if (includeDeletedValue.toLowerCase == "true")

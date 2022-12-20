@@ -449,6 +449,28 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "list disks belonging to self and others, if not filtered by role=creator" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
+
+    val res = for {
+      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      // Make second disk belonging to different user than the calling user
+      disk2 <- LeoLenses.diskToCreator
+        .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
+        .save()
+      listResponse <- diskService.listDisks(userInfo, None, Map.empty)
+    } yield
+    // Since the calling user has access to both disks, should see both
+    listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "list disks belonging to self only, if filtered by role=creator" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
