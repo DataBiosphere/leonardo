@@ -541,14 +541,9 @@ object WsmEncoders {
     Encoder.forProduct2("name", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct7("name",
-                        "region",
-                        "vmSize",
-                        "vmImage",
-                        "customScriptExtension",
-                        "vmUser",
-                        "diskId"
-    )(x => (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId))
+    Encoder.forProduct7("name", "region", "vmSize", "vmImage", "customScriptExtension", "vmUser", "diskId")(x =>
+      (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId)
+    )
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =
