@@ -38,16 +38,6 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def createNetwork(
-    request: CreateNetworkRequest,
-    authorization: Authorization
-  )(implicit ev: Ask[IO, AppContext]): IO[CreateNetworkResponse] =
-    IO.pure(
-      CreateNetworkResponse(
-        WsmControlledResourceId(UUID.randomUUID())
-      )
-    )
-
   override def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[CreateVmResult] =

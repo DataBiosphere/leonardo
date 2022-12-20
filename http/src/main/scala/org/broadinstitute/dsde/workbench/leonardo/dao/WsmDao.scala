@@ -41,10 +41,6 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[CreateDiskResponse]
 
-  def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateNetworkResponse]
-
   def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateVmResult]
@@ -166,8 +162,7 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      vmImage: AzureImage,
                                      customScriptExtension: CustomScriptExtension,
                                      vmUserCredential: VMCredential,
-                                     diskId: WsmControlledResourceId,
-                                     networkId: WsmControlledResourceId
+                                     diskId: WsmControlledResourceId
 )
 
 final case class WsmVMMetadata(resourceId: WsmControlledResourceId)
@@ -546,15 +541,14 @@ object WsmEncoders {
     Encoder.forProduct2("name", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct8("name",
+    Encoder.forProduct7("name",
                         "region",
                         "vmSize",
                         "vmImage",
                         "customScriptExtension",
                         "vmUser",
-                        "diskId",
-                        "networkId"
-    )(x => (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId, x.networkId))
+                        "diskId"
+    )(x => (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId))
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =
