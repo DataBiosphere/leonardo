@@ -93,7 +93,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
     val cloudContext = CloudContext.Gcp(GoogleProject("project1"))
     val diskName = DiskName("diskName1")
 
@@ -168,7 +168,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
     val diskName = DiskName("diskName1")
     val diskCloneName = DiskName("clone")
     val expectedFormattedBy = FormattedBy.GCE
@@ -218,7 +218,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
     val googleProject = GoogleProject("project1")
     val diskName = DiskName("diskName1")
 
@@ -247,7 +247,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
     val googleProject = GoogleProject("project1")
     val diskName = DiskName("diskName1")
 
@@ -353,7 +353,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
@@ -375,7 +375,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -395,7 +395,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
@@ -413,7 +413,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -431,7 +431,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     // Make disks belonging to different users than the calling user
     val res = for {
@@ -443,7 +443,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .save()
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
     } yield
-    // Since the calling user is whitelisted in the auth provider, it should return
+    // Since the calling user is allow-listed in the auth provider, it should return
     // the disks belonging to other users.
     listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
 
@@ -456,7 +456,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -478,7 +478,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -500,7 +500,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -522,7 +522,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -544,7 +544,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -566,7 +566,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       context <- ctx.ask[AppContext]
@@ -594,7 +594,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       t <- ctx.ask[AppContext]
@@ -622,7 +622,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                               WorkbenchUserId("userId"),
                               WorkbenchEmail("user1@example.com"),
                               0
-      ) // this email is white listed
+      ) // this email is allow-listed
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val (diskService, _) = makeDiskService()
         val res = for {
@@ -646,7 +646,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allow-listed
 
     val res = for {
       context <- ctx.ask[AppContext]
