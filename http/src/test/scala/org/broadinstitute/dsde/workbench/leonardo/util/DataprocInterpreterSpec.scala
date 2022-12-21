@@ -109,6 +109,7 @@ class DataprocInterpreterSpec
             .fromCreateRuntimeMessage(
               CreateRuntimeMessage.fromRuntime(testCluster,
                                                LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
+                                               None,
                                                None
               )
             )
@@ -153,6 +154,7 @@ class DataprocInterpreterSpec
             .fromCreateRuntimeMessage(
               CreateRuntimeMessage.fromRuntime(testCluster,
                                                LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
+                                               None,
                                                None
               )
             )

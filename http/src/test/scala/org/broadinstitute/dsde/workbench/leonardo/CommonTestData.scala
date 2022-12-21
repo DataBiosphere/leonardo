@@ -265,7 +265,8 @@ object CommonTestData {
     Some(ContainerImage("myrepo/myimage", DockerHub)),
     Some(DockerHub),
     Set.empty,
-    Map.empty
+    Map.empty,
+    None
   )
   val defaultGceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
