@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   BadRequestException,
   ForbiddenError,
   LeoAuthProvider,
+  ParseCreatorOnlyException,
   SamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -513,6 +514,50 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     listResponse.map(_.id).toSet shouldBe Set(disk1.id)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to list disks if filtered by role=not_creator" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
+
+    val res = for {
+      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      // Make second disk belonging to different user than the calling user
+      disk2 <- LeoLenses.diskToCreator
+        .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
+        .save()
+      listResponse <- diskService.listDisks(userInfo, None, Map("role" -> "manager"))
+    } yield ()
+
+    a[ParseCreatorOnlyException] should be thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "fail to list disks if filtered by creator=another_user@email" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
+
+    val res = for {
+      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      // Make second disk belonging to different user than the calling user
+      disk2 <- LeoLenses.diskToCreator
+        .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
+        .save()
+      listResponse <- diskService.listDisks(userInfo, None, Map("creator" -> "a_different_user@example.com"))
+    } yield ()
+
+    a[ParseCreatorOnlyException] should be thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   it should "delete a disk" in isolatedDbTest {
