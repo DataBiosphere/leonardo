@@ -85,13 +85,9 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 
-  def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[LandingZone]]
-
-  def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[List[LandingZoneResourcesByPurpose]]
+  ): F[LandingZoneResources]
 
   // TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
   def getRelayNamespace(workspaceId: WorkspaceId,
@@ -164,7 +160,6 @@ final case class CustomScriptExtension(name: String,
                                        protectedSettings: ProtectedSettings
 )
 final case class StorageContainerResponse(name: ContainerName, resourceId: WsmControlledResourceId)
-final case class StorageAccountResponse(name: StorageAccountName, resourceId: WsmControlledResourceId)
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,

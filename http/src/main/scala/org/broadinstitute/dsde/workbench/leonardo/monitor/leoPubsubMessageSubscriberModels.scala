@@ -7,7 +7,6 @@ import com.google.cloud.compute.v1.Disk
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
@@ -351,8 +350,8 @@ object LeoPubsubMessage {
 
   final case class CreateAzureRuntimeMessage(runtimeId: Long,
                                              workspaceId: WorkspaceId,
-                                             relayNamespace: RelayNamespace,
                                              storageContainerResourceId: WsmControlledResourceId,
+                                             landingZoneResources: LandingZoneResources,
                                              traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
@@ -523,7 +522,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct5("runtimeId", "workspaceId", "relayNamespace", "storageContainerResourceId", "traceId")(
+    Decoder.forProduct5("runtimeId", "workspaceId", "storageContainerResourceId", "landingZoneResources", "traceId")(
       CreateAzureRuntimeMessage.apply
     )
 
@@ -897,10 +896,10 @@ object LeoPubsubCodec {
     Encoder.forProduct6("messageType",
                         "runtimeId",
                         "workspaceId",
-                        "relayNamespace",
                         "storageContainerResourceId",
+                        "landingZoneResources",
                         "traceId"
-    )(x => (x.messageType, x.runtimeId, x.workspaceId, x.relayNamespace, x.storageContainerResourceId, x.traceId))
+    )(x => (x.messageType, x.runtimeId, x.workspaceId, x.storageContainerResourceId, x.landingZoneResources, x.traceId))
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
     Encoder.forProduct6("messageType", "runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(x =>
