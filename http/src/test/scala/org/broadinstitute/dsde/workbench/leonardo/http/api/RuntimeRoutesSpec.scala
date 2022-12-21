@@ -320,7 +320,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         "https://www.googleapis.com/auth/bigquery",
         "https://www.googleapis.com/auth/source.read_only"
       ),
-      Map.empty
+      Map.empty,
+      None
     )
     res shouldBe (Right(expected))
   }
@@ -622,7 +623,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       None,
       Set.empty,
-      Map.empty
+      Map.empty,
+      None
     )
     decode[CreateRuntimeRequest](jsonString) shouldBe Right(expectedResult)
   }
@@ -658,7 +660,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       None,
       Set.empty,
-      Map.empty
+      Map.empty,
+      None
     )
     decode[CreateRuntimeRequest](jsonString) shouldBe Right(expectedResult)
   }

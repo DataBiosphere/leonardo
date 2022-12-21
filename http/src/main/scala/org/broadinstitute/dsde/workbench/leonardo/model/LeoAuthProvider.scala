@@ -51,7 +51,7 @@ object SamResource {
   }
   class WsmResource extends SamResource[WsmResourceSamResourceId] {
     val resourceType = SamResourceType.WsmResource
-    val policyNames = Set(SamPolicyName.Creator) // TODO: is this policy name correct?
+    val policyNames = Set(SamPolicyName.Writer)
     def resourceIdAsString(r: WsmResourceSamResourceId): String = r.resourceId
   }
 
@@ -163,15 +163,12 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]]
 
-  def filterUserVisibleWithWorkspaceFallback[R](
-    resources: NonEmptyList[(WorkspaceId, R)],
+  def filterWorkspaceOwner(
+    resources: NonEmptyList[WorkspaceResourceSamResourceId],
     userInfo: UserInfo
   )(implicit
-    sr: SamResource[R],
-    decoder: Decoder[R],
     ev: Ask[F, TraceId]
-  ): F[List[(WorkspaceId, R)]]
-
+  ): F[Set[WorkspaceResourceSamResourceId]]
   // Creates a resource in Sam
   def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
@@ -202,11 +199,10 @@ trait LeoAuthProvider[F[_]] {
     userInfo: UserInfo
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
 
-  def isUserWorkspaceOwner[R](
-    workspaceId: WorkspaceId,
-    workspaceResource: R,
+  def isUserWorkspaceOwner(
+    workspaceResource: WorkspaceResourceSamResourceId,
     userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[Boolean]
+  )(implicit ev: Ask[F, TraceId]): F[Boolean]
 
   // Get user info from Sam. If petOrUserInfo is a pet SA, Sam will return it's associated user account info
   def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail]

@@ -11,7 +11,6 @@ import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineS
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -113,7 +112,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         auth
       )
 
-      samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
+      samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
       createVmRequest <- createDiskAction.map { diskResp =>
         val vmCommon = getCommonFields(
           ControlledResourceName(params.runtime.runtimeName.asString),
@@ -397,19 +396,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case WsmJobStatus.Succeeded =>
+            val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
+
             for {
-              _ <- resp.vm.traverse { x =>
-                dbRef.inTransaction(
-                  controlledResourceQuery.save(
-                    params.runtime.id,
-                    x.metadata.resourceId,
-                    WsmResourceType.AzureVm
-                  )
-                ) >> dbRef.inTransaction(
-                  clusterQuery.updateSamResourceId(params.runtime.id, WsmResourceSamResourceId(x.metadata.resourceId))
-                )
-              }
-              hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), ctx.now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(
