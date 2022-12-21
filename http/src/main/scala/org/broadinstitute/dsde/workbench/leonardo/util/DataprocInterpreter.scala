@@ -13,7 +13,7 @@ import com.google.api.services.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.{google2, DoneCheckable}
+import org.broadinstitute.dsde.workbench.{google2, DoneCheckable, DoneCheckableInstances}
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
@@ -105,6 +105,9 @@ class DataprocInterpreter[F[_]: Parallel](
     with LazyLogging {
 
   import dbRef._
+  val isMemberofGroupDonecheckable = new DoneCheckable[Boolean] {
+    override def isDone(a: Boolean): Boolean = a
+  }
 
   override def createRuntime(
     params: CreateRuntimeParams
@@ -625,44 +628,64 @@ class DataprocInterpreter[F[_]: Parallel](
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
-    parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
-      for {
-        count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
-        // Note: Don't remove the account if there are existing active clusters in the same project,
-        // because it could potentially break other clusters. We only check this for the 'remove' case.
-        _ <-
-          if (count > 0 && !createCluster) {
-            F.unit
-          } else {
-            for {
-              projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
+    for {
+      count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
+      // Note: Don't remove the account if there are existing active clusters in the same project,
+      // because it could potentially break other clusters. We only check this for the 'remove' case.
+      _ <-
+        if (count > 0 && !createCluster) {
+          F.unit
+        } else {
+          for {
+            projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
 
-              projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
-              // Note that the Dataproc service account is used to retrieve the image, and not the user's
-              // pet service account. There is one Dataproc service account per Google project. For more details:
-              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+            projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
+            // Note that the Dataproc service account is used to retrieve the image, and not the user's
+            // pet service account. There is one Dataproc service account per Google project. For more details:
+            // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
 
-              // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
-              // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
-              // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
-              dataprocServiceAccountEmail = WorkbenchEmail(
-                s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                         dataprocServiceAccountEmail,
-                                         createCluster
-              )
-              apiServiceAccountEmail = WorkbenchEmail(
-                s"${projectNumber}@cloudservices.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                         apiServiceAccountEmail,
-                                         createCluster
-              )
-            } yield ()
-          }
-      } yield ()
-    }
+            // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
+            // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
+            // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
+            dataprocServiceAccountEmail = WorkbenchEmail(
+              s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       dataprocServiceAccountEmail,
+                                       createCluster
+            )
+            _ <-
+              if (createCluster)
+                waitUntilMemberAdded(dataprocServiceAccountEmail)
+              else F.unit
+            apiServiceAccountEmail = WorkbenchEmail(
+              s"${projectNumber}@cloudservices.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       apiServiceAccountEmail,
+                                       createCluster
+            )
+            _ <-
+              if (createCluster)
+                waitUntilMemberAdded(apiServiceAccountEmail)
+              else F.unit
+          } yield ()
+        }
+    } yield ()
+
+  private def waitUntilMemberAdded(memberEmail: WorkbenchEmail): F[Boolean] = {
+    implicit val doneCheckable = isMemberofGroupDonecheckable
+    streamUntilDoneOrTimeout(
+      F.fromFuture(
+        F.blocking(
+          googleDirectoryDAO.isGroupMember(config.groupsConfig.dataprocImageProjectGroupEmail, memberEmail)
+        )
+      ),
+      60,
+      5 seconds,
+      s"fail to add ${memberEmail.value} to ${config.groupsConfig.dataprocImageProjectGroupEmail.value}"
+    )
+  }
 
   private def cleanUpGoogleResourcesOnError(
     googleProject: GoogleProject,
