@@ -315,7 +315,10 @@ object CommonTestData {
                                   None
     )
 
-  def makeCluster(index: Int, creator: Option[WorkbenchEmail] = None, cloudContext: CloudContext = cloudContextGcp): Runtime = {
+  def makeCluster(index: Int,
+                  creator: Option[WorkbenchEmail] = None,
+                  cloudContext: CloudContext = cloudContextGcp
+  ): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     val auditInfoUpdated = creator match {
       case Some(c) => auditInfo.copy(creator = c)
