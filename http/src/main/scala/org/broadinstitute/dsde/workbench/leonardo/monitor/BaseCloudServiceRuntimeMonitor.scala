@@ -52,7 +52,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   def monitorConfig: MonitorConfig
 
-  def process(runtimeId: Long, runtimeStatus: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
+  def process(runtimeId: Long, runtimeStatus: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+    ev: Ask[F, TraceId]
+  ): Stream[F, Unit] =
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
@@ -67,13 +69,17 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           _ <- F.sleep(monitorConfig.pollStatus.interval)
           res <- handler(
             monitorContext,
-            s
+            s,
+            checkToolsInterruptAfter
           )
         } yield res
       }
     } yield ()
 
-  private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
+  private[monitor] def handler(monitorContext: MonitorContext,
+                               monitorState: MonitorState,
+                               checkToolsInterruptAfter: Option[FiniteDuration]
+  ): F[CheckResult] =
     for {
       now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
@@ -95,9 +101,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             .as(((), None))
         case Some(_) =>
           monitorState match {
-            case MonitorState.Initial => handleInitial(monitorContext)
+            case MonitorState.Initial => handleInitial(monitorContext, checkToolsInterruptAfter)
             case MonitorState.Check(runtimeAndRuntimeConfig, _) =>
-              handleCheck(monitorContext, runtimeAndRuntimeConfig)
+              handleCheck(monitorContext, runtimeAndRuntimeConfig, checkToolsInterruptAfter)
           }
       }
     } yield res
@@ -317,12 +323,16 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
     } yield res
 
-  def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+  def handleCheck(monitorContext: MonitorContext,
+                  runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                  checkToolsInterruptAfter: Option[FiniteDuration]
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult]
 
   protected def handleInitial(
-    monitorContext: MonitorContext
+    monitorContext: MonitorContext,
+    checkToolsInterruptAfter: Option[FiniteDuration]
   )(implicit ct: Ask[F, AppContext]): F[CheckResult] =
     for {
       statusOpt <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
@@ -336,7 +346,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             _ <- logger.info(monitorContext.loggingContext)(
               s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
             )
-            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig)
+            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig, checkToolsInterruptAfter)
           } yield res
         case _ =>
           F.pure(((), None): CheckResult)
@@ -498,11 +508,32 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
     } yield RuntimeAndRuntimeConfig(cluster, runtimeConfig)
 
+  /**
+   * Provides a custom CheckTools object that is compatible with the checkToolsInterruptAfter provided by the user.
+   *
+   * If no checkToolsInterruptAfter is provided then the defaultChecktools is returned
+   * If a checkToolsInterruptAfter is provided then we use it as the new interruptAfter, and also modify the
+   * interval parameter to be compatible (the interval should be the interruptAfter value divided by then max Attempts)
+   */
+  private[monitor] def getCustomInterruptablePollMonitorConfig(defaultCheckTools: InterruptablePollMonitorConfig,
+                                                               checkToolsInterruptAfter: Option[FiniteDuration]
+  ): InterruptablePollMonitorConfig =
+    checkToolsInterruptAfter match {
+      case Some(duration) =>
+        InterruptablePollMonitorConfig(
+          defaultCheckTools.maxAttempts,
+          duration / defaultCheckTools.maxAttempts,
+          duration
+        )
+      case None => defaultCheckTools
+    }
+
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
                                         mainDataprocInstance: Option[DataprocInstance],
-                                        deleteRuntimeOnFail: Boolean
+                                        deleteRuntimeOnFail: Boolean,
+                                        checkToolsInterruptAfter: Option[FiniteDuration]
   ) // only applies to dataproc
   (implicit
     ev: Ask[F, AppContext]
@@ -528,12 +559,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             ).map(b => (imageType, b))
           )
       }
-      // wait for 10 minutes for tools to start up before time out.
+      // wait for tools to start up before time out. Use the checkToolsInterruptAfter value if available to calculate a
+      // new interval and InterruptAfter values. Else the default checkTools with an interruptAfter of 10 minutes is used.
+      runtimeCheckTools = getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, checkToolsInterruptAfter)
       availableTools <- streamFUntilDone(
         checkTools,
-        monitorConfig.checkTools.maxAttempts,
-        monitorConfig.checkTools.interval
-      ).interruptAfter(monitorConfig.checkTools.interruptAfter).compile.lastOrError
+        runtimeCheckTools.maxAttempts,
+        runtimeCheckTools.interval
+      ).interruptAfter(runtimeCheckTools.interruptAfter).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, mainDataprocInstance)
@@ -543,7 +576,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             monitorContext,
             runtimeAndRuntimeConfig,
             RuntimeErrorDetails(
-              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${monitorConfig.checkTools.interruptAfter.toMinutes} minutes.",
+              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${runtimeCheckTools.interruptAfter.toMinutes} minutes.",
               None,
               Some("tool_start_up")
             ),
