@@ -647,6 +647,8 @@ class DataprocInterpreter[F[_]: Parallel](
             // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
             // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
             // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
+            // See https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/service-accounts#dataproc_service_accounts_2
+            // for more information
             dataprocServiceAccountEmail = WorkbenchEmail(
               s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
             )
