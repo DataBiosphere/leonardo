@@ -13,7 +13,6 @@ import com.google.api.services.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.{google2, DoneCheckable, DoneCheckableInstances}
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
@@ -43,6 +42,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.{google2, DoneCheckable}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
