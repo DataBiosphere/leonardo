@@ -861,14 +861,6 @@ paths:
           schema:
             type: string
         - in: query
-          name: creator
-          description: >
-            Optional filter that includes only persistent disks created by the given user. Accepts an email.
-            Note: currently only the requesting user's email is supported (making this a duplicate of "role=creator").
-          required: false
-          schema:
-            type: string
-        - in: query
           name: includeDeleted
           description: Optional filter that includes any persistent disks with a Deleted status.
           required: false
@@ -935,14 +927,6 @@ paths:
             Note: this string format is a workaround because Swagger doesn't support free-form
             query string parameters. The recommended way to use this endpoint is to specify the
             labels as top-level query string parameters. For instance: GET /api/google/v1/disks?key1=val1&key2=val2.
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: creator
-          description: >
-            Optional filter that includes only persistent disks created by the given user. Accepts an email.
-            Note: currently only the requesting user's email is supported (making this a duplicate of "role=creator").
           required: false
           schema:
             type: string

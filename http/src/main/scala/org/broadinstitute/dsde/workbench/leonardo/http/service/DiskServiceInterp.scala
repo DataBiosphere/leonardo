@@ -193,14 +193,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      creatorOnly =
-        // Support filtering by creator either by role=creator query string, or creator=<user email> label
-        if (
-          params
-            .get(creatorOnlyKey)
-            .contains(creatorOnlyValue) || params.get(creatorOnlyValue).exists(_ == userInfo.userEmail.toString)
-        ) Some(userInfo.userEmail)
-        else None
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo, params))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, creatorOnly, cloudContext).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
       diskAndProjects = disks.map(d =>

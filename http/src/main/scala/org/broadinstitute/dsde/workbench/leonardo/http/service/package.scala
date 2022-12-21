@@ -3,7 +3,8 @@ package http
 
 import cats.syntax.all._
 import cats.Monoid
-import org.broadinstitute.dsde.workbench.leonardo.model.ParseLabelsException
+import org.broadinstitute.dsde.workbench.leonardo.model.{ParseCreatorOnlyException, ParseLabelsException}
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 
 package object service {
 
@@ -84,4 +85,33 @@ package object service {
         )
       )
 
+  private[service] def processCreatorOnlyParameter(
+    userInfo: UserInfo,
+    params: LabelMap
+  ): Either[ParseCreatorOnlyException, Option[WorkbenchEmail]] =
+    // Support filtering by creator either by role=creator query string, or creator=<user email> label
+    for {
+      result <- params match {
+        case map if map.isDefinedAt(creatorOnlyKey) =>
+          if (map.get(creatorOnlyKey).contains(creatorOnlyValue))
+            Either.right(Some(userInfo.userEmail))
+          else
+            Either.left(
+              ParseCreatorOnlyException(
+                s"Failed to process invalid value for ${creatorOnlyKey}. The only currently supported value is ${creatorOnlyValue}."
+              )
+            )
+        case map if map.isDefinedAt(creatorOnlyValue) =>
+          if (map.get(creatorOnlyValue).exists(_ == userInfo.userEmail.toString))
+            Either.right(Some(userInfo.userEmail))
+          else
+            Either.left(
+              ParseCreatorOnlyException(
+                s"Failed to process invalid value for ${creatorOnlyValue}. The only currently supported value is your own user email."
+              )
+            )
+        case _ =>
+          Either.right(None)
+      }
+    } yield result
 }

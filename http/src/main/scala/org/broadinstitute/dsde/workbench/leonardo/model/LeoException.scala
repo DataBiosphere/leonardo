@@ -156,6 +156,8 @@ case class ParseLabelsException(msg: String) extends LeoException(msg, StatusCod
 case class IllegalLabelKeyException(labelKey: String)
     extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable, traceId = None)
 
+case class ParseCreatorOnlyException(msg: String) extends LeoException(msg, StatusCodes.BadRequest, traceId = None)
+
 case class InvalidDataprocMachineConfigException(errorMsg: String)
     extends LeoException(s"${errorMsg}", StatusCodes.BadRequest, traceId = None)
 
