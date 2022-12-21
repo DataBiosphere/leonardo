@@ -2046,14 +2046,14 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     thrown shouldBe ForbiddenError(userInfo.userEmail)
   }
 
-  it should "get the correct tool from list of cluster images" in isolatedDbTest {
+  it should "test getToolFromImages - get the Jupyter tool from list of cluster images" in isolatedDbTest {
     val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage))
-    tool shouldBe Some(jupyterImage)
+    tool shouldBe Some(Tool.Jupyter)
   }
 
-  it should "test" in isolatedDbTest {
+  it should "test getToolFromImages - get the RStudio tool from list of cluster images" in isolatedDbTest {
     val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, cryptoDetectorImage))
-    tool shouldBe Some(rstudioImage)
+    tool shouldBe Some(Tool.RStudio)
   }
 
   private def withLeoPublisher(
