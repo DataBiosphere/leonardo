@@ -75,8 +75,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 
 final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtime: Runtime,
-                                          relayeNamespace: RelayNamespace,
                                           storageContainerResourceId: WsmControlledResourceId,
+                                          landingZoneResources: LandingZoneResources,
                                           runtimeConfig: RuntimeConfig.AzureConfig,
                                           vmImage: AzureImage
 )
