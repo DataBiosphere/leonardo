@@ -10,7 +10,6 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
@@ -19,18 +18,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleResourceService,
   KubernetesName,
   MachineTypeName,
-  NetworkName,
-  SubnetworkName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
-import org.broadinstitute.dsde.workbench.leonardo.CloudContext
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{LandingZoneResource, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -38,12 +33,10 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
-import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartVersion, Release}
-import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
@@ -498,7 +491,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case CloudProvider.Gcp => F.pure(None)
         case CloudProvider.Azure =>
           for {
-            landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
           } yield Some(landingZoneResources)
       }
 
@@ -680,7 +673,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case CloudProvider.Gcp => F.pure(None)
       case CloudProvider.Azure =>
         for {
-          landingZoneResources <- getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
         } yield Some(landingZoneResources)
     }
 
@@ -707,101 +700,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } yield ()
       }
   } yield ()
-
-  private def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[LandingZoneResources] =
-    for {
-      // Step 1: call LZ for LZ id
-      landingZoneOpt <- wsmDao.getLandingZone(billingProfileId, userToken)
-      landingZone <- F.fromOption(
-        landingZoneOpt,
-        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
-      )
-      landingZoneId = landingZone.landingZoneId
-
-      // Step 2: call LZ for LZ resources
-      lzResourcesByPurpose <- wsmDao.listLandingZoneResourcesByType(landingZoneId, userToken)
-      groupedLzResources = lzResourcesByPurpose.foldMap(a =>
-        a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
-      )
-
-      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
-                                                   "Microsoft.ContainerService/managedClusters",
-                                                   SHARED_RESOURCE,
-                                                   false
-      )
-      batchAccountName <- getLandingZoneResourceName(groupedLzResources,
-                                                     "Microsoft.Batch/batchAccounts",
-                                                     SHARED_RESOURCE,
-                                                     false
-      )
-      relayNamespace <- getLandingZoneResourceName(groupedLzResources,
-                                                   "Microsoft.Relay/namespaces",
-                                                   SHARED_RESOURCE,
-                                                   false
-      )
-      storageAccountName <- getLandingZoneResourceName(groupedLzResources,
-                                                       "Microsoft.Storage/storageAccounts",
-                                                       SHARED_RESOURCE,
-                                                       false
-      )
-      postgresName <- getLandingZoneResourceName(groupedLzResources,
-                                                 "microsoft.dbforpostgresql/servers",
-                                                 SHARED_RESOURCE,
-                                                 false
-      )
-      logAnalyticsWorkspaceName <- getLandingZoneResourceName(groupedLzResources,
-                                                              "microsoft.operationalinsights/workspaces",
-                                                              SHARED_RESOURCE,
-                                                              false
-      )
-      vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
-      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
-                                                         "DeployedSubnet",
-                                                         WORKSPACE_BATCH_SUBNET,
-                                                         false
-      )
-      aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
-      computeSubnetName <- getLandingZoneResourceName(groupedLzResources,
-                                                      "DeployedSubnet",
-                                                      WORKSPACE_COMPUTE_SUBNET,
-                                                      false
-      )
-      postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
-
-    } yield LandingZoneResources(
-      AKSClusterName(aksClusterName),
-      BatchAccountName(batchAccountName),
-      RelayNamespace(relayNamespace),
-      StorageAccountName(storageAccountName),
-      NetworkName(vnetName),
-      PostgresName(postgresName),
-      LogAnalyticsWorkspaceName(logAnalyticsWorkspaceName),
-      SubnetworkName(batchNodesSubnetName),
-      SubnetworkName(aksSubnetName),
-      SubnetworkName(postgresSubnetName),
-      SubnetworkName(computeSubnetName)
-    )
-
-  private def getLandingZoneResourceName(
-    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
-    resourceType: String,
-    purpose: LandingZoneResourcePurpose,
-    useParent: Boolean
-  ): F[String] =
-    landingZoneResourcesByPurpose
-      .get((purpose, resourceType.toLowerCase))
-      .flatMap(_.headOption)
-      .flatMap { r =>
-        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
-        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
-      }
-      .fold(
-        F.raiseError[String](
-          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-        )
-      )(F.pure)
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,

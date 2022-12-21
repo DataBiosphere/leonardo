@@ -135,8 +135,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val originalMessage =
       CreateAzureRuntimeMessage(1,
                                 WorkspaceId(UUID.randomUUID()),
-                                RelayNamespace("relay-ns"),
                                 storageContainerResourceId,
+                                landingZoneResources,
                                 None
       )
 
