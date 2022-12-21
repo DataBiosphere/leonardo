@@ -2048,13 +2048,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "get the correct tool from list of cluster images" in isolatedDbTest {
     val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage))
-
     tool shouldBe Some(jupyterImage)
   }
 
   it should "test" in isolatedDbTest {
     val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, cryptoDetectorImage))
-
     tool shouldBe Some(rstudioImage)
   }
 
