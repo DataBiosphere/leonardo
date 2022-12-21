@@ -81,7 +81,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
       leoAuth <- samDAO.getLeoAuthToken
-      // TODO/PR question: do we still need this RelayNamespace for GCP?
       storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
       storageContainer <- F.fromOption(
         storageContainerOpt,
