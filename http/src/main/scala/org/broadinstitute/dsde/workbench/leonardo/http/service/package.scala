@@ -85,11 +85,17 @@ package object service {
         )
       )
 
+  /**
+   * Parses requested creator email from a query. Returns the calling user's WorkbenchEmail given param role=creator or
+   * creator=(caller's email). The creator=email syntax is provided to support legacy terra-ui usages.
+   * @param userInfo ID and credentials of the calling user
+   * @param params Map of query params
+   * @return Either a ParseCreatorOnlyException or an Option WorkbenchEmail
+   */
   private[service] def processCreatorOnlyParameter(
     userInfo: UserInfo,
     params: LabelMap
   ): Either[ParseCreatorOnlyException, Option[WorkbenchEmail]] =
-    // Support filtering by creator either by role=creator query string, or creator=<user email> label
     for {
       result <- params match {
         case map if map.isDefinedAt(creatorOnlyKey) =>
