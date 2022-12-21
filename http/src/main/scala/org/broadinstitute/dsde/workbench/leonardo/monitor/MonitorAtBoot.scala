@@ -20,10 +20,13 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s.{AuthScheme, Credentials}
+import org.http4s.headers.Authorization
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.typelevel.log4cats.Logger
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
@@ -402,14 +405,12 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           wid <- F.fromOption(runtime.workspaceId,
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
-          controlledResourceOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureVm)
-            .transaction
+          controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
           runtimeId = runtime.id,
           None,
           workspaceId = wid,
-          wsmResourceId = controlledResourceOpt.map(_.resourceId),
+          wsmResourceId = Some(controlledResourceOpt),
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
@@ -462,6 +463,7 @@ final case class RuntimeToMonitor(
   cloudContext: CloudContext,
   runtimeName: RuntimeName,
   status: RuntimeStatus,
+  internalId: String,
   patchInProgress: Boolean,
   runtimeConfig: RuntimeConfig,
   serviceAccount: WorkbenchEmail,

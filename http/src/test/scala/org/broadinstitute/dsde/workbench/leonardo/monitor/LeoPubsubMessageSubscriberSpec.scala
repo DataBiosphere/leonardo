@@ -1811,7 +1811,6 @@ class LeoPubsubMessageSubscriberSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
         vmResourceId = WsmControlledResourceId(UUID.randomUUID())
-        _ <- controlledResourceQuery.save(runtime.id, vmResourceId, WsmResourceType.AzureVm).transaction
 
         msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(vmResourceId), None)
 

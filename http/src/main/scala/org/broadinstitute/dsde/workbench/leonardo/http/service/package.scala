@@ -50,26 +50,20 @@ package object service {
     // 1) LabelMap - represents the labels to filter the request by
     // 2) includeDeleted - Boolean which determines if we include deleted resources in the response
     // 3) includeLabels - List of label keys which represent the labels (key, value pairs) that will be returned in response
-    (params.get(includeDeletedKey), params.get(includeLabelsKey)) match {
-      case (Some(includeDeletedValue), Some(includeLabelsValue)) =>
-        for {
-          labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey)
-          labelsToReturn <- processLabelsToReturn(includeLabelsValue)
-        } yield (labelMap, includeDeletedValue.toBoolean, labelsToReturn)
-      case (Some(includeDeletedValue), None) =>
-        for {
-          labelMap <- processLabelMap(params - includeDeletedKey)
-        } yield (labelMap, includeDeletedValue.toBoolean, List.empty)
-      case (None, Some(includeLabelsValue)) =>
-        for {
-          labelMap <- processLabelMap(params - includeLabelsKey)
-          labelsToReturn <- processLabelsToReturn(includeLabelsValue)
-        } yield (labelMap, false, labelsToReturn)
-      case (None, None) =>
-        for {
-          labelMap <- processLabelMap(params)
-        } yield (labelMap, false, List.empty)
-    }
+    for {
+      labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey - creatorOnlyKey)
+      includeDeleted = params.get(includeDeletedKey) match {
+        case Some(includeDeletedValue) =>
+          if (includeDeletedValue.toLowerCase == "true")
+            true
+          else false
+        case None => false
+      }
+      includeLabels <- params.get(includeLabelsKey) match {
+        case Some(includeLabelsValue) => processLabelsToReturn(includeLabelsValue)
+        case None                     => Either.right(List.empty[String])
+      }
+    } yield (labelMap, includeDeleted, includeLabels)
 
   /**
    * Top-level query string parameter for apps and disks: GET /api/apps?includeLabels=foo,bar

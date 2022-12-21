@@ -129,6 +129,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     authHeader: Authorization
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
+      ctx <- ev.ask
       _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${sr.resourceType.asString}")
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
@@ -138,6 +139,25 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
+
+  override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[SamRole]] = for {
+    ctx <- ev.ask
+    _ <- metrics.incrementCounter(s"sam/getRoles/${resourceId.resourceId}")
+    resp <- httpClient.expectOr[Set[SamRole]](
+      Request[F](
+        method = Method.GET,
+        uri = config.samUri.withPath(
+          Uri.Path.unsafeFromString(
+            s"/api/resources/v2/${resourceId.resourceType.asString}/${resourceId.resourceId}/roles"
+          )
+        ),
+        headers = Headers(authHeader)
+      )
+    )(onError)
+    _ = println(s"${ctx.asString} 00000000 all resource policies ${resp}")
+  } yield resp
 
   override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit
