@@ -493,28 +493,6 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list disks belonging to one creator only, if filtered by creator=user@email" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
-
-    val res = for {
-      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      // Make second disk belonging to different user than the calling user
-      disk2 <- LeoLenses.diskToCreator
-        .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
-        .save()
-      listResponse <- diskService.listDisks(userInfo, None, Map("creator" -> "user1@example.com"))
-    } yield
-    // Since the requested user created disk1 only, only disk1 is visible when filtered by that creator
-    listResponse.map(_.id).toSet shouldBe Set(disk1.id)
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "fail to list disks if filtered by role=not_creator" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -530,28 +508,6 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
       listResponse <- diskService.listDisks(userInfo, None, Map("role" -> "manager"))
-    } yield listResponse
-
-    a[BadRequestException] should be thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-
-  it should "fail to list disks if filtered by creator=another_user@email" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
-
-    val res = for {
-      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      // Make second disk belonging to different user than the calling user
-      disk2 <- LeoLenses.diskToCreator
-        .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
-        .save()
-      listResponse <- diskService.listDisks(userInfo, None, Map("creator" -> "a_different_user@example.com"))
     } yield listResponse
 
     a[BadRequestException] should be thrownBy {
