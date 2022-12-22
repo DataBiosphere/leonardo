@@ -7,7 +7,6 @@ import com.google.cloud.compute.v1.Disk
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
@@ -192,7 +191,8 @@ object LeoPubsubMessage {
                                         welderEnabled: Boolean,
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
-                                        traceId: Option[TraceId]
+                                        traceId: Option[TraceId],
+                                        checkToolsInterruptAfter: Option[Int]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
   }
@@ -200,7 +200,8 @@ object LeoPubsubMessage {
   object CreateRuntimeMessage {
     def fromRuntime(runtime: Runtime,
                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
-                    traceId: Option[TraceId]
+                    traceId: Option[TraceId],
+                    checkToolsInterruptAfter: Option[FiniteDuration]
     ): CreateRuntimeMessage =
       CreateRuntimeMessage(
         runtime.id,
@@ -217,7 +218,8 @@ object LeoPubsubMessage {
         runtime.welderEnabled,
         runtime.customEnvironmentVariables,
         runtimeConfig,
-        traceId
+        traceId,
+        checkToolsInterruptAfter.map(x => x.toMinutes.toInt)
       )
   }
 
@@ -348,8 +350,8 @@ object LeoPubsubMessage {
 
   final case class CreateAzureRuntimeMessage(runtimeId: Long,
                                              workspaceId: WorkspaceId,
-                                             relayNamespace: RelayNamespace,
                                              storageContainerResourceId: WsmControlledResourceId,
+                                             landingZoneResources: LandingZoneResources,
                                              traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
@@ -520,7 +522,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct5("runtimeId", "workspaceId", "relayNamespace", "storageContainerResourceId", "traceId")(
+    Decoder.forProduct5("runtimeId", "workspaceId", "storageContainerResourceId", "landingZoneResources", "traceId")(
       CreateAzureRuntimeMessage.apply
     )
 
@@ -622,7 +624,7 @@ object LeoPubsubCodec {
   }
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct16(
+    Encoder.forProduct17(
       "messageType",
       "id",
       "clusterProjectAndName",
@@ -638,6 +640,7 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
+      "checkToolsInterruptAfter",
       "traceId"
     )(x =>
       (x.messageType,
@@ -655,6 +658,7 @@ object LeoPubsubCodec {
        x.welderEnabled,
        x.customEnvironmentVariables,
        x.runtimeConfig,
+       x.checkToolsInterruptAfter,
        x.traceId
       )
     )
@@ -724,7 +728,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createRuntimeMessageDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct15(
+    Decoder.forProduct16(
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
@@ -739,7 +743,8 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
-      "traceId"
+      "traceId",
+      "checkToolsInterruptAfter"
     )(CreateRuntimeMessage.apply)
 
   implicit val deleteRuntimeMessageEncoder: Encoder[DeleteRuntimeMessage] =
@@ -891,10 +896,10 @@ object LeoPubsubCodec {
     Encoder.forProduct6("messageType",
                         "runtimeId",
                         "workspaceId",
-                        "relayNamespace",
                         "storageContainerResourceId",
+                        "landingZoneResources",
                         "traceId"
-    )(x => (x.messageType, x.runtimeId, x.workspaceId, x.relayNamespace, x.storageContainerResourceId, x.traceId))
+    )(x => (x.messageType, x.runtimeId, x.workspaceId, x.storageContainerResourceId, x.landingZoneResources, x.traceId))
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
     Encoder.forProduct6("messageType", "runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(x =>

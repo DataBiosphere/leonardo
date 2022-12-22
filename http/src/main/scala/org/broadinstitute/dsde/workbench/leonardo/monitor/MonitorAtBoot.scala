@@ -10,10 +10,13 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s.{AuthScheme, Credentials}
+import org.http4s.headers.Authorization
 import org.typelevel.log4cats.Logger
 
 import java.util.UUID
@@ -38,7 +41,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
         for {
           now <- F.realTimeInstant
           implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitor${now}"))
-          _ <- handleRuntime(r)
+          _ <- handleRuntime(r, None) // Should we pass in the custom timeout here, and if so how?
+          // from Qi Wang: let's leave it out for now...
+          // this class is for recovering cases when runtimes are left in transit status after Leo is restarted
           _ <- handleRuntimePatchInProgress(r)
         } yield ()
       }
@@ -70,12 +75,14 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       a <- Stream.emits(n.apps)
     } yield (a, n, c)
 
-  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor)(implicit ev: Ask[F, TraceId]): F[Unit] = {
+  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor, checkToolsInterruptAfter: Option[Int])(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] = {
     val res = for {
       traceId <- ev.ask[TraceId]
       msg <- runtimeToMonitor.cloudContext match {
         case CloudContext.Gcp(_) =>
-          runtimeStatusToMessageGCP(runtimeToMonitor, traceId)
+          runtimeStatusToMessageGCP(runtimeToMonitor, traceId, checkToolsInterruptAfter)
         case CloudContext.Azure(_) =>
           runtimeStatusToMessageAzure(runtimeToMonitor, traceId)
       }
@@ -216,7 +223,10 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       }
     )
 
-  private def runtimeStatusToMessageGCP(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageGCP(runtime: RuntimeToMonitor,
+                                        traceId: TraceId,
+                                        checkToolsInterruptAfter: Option[Int]
+  ): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(LeoPubsubMessage.StopRuntimeMessage(runtime.id, Some(traceId)))
@@ -288,12 +298,15 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           runtime.welderEnabled,
           runtime.customEnvironmentVariables,
           rtConfigInMessage,
-          Some(traceId)
+          Some(traceId),
+          checkToolsInterruptAfter
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 
-  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(
@@ -316,7 +329,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
-        F.raiseError(MonitorAtBootException("Startting Azure runtime is not supported yet", traceId))
+        F.raiseError(MonitorAtBootException("Starting Azure runtime is not supported yet", traceId))
       case RuntimeStatus.Creating =>
         for {
           now <- F.realTimeInstant
@@ -329,8 +342,13 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
             case _ =>
               F.raiseError(MonitorAtBootException("Azure runtime shouldn't have non Azure runtime config", traceId))
           }
+          petTokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+          petToken <- F.fromOption(
+            petTokenOpt,
+            MonitorAtBootException(s"Failed to get pet access token for ${runtime.auditInfo.creator}", traceId)
+          )
+          petAuth = Authorization(Credentials.Token(AuthScheme.Bearer, petToken))
           implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
-          relayNamespaceOpt <- wsmDao.getRelayNamespace(wid, azureRuntimeConfig.region, leoAuth)
           storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(wid, leoAuth)
           storageContainer <- F.fromOption(
             storageContainerOpt,
@@ -338,14 +356,16 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                 Some(traceId)
             )
           )
-          rns <- F.fromOption(relayNamespaceOpt,
-                              MonitorAtBootException(s"no relay namespace found for ${wid}", traceId)
-          )
+          workspaceDescOpt <- wsmDao.getWorkspace(wid, leoAuth)
+          workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
+
+          // Get the Landing Zone Resources for the app for Azure
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, petAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,
           wid,
-          rns,
           storageContainer.resourceId,
+          landingZoneResources,
           Some(traceId)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))

@@ -40,7 +40,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     val res = for {
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
-      s1 = runtimeMonitor.process(runtime.id, RuntimeStatus.Creating)
+      s1 = runtimeMonitor.process(runtime.id, RuntimeStatus.Creating, None)
       s2 = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now()).transaction
       )
@@ -54,14 +54,17 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     val res = for {
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
       runtimeMonitor = new MockRuntimeMonitor(true, Map(RuntimeStatus.Starting -> 2.seconds)) {
-        override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-          implicit ev: Ask[IO, AppContext]
+        override def handleCheck(monitorContext: MonitorContext,
+                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                 checkToolsInterruptAfter: Option[FiniteDuration]
+        )(implicit
+          ev: Ask[IO, AppContext]
         ): IO[(Unit, Option[MonitorState])] = checkAgain(monitorContext, runtimeAndRuntimeConfig, None, None, None)
       }
       assersions = for {
         status <- clusterQuery.getClusterStatus(runtime.id).transaction
       } yield status.get shouldBe RuntimeStatus.Stopping
-      _ <- withInfiniteStream(runtimeMonitor.process(runtime.id, RuntimeStatus.Starting), assersions)
+      _ <- withInfiniteStream(runtimeMonitor.process(runtime.id, RuntimeStatus.Starting, None), assersions)
     } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -75,7 +78,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -105,7 +108,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -115,6 +118,52 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     } yield {
       // handleCheckTools should have been interrupted after 10 seconds and moved the runtime to Error status
       elapsed shouldBe 10000L +- 2000L
+      status shouldBe Some(RuntimeStatus.Error)
+      res shouldBe (((), None))
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "move to failed status if checkTools times out after a custom timeout" in isolatedDbTest {
+    val runtimeMonitor = baseRuntimeMonitor(false)
+
+    val customcheckToolsInterruptAfter = Some(5 seconds)
+    val customCheckTools =
+      runtimeMonitor.getCustomInterruptablePollMonitorConfig(InterruptablePollMonitorConfig(5, 5 seconds, 25 seconds),
+                                                             customcheckToolsInterruptAfter
+      )
+    val customInterval = customCheckTools.interval
+
+    val res = for {
+      disk <- makePersistentDisk().save()
+      start <- IO.realTimeInstant
+      tid <- traceId.ask[TraceId]
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Creating)
+          .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+      )
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+      res <- runtimeMonitor.handleCheckTools(monitorContext,
+                                             runtimeAndRuntimeConfig,
+                                             IP("1.2.3.4"),
+                                             None,
+                                             true,
+                                             customcheckToolsInterruptAfter
+      )
+      end <- IO.realTimeInstant
+      elapsed = end.toEpochMilli - start.toEpochMilli
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      runtimeConfig <- RuntimeConfigQueries
+        .getRuntimeConfig(runtime.runtimeConfigId)(scala.concurrent.ExecutionContext.Implicits.global)
+        .transaction
+    } yield {
+      customInterval shouldBe 1.seconds
+      // handleCheckTools should have been interrupted after 5 seconds and moved the runtime to Error status
+      elapsed shouldBe 5000L +- 1000L
       status shouldBe Some(RuntimeStatus.Error)
       res shouldBe (((), None))
       runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
@@ -190,7 +239,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
 
       runCheckTools = Stream.eval(
-        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
+        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
       )
       deleteRuntime = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.completeDeletion(runtime.id, start).transaction
@@ -249,7 +298,10 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       Config.imageConfig
     )
 
-    override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+    override def handleCheck(monitorContext: MonitorContext,
+                             runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                             checkToolsInterruptAfter: Option[FiniteDuration]
+    )(implicit
       ev: Ask[IO, AppContext]
     ): IO[(Unit, Option[MonitorState])] = ???
   }

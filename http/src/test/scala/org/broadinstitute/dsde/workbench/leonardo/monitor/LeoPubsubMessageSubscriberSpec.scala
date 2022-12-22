@@ -16,7 +16,7 @@ import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
@@ -166,7 +166,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -184,7 +184,9 @@ class LeoPubsubMessageSubscriberSpec
 
   "createRuntimeErrorHandler" should "handle runtime creation failure properly" in isolatedDbTest {
     val runtimeMonitor = new MockRuntimeMonitor {
-      override def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
+      override def process(
+        a: CloudService
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
         ev: Ask[IO, TraceId]
       ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
     }
@@ -203,7 +205,7 @@ class LeoPubsubMessageSubscriberSpec
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
@@ -251,7 +253,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -441,7 +443,9 @@ class LeoPubsubMessageSubscriberSpec
     val monitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
-      )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] =
         Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1766,12 +1770,7 @@ class LeoPubsubMessageSubscriberSpec
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
         jobId <- IO.delay(UUID.randomUUID())
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        RelayNamespace("relay-ns"),
-                                        storageContainerResourceId,
-                                        None
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
