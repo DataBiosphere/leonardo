@@ -105,7 +105,7 @@ class DataprocInterpreter[F[_]: Parallel](
     with LazyLogging {
 
   import dbRef._
-  val isMemberofGroupDonecheckable = new DoneCheckable[Boolean] {
+  val isMemberofGroupDoneCheckable = new DoneCheckable[Boolean] {
     override def isDone(a: Boolean): Boolean = a
   }
 
@@ -678,7 +678,7 @@ class DataprocInterpreter[F[_]: Parallel](
     } yield ()
 
   private def waitUntilMemberAdded(memberEmail: WorkbenchEmail): F[Boolean] = {
-    implicit val doneCheckable = isMemberofGroupDonecheckable
+    implicit val doneCheckable = isMemberofGroupDoneCheckable
     streamUntilDoneOrTimeout(
       F.fromFuture(
         F.blocking(
