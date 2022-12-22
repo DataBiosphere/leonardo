@@ -46,7 +46,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
         for {
           now <- F.realTimeInstant
           implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitor${now}"))
-          _ <- handleRuntime(r)
+          _ <- handleRuntime(r, None) // Should we pass in the custom timeout here, and if so how?
+          // from Qi Wang: let's leave it out for now...
+          // this class is for recovering cases when runtimes are left in transit status after Leo is restarted
           _ <- handleRuntimePatchInProgress(r)
         } yield ()
       }
@@ -80,12 +82,14 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       a <- Stream.emits(n.apps)
     } yield (a, n, c)
 
-  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor)(implicit ev: Ask[F, TraceId]): F[Unit] = {
+  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor, checkToolsInterruptAfter: Option[Int])(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] = {
     val res = for {
       traceId <- ev.ask[TraceId]
       msg <- runtimeToMonitor.cloudContext match {
         case CloudContext.Gcp(_) =>
-          runtimeStatusToMessageGCP(runtimeToMonitor, traceId)
+          runtimeStatusToMessageGCP(runtimeToMonitor, traceId, checkToolsInterruptAfter)
         case CloudContext.Azure(_) =>
           runtimeStatusToMessageAzure(runtimeToMonitor, traceId)
       }
@@ -310,7 +314,10 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       }
     )
 
-  private def runtimeStatusToMessageGCP(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageGCP(runtime: RuntimeToMonitor,
+                                        traceId: TraceId,
+                                        checkToolsInterruptAfter: Option[Int]
+  ): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(LeoPubsubMessage.StopRuntimeMessage(runtime.id, Some(traceId)))
@@ -382,7 +389,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           runtime.welderEnabled,
           runtime.customEnvironmentVariables,
           rtConfigInMessage,
-          Some(traceId)
+          Some(traceId),
+          checkToolsInterruptAfter
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }

@@ -288,7 +288,7 @@ object Config {
 
   implicit private val createDiskTimeoutConfigReader: ValueReader[CreateDiskTimeout] = ValueReader.relative { c =>
     CreateDiskTimeout(
-      c.getInt("timeoutInMinutes"),
+      c.getInt("checkToolsInterruptAfter"),
       c.getInt("timeoutWithSourceDiskCopyInMinutes")
     )
   }
