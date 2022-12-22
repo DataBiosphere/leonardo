@@ -656,6 +656,8 @@ class DataprocInterpreter[F[_]: Parallel](
                                        dataprocServiceAccountEmail,
                                        createCluster
             )
+            // Sometimes adding member to a group can take longer than when it gets to the point when we create dataproc cluster.
+            // Hence add polling here to make sure the 2 service accounts are added to the image user group properly before proceeding
             _ <-
               if (createCluster)
                 waitUntilMemberAdded(dataprocServiceAccountEmail)
