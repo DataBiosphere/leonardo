@@ -193,7 +193,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo, params))
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, creatorOnly, cloudContext).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
       diskAndProjects = disks.map(d =>

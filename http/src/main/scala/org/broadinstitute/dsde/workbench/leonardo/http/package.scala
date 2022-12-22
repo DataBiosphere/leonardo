@@ -31,7 +31,7 @@ package object http {
   val includeDeletedKey = "includeDeleted"
   val includeLabelsKey = "includeLabels"
   val creatorOnlyKey = "role"
-  val creatorOnlyValue = "creator"
+  val creatorOnlyValue = SamRole.Creator.asString
   val bucketPathMaxLength = 1024
   val WORKSPACE_NAME_KEY = "WORKSPACE_NAME"
 

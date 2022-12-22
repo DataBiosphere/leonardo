@@ -3,8 +3,8 @@ package http
 
 import cats.syntax.all._
 import cats.Monoid
-import org.broadinstitute.dsde.workbench.leonardo.model.{ParseCreatorOnlyException, ParseLabelsException}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ParseLabelsException}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 package object service {
 
@@ -88,36 +88,44 @@ package object service {
   /**
    * Parses requested creator email from a query. Returns the calling user's WorkbenchEmail given param role=creator or
    * creator=(caller's email). The creator=email syntax is provided to support legacy terra-ui usages.
-   * @param userInfo ID and credentials of the calling user
+   * @param callerEmail email of the calling user
    * @param params Map of query params
-   * @return Either a ParseCreatorOnlyException or an Option WorkbenchEmail
+   * @return Either a BadRequestException or an Option WorkbenchEmail
    */
   private[service] def processCreatorOnlyParameter(
-    userInfo: UserInfo,
-    params: LabelMap
-  ): Either[ParseCreatorOnlyException, Option[WorkbenchEmail]] =
-    for {
-      result <- params match {
-        case map if map.isDefinedAt(creatorOnlyKey) =>
-          if (map.get(creatorOnlyKey).contains(creatorOnlyValue))
-            Either.right(Some(userInfo.userEmail))
-          else
-            Either.left(
-              ParseCreatorOnlyException(
-                s"Failed to process invalid value for ${creatorOnlyKey}. The only currently supported value is ${creatorOnlyValue}."
-              )
+    callerEmail: WorkbenchEmail,
+    params: Map[String, String],
+    traceId: TraceId
+  ): Either[BadRequestException, Option[WorkbenchEmail]] = {
+    val creatorOnlyFromRoleKey = params.get(creatorOnlyKey) match {
+      case Some(role) =>
+        Some(
+          Either.cond(
+            role == creatorOnlyValue,
+            Some(callerEmail),
+            BadRequestException(
+              s"Failed to process invalid value for ${creatorOnlyKey}. The only currently supported value is ${creatorOnlyValue}.",
+              Some(traceId)
             )
-        case map if map.isDefinedAt(creatorOnlyValue) =>
-          if (map.get(creatorOnlyValue).exists(_ == userInfo.userEmail.toString))
-            Either.right(Some(userInfo.userEmail))
-          else
-            Either.left(
-              ParseCreatorOnlyException(
-                s"Failed to process invalid value for ${creatorOnlyValue}. The only currently supported value is your own user email."
-              )
+          )
+        )
+      case None => None
+    }
+    val creatorOnlyFromCreatorKey = params.get(creatorOnlyValue) match {
+      case Some(email) =>
+        Some(
+          Either.cond(
+            email == callerEmail.value,
+            Some(callerEmail),
+            BadRequestException(
+              s"Failed to process invalid value for ${creatorOnlyValue}. The only currently supported value is your own user email.",
+              Some(traceId)
             )
-        case _ =>
-          Either.right(None)
-      }
-    } yield result
+          )
+        )
+      case None => None
+    }
+
+    (creatorOnlyFromRoleKey orElse creatorOnlyFromCreatorKey).getOrElse(Either.right(None))
+  }
 }

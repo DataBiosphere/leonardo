@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   BadRequestException,
   ForbiddenError,
   LeoAuthProvider,
-  ParseCreatorOnlyException,
   SamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -531,9 +530,9 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
       listResponse <- diskService.listDisks(userInfo, None, Map("role" -> "manager"))
-    } yield ()
+    } yield listResponse
 
-    a[ParseCreatorOnlyException] should be thrownBy {
+    a[BadRequestException] should be thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -553,9 +552,9 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
       listResponse <- diskService.listDisks(userInfo, None, Map("creator" -> "a_different_user@example.com"))
-    } yield ()
+    } yield listResponse
 
-    a[ParseCreatorOnlyException] should be thrownBy {
+    a[BadRequestException] should be thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
