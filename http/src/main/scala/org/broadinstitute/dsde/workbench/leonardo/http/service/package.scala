@@ -117,7 +117,7 @@ package object service {
                 Some(traceId)
               )
             )
-          case None => none.asRight
+          case None => none.asRight[BadRequestException]
         }
     }
 
