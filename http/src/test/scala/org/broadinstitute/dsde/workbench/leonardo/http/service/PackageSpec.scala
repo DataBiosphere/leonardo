@@ -47,14 +47,25 @@ class PackageSpec extends AnyFlatSpec with Matchers {
   it should "reject creatorOnly parameter when role=not_creator" in {
     val email = WorkbenchEmail("user1@example.com")
     val params = Map("role" -> "owner")
-    val res = processCreatorOnlyParameter(email, params, TraceId(UUID.randomUUID()))
-    res.isLeft
+    val traceId = TraceId(UUID.randomUUID())
+    val res = processCreatorOnlyParameter(email, params, traceId)
+    res shouldBe Left(
+      BadRequestException("Failed to process invalid value for role. The only currently supported value is creator.",
+                          Some(traceId)
+      )
+    )
   }
 
   it should "reject creatorOnly parameter when creator=another_email" in {
     val email = WorkbenchEmail("user1@example.com")
     val params = Map("creator" -> "another_user@example.com")
-    val res = processCreatorOnlyParameter(email, params, TraceId(UUID.randomUUID()))
-    res.isLeft
+    val traceId = TraceId(UUID.randomUUID())
+    val res = processCreatorOnlyParameter(email, params, traceId)
+    res shouldBe Left(
+      BadRequestException(
+        "Failed to process invalid value for creator. The only currently supported value is your own user email.",
+        Some(traceId)
+      )
+    )
   }
 }
