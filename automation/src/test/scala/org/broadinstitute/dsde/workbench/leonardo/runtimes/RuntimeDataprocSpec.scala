@@ -96,57 +96,6 @@ class RuntimeDataprocSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "should create a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
-    val runtimeName = randomClusterName
-
-    // 2 workers and 5 preemptible workers
-    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-      runtimeConfig = Some(
-        RuntimeConfigRequest.DataprocConfig(
-          Some(2),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(130)),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(150)),
-          None,
-          Some(5),
-          Map.empty,
-          None,
-          true,
-          false
-        )
-      ),
-      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
-    )
-
-    val res = dependencies.use { dep =>
-      implicit val client = dep.httpClient
-      for {
-        // create runtime
-        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
-
-        // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
-
-        // check output of yarn node -list command
-        implicit0(authToken: AuthToken) <- Ron.authToken()
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list""")
-              output.get should include("Total Nodes:")
-            }
-          }
-        )
-
-        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
-      } yield ()
-    }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
