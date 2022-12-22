@@ -95,36 +95,30 @@ package object service {
     callerEmail: WorkbenchEmail,
     params: Map[String, String],
     traceId: TraceId
-  ): Either[BadRequestException, Option[WorkbenchEmail]] = {
-    val creatorOnlyFromRoleKey = params.get(creatorOnlyKey) match {
+  ): Either[BadRequestException, Option[WorkbenchEmail]] =
+    params.get(creatorOnlyKey) match {
       case Some(role) =>
-        Some(
-          Either.cond(
-            role == creatorOnlyValue,
-            Some(callerEmail),
-            BadRequestException(
-              s"Failed to process invalid value for ${creatorOnlyKey}. The only currently supported value is ${creatorOnlyValue}.",
-              Some(traceId)
-            )
+        Either.cond(
+          role == creatorOnlyValue,
+          Some(callerEmail),
+          BadRequestException(
+            s"Failed to process invalid value for ${creatorOnlyKey}. The only currently supported value is ${creatorOnlyValue}.",
+            Some(traceId)
           )
         )
-      case None => None
-    }
-    val creatorOnlyFromCreatorKey = params.get(creatorOnlyValue) match {
-      case Some(email) =>
-        Some(
-          Either.cond(
-            email == callerEmail.value,
-            Some(callerEmail),
-            BadRequestException(
-              s"Failed to process invalid value for ${creatorOnlyValue}. The only currently supported value is your own user email.",
-              Some(traceId)
+      case None =>
+        params.get(creatorOnlyValue) match {
+          case Some(email) =>
+            Either.cond(
+              email == callerEmail.value,
+              Some(callerEmail),
+              BadRequestException(
+                s"Failed to process invalid value for ${creatorOnlyValue}. The only currently supported value is your own user email.",
+                Some(traceId)
+              )
             )
-          )
-        )
-      case None => None
+          case None => none.asRight
+        }
     }
 
-    (creatorOnlyFromRoleKey orElse creatorOnlyFromCreatorKey).getOrElse(Either.right(None))
-  }
 }
