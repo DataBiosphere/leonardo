@@ -83,27 +83,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateNetworkResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateNetworkResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/network"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
-
   override def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateVmResult] =
