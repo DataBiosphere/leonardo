@@ -105,9 +105,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            cloudContext
       )
       createDiskAction = createDisk(params, auth)
-      // TODO make a ticket. We're still calling WSM createVM API, which depends on a WSM owned network. We're migrating
-      // to the shared LZ subnet. We could create the new VM directly from Leo or make an updated API in WSM
-      createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(
@@ -116,7 +113,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
-      createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
+      createVmRequest <- createDiskAction.map { diskResp =>
         val vmCommon = getCommonFields(
           ControlledResourceName(params.runtime.runtimeName.asString),
           config.runtimeDefaults.vmControlledResourceDesc,
@@ -162,8 +159,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             ),
             config.runtimeDefaults.vmCredential,
-            diskResp.resourceId,
-            networkResp.resourceId
+            diskResp.resourceId
           ),
           jobControl
         )
@@ -330,35 +326,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
       _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
     } yield diskResp
-
-  private def createNetwork(
-    params: CreateAzureRuntimeParams,
-    leoAuth: Authorization,
-    nameSuffix: String
-  )(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] = {
-    val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
-                                 config.runtimeDefaults.networkControlledResourceDesc,
-                                 params.runtime.auditInfo.creator,
-                                 None
-    )
-    val request: CreateNetworkRequest = CreateNetworkRequest(
-      params.workspaceId,
-      common,
-      CreateNetworkRequestData(
-        AzureNetworkName(s"vNet-${nameSuffix}"),
-        AzureSubnetName(s"subnet-${nameSuffix}"),
-        config.runtimeDefaults.addressSpaceCidr,
-        config.runtimeDefaults.subnetAddressCidr,
-        params.runtimeConfig.region
-      )
-    )
-    for {
-      networkResp <- wsmDao.createNetwork(request, leoAuth)
-      _ <- controlledResourceQuery
-        .save(params.runtime.id, networkResp.resourceId, WsmResourceType.AzureNetwork)
-        .transaction
-    } yield networkResp
-  }
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
