@@ -69,16 +69,20 @@ jobs:
 
 
 #TODO: copy svc act files to /gce-custom-images?
+
+
     - name: Create svc acct file
-      run: |
-        echo "$GCP_DAISY_GCR_KEY" > "$GITHUB_WORKSPACE/jenkins/dataproc-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"
+      run: 'echo "$GCP_DAISY_GCR_KEY" > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
+      shell: bash
+      env:
+        GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
     - name: run script
       run: |
         gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
         docker pull $DAISY_IMAGE
         docker run -i --rm -v $GITHUB_WORKSPACE/jenkins/gce-custom-images:/gce-custom-images \
-        $daisyImage \
+        $DAISY_IMAGE \
         -project $GOOGLE_PROJECT \
         -zone $ZONE \
         -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
@@ -97,7 +101,7 @@ jobs:
         
         # Make the image public
         gcloud beta compute images add-iam-policy-binding \
-        projects/$GOOGLE_PROJECT/global/images/${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6} \
+        projects/${GOOGLE_PROJECT}/global/images/${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6} \
         --member='allAuthenticatedUsers' \
         --role='roles/compute.imageUser'
 
