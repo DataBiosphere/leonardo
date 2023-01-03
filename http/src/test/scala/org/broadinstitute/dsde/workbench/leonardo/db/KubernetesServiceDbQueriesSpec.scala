@@ -44,7 +44,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     listWithProject2.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
   }
 
-  it should "list apps belonging to self only, if creator specified" in isolatedDbTest{
+  it should "list apps belonging to self only, if creator specified" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()
     val nodepool1 = makeNodepool(1, cluster1.id).save()
     val user1 = WorkbenchEmail("user1@example.com")
@@ -53,12 +53,12 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     val app1 = makeApp(1, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = user1)).save()
     val app2 = makeApp(2, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = user2)).save()
 
-    val listWithCreator = dbFutureValue(KubernetesServiceDbQueries.listFullApps(None, creatorOnly=Some(user1)))
+    val listWithCreator = dbFutureValue(KubernetesServiceDbQueries.listFullApps(None, creatorOnly = Some(user1)))
     listWithCreator.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     listWithCreator.flatMap(_.nodepools).flatMap(_.apps).head shouldEqual app1
   }
 
-    it should "list all apps, if no creator specified" in isolatedDbTest{
+  it should "list all apps, if no creator specified" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()
     val nodepool1 = makeNodepool(1, cluster1.id).save()
     val user1 = WorkbenchEmail("user1@example.com")
