@@ -522,7 +522,7 @@ class HttpRoutesSpec
         "runtimeName" -> s"azureruntime-6",
         "creator" -> "user1@example.com",
         "cloudContext" -> cluster.cloudContext.asStringWithProvider,
-        "tool" -> "Azure",
+        "tool" -> "JupyterLab",
         "label6" -> "value6"
       ) ++ saLabels
 
@@ -543,7 +543,7 @@ class HttpRoutesSpec
         "runtimeName" -> s"azureruntime-4",
         "creator" -> "user1@example.com",
         "cloudContext" -> cluster.cloudContext.asStringWithProvider,
-        "tool" -> "Azure",
+        "tool" -> "JupyterLab",
         "label4" -> "value4"
       ) ++ saLabels
 
