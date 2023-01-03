@@ -287,6 +287,15 @@ object appQuery extends TableQuery(new AppTable(_)) {
       case Some(wid) => query.filter(_.workspaceId === wid)
       case None      => query
     }
+
+  private[db] def filterByCreator(query: Query[AppTable, AppRecord, Seq],
+                                  creatorOnly: Option[WorkbenchEmail]
+  ): Query[AppTable, AppRecord, Seq] =
+    creatorOnly match {
+      case Some(email) => query.filter(_.creator === email)
+      case None        => query
+    }
+
 }
 
 case class SaveApp(app: App)
