@@ -3,6 +3,9 @@ name: Custom Image Generation
 
 #TODO: should only be `workflow_dispatch` eventually, after testing
 on:
+  push:
+    branches: 
+      - 'jc-image-action'
   workflow_dispatch:
     inputs:
       run-dataproc-override:
@@ -24,36 +27,36 @@ env:
   OUTPUT_BASE_NAME: custom-leo
 
 jobs:
-  inspect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      has-dataproc-changes: ${{ steps.filter.outputs.dataproc }}
-      has-gce-changes: ${{ steps.filter.outputs.gce }}
+#   inspect-changes:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       has-dataproc-changes: ${{ steps.filter.outputs.dataproc }}
+#       has-gce-changes: ${{ steps.filter.outputs.gce }}
 
-    steps:
-    - uses: actions/checkout@v3
-    - uses: dorny/paths-filter@v2
-      id: filter
-      with:
-        base: 'develop'
-        filters: |
-          dataproc:
-            - 'jenkins/dataproc-custom-images/**' 
-          gce:
-            - 'jenkins/gce-custom-images/**' 
+#     steps:
+#     - uses: actions/checkout@v3
+#     - uses: dorny/paths-filter@v2
+#       id: filter
+#       with:
+#         base: 'develop'
+#         filters: |
+#           dataproc:
+#             - 'jenkins/dataproc-custom-images/**' 
+#           gce:
+#             - 'jenkins/gce-custom-images/**' 
 
-    - name: display progress
-      run: | 
-        echo "finished inspecting the repo to determine which image generation scripts to run"
-
+#     - name: display progress
+#       run: | 
+#         echo "finished inspecting the repo to determine which image generation scripts to run@@@@@@@@@@@"
   run-image-generation-script-gce:
     runs-on: ubuntu-latest
     needs: inspect-changes
-    if: needs.inspect-changes.outputs.has-gce-changes == 'true' && github.event.inputs.run-gce-override == 'true'
+    # if: github.event.inputs.run-gce-override == 'true' # needs.inspect-changes.outputs.has-gce-changes == 'true' && 
     env:
       GCE_IMAGE_BUCKET: gs://leo-gce-image-creation-logs
       DAISY_IMAGE: gcr.io/compute-image-tools/daisy:release
-      #TODO: test composite env var "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}"
+      #TODO: test
+      TEST_NAME: "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}"
 
     steps:
     - uses: actions/checkout@v3
