@@ -53,18 +53,6 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
       }
     }
 
-    // Note this test should be last because the test infrastructure does not close the shiny app
-    "should launch an RShiny app" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
-          rstudioPage.pressKeys(Keys.ENTER.toString)
-          rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
-            rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
-          )
-        }
-      }
-    }
-
     "Welder should be up" in { runtimeFixture =>
       val resp = Welder.getWelderStatus(runtimeFixture.runtime)
       resp.attempt.unsafeRunSync().isRight shouldBe true
@@ -84,7 +72,6 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
               // Test to make sure that a file created in RStudio syncs properly
               rstudioPage.pressKeys("system(\"touch tests.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
-              Thread.sleep(1000)
               await visible cssSelector("[title~='tests.Rmd']")
 
               val oldCreatedContentSize: Int =
@@ -142,6 +129,18 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
               incorrectFileEndingContentSize should be < newRemoteContentSize
             }
           }
+        }
+      }
+    }
+
+    // Note this test should be last because the test infrastructure does not close the shiny app
+    "should launch an RShiny app" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
+          rstudioPage.pressKeys(Keys.ENTER.toString)
+          rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
+            rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
+          )
         }
       }
     }
