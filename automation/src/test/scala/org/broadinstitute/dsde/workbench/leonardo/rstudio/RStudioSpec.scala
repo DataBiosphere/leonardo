@@ -84,6 +84,7 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
               // Test to make sure that a file created in RStudio syncs properly
               rstudioPage.pressKeys("system(\"touch tests.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
+              Thread.sleep(1000)
               await visible cssSelector("[title~='tests.Rmd']")
 
               val oldCreatedContentSize: Int =
