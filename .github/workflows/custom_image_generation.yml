@@ -63,14 +63,13 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-#TODO: test auth in parent step
-    # - id: 'auth'
-    #   name: 'Authenticate to Google Cloud'
-    #   uses: 'google-github-actions/auth@v0'
-    #   with:
-    #     # Centralized in dsp-tools-k8s; ask in #dsp-devops-champions for help troubleshooting
-    #     workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
-    #     service_account: 'image-build-account@broad-dsp-gcr-public.iam.gserviceaccount.com'
+    - id: 'auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v0'
+      with:
+        # Centralized in dsp-tools-k8s; ask in #dsp-devops-champions for help troubleshooting
+        workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
+        service_account: 'image-build-account@broad-dsp-gcr-public.iam.gserviceaccount.com'
 
     - name: Create svc acct file
       run: 'echo "$GCP_DAISY_GCR_KEY" > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
@@ -114,6 +113,7 @@ jobs:
       DATAPROC_IMAGE_VERSION: 2.0.51-debian10
       DATAPROC_IMAGE_VERSION_FORMATTED: 2-0-51-debian10
       DATAPROC_IMAGE_BUCKET: gs://leo-dataproc-image-creation-logs
+      TEST_NAME: "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}"
 
     steps:
       - uses: actions/checkout@v3
@@ -124,7 +124,10 @@ jobs:
       - name: Create svc acct file
         run: |
           echo "$GCP_DAISY_GCR_KEY" > "$GITHUB_WORKSPACE/jenkins/dataproc-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"
-          ls $GITHUB_WORKSPACE/jenkins/dataproc-custom-images
+          echo 'echoing test name'
+          echo "$TEST_NAME"
+          echo 'catting'
+          cat $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME
 
       - name: Init submodule
         run: |
