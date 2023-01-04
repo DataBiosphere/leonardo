@@ -152,5 +152,16 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         }
       }
     }
+
+    "should have Java available" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
+          val javaOutput = notebookPage.executeCell("""system('java --version', intern = TRUE)""")
+          javaOutput shouldBe defined
+          javaOutput.get should include("OpenJDK Runtime Environment")
+          javaOutput.get should not include "not found"
+        }
+      }
+    }
   }
 }
