@@ -315,14 +315,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
 
-      creatorOnly =
-        // Support filtering by creator either by role=creator query string, or creator=<user email> label
-        if (
-          params
-            .get(creatorOnlyKey)
-            .exists(_ == creatorOnlyValue) || labelMap.get(creatorOnlyValue).exists(_ == userInfo.userEmail)
-        ) Some(userInfo.userEmail)
-        else None
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
         .listRuntimesForWorkspace(labelMap, includeDeleted, creatorOnly, workspaceId, cloudProvider)
         .map(_.toList)
