@@ -677,15 +677,23 @@ class DataprocInterpreter[F[_]: Parallel](
         }
     } yield ()
 
-  private def waitUntilMemberAdded(memberEmail: WorkbenchEmail): F[Boolean] = {
+  private def waitUntilMemberAdded(memberEmail: WorkbenchEmail)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
     implicit val doneCheckable = isMemberofGroupDoneCheckable
-    streamUntilDoneOrTimeout(
-      F.fromFuture(
+    val checkMemberWithLogs = for {
+      ctx <- ev.ask
+      isMember <- F.fromFuture(
         F.blocking(
           googleDirectoryDAO.isGroupMember(config.groupsConfig.dataprocImageProjectGroupEmail, memberEmail)
         )
-      ),
-      60,
+      )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Is ${memberEmail.value} a member of ${config.groupsConfig.dataprocImageProjectGroupEmail.value}? ${isMember}"
+      )
+    } yield isMember
+
+    streamUntilDoneOrTimeout(
+      checkMemberWithLogs,
+      120,
       5 seconds,
       s"fail to add ${memberEmail.value} to ${config.groupsConfig.dataprocImageProjectGroupEmail.value}"
     )
