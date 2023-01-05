@@ -677,7 +677,7 @@ class DataprocInterpreter[F[_]: Parallel](
         }
     } yield ()
 
-  private def waitUntilMemberAdded(memberEmail: WorkbenchEmail)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
+  private[util] def waitUntilMemberAdded(memberEmail: WorkbenchEmail)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
     implicit val doneCheckable = isMemberofGroupDoneCheckable
     val checkMemberWithLogs = for {
       ctx <- ev.ask
@@ -691,10 +691,10 @@ class DataprocInterpreter[F[_]: Parallel](
       )
     } yield isMember
 
-    streamUntilDoneOrTimeout(
+    F.sleep(config.groupsConfig.waitForMemberAddedPollConfig.initialDelay) >> streamUntilDoneOrTimeout(
       checkMemberWithLogs,
-      120,
-      5 seconds,
+      config.groupsConfig.waitForMemberAddedPollConfig.maxAttempts,
+      config.groupsConfig.waitForMemberAddedPollConfig.interval,
       s"fail to add ${memberEmail.value} to ${config.groupsConfig.dataprocImageProjectGroupEmail.value}"
     )
   }

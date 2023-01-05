@@ -130,7 +130,8 @@ object Config {
     GoogleGroupsConfig(
       config.as[WorkbenchEmail]("subEmail"),
       config.getString("dataprocImageProjectGroupName"),
-      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail")
+      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail"),
+      config.as[PollMonitorConfig]("waitForMemberAddedPollConfig")
     )
   }
 

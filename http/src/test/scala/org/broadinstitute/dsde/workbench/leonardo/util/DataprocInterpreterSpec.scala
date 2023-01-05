@@ -13,6 +13,7 @@ import com.google.cloud.compute.v1.{Instance, Operation}
 import com.google.cloud.dataproc.v1.ClusterOperationMetadata
 import com.google.protobuf.Empty
 import kotlin.NotImplementedError
+import org.broadinstitute.dsde.workbench.google.GoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.mock._
@@ -76,7 +77,8 @@ class DataprocInterpreterSpec
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleResourceService, FakeGoogleComputeService)
 
   def dataprocInterp(computeService: GoogleComputeService[IO] = MockGoogleComputeService,
-                     dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService
+                     dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService,
+                     googleDirectoryDao: GoogleDirectoryDAO = mockGoogleDirectoryDAO
   ) =
     new DataprocInterpreter[IO](
       Config.dataprocInterpreterConfig,
@@ -85,7 +87,7 @@ class DataprocInterpreterSpec
       dataprocCluster,
       computeService,
       MockGoogleDiskService,
-      mockGoogleDirectoryDAO,
+      googleDirectoryDao,
       mockGoogleIamDAO,
       mockGoogleResourceService,
       MockWelderDAO
@@ -165,6 +167,25 @@ class DataprocInterpreterSpec
     exception shouldBe a[GoogleJsonResponseException]
 
     erroredIamDAO.invocationCount should be > 2
+  }
+
+  it should "wait until member added properly" in {
+    val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO {
+      override def isGroupMember(groupEmail: WorkbenchEmail, memberEmail: WorkbenchEmail): Future[Boolean] =
+        Future.successful(false)
+    }
+    val res =
+      dataprocInterp(googleDirectoryDao = mockGoogleDirectoryDAO)
+        .waitUntilMemberAdded(
+          WorkbenchEmail("member")
+        )
+        .attempt
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    res shouldBe Left(
+      org.broadinstitute.dsde.workbench
+        .StreamTimeoutError("fail to add member to dataproc-image-project-group@test.firecloud.org")
+    )
   }
 
   it should "calculate cluster resource constraints" in isolatedDbTest {
