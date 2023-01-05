@@ -127,6 +127,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.batchAccountName=batch," +
       "config.batchNodesSubnetId=subnet1," +
       s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.workflowExecutionIdentity=identity-id," +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +

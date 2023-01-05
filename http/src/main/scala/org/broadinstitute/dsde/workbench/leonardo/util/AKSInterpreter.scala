@@ -389,6 +389,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
+        raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",
