@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.time.Instant
 import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
@@ -13,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateR
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
+import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 
 /**
