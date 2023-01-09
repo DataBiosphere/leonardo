@@ -36,8 +36,8 @@ trait RuntimeV2Service[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 
-  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
-    as: Ask[F, AppContext]
+  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId, deleteDisk: Boolean)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit]
 
   def listRuntimes(userInfo: UserInfo,

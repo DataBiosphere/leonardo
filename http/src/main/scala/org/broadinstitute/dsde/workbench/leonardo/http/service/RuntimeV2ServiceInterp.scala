@@ -205,7 +205,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     F.pure(AzureUnimplementedException("patch not implemented yet"))
 
-  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+  override def deleteRuntime(userInfo: UserInfo,
+                             runtimeName: RuntimeName,
+                             workspaceId: WorkspaceId,
+                             deleteDisk: Boolean
+  )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -247,7 +251,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
       // For now, azure disk life cycle is tied to vm life cycle and incompatible with disk routes
-      _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+      // TODO: unsure about this syntax
+      _ <-
+        if (deleteDisk)
+          persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+        else F.pure(none[DiskId])
 
       _ <- publisherQueue.offer(
         DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
