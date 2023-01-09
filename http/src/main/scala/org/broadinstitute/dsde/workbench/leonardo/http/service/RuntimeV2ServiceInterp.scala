@@ -80,7 +80,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- F
         .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      leoAuth <- samDAO.getLeoAuthToken
       storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
       storageContainer <- F.fromOption(
         storageContainerOpt,
