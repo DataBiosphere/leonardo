@@ -98,7 +98,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                 Some(ctx.traceId)
             )
           )
-        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
       }
 
       runtimeImage: RuntimeImage = RuntimeImage(

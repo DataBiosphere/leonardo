@@ -360,7 +360,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
 
           // Get the Landing Zone Resources for the app for Azure
-          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, petAuth)
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,
           wid,
