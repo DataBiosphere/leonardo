@@ -91,6 +91,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
       // Get the Landing Zone Resources for the app for Azure
+      leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp =>
           F.raiseError(
