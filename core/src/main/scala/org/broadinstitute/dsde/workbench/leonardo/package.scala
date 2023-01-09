@@ -36,10 +36,12 @@ package object leonardo {
     // Google permission update is getting slow. This is to address the issue when creating dataproc
     // we're getting the following error
     // com.google.api.gax.rpc.PermissionDeniedException: io.grpc.StatusRuntimeException: PERMISSION_DENIED: Required 'compute.images.get' permission for 'projects/broad-dsp-gcr-public/global/images/custom-leo-image-dataproc-2-0-51-debian10-a46b242'. This usually happens when Dataproc Control Plane Identity service account does not have permission to validate resources in another project. For additional details see https://cloud.google.com/dataproc/docs/concepts/iam/dataproc-principals#service_agent_control_plane_identity
-    val retryOnPermissionDenied: Throwable => Boolean = { case e: io.grpc.StatusRuntimeException =>
-      if (e.getCause.getMessage contains "compute.images.get")
-        true
-      else false
+    val retryOnPermissionDenied: Throwable => Boolean = {
+      case e: io.grpc.StatusRuntimeException =>
+        if (e.getCause.getMessage contains "compute.images.get")
+          true
+        else false
+      case _ => false
     }
 
     RetryPredicates.retryConfigWithPredicates(
