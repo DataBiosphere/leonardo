@@ -426,11 +426,6 @@ object Boot extends IOApp {
         googleComputeRetryPolicy
       )
 
-      googleDataprocRetryPolicy = RetryPredicates.retryConfigWithPredicates(
-        RetryPredicates.standardGoogleRetryPredicate,
-        RetryPredicates.whenStatusCode(400)
-      )
-
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
