@@ -4,11 +4,21 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  LandingZoneResourcePurpose,
+  POSTGRESQL_SUBNET,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET,
+  WORKSPACE_COMPUTE_SUBNET
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
@@ -65,27 +75,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
               Uri.Path
                 .unsafeFromString(
                   s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
-
-  override def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateNetworkResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateNetworkResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/network"
                 )
             ),
           entity = request,
@@ -153,7 +142,101 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[LandingZoneResources] =
+    for {
+      // Step 1: call LZ for LZ id
+      landingZoneOpt <- getLandingZone(billingProfileId, userToken)
+      landingZone <- F.fromOption(
+        landingZoneOpt,
+        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
+      )
+      landingZoneId = landingZone.landingZoneId
+
+      // Step 2: call LZ for LZ resources
+      lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
+      groupedLzResources = lzResourcesByPurpose.foldMap(a =>
+        a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
+      )
+
+      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
+                                                   "Microsoft.ContainerService/managedClusters",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      batchAccountName <- getLandingZoneResourceName(groupedLzResources,
+                                                     "Microsoft.Batch/batchAccounts",
+                                                     SHARED_RESOURCE,
+                                                     false
+      )
+      relayNamespace <- getLandingZoneResourceName(groupedLzResources,
+                                                   "Microsoft.Relay/namespaces",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      storageAccountName <- getLandingZoneResourceName(groupedLzResources,
+                                                       "Microsoft.Storage/storageAccounts",
+                                                       SHARED_RESOURCE,
+                                                       false
+      )
+      postgresName <- getLandingZoneResourceName(groupedLzResources,
+                                                 "microsoft.dbforpostgresql/servers",
+                                                 SHARED_RESOURCE,
+                                                 false
+      )
+      logAnalyticsWorkspaceName <- getLandingZoneResourceName(groupedLzResources,
+                                                              "microsoft.operationalinsights/workspaces",
+                                                              SHARED_RESOURCE,
+                                                              false
+      )
+      vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
+                                                         "DeployedSubnet",
+                                                         WORKSPACE_BATCH_SUBNET,
+                                                         false
+      )
+      aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
+      computeSubnetName <- getLandingZoneResourceName(groupedLzResources,
+                                                      "DeployedSubnet",
+                                                      WORKSPACE_COMPUTE_SUBNET,
+                                                      false
+      )
+      postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
+    } yield LandingZoneResources(
+      AKSClusterName(aksClusterName),
+      BatchAccountName(batchAccountName),
+      RelayNamespace(relayNamespace),
+      StorageAccountName(storageAccountName),
+      NetworkName(vnetName),
+      PostgresName(postgresName),
+      LogAnalyticsWorkspaceName(logAnalyticsWorkspaceName),
+      SubnetworkName(batchNodesSubnetName),
+      SubnetworkName(aksSubnetName),
+      SubnetworkName(postgresSubnetName),
+      SubnetworkName(computeSubnetName)
+    )
+
+  private def getLandingZoneResourceName(
+    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+    resourceType: String,
+    purpose: LandingZoneResourcePurpose,
+    useParent: Boolean
+  ): F[String] =
+    landingZoneResourcesByPurpose
+      .get((purpose, resourceType.toLowerCase))
+      .flatMap(_.headOption)
+      .flatMap { r =>
+        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
+        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
+      }
+      .fold(
+        F.raiseError[String](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
+
+  private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[LandingZone]] =
     for {
@@ -170,7 +253,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       landingZoneOption = res.flatMap(listLandingZoneResult => listLandingZoneResult.landingzones.headOption)
     } yield landingZoneOption
 
-  override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
+  private def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[List[LandingZoneResourcesByPurpose]] =
     for {

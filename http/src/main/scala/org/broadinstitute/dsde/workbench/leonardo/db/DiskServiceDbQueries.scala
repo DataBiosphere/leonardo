@@ -9,18 +9,28 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroy
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
 
 object DiskServiceDbQueries {
 
-  def listDisks(labelMap: LabelMap, includeDeleted: Boolean, cloudContextOpt: Option[CloudContext] = None)(implicit
+  def listDisks(labelMap: LabelMap,
+                includeDeleted: Boolean,
+                creatorOnly: Option[WorkbenchEmail],
+                cloudContextOpt: Option[CloudContext] = None
+  )(implicit
     ec: ExecutionContext
   ): DBIO[List[PersistentDisk]] = {
+    // filtered by creator first as it may have great impact
+    val diskQueryFilteredByCreator = creatorOnly match {
+      case Some(email) => persistentDiskQuery.tableQuery.filter(_.creator === email)
+      case None        => persistentDiskQuery.tableQuery
+    }
+
     val diskQueryFilteredByDeletion =
-      if (includeDeleted) persistentDiskQuery.tableQuery
-      else persistentDiskQuery.tableQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
+      if (includeDeleted) diskQueryFilteredByCreator
+      else diskQueryFilteredByCreator.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
 
     val diskQueryFilteredByProject =
       cloudContextOpt.fold(diskQueryFilteredByDeletion)(p =>

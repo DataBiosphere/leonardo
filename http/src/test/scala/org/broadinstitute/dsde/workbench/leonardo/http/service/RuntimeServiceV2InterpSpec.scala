@@ -5,22 +5,17 @@ package service
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
+import cats.mtl.Ask
+import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, StorageContainerResponse, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  ForbiddenError,
-  ParseLabelsException,
-  RuntimeAlreadyExistsException,
-  RuntimeCannotBeDeletedException,
-  RuntimeCannotBeStartedException,
-  RuntimeCannotBeStoppedException,
-  RuntimeNotFoundByWorkspaceIdException,
-  RuntimeNotFoundException
-}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -30,15 +25,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
 
 import java.util.UUID
-import cats.mtl.Ask
-import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
-import org.http4s.headers.Authorization
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
@@ -57,7 +47,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   def makeInterp(queue: Queue[IO, LeoPubsubMessage], wsmDao: WsmDao[IO] = wsmDao) =
     new RuntimeV2ServiceInterp[IO](serviceConfig, whitelistAuthProvider, wsmDao, mockSamDAO, queue)
 
-  val defaultAzureService =
+  val runtimeV2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
@@ -88,6 +78,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
+
+      override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[LandingZoneResources] =
+        IO.pure(landingZoneResources)
 
     }
     val azureService = makeInterp(publisherQueue, wsmDao)
@@ -157,8 +152,8 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        relayNamespace,
         storageContainerResourceId,
+        landingZoneResources,
         Some(context.traceId)
       )
       message shouldBe expectedMessage
@@ -172,7 +167,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val thrown = the[ForbiddenError] thrownBy {
-      defaultAzureService
+      runtimeV2Service
         .createRuntime(userInfo, runtimeName, workspaceId, defaultCreateAzureRuntimeReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -181,11 +176,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "throw RuntimeAlreadyExistsException when creating a runtime with same name and context as an existing runtime" in isolatedDbTest {
-    defaultAzureService
+    runtimeV2Service
       .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val exc = defaultAzureService
+    val exc = runtimeV2Service
       .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -224,7 +219,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       cluster = clusterOpt.get
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       getResponse <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
     } yield {
       getResponse.clusterName shouldBe runtimeName
@@ -272,8 +266,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureVm).transaction
-      r <- defaultAzureService
+      r <- runtimeV2Service
         .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -290,7 +283,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val res =
-      defaultAzureService
+      runtimeV2Service
         .startRuntime(userInfo, runtimeName, workspaceId)
         .attempt
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -312,7 +305,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      res <- defaultAzureService
+      res <- runtimeV2Service
         .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -360,8 +353,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureVm).transaction
-      r <- defaultAzureService
+      r <- runtimeV2Service
         .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -378,7 +370,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val res =
-      defaultAzureService
+      runtimeV2Service
         .stopRuntime(userInfo, runtimeName, workspaceId)
         .attempt
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -400,7 +392,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      res <- defaultAzureService
+      res <- runtimeV2Service
         .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -409,42 +401,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       exception.getMessage shouldBe s"Runtime Gcp/dsp-leo-test/${runtime.runtimeName.asString} cannot be stopped in Stopped status"
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {
-    val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is white listed
-    val runtimeName = RuntimeName("clusterName1")
-    val workspaceId = WorkspaceId(UUID.randomUUID())
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
-
-    val res = for {
-      _ <- azureService
-        .createRuntime(
-          userInfo,
-          runtimeName,
-          workspaceId,
-          defaultCreateAzureRuntimeReq
-        )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      cluster = clusterOpt.get
-      _ <- azureService.getRuntime(badUserInfo, runtimeName, workspaceId)
-    } yield ()
-
-    the[AzureRuntimeControlledResourceNotFoundException] thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
   }
 
   it should "fail to get a runtime when caller has no permission" in isolatedDbTest {
@@ -477,7 +433,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       cluster = clusterOpt.get
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- azureService.getRuntime(badUserInfo, runtimeName, workspaceId)
     } yield ()
 
@@ -516,7 +471,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       preDeleteCluster = preDeleteClusterOpt.get
-      _ <- controlledResourceQuery.save(preDeleteCluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
 
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId)
@@ -537,12 +491,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk.status shouldBe DiskStatus.Deleting
 
       val expectedMessage =
-        DeleteAzureRuntimeMessage(preDeleteCluster.id,
-                                  Some(disk.id),
-                                  workspaceId,
-                                  Some(wsmResourceId),
-                                  Some(context.traceId)
-        )
+        DeleteAzureRuntimeMessage(preDeleteCluster.id, Some(disk.id), workspaceId, None, Some(context.traceId))
       message shouldBe expectedMessage
     }
 
@@ -576,7 +525,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       preDeleteCluster = preDeleteClusterOpt.get
-      _ <- controlledResourceQuery.save(preDeleteCluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId)
     } yield ()
 
@@ -618,7 +566,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       cluster = clusterOpt.get
       now <- IO.realTimeInstant
       _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Running, now).transaction
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- azureService.deleteRuntime(badUserInfo, runtimeName, workspaceId)
     } yield ()
 
@@ -627,7 +574,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "list runtimes" in isolatedDbTest {
+  it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -643,13 +590,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .copy(samResource = samResource2, cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
           .save()
       )
-      listResponse <- defaultAzureService.listRuntimes(userInfo, None, None, Map.empty)
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with a workspace" in isolatedDbTest {
+  it should "list runtimes with a workspace" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -662,13 +609,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       _ <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = workspace).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      listResponse <- defaultAzureService.listRuntimes(userInfo, workspace, None, Map.empty)
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, workspace, None, Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with a workspace and cloudContext" in isolatedDbTest {
+  it should "list runtimes with a workspace and cloudContext" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -699,10 +646,10 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .save()
       )
       _ <- IO(makeCluster(3).copy(samResource = samResource3, workspaceId = workspace2).save())
-      listResponse1 <- defaultAzureService.listRuntimes(userInfo, workspace, Some(CloudProvider.Azure), Map.empty)
-      listResponse2 <- defaultAzureService.listRuntimes(userInfo, workspace2, Some(CloudProvider.Azure), Map.empty)
-      listResponse3 <- defaultAzureService.listRuntimes(userInfo, workspace2, Some(CloudProvider.Gcp), Map.empty)
-      listResponse4 <- defaultAzureService.listRuntimes(userInfo, workspace, Some(CloudProvider.Gcp), Map.empty)
+      listResponse1 <- runtimeV2Service.listRuntimes(userInfo, workspace, Some(CloudProvider.Azure), Map.empty)
+      listResponse2 <- runtimeV2Service.listRuntimes(userInfo, workspace2, Some(CloudProvider.Azure), Map.empty)
+      listResponse3 <- runtimeV2Service.listRuntimes(userInfo, workspace2, Some(CloudProvider.Gcp), Map.empty)
+      listResponse4 <- runtimeV2Service.listRuntimes(userInfo, workspace, Some(CloudProvider.Gcp), Map.empty)
     } yield {
       listResponse1.map(_.samResource).toSet shouldBe Set(samResource1)
       listResponse2.map(_.samResource) shouldBe List(samResource2)
@@ -713,7 +660,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with parameters" in isolatedDbTest {
+  it should "list runtimes with parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -726,7 +673,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
-      listResponse <- defaultAzureService.listRuntimes(userInfo, None, None, Map("foo" -> "bar"))
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map("foo" -> "bar"))
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -734,7 +681,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
-  it should "list runtimes belonging to other users" in isolatedDbTest {
+  it should "list runtimes belonging to other users" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -753,7 +700,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
       _ <- IO(runtime1.save())
       _ <- IO(runtime2.save())
-      listResponse <- defaultAzureService.listRuntimes(userInfo, None, None, Map.empty)
+      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map.empty)
     } yield
     // Since the calling user is whitelisted in the auth provider, it should return
     // the runtimes belonging to other users.
@@ -762,14 +709,14 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with labels" in isolatedDbTest {
+  it should "list runtimes with labels" taggedAs SlickPlainQueryTest in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     val wsmJobId1 = WsmJobId("job1")
     val req = defaultCreateAzureRuntimeReq.copy(
       labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")
     )
-    defaultAzureService
+    runtimeV2Service
       .createRuntime(userInfo, clusterName1, workspaceId, req)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -782,11 +729,10 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
 
       cluster = clusterOpt.get
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
     } yield ()
     setupControlledResource1.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val runtime1 = defaultAzureService
+    val runtime1 = runtimeV2Service
       .getRuntime(userInfo, clusterName1, workspaceId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse1 = ListRuntimeResponse2(
@@ -805,7 +751,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val clusterName2 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     val wsmJobId2 = WsmJobId("job2")
-    defaultAzureService
+    runtimeV2Service
       .createRuntime(
         userInfo,
         clusterName2,
@@ -823,15 +769,10 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           scala.concurrent.ExecutionContext.global
         )
         .transaction
-
-      cluster = clusterOpt.get
-      _ <- controlledResourceQuery
-        .save(cluster.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureVm)
-        .transaction
     } yield ()
     setupControlledResource2.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val runtime2 = defaultAzureService
+    val runtime2 = runtimeV2Service
       .getRuntime(userInfo, clusterName2, workspaceId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse2 = ListRuntimeResponse2(
@@ -848,41 +789,41 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       runtime2.patchInProgress
     )
 
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1,
       listRuntimeResponse2
     )
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam=yes"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1
     )
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
       .futureValue
       .toSet shouldBe Set(listRuntimeResponse1)
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "a=b"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     )
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "baz=biz"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set.empty
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "A=B"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     ) // labels are not case sensitive because MySQL
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo%3Dbar"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -890,7 +831,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar;bam=yes"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -898,7 +839,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -907,7 +848,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
 
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "bogus"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -916,7 +857,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
 
-    defaultAzureService
+    runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "a,b"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

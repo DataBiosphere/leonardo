@@ -265,7 +265,8 @@ object CommonTestData {
     Some(ContainerImage("myrepo/myimage", DockerHub)),
     Some(DockerHub),
     Set.empty,
-    Map.empty
+    Map.empty,
+    None
   )
   val defaultGceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
@@ -315,8 +316,12 @@ object CommonTestData {
                                   None
     )
 
-  def makeCluster(index: Int): Runtime = {
+  def makeCluster(index: Int, creator: Option[WorkbenchEmail] = None): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
+    val auditInfoUpdated = creator match {
+      case Some(c) => auditInfo.copy(creator = c)
+      case None    => auditInfo
+    }
     Runtime(
       id = -1,
       workspaceId = Some(WorkspaceId(UUID.randomUUID())),
@@ -325,7 +330,7 @@ object CommonTestData {
       cloudContext = cloudContextGcp,
       serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
-      auditInfo = auditInfo,
+      auditInfo = auditInfoUpdated,
       kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, clusterName, Set(jupyterImage), None, Map.empty),
       status = RuntimeStatus.Unknown,

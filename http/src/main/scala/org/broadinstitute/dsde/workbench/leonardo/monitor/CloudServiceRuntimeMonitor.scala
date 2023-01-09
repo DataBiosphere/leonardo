@@ -6,15 +6,19 @@ import cats.mtl.Ask
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.model.TraceId
 
+import scala.concurrent.duration.FiniteDuration
+
 class CloudServiceRuntimeMonitor[F[_]: Async](
   gceRuntimeMonitorInterp: GceRuntimeMonitor[F],
   dataprocRuntimeMonitorInterp: DataprocRuntimeMonitor[F]
 ) extends RuntimeMonitor[F, CloudService] {
   def process(
     a: CloudService
-  )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] = a match {
-    case CloudService.GCE      => gceRuntimeMonitorInterp.process(runtimeId, action)
-    case CloudService.Dataproc => dataprocRuntimeMonitorInterp.process(runtimeId, action)
+  )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+    ev: Ask[F, TraceId]
+  ): Stream[F, Unit] = a match {
+    case CloudService.GCE      => gceRuntimeMonitorInterp.process(runtimeId, action, checkToolsInterruptAfter)
+    case CloudService.Dataproc => dataprocRuntimeMonitorInterp.process(runtimeId, action, checkToolsInterruptAfter)
     case CloudService.AzureVm =>
       Stream.eval(
         Async[F].raiseError(

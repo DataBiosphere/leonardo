@@ -10,7 +10,7 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -99,12 +99,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        RelayNamespace("relay-ns"),
-                                        storageContainerResourceId,
-                                        None
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -112,13 +107,10 @@ class AzurePubsubHandlerSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
         controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
       } yield {
-        controlledResources.length shouldBe 4
+        controlledResources.length shouldBe 2
         val resourceTypes = controlledResources.map(_.resourceType)
-        resourceTypes.contains(WsmResourceType.AzureVm) shouldBe true
-        resourceTypes.contains(WsmResourceType.AzureNetwork) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
-        controlledResources.map(_.resourceId).contains(resourceId) shouldBe true
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -174,12 +166,7 @@ class AzurePubsubHandlerSpec
           diskStatus shouldBe (Some(DiskStatus.Deleted))
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        RelayNamespace("relay-ns"),
-                                        storageContainerResourceId,
-                                        None
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -240,12 +227,7 @@ class AzurePubsubHandlerSpec
           getRuntime = getRuntimeOpt.get
         } yield getRuntime.status shouldBe RuntimeStatus.Error
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        RelayNamespace("relay-ns"),
-                                        storageContainerResourceId,
-                                        None
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -380,12 +362,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        RelayNamespace("relay-ns"),
-                                        storageContainerResourceId,
-                                        None
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)

@@ -192,7 +192,8 @@ object RuntimeFixtureSpec {
       defaultClientId = None,
       welderRegistry = welderRegistry,
       scopes = Set.empty,
-      customEnvironmentVariables = getCustomEnvironmentVariables
+      customEnvironmentVariables = getCustomEnvironmentVariables,
+      checkToolsInterruptAfter = None
     )
   }
 }

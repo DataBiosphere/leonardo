@@ -130,7 +130,8 @@ object Config {
     GoogleGroupsConfig(
       config.as[WorkbenchEmail]("subEmail"),
       config.getString("dataprocImageProjectGroupName"),
-      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail")
+      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail"),
+      config.as[PollMonitorConfig]("waitForMemberAddedPollConfig")
     )
   }
 
@@ -288,7 +289,7 @@ object Config {
 
   implicit private val createDiskTimeoutConfigReader: ValueReader[CreateDiskTimeout] = ValueReader.relative { c =>
     CreateDiskTimeout(
-      c.getInt("timeoutInMinutes"),
+      c.getInt("checkToolsInterruptAfter"),
       c.getInt("timeoutWithSourceDiskCopyInMinutes")
     )
   }

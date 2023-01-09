@@ -41,10 +41,6 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[CreateDiskResponse]
 
-  def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateNetworkResponse]
-
   def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateVmResult]
@@ -85,13 +81,9 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 
-  def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[LandingZone]]
-
-  def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[List[LandingZoneResourcesByPurpose]]
+  ): F[LandingZoneResources]
 
   // TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
   def getRelayNamespace(workspaceId: WorkspaceId,
@@ -164,15 +156,13 @@ final case class CustomScriptExtension(name: String,
                                        protectedSettings: ProtectedSettings
 )
 final case class StorageContainerResponse(name: ContainerName, resourceId: WsmControlledResourceId)
-final case class StorageAccountResponse(name: StorageAccountName, resourceId: WsmControlledResourceId)
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,
                                      vmImage: AzureImage,
                                      customScriptExtension: CustomScriptExtension,
                                      vmUserCredential: VMCredential,
-                                     diskId: WsmControlledResourceId,
-                                     networkId: WsmControlledResourceId
+                                     diskId: WsmControlledResourceId
 )
 
 final case class WsmVMMetadata(resourceId: WsmControlledResourceId)
@@ -551,15 +541,9 @@ object WsmEncoders {
     Encoder.forProduct2("name", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct8("name",
-                        "region",
-                        "vmSize",
-                        "vmImage",
-                        "customScriptExtension",
-                        "vmUser",
-                        "diskId",
-                        "networkId"
-    )(x => (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId, x.networkId))
+    Encoder.forProduct7("name", "region", "vmSize", "vmImage", "customScriptExtension", "vmUser", "diskId")(x =>
+      (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId)
+    )
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =

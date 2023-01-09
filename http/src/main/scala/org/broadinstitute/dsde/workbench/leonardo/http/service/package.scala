@@ -3,7 +3,8 @@ package http
 
 import cats.syntax.all._
 import cats.Monoid
-import org.broadinstitute.dsde.workbench.leonardo.model.ParseLabelsException
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ParseLabelsException}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 package object service {
 
@@ -50,26 +51,21 @@ package object service {
     // 1) LabelMap - represents the labels to filter the request by
     // 2) includeDeleted - Boolean which determines if we include deleted resources in the response
     // 3) includeLabels - List of label keys which represent the labels (key, value pairs) that will be returned in response
-    (params.get(includeDeletedKey), params.get(includeLabelsKey)) match {
-      case (Some(includeDeletedValue), Some(includeLabelsValue)) =>
-        for {
-          labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey)
-          labelsToReturn <- processLabelsToReturn(includeLabelsValue)
-        } yield (labelMap, includeDeletedValue.toBoolean, labelsToReturn)
-      case (Some(includeDeletedValue), None) =>
-        for {
-          labelMap <- processLabelMap(params - includeDeletedKey)
-        } yield (labelMap, includeDeletedValue.toBoolean, List.empty)
-      case (None, Some(includeLabelsValue)) =>
-        for {
-          labelMap <- processLabelMap(params - includeLabelsKey)
-          labelsToReturn <- processLabelsToReturn(includeLabelsValue)
-        } yield (labelMap, false, labelsToReturn)
-      case (None, None) =>
-        for {
-          labelMap <- processLabelMap(params)
-        } yield (labelMap, false, List.empty)
-    }
+    // Note that optional parameter `role` or `creator` (represented by creatorOnlyKey and creatorOnlyValue) is omitted.
+    for {
+      labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey - creatorOnlyKey - creatorOnlyValue)
+      includeDeleted = params.get(includeDeletedKey) match {
+        case Some(includeDeletedValue) =>
+          if (includeDeletedValue.toLowerCase == "true")
+            true
+          else false
+        case None => false
+      }
+      includeLabels <- params.get(includeLabelsKey) match {
+        case Some(includeLabelsValue) => processLabelsToReturn(includeLabelsValue)
+        case None                     => Either.right(List.empty[String])
+      }
+    } yield (labelMap, includeDeleted, includeLabels)
 
   /**
    * Top-level query string parameter for apps and disks: GET /api/apps?includeLabels=foo,bar
@@ -87,5 +83,42 @@ package object service {
           s"Failed to process ${includeLabelsKey} query string because it's not comma separated. Expected format [key1,key2,...]"
         )
       )
+
+  /**
+   * Parses requested creator email from a query. Returns the calling user's WorkbenchEmail given param role=creator or
+   * creator=(caller's email). The creator=email syntax is provided to support legacy terra-ui usages.
+   * @param callerEmail email of the calling user
+   * @param params Map of query params
+   * @return Either a BadRequestException or an Option WorkbenchEmail
+   */
+  private[service] def processCreatorOnlyParameter(
+    callerEmail: WorkbenchEmail,
+    params: Map[String, String],
+    traceId: TraceId
+  ): Either[BadRequestException, Option[WorkbenchEmail]] =
+    params.get(creatorOnlyKey) match {
+      case Some(role) =>
+        Either.cond(
+          role == creatorOnlyValue,
+          Some(callerEmail),
+          BadRequestException(
+            s"Failed to process invalid value for ${creatorOnlyKey}. The only currently supported value is ${creatorOnlyValue}.",
+            Some(traceId)
+          )
+        )
+      case None =>
+        params.get(creatorOnlyValue) match {
+          case Some(email) =>
+            Either.cond(
+              email == callerEmail.value,
+              Some(callerEmail),
+              BadRequestException(
+                s"Failed to process invalid value for ${creatorOnlyValue}. The only currently supported value is your own user email.",
+                Some(traceId)
+              )
+            )
+          case None => none.asRight[BadRequestException]
+        }
+    }
 
 }
