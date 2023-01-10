@@ -736,10 +736,12 @@ object LeonardoApiClient {
           Request[IO](
             method = Method.DELETE,
             headers = Headers(authHeader, traceIdHeader),
-            uri = rootUri.withPath(
-              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
-            )
-            .withQueryParam("deleteDisk", deleteDisk)
+            uri = rootUri
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+              )
+              .withQueryParam("deleteDisk", deleteDisk)
           )
         )
         .use { resp =>
