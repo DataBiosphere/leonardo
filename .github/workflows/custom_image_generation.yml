@@ -62,6 +62,7 @@ jobs:
       DAISY_IMAGE: gcr.io/compute-image-tools/daisy:release
       #TODO: test
       TEST_NAME: "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}"
+      GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
     steps:
     - uses: actions/checkout@v3
@@ -124,6 +125,7 @@ jobs:
       DATAPROC_IMAGE_VERSION_FORMATTED: 2-0-51-debian10
       DATAPROC_IMAGE_BUCKET: gs://leo-dataproc-image-creation-logs
       TEST_NAME: ${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}
+      GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
     steps:
       - uses: actions/checkout@v3
@@ -149,7 +151,7 @@ jobs:
 
       - name: Run image generation script
         run: |
-          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
+          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work:ro gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
           && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
           && gcloud auth configure-docker --quiet \
           && gcloud config set dataproc/region us-central1 \
