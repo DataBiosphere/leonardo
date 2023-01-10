@@ -80,6 +80,10 @@ jobs:
       env:
         GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
+    - name: check
+      run: |
+        ls -al $GITHUB_WORKSPACE/jenkins/gce-custom-images
+
     - name: run script
       run: |
         gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
@@ -134,6 +138,9 @@ jobs:
           echo "$TEST_NAME"
           echo 'lsing'
           ls -al $GITHUB_WORKSPACE/jenkins/dataproc-custom-images
+        shell: bash
+        env:
+          GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
       - name: Init submodule
         run: |
