@@ -473,7 +473,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       preDeleteCluster = preDeleteClusterOpt.get
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
 
-      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId)
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
 
       message <- publisherQueue.take
 
@@ -525,12 +525,69 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       preDeleteCluster = preDeleteClusterOpt.get
-      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId)
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
     } yield ()
 
     the[RuntimeCannotBeDeletedException] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
+  }
+
+  it should "delete a runtime but keep the disk if specified" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is white listed
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          defaultCreateAzureRuntimeReq
+        )
+      _ <- publisherQueue.tryTake // clean out create msg
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      preDeleteClusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      preDeleteCluster = preDeleteClusterOpt.get
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
+
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, false)
+
+      message <- publisherQueue.take
+
+      postDeleteClusterOpt <- clusterQuery
+        .getClusterById(preDeleteCluster.id)
+        .transaction
+
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster.runtimeConfigId).transaction
+      diskOpt <- persistentDiskQuery
+        .getById(runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .transaction
+      disk = diskOpt.get
+    } yield {
+      postDeleteClusterOpt.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+      disk.status shouldBe DiskStatus.Creating
+
+      val expectedMessage =
+        DeleteAzureRuntimeMessage(preDeleteCluster.id, None, workspaceId, None, Some(context.traceId))
+      message shouldBe expectedMessage
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to delete a runtime when caller has no permission" in isolatedDbTest {
@@ -566,7 +623,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       cluster = clusterOpt.get
       now <- IO.realTimeInstant
       _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Running, now).transaction
-      _ <- azureService.deleteRuntime(badUserInfo, runtimeName, workspaceId)
+      _ <- azureService.deleteRuntime(badUserInfo, runtimeName, workspaceId, true)
     } yield ()
 
     the[RuntimeNotFoundException] thrownBy {

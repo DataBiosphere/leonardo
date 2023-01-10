@@ -224,7 +224,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
       deleteDisk = params.get("deleteDisk").exists(_ == "true")
       apiCall = runtimeV2Service.deleteRuntime(userInfo, runtimeName, workspaceId, deleteDisk)
-      _ <- metrics.incrementCounter("deleteRuntimeV2")
+      tags = Map("deleteDisk" -> deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteRuntimeV2", 1, tags)
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "deleteRuntimeV2")
           .use(_ => apiCall)
