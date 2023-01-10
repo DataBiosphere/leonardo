@@ -176,7 +176,8 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO
+          appDependencies.wsmDAO,
+          appDependencies.samDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](

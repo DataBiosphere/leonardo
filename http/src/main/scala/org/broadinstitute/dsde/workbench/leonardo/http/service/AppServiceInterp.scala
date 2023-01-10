@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -51,7 +51,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F]
+                                                wsmDao: WsmDao[F],
+                                                samDAO: SamDAO[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -489,11 +490,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
 
       // Get the Landing Zone Resources for the app for Azure
+      leoAuth <- samDAO.getLeoAuthToken
       landingZoneResourcesOpt <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp => F.pure(None)
         case CloudProvider.Azure =>
           for {
-            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
           } yield Some(landingZoneResources)
       }
 
@@ -671,11 +673,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     }
 
     // Get the Landing Zone Resources for the app for Azure
+    leoAuth <- samDAO.getLeoAuthToken
     landingZoneResourcesOpt <- cloudContext.cloudProvider match {
       case CloudProvider.Gcp => F.pure(None)
       case CloudProvider.Azure =>
         for {
-          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield Some(landingZoneResources)
     }
 
