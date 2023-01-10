@@ -5,7 +5,7 @@ name: Custom Image Generation
 on:
 #TODO: REMOVE BEFORE MERGE
   push:
-    branches: 
+    branches:
       - 'jc-image-action'
   workflow_dispatch:
     inputs:
@@ -41,19 +41,22 @@ env:
 #         base: 'develop'
 #         filters: |
 #           dataproc:
-#             - 'jenkins/dataproc-custom-images/**' 
+#             - 'jenkins/dataproc-custom-images/**'
 #           gce:
-#             - 'jenkins/gce-custom-images/**' 
+#             - 'jenkins/gce-custom-images/**'
 
 #     - name: display progress
-#       run: | 
+#       run: |
 #         echo "finished inspecting the repo to determine which image generation scripts to run@@@@@@@@@@@"
 
 jobs:
   run-image-generation-script-gce:
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     # needs: inspect-changes
-    # if: github.event.inputs.run-gce-override == 'true' # needs.inspect-changes.outputs.has-gce-changes == 'true' && 
+    # if: github.event.inputs.run-gce-override == 'true' # needs.inspect-changes.outputs.has-gce-changes == 'true' &&
     env:
       GCE_IMAGE_BUCKET: gs://leo-gce-image-creation-logs
       DAISY_IMAGE: gcr.io/compute-image-tools/daisy:release
@@ -107,13 +110,16 @@ jobs:
 
   run-image-generate-script-dataproc:
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     # needs: inspect-changes
     # if: needs.inspect-changes.outputs.has-dataproc-changes == 'true' && github.event.inputs.run-dataproc-override == 'true'
     env:
       DATAPROC_IMAGE_VERSION: 2.0.51-debian10
       DATAPROC_IMAGE_VERSION_FORMATTED: 2-0-51-debian10
       DATAPROC_IMAGE_BUCKET: gs://leo-dataproc-image-creation-logs
-      TEST_NAME: "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}"
+      TEST_NAME: ${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}
 
     steps:
       - uses: actions/checkout@v3
@@ -126,8 +132,8 @@ jobs:
           echo "$GCP_DAISY_GCR_KEY" > "$GITHUB_WORKSPACE/jenkins/dataproc-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"
           echo 'echoing test name'
           echo "$TEST_NAME"
-          echo 'catting'
-          cat $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME
+          echo 'lsing'
+          ls -al $GITHUB_WORKSPACE/jenkins/dataproc-custom-images
 
       - name: Init submodule
         run: |
@@ -136,7 +142,7 @@ jobs:
 
       - name: Run image generation script
         run: |
-          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work:ro gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
+          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
           && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
           && gcloud auth configure-docker --quiet \
           && gcloud config set dataproc/region us-central1 \
