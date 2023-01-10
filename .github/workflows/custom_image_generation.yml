@@ -151,7 +151,7 @@ jobs:
 
       - name: Run image generation script
         run: |
-          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work:ro gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
+          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work/dataproc-custom-images gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
           && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
           && gcloud auth configure-docker --quiet \
           && gcloud config set dataproc/region us-central1 \
