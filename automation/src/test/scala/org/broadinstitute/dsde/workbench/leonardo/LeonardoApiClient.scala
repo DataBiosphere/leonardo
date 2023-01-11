@@ -726,7 +726,7 @@ object LeonardoApiClient {
   def deleteRuntimeV2(
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName,
-    deleteDisk: Boolean = true
+    deleteDisk: Boolean
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
@@ -756,7 +756,7 @@ object LeonardoApiClient {
   def deleteRuntimeV2WithWait(
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName,
-    deleteDisk: Boolean = true
+    deleteDisk: Boolean
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       _ <- deleteRuntimeV2(workspaceId, runtimeName, deleteDisk)
