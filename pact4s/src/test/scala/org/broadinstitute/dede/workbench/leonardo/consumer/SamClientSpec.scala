@@ -29,7 +29,7 @@ import scala.concurrent.ExecutionContext
 
 class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactForger {
   /*
-    we can define the folder that the pact contracts get written to upon completion of this test suite.
+    Define the folder that the pact contracts get written to upon completion of this test suite.
    */
   override val pactTestExecutionContext: PactTestExecutionContext =
     new PactTestExecutionContext(
