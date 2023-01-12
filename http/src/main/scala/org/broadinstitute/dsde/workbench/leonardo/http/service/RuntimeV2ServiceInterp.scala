@@ -80,7 +80,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- F
         .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      leoAuth <- samDAO.getLeoAuthToken
       storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
       storageContainer <- F.fromOption(
         storageContainerOpt,
@@ -92,6 +91,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
       // Get the Landing Zone Resources for the app for Azure
+      leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp =>
           F.raiseError(
@@ -99,7 +99,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                 Some(ctx.traceId)
             )
           )
-        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
       }
 
       runtimeImage: RuntimeImage = RuntimeImage(

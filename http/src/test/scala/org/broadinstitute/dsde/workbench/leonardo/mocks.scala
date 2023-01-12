@@ -171,7 +171,7 @@ class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
   def stop: IO[Unit] = IO.unit
 }
 
-object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
+class BaseMockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[CreateGoogleRuntimeResponse]] = ???
@@ -197,6 +197,8 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 }
+
+object MockRuntimeAlgebra extends BaseMockRuntimeAlgebra
 
 class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease: List[Release] = List.empty)
     extends org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService {

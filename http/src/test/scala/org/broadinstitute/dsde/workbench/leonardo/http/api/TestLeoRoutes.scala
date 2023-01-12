@@ -13,14 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  HostStatus,
-  MockDockerDAO,
-  MockJupyterDAO,
-  MockSamDAO,
-  MockWelderDAO,
-  MockWsmDAO
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{
   KubernetesDnsCache,
@@ -114,7 +107,8 @@ trait TestLeoRoutes {
     FakeGoogleComputeService,
     FakeGoogleResourceService,
     Config.gkeCustomAppConfig,
-    wsmDao
+    wsmDao,
+    new MockSamDAO
   )
 
   val serviceConfig = RuntimeServiceConfig(

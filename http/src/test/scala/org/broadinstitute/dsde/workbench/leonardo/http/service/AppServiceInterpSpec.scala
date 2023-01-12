@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -51,6 +51,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   val wsmDao = new MockWsmDAO
+  val samDao = new MockSamDAO
 
   val gcpWsmDao = new MockWsmDAO {
     override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
@@ -76,7 +77,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     FakeGoogleComputeService,
     FakeGoogleResourceService,
     gkeCustomAppConfig,
-    wsmDao
+    wsmDao,
+    samDao
   )
   val gcpWorkspaceAppServiceInterp = new LeoAppServiceInterp[IO](
     appServiceConfig,
@@ -86,30 +88,35 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     FakeGoogleComputeService,
     FakeGoogleResourceService,
     gkeCustomAppConfig,
-    gcpWsmDao
+    gcpWsmDao,
+    samDao
   )
 
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new LeoAppServiceInterp[IO](appServiceConfig,
-                                whitelistAuthProvider,
-                                serviceAccountProvider,
-                                queue,
-                                FakeGoogleComputeService,
-                                FakeGoogleResourceService,
-                                gkeCustomAppConfig,
-                                wsmDao
+    new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      queue,
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      gkeCustomAppConfig,
+      wsmDao,
+      samDao
     )
 
   def makeGcpWorkspaceInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new LeoAppServiceInterp[IO](appServiceConfig,
-                                whitelistAuthProvider,
-                                serviceAccountProvider,
-                                queue,
-                                FakeGoogleComputeService,
-                                FakeGoogleResourceService,
-                                gkeCustomAppConfig,
-                                gcpWsmDao
+    new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      queue,
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      gkeCustomAppConfig,
+      gcpWsmDao,
+      samDao
     )
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -156,7 +163,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       passComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      samDao
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -166,7 +174,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughMemoryComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      samDao
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -176,7 +185,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughCpuComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      samDao
     )
 
     for {
@@ -207,7 +217,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       noLabelsGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      samDao
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -237,7 +248,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      samDao
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -1191,7 +1203,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ServiceAccountName(""),
         customApplicationAllowList
       ),
-      wsmDao
+      wsmDao,
+      samDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1230,7 +1243,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ServiceAccountName(""),
         customApplicationAllowList
       ),
-      wsmDao
+      wsmDao,
+      samDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1271,7 +1285,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ServiceAccountName(""),
         customApplicationAllowList
       ),
-      wsmDao
+      wsmDao,
+      samDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1311,7 +1326,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ServiceAccountName(""),
         customApplicationAllowList
       ),
-      wsmDao
+      wsmDao,
+      samDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1348,7 +1364,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ServiceAccountName(""),
         customApplicationAllowList
       ),
-      wsmDao
+      wsmDao,
+      samDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1391,7 +1408,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ServiceAccountName(""),
         customApplicationAllowList
       ),
-      wsmDao
+      wsmDao,
+      samDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1434,7 +1452,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ServiceAccountName(""),
         customApplicationAllowList
       ),
-      wsmDao
+      wsmDao,
+      samDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
