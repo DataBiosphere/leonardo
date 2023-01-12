@@ -549,7 +549,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
               )
               .whenA(diskResourceOpt.isEmpty)
-            deleteDisk = diskResourceOpt.traverse { disk =>
+            _ <- diskResourceOpt.traverse { disk =>
               wsmDao.deleteDisk(
                 DeleteWsmResourceRequest(
                   msg.workspaceId,
@@ -562,28 +562,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             }.void
 
-            networkResourceOpt <- controlledResourceQuery
-              .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
-              .transaction
-            _ <- logger
-              .info(ctx.loggingCtx)(
-                s"No network resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteNetworks."
-              )
-              .whenA(networkResourceOpt.isEmpty)
-            deleteNetworks = networkResourceOpt.traverse { network =>
-              wsmDao.deleteNetworks(
-                DeleteWsmResourceRequest(
-                  msg.workspaceId,
-                  network.resourceId,
-                  DeleteControlledAzureResourceRequest(
-                    WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
-                  )
-                ),
-                auth
-              )
-            }.void
-
-            _ <- List(deleteDisk, deleteNetworks).parSequence
             _ <- msg.diskIdToDelete.traverse(diskId =>
               dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
             )
