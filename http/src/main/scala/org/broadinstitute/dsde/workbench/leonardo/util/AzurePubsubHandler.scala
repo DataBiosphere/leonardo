@@ -539,6 +539,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.deleteVmPollConfig.interval
         ).compile.lastOrError
 
+        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+        _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
+
         deleteDiskAction = msg.diskIdToDelete.traverse { _ =>
           for {
             diskResourceOpt <- controlledResourceQuery
@@ -568,8 +571,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             _ <- logger.info(ctx.loggingCtx)("runtime disk is deleted successfully")
           } yield ()
         }.void
-        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-        _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
+
         _ <- respOpt match {
           case Some(resp) =>
             resp.jobReport.status match {

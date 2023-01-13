@@ -391,7 +391,7 @@ class AzurePubsubHandlerSpec
             any[Ask[IO, AppContext]]
           )
           getRuntime.status shouldBe RuntimeStatus.Deleted
-          controlledResources.length shouldBe 3
+          controlledResources.length shouldBe 2
           val resourceTypes = controlledResources.map(_.resourceType)
           resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
           diskStatus shouldBe DiskStatus.Ready
@@ -402,9 +402,6 @@ class AzurePubsubHandlerSpec
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
-          .transaction
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
           .transaction
         msg = DeleteAzureRuntimeMessage(runtime.id, None, workspaceId, Some(wsmResourceId), None)
 
