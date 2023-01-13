@@ -656,12 +656,6 @@ class DataprocInterpreter[F[_]: Parallel](
                                        dataprocServiceAccountEmail,
                                        createCluster
             )
-            // Sometimes adding member to a group can take longer than when it gets to the point when we create dataproc cluster.
-            // Hence add polling here to make sure the 2 service accounts are added to the image user group properly before proceeding
-            _ <-
-              if (createCluster)
-                waitUntilMemberAdded(dataprocServiceAccountEmail)
-              else F.unit
             apiServiceAccountEmail = WorkbenchEmail(
               s"${projectNumber}@cloudservices.gserviceaccount.com"
             )
@@ -669,10 +663,6 @@ class DataprocInterpreter[F[_]: Parallel](
                                        apiServiceAccountEmail,
                                        createCluster
             )
-            _ <-
-              if (createCluster)
-                waitUntilMemberAdded(apiServiceAccountEmail)
-              else F.unit
           } yield ()
         }
     } yield ()
@@ -838,8 +828,10 @@ class DataprocInterpreter[F[_]: Parallel](
       isMember <- checkIsMember
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
+          // Sometimes adding member to a group can take longer than when it gets to the point when we create dataproc cluster.
+          // Hence add polling here to make sure the 2 service accounts are added to the image user group properly before proceeding
           logger.info(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >>
-            addMemberToGroup
+            addMemberToGroup >> waitUntilMemberAdded(memberEmail)
         case (true, false) =>
           logger.info(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >>
             removeMemberFromGroup
