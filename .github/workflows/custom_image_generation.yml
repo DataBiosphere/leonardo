@@ -69,24 +69,20 @@ jobs:
     - name: run script
       run: |
         docker run -i --rm -v $GITHUB_WORKSPACE/jenkins/gce-custom-images:/gce-custom-images \
-        $DAISY_IMAGE \
-        -project $GOOGLE_PROJECT \
-        -zone $ZONE \
-        -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
-        -gcs_path $GCE_IMAGE_BUCKET \
-        -default_timeout 45m \
-        -var:base_image $GCE_BASE_IMAGE \
-        -var:output_image "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}" \ 
-        -var:gce_images_dir /gce-custom-images \
-        -var:installation_script_name prepare_gce_image.sh \
-        /gce-custom-images/gce_image.wf.json
-        docker stop daisy || true
-        docker rm -f daisy || true
-        
-        # Daisy doesn't clean it up all so we remove the bucket manually
+          $DAISY_IMAGE \
+          -project $GOOGLE_PROJECT \
+          -zone $ZONE \
+          -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
+          -gcs_path $GCE_IMAGE_BUCKET \
+          -default_timeout 45m \
+          -var:base_image $GCE_BASE_IMAGE \
+          -var:output_image "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}" \ 
+          -var:gce_images_dir /gce-custom-images \
+          -var:installation_script_name prepare_gce_image.sh \
+          /gce-custom-images/gce_image.wf.json
+          docker stop daisy || true
+          docker rm -f daisy || true
         gsutil rm -r $GCE_IMAGE_BUCKET
-        
-        # Make the image public
         gcloud beta compute images add-iam-policy-binding \
         projects/${GOOGLE_PROJECT}/global/images/${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6} \
         --member='allAuthenticatedUsers' \
