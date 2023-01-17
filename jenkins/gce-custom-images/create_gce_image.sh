@@ -53,7 +53,7 @@ else
   DAISY_CONTAINER="gcr.io/compute-image-tools/daisy:${DAISY_IMAGE_TAG}"
 fi
 
-docker run -it --rm -v "$SOURCE_DIR":/gce-custom-images \
+docker run --rm -v "$SOURCE_DIR":/gce-custom-images \
   $DAISY_CONTAINER \
   -project $PROJECT \
   -zone $ZONE \
