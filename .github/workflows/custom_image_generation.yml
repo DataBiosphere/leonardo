@@ -75,7 +75,7 @@ jobs:
         -gcs_path $GCE_IMAGE_BUCKET \
         -default_timeout 45m \
         -var:base_image $GCE_BASE_IMAGE \
-        -var:output_image "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}" \
+#        -var:output_image "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}" \
         -var:gce_images_dir /gce-custom-images \
         -var:installation_script_name prepare_gce_image.sh \
         /gce-custom-images/gce_image.wf.json
