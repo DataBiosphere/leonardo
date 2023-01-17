@@ -1,21 +1,15 @@
-# This will automatically use the sbt version in project/build.properties
 name: Custom Image Generation
 
-#TODO: should only be `workflow_dispatch` eventually, after testing
 on:
-#TODO: REMOVE BEFORE MERGE
-  push:
-    branches:
-      - 'jc-image-action'
   workflow_dispatch:
     inputs:
       run-dataproc-override:
-        description: 'Set this to `true` to force dataproc image generation script to run regardless of if there are changes to generation script.'
+        description: 'Set this to `true` to run dataproc image generation script.'
         required: false
         default: false
         type: boolean
       run-gce-override:
-        description: 'Set this to `true` to force gce image generation script to run regardless of if there are changes to generation script.'
+        description: 'Set this to `true` to run gce image generation script.'
         required: false
         default: false
         type: boolean
@@ -25,11 +19,11 @@ env:
   GOOGLE_CREDENTIAL_FILE_NAME: application_default_credentials.json
   REGION: us-central1
   ZONE: us-central1-a
-  OUTPUT_BASE_NAME: custom-leo
 
 jobs:
   run-image-generation-script-gce:
     runs-on: ubuntu-latest
+    if:  ${{ inputs.run-gce-override }}
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -53,7 +47,6 @@ jobs:
       uses: 'google-github-actions/setup-gcloud@v1'
 
     - name: Create svc acct file
-#      run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
       run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
       shell: bash
       env:
@@ -70,6 +63,7 @@ jobs:
 
   run-image-generate-script-dataproc:
     runs-on: ubuntu-latest
+    if:  ${{ inputs.run-dataproc-override }}
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -102,23 +96,5 @@ jobs:
           git submodule update --init --recursive
 
       - name: Run image generation script
-        # todo: change to use script
         run: |
           bash $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
-
-#          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
-#          && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
-#          && gcloud auth configure-docker --quiet \
-#          && gcloud config set dataproc/region us-central1 \
-#          && python generate_custom_image.py \
-#          --image-name "${OUTPUT_BASE_NAME}-image-dataproc-${DATAPROC_IMAGE_VERSION_FORMATTED}-${GITHUB_SHA:0:6}" \
-#          --dataproc-version "${DATAPROC_IMAGE_VERSION}" \
-#          --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-#          --zone $ZONE \
-#          --gcs-bucket $DATAPROC_IMAGE_BUCKET \
-#          --project-id=$GOOGLE_PROJECT \
-#          --disk-size=120"
-
-
-
-# we want this to output hashes for reference.conf
