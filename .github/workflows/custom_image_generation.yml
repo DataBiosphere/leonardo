@@ -79,6 +79,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          # Centralized in dsp-tools-k8s; ask in #dsp-devops-champions for help troubleshooting
+          workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
+          service_account: 'image-build-account@broad-dsp-gcr-public.iam.gserviceaccount.com'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
+
       - name: Create svc acct file
         run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/dataproc-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
         shell: bash
