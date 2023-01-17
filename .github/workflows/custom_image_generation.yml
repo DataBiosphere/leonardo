@@ -63,7 +63,7 @@ jobs:
         gsutil ls $GCE_IMAGE_BUCKET 
         gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
         docker pull $DAISY_IMAGE
-        
+
     - name: run script
       run: |
         docker run -i --rm -v $GITHUB_WORKSPACE/jenkins/gce-custom-images:/gce-custom-images \
@@ -118,15 +118,15 @@ jobs:
 
       - name: Run image generation script
         run: |
-          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
-          && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
-          && gcloud auth configure-docker --quiet \
-          && gcloud config set dataproc/region us-central1 \
-          && python generate_custom_image.py \
-          --image-name "${OUTPUT_BASE_NAME}-image-dataproc-${DATAPROC_IMAGE_VERSION_FORMATTED}-${GITHUB_SHA:0:6}" \
-          --dataproc-version "${DATAPROC_IMAGE_VERSION}" \
-          --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
-          --zone $ZONE \
-          --gcs-bucket $DATAPROC_IMAGE_BUCKET \
-          --project-id=$GOOGLE_PROJECT \
-          --disk-size=120"
+#          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
+#          && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
+#          && gcloud auth configure-docker --quiet \
+#          && gcloud config set dataproc/region us-central1 \
+#          && python generate_custom_image.py \
+#          --image-name "${OUTPUT_BASE_NAME}-image-dataproc-${DATAPROC_IMAGE_VERSION_FORMATTED}-${GITHUB_SHA:0:6}" \
+#          --dataproc-version "${DATAPROC_IMAGE_VERSION}" \
+#          --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+#          --zone $ZONE \
+#          --gcs-bucket $DATAPROC_IMAGE_BUCKET \
+#          --project-id=$GOOGLE_PROJECT \
+#          --disk-size=120"
