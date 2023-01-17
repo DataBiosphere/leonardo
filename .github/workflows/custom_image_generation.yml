@@ -58,6 +58,11 @@ jobs:
       env:
         GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
+    - name: Init submodule
+      run: |
+        git submodule sync
+        git submodule update --init --recursive
+
     - name: setup for script
       run: |
         gsutil ls $GCE_IMAGE_BUCKET 
@@ -65,7 +70,7 @@ jobs:
         gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
         docker pull $DAISY_IMAGE
 
-#"${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}" \
+# \
     - name: run script
       run: |
         docker run -i --rm -v $GITHUB_WORKSPACE/jenkins/gce-custom-images:/gce-custom-images \
@@ -76,7 +81,7 @@ jobs:
         -gcs_path $GCE_IMAGE_BUCKET \
         -default_timeout 45m \
         -var:base_image $GCE_BASE_IMAGE \
-        -var:output_image jc-test-01172023 \ 
+        -var:output_image "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}" \ 
         -var:gce_images_dir /gce-custom-images \
         -var:installation_script_name prepare_gce_image.sh \
         /gce-custom-images/gce_image.wf.json
