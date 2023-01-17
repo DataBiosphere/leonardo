@@ -27,41 +27,15 @@ env:
   ZONE: us-central1-a
   OUTPUT_BASE_NAME: custom-leo
 
-#   inspect-changes:
-#     runs-on: ubuntu-latest
-#     outputs:
-#       has-dataproc-changes: ${{ steps.filter.outputs.dataproc }}
-#       has-gce-changes: ${{ steps.filter.outputs.gce }}
-
-#     steps:
-#     - uses: actions/checkout@v3
-#     - uses: dorny/paths-filter@v2
-#       id: filter
-#       with:
-#         base: 'develop'
-#         filters: |
-#           dataproc:
-#             - 'jenkins/dataproc-custom-images/**'
-#           gce:
-#             - 'jenkins/gce-custom-images/**'
-
-#     - name: display progress
-#       run: |
-#         echo "finished inspecting the repo to determine which image generation scripts to run@@@@@@@@@@@"
-
 jobs:
   run-image-generation-script-gce:
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
       id-token: 'write'
-    # needs: inspect-changes
-    # if: github.event.inputs.run-gce-override == 'true' # needs.inspect-changes.outputs.has-gce-changes == 'true' &&
     env:
       GCE_IMAGE_BUCKET: gs://leo-gce-image-creation-logs
       DAISY_IMAGE: gcr.io/compute-image-tools/daisy:release
-      #TODO: test
-      TEST_NAME: "${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}"
       GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
     steps:
@@ -84,14 +58,14 @@ jobs:
       env:
         GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
-    - name: check
+    - name: setup for script
       run: |
-        ls -al $GITHUB_WORKSPACE/jenkins/gce-custom-images
-
+        gsutil ls $GCE_IMAGE_BUCKET 
+        gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
+        docker pull $DAISY_IMAGE
+        
     - name: run script
       run: |
-        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
-        docker pull $DAISY_IMAGE
         docker run -i --rm -v $GITHUB_WORKSPACE/jenkins/gce-custom-images:/gce-custom-images \
         $DAISY_IMAGE \
         -project $GOOGLE_PROJECT \
@@ -121,8 +95,6 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write'
-    # needs: inspect-changes
-    # if: needs.inspect-changes.outputs.has-dataproc-changes == 'true' && github.event.inputs.run-dataproc-override == 'true'
     env:
       DATAPROC_IMAGE_VERSION: 2.0.51-debian10
       DATAPROC_IMAGE_VERSION_FORMATTED: 2-0-51-debian10
@@ -158,12 +130,3 @@ jobs:
           --gcs-bucket $DATAPROC_IMAGE_BUCKET \
           --project-id=$GOOGLE_PROJECT \
           --disk-size=120"
-
-# TODO : investigate this from `create_dataproc_image.sh`
-        ## application_default_credentials.json needs to be copied to jenkins/dataproc-custom-images/ which is mounted on Daisy container
-        ## Credentials can be refreshed via 'gcloud auth application-default login' with project set to 'broad-dsde-dev' using
-        ## Broad account. They are saved at '~/.config/gcloud/application_default_credentials.json' by default.
-
-        #run script
-        #make changes to reference.conf or have a nice output with instructions
-
