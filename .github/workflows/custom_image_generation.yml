@@ -7,7 +7,7 @@ on:
   push:
     branches:
       - 'jc-image-action'
-  #    [START DEBUG UNCOMMENT]
+  #    [END DEBUG UNCOMMENT]
   workflow_dispatch:
     inputs:
       run-dataproc-override:

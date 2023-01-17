@@ -28,7 +28,7 @@ DATAPROC_BASE_NAME="leo-dataproc-image"
 DP_VERSION_FORMATTED="2-0-51-debian10"
 # This needs to be unique for each run
 IMAGE_ID=$(date +"%Y-%m-%d-%H-%M-%S")
-OUTPUT_IMAGE_NAME = "$DATAPROC_BASE_NAME-$DP_VERSION_FORMATTED-$IMAGE_ID"
+OUTPUT_IMAGE_NAME= "$DATAPROC_BASE_NAME-$DP_VERSION_FORMATTED-$IMAGE_ID"
 
 gcloud config set dataproc/region us-central1
 
