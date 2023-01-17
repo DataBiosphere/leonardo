@@ -61,6 +61,7 @@ jobs:
     - name: setup for script
       run: |
         gsutil ls $GCE_IMAGE_BUCKET 
+        gsutil rm -r $GCE_IMAGE_BUCKET || true 
         gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
         docker pull $DAISY_IMAGE
 
