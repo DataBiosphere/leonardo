@@ -156,6 +156,15 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
       // Step 2: call LZ for LZ resources
       lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
+      region <- lzResourcesByPurpose.flatMap(_.deployedResources).headOption match {
+        case Some(lzResource) =>
+          F.pure(
+            com.azure.core.management.Region
+              .fromName(lzResource.region)
+          ) // TODO: confirm that lz region string confirms to the right format
+        case None =>
+          F.raiseError(new Exception(s"This should never happen. No resource found for LZ(${landingZoneId})"))
+      }
       groupedLzResources = lzResourcesByPurpose.foldMap(a =>
         a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
       )
@@ -214,7 +223,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       SubnetworkName(batchNodesSubnetName),
       SubnetworkName(aksSubnetName),
       SubnetworkName(postgresSubnetName),
-      SubnetworkName(computeSubnetName)
+      SubnetworkName(computeSubnetName),
+      region
     )
 
   private def getLandingZoneResourceName(
