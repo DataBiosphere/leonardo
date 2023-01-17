@@ -69,7 +69,7 @@ jobs:
 
     - name: run script
       run: |
-        ./$GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
+        $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
 
   run-image-generate-script-dataproc:
     runs-on: ubuntu-latest
