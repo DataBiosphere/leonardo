@@ -24,15 +24,16 @@ gsutil ls $TEST_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$TEST_B
 
 pushd $WORK_DIR
 
-customDataprocImageBaseName="leo-dataproc-image"
-dp_version_formatted="2-0-51-debian10"
+DATAPROC_BASE_NAME="leo-dataproc-image"
+DP_VERSION_FORMATTED="2-0-51-debian10"
 # This needs to be unique for each run
-imageID=$(date +"%Y-%m-%d-%H-%M-%S")
+IMAGE_ID=$(date +"%Y-%m-%d-%H-%M-%S")
+OUTPUT_IMAGE_NAME = "$DATAPROC_BASE_NAME-$DP_VERSION_FORMATTED-$IMAGE_ID"
 
 gcloud config set dataproc/region us-central1
 
 python generate_custom_image.py \
-    --image-name "$customDataprocImageBaseName-$dp_version_formatted-$imageID" \
+    --image-name "$OUTPUT_IMAGE_NAME" \
     --dataproc-version "2.0.51-debian10" \
     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
     --zone $ZONE \
@@ -43,3 +44,5 @@ python generate_custom_image.py \
 popd
 
 gsutil rm -r $TEST_BUCKET
+
+echo "\n\n\n\n\n\\t The image URI is projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME"

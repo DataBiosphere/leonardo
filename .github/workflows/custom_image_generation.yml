@@ -1,7 +1,14 @@
+# To test run this job against your branch, you will need to uncomment the lines labelled [DEBUG_UNCOMMENT] and comment out the lines labelled [DEBUG_COMMENT]
+# You will also need to change the branch to your branch in the `on` section
 name: Custom Image Generation
 
 on:
   workflow_dispatch:
+#    [START DEBUG UNCOMMENT]
+    push:
+      branches:
+        - 'jc-image-action'
+#    [START DEBUG UNCOMMENT]
     inputs:
       run-dataproc-override:
         description: 'Set this to `true` to run dataproc image generation script.'
@@ -23,7 +30,7 @@ env:
 jobs:
   run-image-generation-script-gce:
     runs-on: ubuntu-latest
-    if:  ${{ inputs.run-gce-override }}
+#    if:  ${{ inputs.run-gce-override }} # [DEBUG COMMENT]
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -63,7 +70,7 @@ jobs:
 
   run-image-generate-script-dataproc:
     runs-on: ubuntu-latest
-    if:  ${{ inputs.run-dataproc-override }}
+#    if:  ${{ inputs.run-dataproc-override }} # [DEBUG COMMENT]
     permissions:
       contents: 'read'
       id-token: 'write'
