@@ -3,12 +3,12 @@
 name: Custom Image Generation
 
 on:
+  #    [START DEBUG UNCOMMENT]
+  push:
+    branches:
+      - 'jc-image-action'
+  #    [START DEBUG UNCOMMENT]
   workflow_dispatch:
-#    [START DEBUG UNCOMMENT]
-    push:
-      branches:
-        - 'jc-image-action'
-#    [START DEBUG UNCOMMENT]
     inputs:
       run-dataproc-override:
         description: 'Set this to `true` to run dataproc image generation script.'
