@@ -22,7 +22,7 @@ PWD=`pwd`
 SOURCE_DIR="$PWD/jenkins/gce-custom-images"
 
 # Underscores are not accepted as image name
-OUTPUT_IMAGE_NAME=leo-gce-image-$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
+OUTPUT_IMAGE_NAME=leo-gce-image-$(date +"%Y-%m-%d-%H-%M-%S")
 
 PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
@@ -31,7 +31,7 @@ ZONE="${REGION}-a"
 # The bucket that Daisy uses as scratch area to store source and log files.
 # If it doesn't exist, we create it prior to launching Daisy and
 # the Daisy workflow cleans up all but daisy.log at the end.
-DAISY_BUCKET_PATH="gs://gce_custom_image_test"
+DAISY_BUCKET_PATH="gs://leo-gce-image-creation-logs"
 
 
 # Set this to the tag of the Daisy image you had pulled
@@ -66,7 +66,7 @@ docker run --rm -v "$SOURCE_DIR":/gce-custom-images \
   -var:installation_script_name prepare_gce_image.sh \
   /gce-custom-images/gce_image.wf.json
 
-gcloud beta compute images add-iam-policy-binding \
+gcloud compute images add-iam-policy-binding \
     projects/$PROJECT/global/images/${OUTPUT_IMAGE_NAME} \
     --member='allAuthenticatedUsers' \
     --role='roles/compute.imageUser'

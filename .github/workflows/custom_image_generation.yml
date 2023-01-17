@@ -22,7 +22,7 @@ on:
 
 env:
   GOOGLE_PROJECT: broad-dsp-gcr-public
-  GOOGLE_CREDENTIAL_FILE_NAME: image-build-account.json
+  GOOGLE_CREDENTIAL_FILE_NAME: application_default_credentials.json
   REGION: us-central1
   ZONE: us-central1-a
   OUTPUT_BASE_NAME: custom-leo
@@ -54,7 +54,7 @@ jobs:
 
     - name: Create svc acct file
 #      run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
-      run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/application_default_credentials.json"'
+      run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
       shell: bash
       env:
         GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
@@ -63,9 +63,6 @@ jobs:
       run: |
         gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
         docker pull $DAISY_IMAGE
-        ls $GITHUB_WORKSPACE/jenkins/gce-custom-images
-        mkdir $GITHUB_WORKSPACE/jenkins/gce-custom-images/${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}
-        ls $GITHUB_WORKSPACE/jenkins/gce-custom-images
 
     - name: run script
       run: |
@@ -77,10 +74,6 @@ jobs:
       contents: 'read'
       id-token: 'write'
     env:
-      DATAPROC_IMAGE_VERSION: 2.0.51-debian10
-      DATAPROC_IMAGE_VERSION_FORMATTED: 2-0-51-debian10
-      DATAPROC_IMAGE_BUCKET: gs://leo-dataproc-image-creation-logs
-      TEST_NAME: ${OUTPUT_BASE_NAME}-gce-cos-image-${GITHUB_SHA:0:6}
       GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
 
     steps:
@@ -98,7 +91,10 @@ jobs:
           git submodule update --init --recursive
 
       - name: Run image generation script
+        # todo: change to use script
         run: |
+          bash $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
+
 #          docker run --rm -v $GITHUB_WORKSPACE/jenkins/dataproc-custom-images:/work gcr.io/google.com/cloudsdktool/cloud-sdk:266.0.0 bash -c "cd /work/dataproc-custom-images \
 #          && gcloud auth activate-service-account --key-file=/work/$GOOGLE_CREDENTIAL_FILE_NAME \
 #          && gcloud auth configure-docker --quiet \
@@ -111,3 +107,7 @@ jobs:
 #          --gcs-bucket $DATAPROC_IMAGE_BUCKET \
 #          --project-id=$GOOGLE_PROJECT \
 #          --disk-size=120"
+
+
+
+# we want this to output hashes for reference.conf

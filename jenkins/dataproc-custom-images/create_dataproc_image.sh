@@ -18,16 +18,16 @@ WORK_DIR=`pwd`/jenkins/dataproc-custom-images/dataproc-custom-images
 GOOGLE_PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
 ZONE="${REGION}-a"
-TEST_BUCKET='gs://dataproc_custom_image_test'
+TEST_BUCKET="gs://leo-dataproc-image-creation-logs"
 
 gsutil ls $TEST_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$TEST_BUCKET"
 
 pushd $WORK_DIR
 
-customDataprocImageBaseName="test"
+customDataprocImageBaseName="leo-dataproc-image"
 dp_version_formatted="2-0-51-debian10"
 # This needs to be unique for each run
-imageID=$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
+imageID=$(date +"%Y-%m-%d-%H-%M-%S")
 
 gcloud config set dataproc/region us-central1
 
