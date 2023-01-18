@@ -18,9 +18,11 @@ WORK_DIR=`pwd`/jenkins/dataproc-custom-images/dataproc-custom-images
 GOOGLE_PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
 ZONE="${REGION}-a"
-TEST_BUCKET="gs://leo-dataproc-image-creation-logs"
 
-gsutil ls $TEST_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$TEST_BUCKET"
+if [ -z "$DATAPROC_IMAGE_BUCKET" ]; then
+  DATAPROC_IMAGE_BUCKET="gs://leo-dataproc-image-creation-logs"
+fi
+TEST_BUCKET="gs://leo-dataproc-image-creation-logs"
 
 pushd $WORK_DIR
 
@@ -37,15 +39,13 @@ python generate_custom_image.py \
     --dataproc-version "2.0.51-debian10" \
     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
     --zone $ZONE \
-    --gcs-bucket $TEST_BUCKET \
+    --gcs-bucket $DATAPROC_IMAGE_BUCKET \
     --project-id=$GOOGLE_PROJECT \
     --disk-size=120
 
-if [ -z "$OUTPUT_FILE_PATH" ]; then
+if ! [ -z "$OUTPUT_FILE_PATH" ]; then
   echo "projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME" > $OUTPUT_FILE_PATH
 fi
 
 popd
-
-gsutil rm -r $TEST_BUCKET
 

@@ -31,7 +31,9 @@ ZONE="${REGION}-a"
 # The bucket that Daisy uses as scratch area to store source and log files.
 # If it doesn't exist, we create it prior to launching Daisy and
 # the Daisy workflow cleans up all but daisy.log at the end.
-DAISY_BUCKET_PATH="gs://leo-gce-image-creation-logs"
+if [ -z "$GCE_IMAGE_BUCKET" ]; then
+  GCE_IMAGE_BUCKET="gs://leo-gce-image-creation-logs"
+fi
 
 
 # Set this to the tag of the Daisy image you had pulled
@@ -44,9 +46,6 @@ DAISY_IMAGE_TAG="release"
 #    4. extract the segments starting with 'projects'
 BASE_IMAGE="projects/cos-cloud/global/images/cos-101-17162-40-42"
 
-# Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
-gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION $DAISY_BUCKET_PATH
-
 if [[ "$VALIDATE_WORKFLOW" == "true" ]]; then
   DAISY_CONTAINER="gcr.io/compute-image-tools/daisy:${DAISY_IMAGE_TAG} -validate"
 else
@@ -57,7 +56,7 @@ docker run --rm -v "$SOURCE_DIR":/gce-custom-images \
   $DAISY_CONTAINER \
   -project $GOOGLE_PROJECT \
   -zone $ZONE \
-  -gcs_path $DAISY_BUCKET_PATH \
+  -gcs_path $GCE_IMAGE_BUCKET \
   -default_timeout 60m \
   -oauth /gce-custom-images/application_default_credentials.json \
   -var:base_image "$BASE_IMAGE" \
@@ -67,13 +66,10 @@ docker run --rm -v "$SOURCE_DIR":/gce-custom-images \
   /gce-custom-images/gce_image.wf.json
 
 gcloud compute images add-iam-policy-binding \
-    projects/$GOOGLE_PROJECT/global/images/${OUTPUT_IMAGE_NAME} \
+    projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME \
     --member='allAuthenticatedUsers' \
     --role='roles/compute.imageUser'
 
-# Daisy doesn't clean it up all so we remove the bucket manually
-gsutil rm -r $DAISY_BUCKET_PATH
-
-if [ -z "$OUTPUT_FILE_PATH" ]; then
+if ! [ -z "$OUTPUT_FILE_PATH" ]; then
   echo "projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME" > $OUTPUT_FILE_PATH
 fi

@@ -66,9 +66,10 @@ jobs:
         docker pull $DAISY_IMAGE
 
     - name: Run image generation script
+      shell: bash
       run: |
-         echo "echoing workspace: $GITHUB_WORKSPACE"
-         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
+         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
+         gsutil rm -r $GCE_IMAGE_BUCKET || true
 
     - name: Output image URI
       run: |
@@ -84,6 +85,7 @@ jobs:
     env:
       GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
       OUTPUT_FILE_RELATIVE_PATH: jenkins/dataproc-custom-images/output.txt
+      DATAPROC_IMAGE_BUCKET: gs://leo-dataproc-image-creation-logs
 
     steps:
       - uses: actions/checkout@v3
@@ -111,8 +113,11 @@ jobs:
           git submodule update --init --recursive
 
       - name: Run image generation script
+        shell: bash
         run: |
-          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
+          gsutil ls $DATAPROC_IMAGE_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$DATAPROC_IMAGE_BUCKET"
+          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
+          gsutil rm -r $DATAPROC_IMAGE_BUCKET || true
 
       - name: Output image URI
         run: |
