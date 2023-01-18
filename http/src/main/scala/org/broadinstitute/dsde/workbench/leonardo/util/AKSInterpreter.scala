@@ -126,13 +126,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
       // Create relay hybrid connection pool
-      hcName = RelayHybridConnectionName(params.appName.value)
+      hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
       relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                                        hcName,
                                                                        params.cloudContext
       )
       relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
-      relayPath = Uri.unsafeFromString(relayEndpoint) / params.appName.value
+      relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
       // Deploy setup chart
       _ <- helmClient
@@ -152,8 +152,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext)
 
       // Create relay hybrid connection pool
-      hcName = RelayHybridConnectionName(params.appName.value)
-      primaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+      _ <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                                   hcName,
                                                                   params.cloudContext
       )
@@ -256,7 +255,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
       kubernetesNamespace = KubernetesNamespace(namespaceName)
-      dbCluster = dbApp.cluster
 
       clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
 
