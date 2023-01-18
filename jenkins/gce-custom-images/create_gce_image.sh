@@ -74,4 +74,6 @@ gcloud compute images add-iam-policy-binding \
 # Daisy doesn't clean it up all so we remove the bucket manually
 gsutil rm -r $DAISY_BUCKET_PATH
 
-echo "\n\n\n\n\n\\t The image URI is projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME"
+if [ -z "$OUTPUT_FILE_PATH" ]; then
+  echo "projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME" > $OUTPUT_FILE_PATH
+fi

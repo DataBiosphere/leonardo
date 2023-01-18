@@ -41,8 +41,11 @@ python generate_custom_image.py \
     --project-id=$GOOGLE_PROJECT \
     --disk-size=120
 
+if [ -z "$OUTPUT_FILE_PATH" ]; then
+  echo "projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME" > $OUTPUT_FILE_PATH
+fi
+
 popd
 
 gsutil rm -r $TEST_BUCKET
 
-echo "\n\n\n\n\n\\t The image URI is projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME"
