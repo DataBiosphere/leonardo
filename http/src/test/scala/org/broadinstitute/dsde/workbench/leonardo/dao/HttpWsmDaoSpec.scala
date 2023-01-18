@@ -138,7 +138,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       SubnetworkName("batchsub"),
       SubnetworkName("akssub"),
       SubnetworkName("postgressub"),
-      SubnetworkName("computesub")
+      SubnetworkName("computesub"),
+      com.azure.core.management.Region.US_WEST
     )
 
     val landingZoneResources = res.toOption.get
