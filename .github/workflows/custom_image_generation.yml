@@ -73,6 +73,7 @@ jobs:
     - name: Output image URI
       run: |
         cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH
+        echo "`cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH` > $GITHUB_STEP_SUMMARY"
 
   run-image-generate-script-dataproc:
     runs-on: ubuntu-latest
@@ -116,3 +117,4 @@ jobs:
       - name: Output image URI
         run: |
           cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH
+          echo "`cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH` > $GITHUB_STEP_SUMMARY"
