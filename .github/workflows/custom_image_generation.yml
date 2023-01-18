@@ -68,7 +68,7 @@ jobs:
     - name: Run image generation script
       run: |
          echo "echoing workspace: $GITHUB_WORKSPACE"
-         bash OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
+         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
 
     - name: Output image URI
       run: |
@@ -111,7 +111,7 @@ jobs:
 
       - name: Run image generation script
         run: |
-          bash OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
+          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
 
       - name: Output image URI
         run: |
