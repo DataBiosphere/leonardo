@@ -38,7 +38,7 @@ jobs:
       GCE_IMAGE_BUCKET: gs://leo-gce-image-creation-logs
       DAISY_IMAGE: gcr.io/compute-image-tools/daisy:release
       GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
-      OUTPUT_FILE_PATH: ${{ env.GITHUB_WORKSPACE }}/jenkins/gce-custom-images/output.txt
+      OUTPUT_FILE_RELATIVE_PATH: /jenkins/gce-custom-images/output.txt
 
     steps:
     - uses: actions/checkout@v3
@@ -67,11 +67,11 @@ jobs:
 
     - name: Run image generation script
       run: |
-         bash OUTPUT_FILE_PATH=$OUTPUT_FILE_PATH $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
+         bash OUTPUT_FILE_PATH=$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
 
     - name: Output image URI
       run: |
-        cat $OUTPUT_FILE_PATH
+        cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH
 
   run-image-generate-script-dataproc:
     runs-on: ubuntu-latest
@@ -81,7 +81,7 @@ jobs:
       id-token: 'write'
     env:
       GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
-      OUTPUT_FILE_PATH: ${{ env.GITHUB_WORKSPACE }}/jenkins/dataproc-custom-images/output.txt
+      OUTPUT_FILE_RELATIVE_PATH: /jenkins/dataproc-custom-images/output.txt
 
     steps:
       - uses: actions/checkout@v3
@@ -110,8 +110,8 @@ jobs:
 
       - name: Run image generation script
         run: |
-          bash OUTPUT_FILE_PATH=$OUTPUT_FILE_PATH $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
+          bash OUTPUT_FILE_PATH=$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
 
       - name: Output image URI
         run: |
-          cat $OUTPUT_FILE_PATH
+          cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH
