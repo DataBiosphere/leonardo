@@ -358,7 +358,7 @@ object LeoPubsubMessage {
   }
 
   final case class DeleteAzureRuntimeMessage(runtimeId: Long,
-                                             diskId: Option[DiskId],
+                                             diskIdToDelete: Option[DiskId],
                                              workspaceId: WorkspaceId,
                                              wsmResourceId: Option[WsmControlledResourceId],
                                              traceId: Option[TraceId]
@@ -903,7 +903,7 @@ object LeoPubsubCodec {
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
     Encoder.forProduct6("messageType", "runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.diskId, x.workspaceId, x.wsmResourceId, x.traceId)
+      (x.messageType, x.runtimeId, x.diskIdToDelete, x.workspaceId, x.wsmResourceId, x.traceId)
     )
 
   implicit val storageContainerResponseEncoder: Encoder[StorageContainerResponse] =

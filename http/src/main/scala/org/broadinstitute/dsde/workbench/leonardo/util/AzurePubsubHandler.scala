@@ -539,61 +539,44 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.deleteVmPollConfig.interval
         ).compile.lastOrError
 
-        continue = for {
-          diskResourceOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
-            .transaction
-          _ <- logger
-            .info(ctx.loggingCtx)(
-              s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
-            )
-            .whenA(diskResourceOpt.isEmpty)
-          deleteDisk = diskResourceOpt.traverse { disk =>
-            wsmDao.deleteDisk(
-              DeleteWsmResourceRequest(
-                msg.workspaceId,
-                disk.resourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
-                )
-              ),
-              auth
-            )
-          }.void
+        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+        _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
 
-          networkResourceOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
-            .transaction
-          _ <- logger
-            .info(ctx.loggingCtx)(
-              s"No network resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteNetworks."
-            )
-            .whenA(networkResourceOpt.isEmpty)
-          deleteNetworks = networkResourceOpt.traverse { network =>
-            wsmDao.deleteNetworks(
-              DeleteWsmResourceRequest(
-                msg.workspaceId,
-                network.resourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
-                )
-              ),
-              auth
-            )
-          }.void
+        deleteDiskAction = msg.diskIdToDelete.traverse { _ =>
+          for {
+            diskResourceOpt <- controlledResourceQuery
+              .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
+              .transaction
+            _ <- logger
+              .info(ctx.loggingCtx)(
+                s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
+              )
+              .whenA(diskResourceOpt.isEmpty)
+            _ <- diskResourceOpt.traverse { disk =>
+              wsmDao.deleteDisk(
+                DeleteWsmResourceRequest(
+                  msg.workspaceId,
+                  disk.resourceId,
+                  DeleteControlledAzureResourceRequest(
+                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                  )
+                ),
+                auth
+              )
+            }.void
 
-          _ <- List(deleteDisk, deleteNetworks).parSequence
-          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-          _ <- msg.diskId.traverse(diskId =>
-            dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
-          )
-          _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
-        } yield ()
+            _ <- msg.diskIdToDelete.traverse(diskId =>
+              dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+            )
+            _ <- logger.info(ctx.loggingCtx)("runtime disk is deleted successfully")
+          } yield ()
+        }.void
+
         _ <- respOpt match {
           case Some(resp) =>
             resp.jobReport.status match {
               case WsmJobStatus.Succeeded =>
-                continue
+                deleteDiskAction
               case WsmJobStatus.Failed =>
                 F.raiseError[Unit](
                   AzureRuntimeDeletionError(
@@ -611,7 +594,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   )
                 )
             }
-          case None => continue
+          case None => deleteDiskAction
         }
       } yield ()
 

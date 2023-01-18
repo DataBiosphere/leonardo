@@ -725,7 +725,8 @@ object LeonardoApiClient {
 
   def deleteRuntimeV2(
     workspaceId: WorkspaceId,
-    runtimeName: RuntimeName
+    runtimeName: RuntimeName,
+    deleteDisk: Boolean
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
@@ -735,9 +736,12 @@ object LeonardoApiClient {
           Request[IO](
             method = Method.DELETE,
             headers = Headers(authHeader, traceIdHeader),
-            uri = rootUri.withPath(
-              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
-            )
+            uri = rootUri
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+              )
+              .withQueryParam("deleteDisk", deleteDisk)
           )
         )
         .use { resp =>
@@ -751,10 +755,11 @@ object LeonardoApiClient {
 
   def deleteRuntimeV2WithWait(
     workspaceId: WorkspaceId,
-    runtimeName: RuntimeName
+    runtimeName: RuntimeName,
+    deleteDisk: Boolean
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
-      _ <- deleteRuntimeV2(workspaceId, runtimeName)
+      _ <- deleteRuntimeV2(workspaceId, runtimeName, deleteDisk)
       ioa = getAzureRuntime(workspaceId, runtimeName).attempt
       res <- IO.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
       _ <-

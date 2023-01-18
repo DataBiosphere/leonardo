@@ -51,7 +51,7 @@ class AzureRuntimeSpec
         _ <- IO.sleep(3 seconds)
 
         // Delete the app
-        _ <- LeonardoApiClient.deleteRuntimeV2WithWait(workspaceId, runtimeName)
+        _ <- LeonardoApiClient.deleteRuntimeV2WithWait(workspaceId, runtimeName, true)
       } yield ()
     }
     res.unsafeRunSync()
