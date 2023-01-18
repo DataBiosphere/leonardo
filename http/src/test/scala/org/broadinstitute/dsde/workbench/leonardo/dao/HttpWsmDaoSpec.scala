@@ -139,7 +139,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       SubnetworkName("akssub"),
       SubnetworkName("postgressub"),
       SubnetworkName("computesub"),
-      com.azure.core.management.Region.US_WEST
+      com.azure.core.management.Region.US_EAST
     )
 
     val landingZoneResources = res.toOption.get
@@ -152,7 +152,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       resourceType,
       resourceName = if (useId) None else Some(resourceName),
       resourceParentId = if (useId) None else Some("lzvnet"),
-      region = "us-east"
+      region = com.azure.core.management.Region.US_EAST.toString
     )
 
   implicit val landingZoneEncoder: Encoder[LandingZone] =
