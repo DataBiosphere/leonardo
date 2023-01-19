@@ -136,8 +136,11 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,""" +
       """galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """galaxy.ingress.tls[0].secretName=tls-secret,""" +
+      """galaxy.tusd.ingress.hosts[0].host=1455694897.jupyter.firecloud.org,""" +
       """galaxy.tusd.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy/api/upload/resumable_upload,""" +
       """galaxy.tusd.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
+      """galaxy.tusd.ingress.tls[0].secretName=tls-secret,""" +
+      """galaxy.cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-app1-galaxy-rls""" +
       """galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,""" +
       """galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,""" +
       """galaxy.terra.launch.workspace=test-workspace,""" +
@@ -213,8 +216,11 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,""" +
       """galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """galaxy.ingress.tls[0].secretName=tls-secret,""" +
+      """galaxy.tusd.ingress.hosts[0].host=1455694897.jupyter.firecloud.org,""" +
       """galaxy.tusd.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy/api/upload/resumable_upload,""" +
       """galaxy.tusd.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
+      """galaxy.tusd.ingress.tls[0].secretName=tls-secret,""" +
+      """galaxy.cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-app1-galaxy-rls""" +
       """galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,""" +
       """galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,""" +
       """galaxy.terra.launch.workspace=test-workspace,""" +
