@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -40,7 +40,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
                                              samDAO: SamDAO[F],
-                                             publisherQueue: Queue[F, LeoPubsubMessage]
+                                             publisherQueue: Queue[F, LeoPubsubMessage],
+                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -260,6 +261,34 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- publisherQueue.offer(
         DeleteAzureRuntimeMessage(runtime.id, diskIdToDelete, workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
       )
+    } yield ()
+
+  override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+
+      // If user is creator of the runtime, they should definitely be able to see the runtime.
+      hasPermission <-
+        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
+        else {
+          checkSamPermission(
+            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+            userInfo,
+            WsmResourceAction.Write
+          ).map(_._1)
+        }
+
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
+      _ <- F
+        .raiseError[Unit](
+          RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
+        )
+        .whenA(!hasPermission)
+
+      _ <- dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, runtime.cloudContext, ctx.now))
     } yield ()
 
   def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit

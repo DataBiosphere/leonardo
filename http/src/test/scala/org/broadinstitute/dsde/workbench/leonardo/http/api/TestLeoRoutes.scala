@@ -125,7 +125,8 @@ trait TestLeoRoutes {
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
                                    new MockSamDAO,
-                                   QueueFactory.makePublisherQueue()
+                                   QueueFactory.makePublisherQueue(),
+                                   QueueFactory.makeDateAccessedQueue()
     )
 
   val underlyingRuntimeDnsCache =
