@@ -156,7 +156,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
       // Step 2: call LZ for LZ resources
       lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
-      region <- lzResourcesByPurpose.flatMap(_.deployedResources).headOption match {
+      region <- lzResourcesByPurpose
+        .flatMap(_.deployedResources)
+        .headOption match { // All LZ resources live in a same region. Hence we can grab any resource and find out the region
         case Some(lzResource) =>
           F.pure(
             com.azure.core.management.Region
