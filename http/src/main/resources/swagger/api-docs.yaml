@@ -717,7 +717,7 @@ paths:
         This API is used in conjunction with v2 runtime's autopause functionality. Since Azure runtimes are not proxied to Leonardo, the relay must send a 'keep-alive' 
         message of sorts. If no requests are received after a period of time, the runtime will be stopped.
         Each request to this API does not result in the runtime's date accessed being updated. An async process is responsible for batching them and executing updates.
-      operationId: stopRuntimeV2
+      operationId: updateDateAccessed
       tags:
         - runtimes
       parameters:

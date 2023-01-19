@@ -281,7 +281,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           ).map(_._1)
         }
 
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for update date accessed runtime permission")))
       _ <- F
         .raiseError[Unit](
           RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
