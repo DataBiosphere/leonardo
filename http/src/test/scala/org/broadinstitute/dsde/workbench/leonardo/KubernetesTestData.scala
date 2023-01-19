@@ -49,7 +49,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.183")
+  val coaChartVersion = ChartVersion("0.2.184")
   val coaChart = Chart(coaChartName, coaChartVersion)
 
   val serviceKind = KubernetesServiceKindName("ClusterIP")
