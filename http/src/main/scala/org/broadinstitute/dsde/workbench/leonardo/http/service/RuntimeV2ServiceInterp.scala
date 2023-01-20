@@ -83,7 +83,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
       storageContainer <- F.fromOption(
         storageContainerOpt,
-        BadRequestException(s"Workspace ${workspaceId} doesn't have storage container provisioned appropriately",
+        BadRequestException(s"Workspace ${workspaceId.value} doesn't have storage container provisioned appropriately",
                             Some(ctx.traceId)
         )
       )
@@ -95,7 +95,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       landingZoneResources <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp =>
           F.raiseError(
-            BadRequestException(s"Workspace ${workspaceId} is GCP and doesn't support V2 VM creation",
+            BadRequestException(s"Workspace ${workspaceId.value} is GCP and doesn't support V2 VM creation",
                                 Some(ctx.traceId)
             )
           )
@@ -133,6 +133,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 DiskName(req.azureDiskConfig.name.value),
                 config.azureConfig.diskConfig,
                 req,
+                landingZoneResources.region,
                 ctx.now
               )
             )
@@ -153,7 +154,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
               disk.id,
-              req.region
+              landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
@@ -421,6 +422,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      diskName: DiskName,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
+                                     region: com.azure.core.management.Region,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
@@ -444,7 +446,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
-      ZoneName(req.region.toString),
+      ZoneName(region.toString),
       diskName,
       userInfo.userEmail,
       // TODO: WSM will populate this, we can update in backleo if its needed for anything

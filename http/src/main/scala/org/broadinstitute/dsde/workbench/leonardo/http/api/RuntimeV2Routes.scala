@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import JsonCodec._
 import RuntimeRoutesCodec._
-import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
@@ -255,20 +254,13 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   implicit val createAzureRuntimeRequestDecoder: Decoder[CreateAzureRuntimeRequest] = Decoder.instance { c =>
     for {
       labels <- c.downField("labels").as[LabelMap]
-      region <- c.downField("region").as[Region]
       machineSize <- c.downField("machineSize").as[VirtualMachineSizeTypes]
       customEnvVars <- c
         .downField("customEnvironmentVariables")
         .as[Option[Map[String, String]]]
       azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
-    } yield CreateAzureRuntimeRequest(labels,
-                                      region,
-                                      machineSize,
-                                      customEnvVars.getOrElse(Map.empty),
-                                      azureDiskReq,
-                                      apt
-    )
+    } yield CreateAzureRuntimeRequest(labels, machineSize, customEnvVars.getOrElse(Map.empty), azureDiskReq, apt)
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =

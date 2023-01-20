@@ -530,7 +530,6 @@ object CommonTestData {
 
   val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
     Map.empty,
-    azureRegion,
     VirtualMachineSizeTypes.STANDARD_A1,
     Map.empty,
     CreateAzureDiskRequest(
@@ -553,7 +552,8 @@ object CommonTestData {
     SubnetworkName(""),
     SubnetworkName(""),
     SubnetworkName(""),
-    SubnetworkName("")
+    SubnetworkName(""),
+    azureRegion
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
