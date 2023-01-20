@@ -328,7 +328,7 @@ object Config {
   implicit private val instrumentationEnabledConfigValueReader: ValueReader[InstrumentationEnabledConfig] =
     ValueReader.relative { config =>
       InstrumentationEnabledConfig(
-        config.getBoolean("instrumentationEnabled")
+        config.getBoolean("azure.instrumentation-enabled")
       )
     }
   implicit private val clusterUIConfigValueReader: ValueReader[ClusterUIConfig] = ValueReader.relative { config =>
