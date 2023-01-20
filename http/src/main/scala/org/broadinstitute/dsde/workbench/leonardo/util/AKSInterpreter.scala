@@ -408,6 +408,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.resourceId=${petManagedIdentity.id()}",
         raw"identity.clientId=${petManagedIdentity.clientId()}",
 
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
+
         // general configs
         raw"fullnameOverride=coa-${release.asString}"
       ).mkString(",")

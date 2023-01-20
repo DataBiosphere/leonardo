@@ -43,7 +43,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
-    SamConfig("https://sam"),
+    SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
     appMonitorConfig,
     ConfigReader.appConfig.azure.wsm,
     ConfigReader.appConfig.drs
@@ -139,6 +139,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
+      s"sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=coa-rel-1"
   }
 
