@@ -62,6 +62,30 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn
 
+# Update rbase version and kernel list
+
+echo "Y"|sudo apt install --no-install-recommends software-properties-common dirmngr
+
+# download and add the signing key (by Michael Rutter) for these repos
+echo "Y"|sudo wget -q "https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc" -O /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
+
+#add repository
+echo "Y"|sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu bionic-cran40/"
+
+echo "Y"|sudo apt install r-base
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkrkernel
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel  
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python 
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
+
+/anaconda/bin/jupyter kernelspec install /anaconda/envs/py38_default/share/jupyter/kernels/python3
+
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
 sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py"
