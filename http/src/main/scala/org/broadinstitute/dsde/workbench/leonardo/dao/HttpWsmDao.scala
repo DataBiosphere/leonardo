@@ -163,7 +163,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
           F.pure(
             com.azure.core.management.Region
               .fromName(lzResource.region)
-          ) // TODO: confirm that lz region string confirms to the right format
+          )
         case None =>
           F.raiseError(new Exception(s"This should never happen. No resource found for LZ(${landingZoneId})"))
       }
