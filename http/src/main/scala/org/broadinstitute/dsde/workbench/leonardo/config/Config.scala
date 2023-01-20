@@ -324,6 +324,12 @@ object Config {
         toScalaDuration(config.getDuration("stagingBucketExpiration"))
       )
   }
+  implicit private val instrumentationEnabledConfigValueReader: ValueReader[InstrumentationEnabledConfig] =
+    ValueReader.relative { config =>
+      InstrumentationEnabledConfig(
+        config.getBoolean("instrumentationEnabled")
+      )
+    }
   implicit private val clusterUIConfigValueReader: ValueReader[ClusterUIConfig] = ValueReader.relative { config =>
     ClusterUIConfig(
       config.getString("terraLabel"),
@@ -495,6 +501,7 @@ object Config {
   val kubernetesDnsCacheConfig = config.as[CacheConfig]("kubernetesDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
+  val instrumentationEnabledConfig = config.as[InstrumentationEnabledConfig]("instrumentationEnabled")
 
   implicit private val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>
     val statusTimeouts = config.getConfig("statusTimeouts")
