@@ -37,7 +37,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -421,7 +421,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cromwell.coaEnabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
-        raw"fullnameOverride=coa-${release.asString}"
+        raw"fullnameOverride=coa-${release.asString}",
+        raw"instrumentationEnabled=${config.instrumentationEnabledConfig}"
       ).mkString(",")
     )
 
@@ -676,5 +677,6 @@ final case class AKSInterpreterConfig(
   samConfig: SamConfig,
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
-  drsConfig: DrsConfig
+  drsConfig: DrsConfig,
+  instrumentationEnabledConfig: InstrumentationEnabledConfig
 )
