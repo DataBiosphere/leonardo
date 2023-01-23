@@ -2,12 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  CoaAppConfig,
-  HttpWsmDaoConfig,
-  InstrumentationEnabledConfig,
-  PersistentDiskConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
@@ -46,6 +41,10 @@ final case class AadPodIdentityConfig(namespace: Namespace,
 )
 
 final case class DrsConfig(url: String)
+
+final case class InstrumentationEnabledConfig(
+  instrumentationEnabled: Boolean
+)
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
