@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
+# If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 # This is to avoid the error Ref BioC
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
