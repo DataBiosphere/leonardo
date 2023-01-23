@@ -190,7 +190,7 @@ class ProxyRoutesSpec
       new MockProxyService(
         proxyConfig,
         MockJupyterDAO,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         runtimeDnsCache,
         kubernetesDnsCache,
         googleTokenCache,
@@ -469,7 +469,7 @@ class ProxyRoutesSpec
       new MockProxyService(
         proxyConfig,
         MockJupyterDAO,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         runtimeDnsCache,
         kubernetesDnsCache,
         googleTokenCache,
@@ -573,7 +573,7 @@ class ProxyRoutesSpec
     val proxyService =
       new MockProxyService(proxyConfig,
                            jupyterDAO,
-                           whitelistAuthProvider,
+                           allowListAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
                            googleTokenCache,

@@ -101,7 +101,7 @@ trait TestLeoRoutes {
 
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
     Config.appServiceConfig,
-    whitelistAuthProvider,
+    allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService,
@@ -122,7 +122,7 @@ trait TestLeoRoutes {
 
   val runtimev2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   whitelistAuthProvider,
+                                   allowListAuthProvider,
                                    new MockWsmDAO,
                                    new MockSamDAO,
                                    QueueFactory.makePublisherQueue(),
@@ -154,7 +154,7 @@ trait TestLeoRoutes {
 
   val proxyService = new MockProxyService(proxyConfig,
                                           MockJupyterDAO,
-                                          whitelistAuthProvider,
+                                          allowListAuthProvider,
                                           runtimeDnsCache,
                                           kubernetesDnsCache,
                                           googleTokenCache,
@@ -177,7 +177,7 @@ trait TestLeoRoutes {
   val runtimeService = RuntimeService(
     serviceConfig,
     ConfigReader.appConfig.persistentDisk,
-    whitelistAuthProvider,
+    allowListAuthProvider,
     serviceAccountProvider,
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,

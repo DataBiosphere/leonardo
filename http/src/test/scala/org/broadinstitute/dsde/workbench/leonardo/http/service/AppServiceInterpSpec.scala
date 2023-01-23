@@ -71,7 +71,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
   val appServiceInterp = new LeoAppServiceInterp[IO](
     appServiceConfig,
-    whitelistAuthProvider,
+    allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService,
@@ -82,7 +82,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   )
   val gcpWorkspaceAppServiceInterp = new LeoAppServiceInterp[IO](
     appServiceConfig,
-    whitelistAuthProvider,
+    allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService,
@@ -96,7 +96,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
     new LeoAppServiceInterp[IO](
       appServiceConfig,
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       queue,
       FakeGoogleComputeService,
@@ -109,7 +109,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   def makeGcpWorkspaceInterp(queue: Queue[IO, LeoPubsubMessage]) =
     new LeoAppServiceInterp[IO](
       appServiceConfig,
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       queue,
       FakeGoogleComputeService,
@@ -157,7 +157,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val passAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       passComputeService,
@@ -168,7 +168,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       notEnoughMemoryComputeService,
@@ -179,7 +179,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       notEnoughCpuComputeService,
@@ -1190,7 +1190,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       CustomApplicationAllowListConfig(List(), List())
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
@@ -1224,7 +1224,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
-    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1262,7 +1262,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1301,7 +1301,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1351,7 +1351,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
@@ -1385,7 +1385,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1429,7 +1429,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
