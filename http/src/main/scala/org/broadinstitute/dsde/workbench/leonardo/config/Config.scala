@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomIma
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{GroupName, HttpSamDaoConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, InstrumentationEnabledConfig}
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
@@ -324,12 +324,6 @@ object Config {
         toScalaDuration(config.getDuration("stagingBucketExpiration"))
       )
   }
-  implicit private val instrumentationEnabledConfigValueReader: ValueReader[InstrumentationEnabledConfig] =
-    ValueReader.relative { config =>
-      InstrumentationEnabledConfig(
-        config.getBoolean("azure.instrumentation-enabled")
-      )
-    }
   implicit private val clusterUIConfigValueReader: ValueReader[ClusterUIConfig] = ValueReader.relative { config =>
     ClusterUIConfig(
       config.getString("terraLabel"),
@@ -501,7 +495,6 @@ object Config {
   val kubernetesDnsCacheConfig = config.as[CacheConfig]("kubernetesDnsCache")
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
-  val instrumentationEnabledConfig = config.as[InstrumentationEnabledConfig]("instrumentationEnabled")
 
   implicit private val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>
     val statusTimeouts = config.getConfig("statusTimeouts")

@@ -22,8 +22,7 @@ final case class AzureConfig(
   wsm: HttpWsmDaoConfig,
   appRegistration: AzureAppRegistrationConfig,
   coaAppConfig: CoaAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig,
-  instrumentationEnabledConfig: InstrumentationEnabledConfig
+  aadPodIdentityConfig: AadPodIdentityConfig
 )
 
 final case class OidcAuthConfig(
@@ -41,10 +40,6 @@ final case class AadPodIdentityConfig(namespace: Namespace,
 )
 
 final case class DrsConfig(url: String)
-
-final case class InstrumentationEnabledConfig(
-  instrumentationEnabled: Boolean
-)
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html

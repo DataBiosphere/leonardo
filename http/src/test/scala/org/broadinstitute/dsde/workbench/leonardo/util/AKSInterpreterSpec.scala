@@ -46,8 +46,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SamConfig("https://sam"),
     appMonitorConfig,
     ConfigReader.appConfig.azure.wsm,
-    ConfigReader.appConfig.drs,
-    ConfigReader.appConfig.azure.instrumentationEnabledConfig
+    ConfigReader.appConfig.drs
   )
 
   val mockSamDAO = setUpMockSamDAO

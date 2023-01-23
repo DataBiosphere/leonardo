@@ -147,8 +147,7 @@ object AKSManualTest {
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
       appMonitorConfig,
       ConfigReader.appConfig.azure.wsm,
-      ConfigReader.appConfig.drs,
-      ConfigReader.appConfig.azure.instrumentationEnabledConfig
+      ConfigReader.appConfig.drs
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
