@@ -87,27 +87,27 @@ object RuntimeMonitor {
     createdDate: Instant,
     images: Set[RuntimeImage],
     imageConfig: ImageConfig,
-    cloudService: CloudService
+    cloudService: CloudService,
+    custom: Boolean
   )(implicit openTelemetry: OpenTelemetryMetrics[F]): F[Unit] =
     for {
       endTime <- Async[F].realTimeInstant
-      toolImageInfo = findToolImageInfo(images, imageConfig)
+      toolImageInfo = if (custom) "custom_image" else findToolImageInfo(images, imageConfig)
       metricsName = s"monitor/runtimeCreation"
       duration = (endTime.toEpochMilli - createdDate.toEpochMilli).milliseconds
       tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
       _ <- openTelemetry.incrementCounter(metricsName, 1, tags)
       distributionBucket = List(1 minutes,
-                                1.5 minutes,
                                 2 minutes,
-                                2.5 minutes,
                                 3 minutes,
-                                3.5 minutes,
-                                4 minutes,
-                                4.5 minutes,
                                 5 minutes,
-                                5.5 minutes,
-                                6 minutes
-      ) // Distribution buckets from 1 min to 6 min
+                                7 minutes,
+                                10 minutes,
+                                15 minutes,
+                                20 minutes,
+                                25 minutes,
+                                30 minutes
+      ) // Distribution buckets from 1 min to 30 min
       _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
