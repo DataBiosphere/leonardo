@@ -421,8 +421,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cromwell.coaEnabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
-        raw"fullnameOverride=coa-${release.asString}",
-        raw"instrumentationEnabled=${config.instrumentationEnabledConfig}"
+        raw"fullnameOverride=coa-${release.asString}"
+//        raw"instrumentationEnabled=${config.instrumentationEnabledConfig}"
       ).mkString(",")
     )
 
@@ -677,6 +677,5 @@ final case class AKSInterpreterConfig(
   samConfig: SamConfig,
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
-  drsConfig: DrsConfig,
-  instrumentationEnabledConfig: InstrumentationEnabledConfig
+  drsConfig: DrsConfig
 )

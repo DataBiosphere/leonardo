@@ -68,7 +68,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:3393dcb",
             VMCredential(username = "username", password = "password")
-          )
+          ),
+          instrumentationEnabled = false
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
@@ -91,8 +92,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartName("aad-pod-identity/aad-pod-identity"),
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
-        ),
-        InstrumentationEnabledConfig(true)
+        )
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
