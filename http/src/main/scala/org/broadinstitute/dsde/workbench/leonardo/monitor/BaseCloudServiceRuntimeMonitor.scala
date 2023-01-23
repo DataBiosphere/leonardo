@@ -253,7 +253,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             runtimeAndRuntimeConfig.runtime.runtimeImages,
             monitorConfig.imageConfig,
             runtimeAndRuntimeConfig.runtimeConfig.cloudService,
-            runtimeAndRuntimeConfig.runtime.customEnvironmentVariables.getOrElse("CUSTOM_ENV", "false").toBoolean
+            runtimeAndRuntimeConfig.runtime.customEnvironmentVariables.getOrElse("CUSTOM_IMAGE", "false").toBoolean
           )
         else F.unit
       timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).milliseconds
