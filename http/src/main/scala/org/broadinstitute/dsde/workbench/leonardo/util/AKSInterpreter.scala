@@ -408,8 +408,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.clientId=${petManagedIdentity.clientId()}",
 
         // general configs
-        raw"fullnameOverride=coa-${release.asString}"
-//        raw"instrumentationEnabled=${config.instrumentationEnabledConfig}"
+        raw"fullnameOverride=coa-${release.asString}",
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
       ).mkString(",")
     )
 

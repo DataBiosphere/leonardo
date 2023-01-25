@@ -68,8 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:7d764b8",
             VMCredential(username = "username", password = "password")
-          ),
-          instrumentationEnabled = false
+          )
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
@@ -84,7 +83,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
-          )
+          ),
+          instrumentationEnabled = false
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),

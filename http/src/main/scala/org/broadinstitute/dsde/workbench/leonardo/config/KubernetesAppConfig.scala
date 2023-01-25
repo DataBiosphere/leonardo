@@ -70,7 +70,8 @@ final case class CoaAppConfig(chartName: ChartName,
                               releaseNameSuffix: ReleaseNameSuffix,
                               namespaceNameSuffix: NamespaceNameSuffix,
                               ksaName: KsaName,
-                              services: List[ServiceConfig]
+                              services: List[ServiceConfig],
+                              instrumentationEnabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
