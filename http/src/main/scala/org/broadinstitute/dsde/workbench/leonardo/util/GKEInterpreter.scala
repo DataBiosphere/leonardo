@@ -1550,6 +1550,11 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
       raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
       raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Tusd ingress configs
+      raw"""galaxy.tusd.ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""galaxy.tusd.ingress.hosts[0].paths[0].path=${ingressPath}/api/upload/resumable_upload""",
+      raw"""galaxy.tusd.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.tusd.ingress.tls[0].secretName=tls-secret""",
       // Set RabbitMQ storage class
       raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
       // Set Machine Type specs
