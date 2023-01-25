@@ -56,6 +56,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
 RUN cd /leonardo && \
+    helm search repo terra-app-setup-charts -l && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
