@@ -48,14 +48,14 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
-    helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts
+    helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
+    helm repo update
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
 RUN cd /leonardo && \
-    helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
