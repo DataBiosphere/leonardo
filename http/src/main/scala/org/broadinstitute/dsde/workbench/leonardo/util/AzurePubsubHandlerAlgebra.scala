@@ -96,8 +96,7 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           welderImageHash: String,
                                           createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
-                                          runtimeDefaults: AzureRuntimeDefaults,
-                                          instrumentationEnabled: Boolean
+                                          runtimeDefaults: AzureRuntimeDefaults
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"
 }
