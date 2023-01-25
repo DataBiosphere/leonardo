@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
+import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
@@ -45,7 +46,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
-  ec: ExecutionContext
+  ec: ExecutionContext,
+  log: StructuredLogger[F]
 ) extends RuntimeV2Service[F] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
@@ -290,7 +292,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
         .whenA(!hasPermission)
 
-      _ <- dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, runtime.cloudContext, ctx.now))
+      _ <- dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, runtime.cloudContext, ctx.now)) >>
+        log.info(s"Queued message to update dateAccessed for runtime ${runtime.cloudContext}/$runtimeName")
     } yield ()
 
   def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
