@@ -93,6 +93,24 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
+      // if using existing disk, find disk in users workspace
+      disks <-
+        if (req.useExistingDisk)
+          DiskServiceDbQueries
+            .listDisks(Map.empty, false, Some(userInfo.userEmail), Some(cloudContext))
+            .transaction
+            .as(List[PersistentDisk])
+        else F.pure(none[List[PersistentDisk]])
+
+      diskOpt <- disks.traverse { disks =>
+        disks.length match {
+          case 1 => F.pure(disks.head)
+          case 0 => F.raiseError(NoPersistentDiskException(workspaceId))
+          case _ => F.raiseError(MultiplePersistentDisksException(workspaceId, disks.length))
+        }
+      }
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure disk")))
+
       // Get the Landing Zone Resources for the app for Azure
       leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- cloudContext.cloudProvider match {
@@ -124,22 +142,30 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         ctx.now
       )
       vmSamResourceId <- F.delay(UUID.randomUUID())
+      // persistentDiskQuery.
 
       _ <- runtimeOpt match {
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
-            diskToSave <- F.fromEither(
-              convertToDisk(
-                userInfo,
-                cloudContext,
-                DiskName(req.azureDiskConfig.name.value),
-                config.azureConfig.diskConfig,
-                req,
-                landingZoneResources.region,
-                ctx.now
-              )
-            )
+            diskToSave <- diskOpt match {
+              case Some(pd) =>
+                persistentDiskQuery.updateStatus(pd.id, DiskStatus.Restoring, ctx.now).transaction
+                F.pure(pd)
+              // TODO (me) should this status be Ready or Restoring?
+              case _ =>
+                F.fromEither(
+                  convertToDisk(
+                    userInfo,
+                    cloudContext,
+                    DiskName(req.azureDiskConfig.name.value),
+                    config.azureConfig.diskConfig,
+                    req,
+                    landingZoneResources.region,
+                    ctx.now
+                  )
+                )
+            }
 
             runtime = convertToRuntime(
               workspaceId,
@@ -153,6 +179,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               ctx.now
             )
 
+            // TODO (me) do I need to save here?
             disk <- persistentDiskQuery.save(diskToSave).transaction
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
@@ -170,6 +197,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
             )
           } yield ()
+        // }
       }
 
     } yield CreateRuntimeResponse(ctx.traceId)
