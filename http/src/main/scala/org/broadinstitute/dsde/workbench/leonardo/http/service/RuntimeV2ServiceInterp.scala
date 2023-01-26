@@ -97,7 +97,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       disks <-
         if (req.useExistingDisk)
           DiskServiceDbQueries
-            .listDisks(Map.empty, false, Some(userInfo.userEmail), Some(cloudContext))
+            .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), Some(cloudContext))
             .transaction
             .as(List[PersistentDisk])
         else F.pure(none[List[PersistentDisk]])
@@ -142,7 +142,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         ctx.now
       )
       vmSamResourceId <- F.delay(UUID.randomUUID())
-      // persistentDiskQuery.
 
       _ <- runtimeOpt match {
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
@@ -150,9 +149,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           for {
             diskToSave <- diskOpt match {
               case Some(pd) =>
+                // TODO (me) should this status be Ready or Restoring?
                 persistentDiskQuery.updateStatus(pd.id, DiskStatus.Restoring, ctx.now).transaction
                 F.pure(pd)
-              // TODO (me) should this status be Ready or Restoring?
               case _ =>
                 F.fromEither(
                   convertToDisk(
@@ -197,7 +196,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
             )
           } yield ()
-        // }
       }
 
     } yield CreateRuntimeResponse(ctx.traceId)

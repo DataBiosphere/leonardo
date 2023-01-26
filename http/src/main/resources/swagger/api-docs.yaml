@@ -812,10 +812,11 @@ paths:
             type: string
          - in: path
           name: useExistingDisk
-          description: useExistingDisk. If true, creates runtime with existing disk associated with the given user and workspace
-          required: false
+          description: If True creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found. Defaults to False
+          required: true
           schema:
             type: boolean
+            default: false
         
       requestBody:
         $ref: "#/components/requestBodies/CreateAzureRuntimeRequest"
@@ -3240,10 +3241,10 @@ components:
           description: an optional set of key value pairs for environment variables to be injected into the VM
         useExistingDisk:
           type: boolean
-          description: Defaults to false, if true will attempt to create runtime with an existing persistant disk for workspace and user
+          description: If True creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found. Defaults to False
         disk:
           $ref: "#/components/schemas/AzureDiskConfig"
-                - in: query 
+
     AzureDiskConfig:
       description: The config for creating an azure disk
       type: object
