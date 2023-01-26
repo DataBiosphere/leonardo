@@ -64,7 +64,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant)(implicit
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant, useExistingDisk: Boolean)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 
@@ -88,7 +88,8 @@ final case class StartAzureRuntimeParams(runtime: Runtime, runtimeConfig: Runtim
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
                                    jobId: WsmJobId,
-                                   relayNamespace: RelayNamespace
+                                   relayNamespace: RelayNamespace,
+                                   useExistingDisk: Boolean
 )
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,

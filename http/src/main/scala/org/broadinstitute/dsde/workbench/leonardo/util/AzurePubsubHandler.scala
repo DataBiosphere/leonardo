@@ -76,7 +76,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         WsmJobControl(createVmJobId)
       )
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.landingZoneResources.relayNamespace)
+        PollRuntimeParams(msg.workspaceId,
+                          runtime,
+                          createVmJobId,
+                          msg.landingZoneResources.relayNamespace,
+                          msg.useExistingDisk
+        )
       )
     } yield ()
 
@@ -389,7 +394,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}",
+                params.useExistingDisk
               )
             )
           case WsmJobStatus.Running =>
@@ -397,7 +403,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+                s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay",
+                params.useExistingDisk
               )
             )
           case WsmJobStatus.Succeeded =>
@@ -430,7 +437,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           taskToRun,
           Some(e =>
             handleAzureRuntimeCreationError(
-              AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage),
+              AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage, params.useExistingDisk),
               ctx.now
             )
           ),
@@ -655,7 +662,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
     } yield ()
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant, pd: Boolean)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -668,23 +675,27 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       auth <- samDAO.getLeoAuthToken
 
-      diskResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
-        .transaction
-      _ <- diskResourceOpt.traverse { disk =>
-        // TODO (me): once we start supporting persistent disk, we should not delete disk anymore
-        wsmDao.deleteDisk(
-          DeleteWsmResourceRequest(
-            e.workspaceId,
-            disk.resourceId,
-            DeleteControlledAzureResourceRequest(
-              WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+      _ <- if (pd) {
+        for {
+          diskResourceOpt <- controlledResourceQuery
+            .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
+            .transaction
+          _ <- diskResourceOpt.traverse { disk =>
+            // TODO (me): once we start supporting persistent disk, we should not delete disk anymore
+            wsmDao.deleteDisk(
+              DeleteWsmResourceRequest(
+                e.workspaceId,
+                disk.resourceId,
+                DeleteControlledAzureResourceRequest(
+                  WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                )
+              ),
+              auth
             )
-          ),
-          auth
-        )
+          }.void
+          _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
+        } yield ()
       }.void
-      _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
