@@ -70,7 +70,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                  msg.storageContainerResourceId,
                                  msg.landingZoneResources,
                                  azureConfig,
-                                 config.runtimeDefaults.image
+                                 config.runtimeDefaults.image,
+                                 msg.useExistingDisk
         ),
         WsmJobControl(createVmJobId)
       )
@@ -104,7 +105,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            hcName,
                                                            cloudContext
       )
-      createDiskAction = createDisk(params, auth)
+      createDiskAction <- Some(createDisk(params, auth))
+      // TODO (me) make conditional
+      createDiskAction <-
+        if (params.useExistingDisk) Some(createDisk(params, auth)) else F.pure(none[CreateDiskResponse])
 
       // Creating staging container
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(
@@ -113,6 +117,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
+      // TODO (ME) disentangle disk creation here
       createVmRequest <- createDiskAction.map { diskResp =>
         val vmCommon = getCommonFields(
           ControlledResourceName(params.runtime.runtimeName.asString),
@@ -667,7 +672,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
         .transaction
       _ <- diskResourceOpt.traverse { disk =>
-        // TODO: once we start supporting persistent disk, we should not delete disk anymore
+        // TODO (me): once we start supporting persistent disk, we should not delete disk anymore
         wsmDao.deleteDisk(
           DeleteWsmResourceRequest(
             e.workspaceId,

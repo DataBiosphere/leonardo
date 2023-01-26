@@ -147,23 +147,25 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
-            diskToSave <- diskOpt match {
+            disk <- diskOpt match {
               case Some(pd) =>
-                // TODO (me) should this status be Ready or Restoring?
                 persistentDiskQuery.updateStatus(pd.id, DiskStatus.Restoring, ctx.now).transaction
                 F.pure(pd)
               case _ =>
-                F.fromEither(
-                  convertToDisk(
-                    userInfo,
-                    cloudContext,
-                    DiskName(req.azureDiskConfig.name.value),
-                    config.azureConfig.diskConfig,
-                    req,
-                    landingZoneResources.region,
-                    ctx.now
+                for {
+                  pd <- F.fromEither(
+                    convertToDisk(
+                      userInfo,
+                      cloudContext,
+                      DiskName(req.azureDiskConfig.name.value),
+                      config.azureConfig.diskConfig,
+                      req,
+                      landingZoneResources.region,
+                      ctx.now
+                    )
                   )
-                )
+                  disk <- persistentDiskQuery.save(pd).transaction
+                } yield disk
             }
 
             runtime = convertToRuntime(
@@ -178,8 +180,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               ctx.now
             )
 
-            // TODO (me) do I need to save here?
-            disk <- persistentDiskQuery.save(diskToSave).transaction
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
               disk.id,
@@ -192,7 +192,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                         workspaceId,
                                         storageContainer.resourceId,
                                         landingZoneResources,
-                                        Some(ctx.traceId)
+                                        Some(ctx.traceId),
+                                        req.useExistingDisk
               )
             )
           } yield ()
