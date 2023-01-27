@@ -114,6 +114,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               diskResp.resourceId
             }
           } yield id
+        case Some(id) =>
+          for {
+            _ <- controlledResourceQuery
+              .save(params.runtime.id, id.asInstanceOf[WsmControlledResourceId], WsmResourceType.AzureDisk)
+              .transaction
+            _ <- persistentDiskQuery.updateStatus(id, DiskStatus.Ready, ctx.now).transaction
+          } yield id.asInstanceOf[WsmControlledResourceId]
       }
 
       // Creating staging container
@@ -165,10 +172,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           ),
           config.runtimeDefaults.vmCredential,
-          params.diskId match {
-            case Some(id) => id.asInstanceOf[WsmControlledResourceId]
-            case None     => newDiskId
-          }
+          newDiskId
         ),
         jobControl
       )
