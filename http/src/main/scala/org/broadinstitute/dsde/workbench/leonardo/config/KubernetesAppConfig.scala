@@ -4,7 +4,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Ser
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, Cromwell, Wds}
 import org.broadinstitute.dsde.workbench.leonardo.{
   Chart,
-  CoaServices,
   DbPassword,
   GalaxyDrsUrl,
   GalaxyOrchUrl,
