@@ -71,7 +71,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                  msg.landingZoneResources,
                                  azureConfig,
                                  config.runtimeDefaults.image,
-                                 msg.useExistingDisk
+                                 msg.persistentDisk
         ),
         WsmJobControl(createVmJobId)
       )
@@ -80,13 +80,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                           runtime,
                           createVmJobId,
                           msg.landingZoneResources.relayNamespace,
-                          msg.useExistingDisk
+                          msg.persistentDisk
         )
       )
     } yield ()
 
   /** Creates an Azure VM but doesn't wait for its completion.
    * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
+   * If a previously created persistent disk is specified, disk is transferred to new runtime
    * */
   private def createRuntime(params: CreateAzureRuntimeParams, jobControl: WsmJobControl)(implicit
     ev: Ask[F, AppContext]
@@ -110,20 +111,26 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            hcName,
                                                            cloudContext
       )
-      createDiskAction <- Some(createDisk(params, auth))
+      // want diskExists to be an option[WSMControlled]
+      diskExists <- Some(createDisk(params, auth))
+//      diskExists <- params.persistentDisk match {
+//        case Some(pd) => pd.id.asInstanceOf[WsmControlledResourceId]
+//        case None => for {
+//          disk <- Some(createDisk(params, auth))
+//          id <- disk match {
+//          case Some(d) => d.resourceId
+//          case None => none[WsmControlledResourceId]
+//        }
+//        } yield(id)
+//=      }
       // TODO (me) make conditional
-      createDiskAction <-
-        if (params.useExistingDisk) Some(createDisk(params, auth)) else F.pure(none[CreateDiskResponse])
 
       // Creating staging container
-      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(
-        params,
-        auth
-      )
+      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
       // TODO (ME) disentangle disk creation here
-      createVmRequest <- createDiskAction.map { diskResp =>
+      createVmRequest <- diskExists.map { diskId =>
         val vmCommon = getCommonFields(
           ControlledResourceName(params.runtime.runtimeName.asString),
           config.runtimeDefaults.vmControlledResourceDesc,
@@ -169,7 +176,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             ),
             config.runtimeDefaults.vmCredential,
-            diskResp.resourceId
+            diskId.resourceId
           ),
           jobControl
         )
@@ -394,8 +401,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}",
-                params.useExistingDisk
+                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
               )
             )
           case WsmJobStatus.Running =>
@@ -403,8 +409,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay",
-                params.useExistingDisk
+                s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
             )
           case WsmJobStatus.Succeeded =>
@@ -437,8 +442,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           taskToRun,
           Some(e =>
             handleAzureRuntimeCreationError(
-              AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage, params.useExistingDisk),
-              ctx.now
+              AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage),
+              ctx.now,
+              params.persistentDisk
             )
           ),
           ctx.now,
@@ -662,7 +668,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
     } yield ()
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant, pd: Boolean)(implicit
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant, pd: Option[PersistentDisk])(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -675,28 +681,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       auth <- samDAO.getLeoAuthToken
 
-      _ <- if (pd) {
-        for {
-          diskResourceOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
-            .transaction
-          _ <- diskResourceOpt.traverse { disk =>
-            // TODO (me): once we start supporting persistent disk, we should not delete disk anymore
-            wsmDao.deleteDisk(
-              DeleteWsmResourceRequest(
-                e.workspaceId,
-                disk.resourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
-                )
-              ),
-              auth
-            )
-          }.void
-          _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
-        } yield ()
-      }.void
+      // if no existing disk being used, delete new disk created
+      _ <- pd match {
+        case Some(disk) =>
+          for {
+            _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, now).transaction
+          } yield ()
+        case None =>
+          for {
+            diskResourceOpt <- controlledResourceQuery
+              .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
+              .transaction
+            _ <- diskResourceOpt.traverse { disk =>
+              wsmDao.deleteDisk(
+                DeleteWsmResourceRequest(
+                  e.workspaceId,
+                  disk.resourceId,
+                  DeleteControlledAzureResourceRequest(
+                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                  )
+                ),
+                auth
+              )
+            }.void
+            _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
+          } yield ()
+      }
 
+      // TODO (me) do I need to delete network if keeping disk?
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
         .transaction

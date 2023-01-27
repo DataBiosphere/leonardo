@@ -102,7 +102,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             .as(List[PersistentDisk])
         else F.pure(none[List[PersistentDisk]])
 
-      diskOpt <- disks.traverse { disks =>
+      persistentDiskOpt <- disks.traverse { disks =>
         disks.length match {
           case 1 => F.pure(disks.head)
           case 0 => F.raiseError(NoPersistentDiskException(workspaceId))
@@ -147,7 +147,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
-            disk <- diskOpt match {
+            disk <- persistentDiskOpt match {
               case Some(pd) =>
                 persistentDiskQuery.updateStatus(pd.id, DiskStatus.Restoring, ctx.now).transaction
                 F.pure(pd)
@@ -164,8 +164,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       ctx.now
                     )
                   )
-                  disk <- persistentDiskQuery.save(pd).transaction
-                } yield disk
+                  d <- persistentDiskQuery.save(pd).transaction
+                } yield d
             }
 
             runtime = convertToRuntime(
@@ -193,7 +193,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                         storageContainer.resourceId,
                                         landingZoneResources,
                                         Some(ctx.traceId),
-                                        req.useExistingDisk
+                                        persistentDiskOpt
               )
             )
           } yield ()

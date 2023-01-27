@@ -353,7 +353,7 @@ object LeoPubsubMessage {
                                              storageContainerResourceId: WsmControlledResourceId,
                                              landingZoneResources: LandingZoneResources,
                                              traceId: Option[TraceId],
-                                             useExistingDisk: Boolean
+                                             persistentDisk: Option[PersistentDisk] //if using existing disk, will attach to new runtime
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
@@ -523,7 +523,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct5("runtimeId", "workspaceId", "storageContainerResourceId", "landingZoneResources", "traceId", "useExistingDisk")(
+    Decoder.forProduct5("runtimeId", "workspaceId", "storageContainerResourceId", "landingZoneResources", "traceId", "persistentDisk")(
       CreateAzureRuntimeMessage.apply
     )
 
@@ -900,7 +900,7 @@ object LeoPubsubCodec {
                         "storageContainerResourceId",
                         "landingZoneResources",
                         "traceId",
-                        "useExistingDisk"
+                        "persistentDisk"
     )(x => (x.messageType, x.runtimeId, x.workspaceId, x.storageContainerResourceId, x.landingZoneResources, x.traceId, x.useExistingDisk))
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
