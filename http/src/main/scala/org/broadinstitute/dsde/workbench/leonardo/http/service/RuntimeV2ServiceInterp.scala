@@ -104,7 +104,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       persistentDiskOpt <- disks.traverse { disks =>
         disks.length match {
-          case 1 => F.pure(disks.head)
+          case 1 => F.pure(disks.head.id)
           case 0 => F.raiseError(NoPersistentDiskException(workspaceId))
           case _ => F.raiseError(MultiplePersistentDisksException(workspaceId, disks.length))
         }
@@ -147,10 +147,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
-            disk <- persistentDiskOpt match {
-              case Some(pd) =>
-                persistentDiskQuery.updateStatus(pd.id, DiskStatus.Restoring, ctx.now).transaction
-                F.pure(pd)
+            diskId <- persistentDiskOpt match {
+              case Some(pdId) =>
+                persistentDiskQuery.updateStatus(pdId, DiskStatus.Restoring, ctx.now).transaction
+                F.pure(pdId)
               case _ =>
                 for {
                   pd <- F.fromEither(
@@ -165,7 +165,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     )
                   )
                   d <- persistentDiskQuery.save(pd).transaction
-                } yield d
+                } yield d.id
             }
 
             runtime = convertToRuntime(
@@ -182,7 +182,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
-              disk.id,
+              diskId,
               landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)

@@ -348,12 +348,13 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
 
-  final case class CreateAzureRuntimeMessage(runtimeId: Long,
-                                             workspaceId: WorkspaceId,
-                                             storageContainerResourceId: WsmControlledResourceId,
-                                             landingZoneResources: LandingZoneResources,
-                                             traceId: Option[TraceId],
-                                             persistentDisk: Option[PersistentDisk] //if using existing disk, will attach to new runtime
+  final case class CreateAzureRuntimeMessage(
+    runtimeId: Long,
+    workspaceId: WorkspaceId,
+    storageContainerResourceId: WsmControlledResourceId,
+    landingZoneResources: LandingZoneResources,
+    traceId: Option[TraceId],
+    diskId: Option[DiskId] // if using existing disk, will attach to new runtime
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
@@ -523,7 +524,13 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct5("runtimeId", "workspaceId", "storageContainerResourceId", "landingZoneResources", "traceId", "persistentDisk")(
+    Decoder.forProduct5("runtimeId",
+                        "workspaceId",
+                        "storageContainerResourceId",
+                        "landingZoneResources",
+                        "traceId",
+                        "diskId"
+    )(
       CreateAzureRuntimeMessage.apply
     )
 
@@ -900,8 +907,17 @@ object LeoPubsubCodec {
                         "storageContainerResourceId",
                         "landingZoneResources",
                         "traceId",
-                        "persistentDisk"
-    )(x => (x.messageType, x.runtimeId, x.workspaceId, x.storageContainerResourceId, x.landingZoneResources, x.traceId, x.useExistingDisk))
+                        "diskId"
+    )(x =>
+      (x.messageType,
+       x.runtimeId,
+       x.workspaceId,
+       x.storageContainerResourceId,
+       x.landingZoneResources,
+       x.traceId,
+       x.diskId
+      )
+    )
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
     Encoder.forProduct6("messageType", "runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(x =>

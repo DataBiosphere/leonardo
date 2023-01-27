@@ -143,15 +143,17 @@ case class RuntimeDiskSizeCannotBeDecreasedException(projectNameString: String)
     )
 
 case class MultiplePersistentDisksException(workspaceId: WorkspaceId, numDisks: Int)
-  extends LeoException(s"Workspace: ${workspaceId} contains ${numDisks} persistent disks, must have only 1. Runtime cannot be created with an existing disk ",
-                        StatusCodes.PreconditionFailed,
-                        traceId = None
-  )
+    extends LeoException(
+      s"Workspace: ${workspaceId} contains ${numDisks} persistent disks, must have only 1. Runtime cannot be created with an existing disk ",
+      StatusCodes.PreconditionFailed,
+      traceId = None
+    )
 
 case class NoPersistentDiskException(workspaceId: WorkspaceId)
-  extends LeoException(s"Workspace: ${workspaceId} does not contain any persistent disks. Runtime cannot be created with an existing disk",
-                         StatusCodes.PreconditionFailed,
-                         traceId = None
+    extends LeoException(
+      s"Workspace: ${workspaceId} does not contain any persistent disks. Runtime cannot be created with an existing disk",
+      StatusCodes.PreconditionFailed,
+      traceId = None
     )
 
 case class BucketObjectException(gcsUri: String, msg: String)

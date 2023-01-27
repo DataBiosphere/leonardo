@@ -71,17 +71,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                  msg.landingZoneResources,
                                  azureConfig,
                                  config.runtimeDefaults.image,
-                                 msg.persistentDisk
+                                 msg.diskId
         ),
         WsmJobControl(createVmJobId)
       )
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId,
-                          runtime,
-                          createVmJobId,
-                          msg.landingZoneResources.relayNamespace,
-                          msg.persistentDisk
-        )
+        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.landingZoneResources.relayNamespace, msg.diskId)
       )
     } yield ()
 
@@ -111,77 +106,73 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            hcName,
                                                            cloudContext
       )
-      // want diskExists to be an option[WSMControlled]
-      diskExists <- Some(createDisk(params, auth))
-//      diskExists <- params.persistentDisk match {
-//        case Some(pd) => pd.id.asInstanceOf[WsmControlledResourceId]
-//        case None => for {
-//          disk <- Some(createDisk(params, auth))
-//          id <- disk match {
-//          case Some(d) => d.resourceId
-//          case None => none[WsmControlledResourceId]
-//        }
-//        } yield(id)
-//=      }
-      // TODO (me) make conditional
+      createDiskAction = createDisk(params, auth)
+      newDiskId <- params.diskId match {
+        case None =>
+          for {
+            id <- createDiskAction.map { diskResp =>
+              diskResp.resourceId
+            }
+          } yield id
+      }
 
       // Creating staging container
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
-      // TODO (ME) disentangle disk creation here
-      createVmRequest <- diskExists.map { diskId =>
-        val vmCommon = getCommonFields(
-          ControlledResourceName(params.runtime.runtimeName.asString),
-          config.runtimeDefaults.vmControlledResourceDesc,
-          params.runtime.auditInfo.creator,
-          Some(samResourceId)
-        )
-        val arguments = List(
-          params.landingZoneResources.relayNamespace.value,
-          hcName.value,
-          "localhost",
-          primaryKey.value,
-          config.runtimeDefaults.listenerImage,
-          config.samUrl.renderString,
-          samResourceId.value.toString,
-          "csp.txt",
-          config.wsmUrl.renderString,
-          params.workspaceId.value.toString,
-          params.storageContainerResourceId.value.toString,
-          config.welderImage,
-          params.runtime.auditInfo.creator.value,
-          stagingContainerName.value,
-          stagingContainerResourceId.value.toString
-        )
-        val cmdToExecute =
-          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
-        CreateVmRequest(
-          params.workspaceId,
-          vmCommon,
-          CreateVmRequestData(
-            params.runtime.runtimeName,
-            params.runtimeConfig.region,
-            VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
-            config.runtimeDefaults.image,
-            CustomScriptExtension(
-              name = config.runtimeDefaults.customScriptExtension.name,
-              publisher = config.runtimeDefaults.customScriptExtension.publisher,
-              `type` = config.runtimeDefaults.customScriptExtension.`type`,
-              version = config.runtimeDefaults.customScriptExtension.version,
-              minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
-              protectedSettings = ProtectedSettings(
-                config.runtimeDefaults.customScriptExtension.fileUris,
-                cmdToExecute
-              )
-            ),
-            config.runtimeDefaults.vmCredential,
-            diskId.resourceId
+      vmCommon = getCommonFields(
+        ControlledResourceName(params.runtime.runtimeName.asString),
+        config.runtimeDefaults.vmControlledResourceDesc,
+        params.runtime.auditInfo.creator,
+        Some(samResourceId)
+      )
+      arguments = List(
+        params.landingZoneResources.relayNamespace.value,
+        hcName.value,
+        "localhost",
+        primaryKey.value,
+        config.runtimeDefaults.listenerImage,
+        config.samUrl.renderString,
+        samResourceId.value.toString,
+        "csp.txt",
+        config.wsmUrl.renderString,
+        params.workspaceId.value.toString,
+        params.storageContainerResourceId.value.toString,
+        config.welderImage,
+        params.runtime.auditInfo.creator.value,
+        stagingContainerName.value,
+        stagingContainerResourceId.value.toString
+      )
+      cmdToExecute =
+        s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
+      request = CreateVmRequest(
+        params.workspaceId,
+        vmCommon,
+        CreateVmRequestData(
+          params.runtime.runtimeName,
+          params.runtimeConfig.region,
+          VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
+          config.runtimeDefaults.image,
+          CustomScriptExtension(
+            name = config.runtimeDefaults.customScriptExtension.name,
+            publisher = config.runtimeDefaults.customScriptExtension.publisher,
+            `type` = config.runtimeDefaults.customScriptExtension.`type`,
+            version = config.runtimeDefaults.customScriptExtension.version,
+            minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
+            protectedSettings = ProtectedSettings(
+              config.runtimeDefaults.customScriptExtension.fileUris,
+              cmdToExecute
+            )
           ),
-          jobControl
-        )
-      }
-      _ <- wsmDao.createVm(createVmRequest, auth)
+          config.runtimeDefaults.vmCredential,
+          params.diskId match {
+            case Some(id) => id.asInstanceOf[WsmControlledResourceId]
+            case None     => newDiskId
+          }
+        ),
+        jobControl
+      )
+      _ <- wsmDao.createVm(request, auth)
     } yield ()
 
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
@@ -444,7 +435,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             handleAzureRuntimeCreationError(
               AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage),
               ctx.now,
-              params.persistentDisk
+              params.diskId
             )
           ),
           ctx.now,
@@ -668,7 +659,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
     } yield ()
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant, pd: Option[PersistentDisk])(implicit
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant, pd: Option[DiskId])(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -683,9 +674,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // if no existing disk being used, delete new disk created
       _ <- pd match {
-        case Some(disk) =>
+        case Some(diskId) =>
           for {
-            _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, now).transaction
+            _ <- persistentDiskQuery.updateStatus(diskId, DiskStatus.Ready, now).transaction
           } yield ()
         case None =>
           for {
@@ -708,7 +699,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           } yield ()
       }
 
-      // TODO (me) do I need to delete network if keeping disk?
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
         .transaction
