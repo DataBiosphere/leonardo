@@ -470,10 +470,6 @@ class GKEInterpreter[F[_]](
                                                              KubernetesNamespace(app.appResources.namespace.name)
               )
 
-              _ <- logger.info(ctx.loggingCtx)(
-                s"Listing Persistent Volume Claims ${pvcs.map(x => x.getMetadata.getName)}, we should find ${app.release.asString}-galaxy-pvc"
-              )
-
               _ <- pvcs
                 // We added an extra -galaxy here: https://github.com/galaxyproject/galaxykubeman-helm/blob/f7f27be74c213deda3ae53122[…]959c96480bb21f/galaxykubeman/templates/config-setup-galaxy.yaml
                 .find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-galaxy-pvc")
