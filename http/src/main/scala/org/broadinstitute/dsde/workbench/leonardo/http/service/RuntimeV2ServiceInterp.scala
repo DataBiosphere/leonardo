@@ -80,12 +80,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- F
         .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      leoAuth <- samDAO.getLeoAuthToken
-      // TODO/PR question: do we still need this RelayNamespace for GCP?
       storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
       storageContainer <- F.fromOption(
         storageContainerOpt,
-        BadRequestException(s"Workspace ${workspaceId} doesn't have storage container provisioned appropriately",
+        BadRequestException(s"Workspace ${workspaceId.value} doesn't have storage container provisioned appropriately",
                             Some(ctx.traceId)
         )
       )
@@ -93,14 +91,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
       // Get the Landing Zone Resources for the app for Azure
+      leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp =>
           F.raiseError(
-            BadRequestException(s"Workspace ${workspaceId} is GCP and doesn't support V2 VM creation",
+            BadRequestException(s"Workspace ${workspaceId.value} is GCP and doesn't support V2 VM creation",
                                 Some(ctx.traceId)
             )
           )
-        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
       }
 
       runtimeImage: RuntimeImage = RuntimeImage(
@@ -134,6 +133,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 DiskName(req.azureDiskConfig.name.value),
                 config.azureConfig.diskConfig,
                 req,
+                landingZoneResources.region,
                 ctx.now
               )
             )
@@ -154,7 +154,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
               disk.id,
-              req.region
+              landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
@@ -206,7 +206,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     F.pure(AzureUnimplementedException("patch not implemented yet"))
 
-  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+  override def deleteRuntime(userInfo: UserInfo,
+                             runtimeName: RuntimeName,
+                             workspaceId: WorkspaceId,
+                             deleteDisk: Boolean
+  )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -247,11 +251,14 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
-      // For now, azure disk life cycle is tied to vm life cycle and incompatible with disk routes
-      _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+      // pass the disk to delete to publisher if specified
+      diskIdToDelete <-
+        if (deleteDisk)
+          persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction.as(diskIdOpt)
+        else F.pure(none[DiskId])
 
       _ <- publisherQueue.offer(
-        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
+        DeleteAzureRuntimeMessage(runtime.id, diskIdToDelete, workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
       )
     } yield ()
 
@@ -316,14 +323,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
 
-      creatorOnly =
-        // Support filtering by creator either by role=creator query string, or creator=<user email> label
-        if (
-          params
-            .get(creatorOnlyKey)
-            .exists(_ == creatorOnlyValue) || labelMap.get(creatorOnlyValue).exists(_ == userInfo.userEmail)
-        ) Some(userInfo.userEmail)
-        else None
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
         .listRuntimesForWorkspace(labelMap, includeDeleted, creatorOnly, workspaceId, cloudProvider)
         .map(_.toList)
@@ -422,6 +422,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      diskName: DiskName,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
+                                     region: com.azure.core.management.Region,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
@@ -445,7 +446,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
-      ZoneName(req.region.toString),
+      ZoneName(region.toString),
       diskName,
       userInfo.userEmail,
       // TODO: WSM will populate this, we can update in backleo if its needed for anything
@@ -518,7 +519,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       Some(userInfo.userEmail),
       None,
       None,
-      Some(RuntimeImageType.Azure)
+      // TODO: Will need to be updated when we support RStudio on Azure or JupyterLab on GCP V2 endpoint
+      Some(Tool.JupyterLab)
     ).toMap
 
     val allLabels = request.labels ++ defaultLabels

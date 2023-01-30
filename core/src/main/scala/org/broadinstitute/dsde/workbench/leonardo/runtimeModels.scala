@@ -425,6 +425,26 @@ object RuntimeUI {
   }
 }
 
+//This ADT is how some of the UI logic is resolved. Only used in Labels table.
+sealed trait Tool extends EnumEntry with Product with Serializable {
+  def asString: String
+
+  override def toString: String = asString
+}
+object Tool extends Enum[Tool] {
+  case object RStudio extends Tool {
+    val asString: String = "RStudio"
+  }
+  case object Jupyter extends Tool {
+    val asString: String = "Jupyter"
+  }
+  case object JupyterLab extends Tool {
+    val asString: String = "JupyterLab"
+  }
+
+  override def values: immutable.IndexedSeq[Tool] = findValues
+}
+
 /** Default runtime labels */
 case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 googleProject: Option[GoogleProject],
@@ -433,7 +453,7 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 serviceAccount: Option[WorkbenchEmail],
                                 userScript: Option[UserScriptPath],
                                 startUserScript: Option[UserScriptPath],
-                                tool: Option[RuntimeImageType]
+                                tool: Option[Tool]
 ) {
   def toMap: LabelMap =
     Map(

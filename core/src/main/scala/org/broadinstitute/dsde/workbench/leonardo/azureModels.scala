@@ -31,5 +31,6 @@ final case class LandingZoneResources(clusterName: AKSClusterName,
                                       batchNodesSubnetName: SubnetworkName,
                                       aksSubnetName: SubnetworkName,
                                       postgresSubnetName: SubnetworkName,
-                                      computeSubnetName: SubnetworkName
+                                      computeSubnetName: SubnetworkName,
+                                      region: com.azure.core.management.Region
 )

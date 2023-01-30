@@ -38,16 +38,6 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def createNetwork(
-    request: CreateNetworkRequest,
-    authorization: Authorization
-  )(implicit ev: Ask[IO, AppContext]): IO[CreateNetworkResponse] =
-    IO.pure(
-      CreateNetworkResponse(
-        WsmControlledResourceId(UUID.randomUUID())
-      )
-    )
-
   override def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[CreateVmResult] =
@@ -165,7 +155,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
         SubnetworkName("batchsub"),
         SubnetworkName("akssub"),
         SubnetworkName("postgressub"),
-        SubnetworkName("computesub")
+        SubnetworkName("computesub"),
+        com.azure.core.management.Region.US_WEST
       )
     )
 

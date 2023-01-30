@@ -389,6 +389,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
+        raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",
@@ -406,6 +407,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.name=${petManagedIdentity.name()}",
         raw"identity.resourceId=${petManagedIdentity.id()}",
         raw"identity.clientId=${petManagedIdentity.clientId()}",
+
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}"

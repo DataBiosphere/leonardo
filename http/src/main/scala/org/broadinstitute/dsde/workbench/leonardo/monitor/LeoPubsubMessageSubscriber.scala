@@ -1390,8 +1390,21 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
             _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
           } yield ()
-        case CloudService.Dataproc => F.unit
-        case CloudService.AzureVm  => F.unit
+        case CloudService.Dataproc =>
+          val errorMessage = e match {
+            case leoEx: LeoException =>
+              Some(ErrorReport.loggableString(leoEx.toErrorReport))
+            case ee: com.google.api.gax.rpc.AbortedException
+                if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
+              None // this could happen when pubsub redelivers an event unexpectedly
+            case _ =>
+              Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
+          }
+          errorMessage.traverse(m =>
+            (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
+              clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
+          )
+        case CloudService.AzureVm => F.unit
       }
     } yield ()
 

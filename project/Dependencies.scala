@@ -14,6 +14,8 @@ object Dependencies {
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
+  val munitCatsEffectV = "1.0.7"
+  val pact4sV = "0.7.0"
 
   private val workbenchLibsHash = "1a6839f"
   val serviceTestV = s"2.0-$workbenchLibsHash"
@@ -129,7 +131,12 @@ object Dependencies {
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
+  val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
+  val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
+  val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
+  val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
+  val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
 
   val coreDependencies = List(
     workbenchOauth2,
@@ -210,5 +217,15 @@ object Dependencies {
     scalaTestMockito,
     http4sBlazeServer % Test//,
 //    wsmClient
+  )
+
+  val pact4sDependencies = Seq(
+    pact4sScalaTest,
+    pact4sCirce,
+    http4sEmberClient,
+    http4sDsl,
+    http4sEmberServer,
+    http4sCirce,
+    scalaTest
   )
 }

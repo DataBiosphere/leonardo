@@ -241,14 +241,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
-      creatorOnly =
-        // Support filtering by creator either by role=creator query string, or creator=<user email> label
-        if (
-          params
-            .get(creatorOnlyKey)
-            .exists(_ == creatorOnlyValue) || labelMap.get(creatorOnlyValue).exists(_ == userInfo.userEmail)
-        ) Some(userInfo.userEmail)
-        else None
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(labelMap, includeDeleted, creatorOnly, cloudContext)
         .transaction
@@ -860,6 +853,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 }
 
 object RuntimeServiceInterp {
+
+  private[service] def getToolFromImages(clusterImages: Set[RuntimeImage]): Option[Tool] =
+    clusterImages.map(_.imageType.toString).find(Tool.namesToValuesMap.contains) match {
+      case Some(value) => Tool.withNameOption(value)
+      case None        => None
+    }
+
   private[service] def convertToRuntime(userInfo: UserInfo,
                                         serviceAccountInfo: WorkbenchEmail,
                                         cloudContext: CloudContext,
@@ -879,7 +879,7 @@ object RuntimeServiceInterp {
       Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+      getToolFromImages(clusterImages)
     ).toMap
 
     // combine default and given labels and add labels for extensions

@@ -262,7 +262,6 @@ final class LeonardoSuite
 final class LeonardoTerraDockerSuite
     extends Suites(
       new NotebookAouSpec,
-      new NotebookBioconductorKernelSpec,
       new NotebookGATKSpec,
       new NotebookHailSpec,
       new NotebookPyKernelSpec,

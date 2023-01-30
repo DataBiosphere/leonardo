@@ -820,6 +820,13 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not disk should be deleted upon runtime deletion. Defaults to false if not specified
+          required: false
+          schema:
+            type: boolean
+            default: false
       responses:
         "202":
           description: Runtime deletion request accepted
@@ -873,6 +880,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -937,6 +950,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -1165,6 +1184,12 @@ paths:
           required: false
           schema:
             type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of apps
@@ -1225,6 +1250,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each app in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -2594,11 +2625,12 @@ components:
     AppStatus:
       type: string
       enum:
-        - DELETING
         - DELETED
+        - DELETING
         - ERROR
         - PROVISIONING
         - RUNNING
+        - STARTING
         - STATUS_UNSPECIFIED
         - STOPPED
         - STOPPING
@@ -3079,16 +3111,12 @@ components:
       description: Creates a new runtime
       type: object
       required:
-        - region
         - machineSize
         - disk
       properties:
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
-        region:
-          type: string
-          description: An azure region, see this for strings https://github.com/Azure/azure-libraries-for-java/blob/master/azure-mgmt-resources/src/main/java/com/microsoft/azure/management/resources/fluentcore/arm/Region.java
         machineSize:
           type: string
           description: The azure-specific machine size identifier string. See https://docs.microsoft.com/en-us/azure/virtual-machines/sizes-general

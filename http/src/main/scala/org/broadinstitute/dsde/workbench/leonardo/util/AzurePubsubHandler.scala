@@ -105,9 +105,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            cloudContext
       )
       createDiskAction = createDisk(params, auth)
-      // TODO make a ticket. We're still calling WSM createVM API, which depends on a WSM owned network. We're migrating
-      // to the shared LZ subnet. We could create the new VM directly from Leo or make an updated API in WSM
-      createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       // Creating staging container
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(
@@ -116,7 +113,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
-      createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
+      createVmRequest <- createDiskAction.map { diskResp =>
         val vmCommon = getCommonFields(
           ControlledResourceName(params.runtime.runtimeName.asString),
           config.runtimeDefaults.vmControlledResourceDesc,
@@ -162,8 +159,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             ),
             config.runtimeDefaults.vmCredential,
-            diskResp.resourceId,
-            networkResp.resourceId
+            diskResp.resourceId
           ),
           jobControl
         )
@@ -330,35 +326,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
       _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
     } yield diskResp
-
-  private def createNetwork(
-    params: CreateAzureRuntimeParams,
-    leoAuth: Authorization,
-    nameSuffix: String
-  )(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] = {
-    val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
-                                 config.runtimeDefaults.networkControlledResourceDesc,
-                                 params.runtime.auditInfo.creator,
-                                 None
-    )
-    val request: CreateNetworkRequest = CreateNetworkRequest(
-      params.workspaceId,
-      common,
-      CreateNetworkRequestData(
-        AzureNetworkName(s"vNet-${nameSuffix}"),
-        AzureSubnetName(s"subnet-${nameSuffix}"),
-        config.runtimeDefaults.addressSpaceCidr,
-        config.runtimeDefaults.subnetAddressCidr,
-        params.runtimeConfig.region
-      )
-    )
-    for {
-      networkResp <- wsmDao.createNetwork(request, leoAuth)
-      _ <- controlledResourceQuery
-        .save(params.runtime.id, networkResp.resourceId, WsmResourceType.AzureNetwork)
-        .transaction
-    } yield networkResp
-  }
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
@@ -572,61 +539,44 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.deleteVmPollConfig.interval
         ).compile.lastOrError
 
-        continue = for {
-          diskResourceOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
-            .transaction
-          _ <- logger
-            .info(ctx.loggingCtx)(
-              s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
-            )
-            .whenA(diskResourceOpt.isEmpty)
-          deleteDisk = diskResourceOpt.traverse { disk =>
-            wsmDao.deleteDisk(
-              DeleteWsmResourceRequest(
-                msg.workspaceId,
-                disk.resourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
-                )
-              ),
-              auth
-            )
-          }.void
+        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+        _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
 
-          networkResourceOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
-            .transaction
-          _ <- logger
-            .info(ctx.loggingCtx)(
-              s"No network resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteNetworks."
-            )
-            .whenA(networkResourceOpt.isEmpty)
-          deleteNetworks = networkResourceOpt.traverse { network =>
-            wsmDao.deleteNetworks(
-              DeleteWsmResourceRequest(
-                msg.workspaceId,
-                network.resourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
-                )
-              ),
-              auth
-            )
-          }.void
+        deleteDiskAction = msg.diskIdToDelete.traverse { _ =>
+          for {
+            diskResourceOpt <- controlledResourceQuery
+              .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
+              .transaction
+            _ <- logger
+              .info(ctx.loggingCtx)(
+                s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
+              )
+              .whenA(diskResourceOpt.isEmpty)
+            _ <- diskResourceOpt.traverse { disk =>
+              wsmDao.deleteDisk(
+                DeleteWsmResourceRequest(
+                  msg.workspaceId,
+                  disk.resourceId,
+                  DeleteControlledAzureResourceRequest(
+                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                  )
+                ),
+                auth
+              )
+            }.void
 
-          _ <- List(deleteDisk, deleteNetworks).parSequence
-          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-          _ <- msg.diskId.traverse(diskId =>
-            dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
-          )
-          _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
-        } yield ()
+            _ <- msg.diskIdToDelete.traverse(diskId =>
+              dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+            )
+            _ <- logger.info(ctx.loggingCtx)("runtime disk is deleted successfully")
+          } yield ()
+        }.void
+
         _ <- respOpt match {
           case Some(resp) =>
             resp.jobReport.status match {
               case WsmJobStatus.Succeeded =>
-                continue
+                deleteDiskAction
               case WsmJobStatus.Failed =>
                 F.raiseError[Unit](
                   AzureRuntimeDeletionError(
@@ -644,7 +594,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   )
                 )
             }
-          case None => continue
+          case None => deleteDiskAction
         }
       } yield ()
 

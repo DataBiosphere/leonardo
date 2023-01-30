@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, workspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
@@ -43,7 +43,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
-    SamConfig("https://sam"),
+    SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
     appMonitorConfig,
     ConfigReader.appConfig.azure.wsm,
     ConfigReader.appConfig.drs
@@ -88,7 +88,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SubnetworkName("subnet1"),
     SubnetworkName("subnet2"),
     SubnetworkName("subnet3"),
-    SubnetworkName("subnet4")
+    SubnetworkName("subnet4"),
+    azureRegion
   )
 
   val storageContainer = StorageContainerResponse(
@@ -127,6 +128,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.batchAccountName=batch," +
       "config.batchNodesSubnetId=subnet1," +
       s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.workflowExecutionIdentity=identity-id," +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
@@ -138,6 +140,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=coa-rel-1"
   }
 

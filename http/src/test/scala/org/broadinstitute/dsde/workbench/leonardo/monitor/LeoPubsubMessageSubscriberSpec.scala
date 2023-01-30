@@ -225,6 +225,45 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle dataproc runtime creation failure properly" in isolatedDbTest {
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val dataprocAlg = new BaseMockRuntimeAlgebra {
+      override def createRuntime(params: CreateRuntimeParams)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[CreateGoogleRuntimeResponse]] = IO.raiseError(new Exception("shit"))
+    }
+    val leoSubscriber = makeLeoSubscriber(dataprocRuntimeAlgebra = dataprocAlg, asyncTaskQueue = queue)
+    val res =
+      for {
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .saveWithRuntimeConfig(CommonTestData.defaultDataprocRuntimeConfig)
+        )
+        tr <- traceId.ask[TraceId]
+        gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism
+          .getOption(CommonTestData.defaultDataprocRuntimeConfig)
+          .get
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
+        )
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          status <- clusterQuery.getClusterStatus(runtime.id).transaction
+        } yield {
+          error.nonEmpty shouldBe true
+          status shouldBe Some(RuntimeStatus.Error)
+        }
+
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          assertions
+        )
+      } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   /**
    * When createRuntime gets 409, we shouldn't attempt to update AsyncRuntimeFields.
    * These fields should've been updated in a previous createRuntime request, and

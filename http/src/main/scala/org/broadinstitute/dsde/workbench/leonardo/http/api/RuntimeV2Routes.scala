@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import JsonCodec._
 import RuntimeRoutesCodec._
-import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
@@ -121,9 +120,11 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                               )
                             }
                           } ~ delete {
-                            complete(
-                              deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
-                            )
+                            parameterMap { params =>
+                              complete(
+                                deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName, params)
+                              )
+                            }
                           }
                         }
                       }
@@ -210,13 +211,20 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
-  def deleteAzureRuntimeHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+  def deleteAzureRuntimeHandler(userInfo: UserInfo,
+                                workspaceId: WorkspaceId,
+                                runtimeName: RuntimeName,
+                                params: Map[String, String]
+  )(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeV2Service.deleteRuntime(userInfo, runtimeName, workspaceId)
-      _ <- metrics.incrementCounter("deleteRuntimeV2")
+      // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      apiCall = runtimeV2Service.deleteRuntime(userInfo, runtimeName, workspaceId, deleteDisk)
+      tags = Map("deleteDisk" -> deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteRuntimeV2", 1, tags)
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "deleteRuntimeV2")
           .use(_ => apiCall)
@@ -246,20 +254,13 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   implicit val createAzureRuntimeRequestDecoder: Decoder[CreateAzureRuntimeRequest] = Decoder.instance { c =>
     for {
       labels <- c.downField("labels").as[LabelMap]
-      region <- c.downField("region").as[Region]
       machineSize <- c.downField("machineSize").as[VirtualMachineSizeTypes]
       customEnvVars <- c
         .downField("customEnvironmentVariables")
         .as[Option[Map[String, String]]]
       azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
-    } yield CreateAzureRuntimeRequest(labels,
-                                      region,
-                                      machineSize,
-                                      customEnvVars.getOrElse(Map.empty),
-                                      azureDiskReq,
-                                      apt
-    )
+    } yield CreateAzureRuntimeRequest(labels, machineSize, customEnvVars.getOrElse(Map.empty), azureDiskReq, apt)
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =

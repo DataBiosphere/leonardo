@@ -30,7 +30,10 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, leonard
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.calculateAutopauseThreshold
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
+  calculateAutopauseThreshold,
+  getToolFromImages
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -2041,6 +2044,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     }
 
     thrown shouldBe ForbiddenError(userInfo.userEmail)
+  }
+
+  it should "test getToolFromImages - get the Jupyter tool from list of cluster images" in isolatedDbTest {
+    val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage))
+    tool shouldBe Some(Tool.Jupyter)
+  }
+
+  it should "test getToolFromImages - get the RStudio tool from list of cluster images" in isolatedDbTest {
+    val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, cryptoDetectorImage))
+    tool shouldBe Some(Tool.RStudio)
   }
 
   private def withLeoPublisher(

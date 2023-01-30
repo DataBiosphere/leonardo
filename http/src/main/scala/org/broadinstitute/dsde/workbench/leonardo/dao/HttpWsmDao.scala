@@ -83,27 +83,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateNetworkResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateNetworkResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/network"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
-
   override def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateVmResult] =
@@ -177,6 +156,17 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
       // Step 2: call LZ for LZ resources
       lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
+      region <- lzResourcesByPurpose
+        .flatMap(_.deployedResources)
+        .headOption match { // All LZ resources live in a same region. Hence we can grab any resource and find out the region
+        case Some(lzResource) =>
+          F.pure(
+            com.azure.core.management.Region
+              .fromName(lzResource.region)
+          )
+        case None =>
+          F.raiseError(new Exception(s"This should never happen. No resource found for LZ(${landingZoneId})"))
+      }
       groupedLzResources = lzResourcesByPurpose.foldMap(a =>
         a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
       )
@@ -235,7 +225,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       SubnetworkName(batchNodesSubnetName),
       SubnetworkName(aksSubnetName),
       SubnetworkName(postgresSubnetName),
-      SubnetworkName(computeSubnetName)
+      SubnetworkName(computeSubnetName),
+      region
     )
 
   private def getLandingZoneResourceName(
