@@ -470,7 +470,7 @@ class GKEInterpreter[F[_]](
                                                              KubernetesNamespace(app.appResources.namespace.name)
               )
 
-              _ <- logger.info (ctx.loggingCtx) (
+              _ <- logger.info(ctx.loggingCtx)(
                 s"Listing Persistent Volume Claims ${pvcs.map(x => x.getMetadata.getName)}"
               )
 
