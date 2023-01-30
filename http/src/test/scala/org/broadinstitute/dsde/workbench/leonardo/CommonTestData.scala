@@ -140,8 +140,8 @@ object CommonTestData {
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = Config.applicationConfig
-  val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
-  val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  val allowlistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
+  val allowlist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   // Let's not use this pattern and directly use `Config.???` going forward :)
   // By using Config.xxx, we'll be actually testing our Config.scala code as well
   val dataprocConfig = Config.dataprocConfig
@@ -463,7 +463,7 @@ object CommonTestData {
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider
-  val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
+  val allowListAuthProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider)
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),

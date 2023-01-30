@@ -47,6 +47,10 @@ trait RuntimeV2Service[F[_]] {
   )(implicit
     as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
+
+  def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
 }
 
 final case class CustomScriptExtensionConfig(name: String,

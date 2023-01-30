@@ -81,4 +81,8 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   override def stopRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
+
+  override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] = IO.unit
 }

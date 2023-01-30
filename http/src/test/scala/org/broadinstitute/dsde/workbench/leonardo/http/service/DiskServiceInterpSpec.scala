@@ -59,7 +59,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = dontCloneFromTheseGoogleFolders),
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       publisherQueue,
       MockGoogleDiskService,
@@ -151,7 +151,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = forbiddenFolders),
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       publisherQueue,
       new MockGoogleDiskService {
