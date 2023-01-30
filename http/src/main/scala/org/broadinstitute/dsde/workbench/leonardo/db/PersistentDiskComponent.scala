@@ -75,7 +75,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      blockSize,
      formattedBy,
      (galaxyPvcId, lastUsedBy),
-     sourceDisk ,
+     sourceDisk,
      resourceId
     ) <> ({
       case (id,

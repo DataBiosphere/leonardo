@@ -99,7 +99,13 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, false, None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        false,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -166,7 +172,13 @@ class AzurePubsubHandlerSpec
           diskStatus shouldBe (Some(DiskStatus.Deleted))
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, false, None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        false,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -227,7 +239,13 @@ class AzurePubsubHandlerSpec
           getRuntime = getRuntimeOpt.get
         } yield getRuntime.status shouldBe RuntimeStatus.Error
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, false, None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        false,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -448,7 +466,13 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, false, None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        false,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
