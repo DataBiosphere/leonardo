@@ -470,6 +470,10 @@ class GKEInterpreter[F[_]](
                                                              KubernetesNamespace(app.appResources.namespace.name)
               )
 
+              _ <- logger.info (ctx.loggingCtx) (
+                s"Listing Persistent Volume Claims ${pvcs.map(x => x.getMetadata.getName)}"
+              )
+
               _ <- pvcs
                 .find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
                 .fold(
