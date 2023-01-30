@@ -185,7 +185,8 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.wsmDAO,
         appDependencies.samDAO,
-        appDependencies.publisherQueue
+        appDependencies.publisherQueue,
+        appDependencies.dateAccessedUpdaterQueue
       )
 
       val httpRoutes = new HttpRoutes(
