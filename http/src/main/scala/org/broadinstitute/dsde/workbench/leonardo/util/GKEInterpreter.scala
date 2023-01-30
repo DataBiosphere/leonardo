@@ -471,7 +471,7 @@ class GKEInterpreter[F[_]](
               )
 
               _ <- logger.info(ctx.loggingCtx)(
-                s"Listing Persistent Volume Claims ${pvcs.map(x => x.getMetadata.getName)}"
+                s"Listing Persistent Volume Claims ${pvcs.map(x => x.getMetadata.getName)}, we should find ${app.release.asString}-galaxy-pvc"
               )
 
               _ <- pvcs
