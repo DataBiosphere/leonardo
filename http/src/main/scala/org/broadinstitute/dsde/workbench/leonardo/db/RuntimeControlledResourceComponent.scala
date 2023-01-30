@@ -39,7 +39,7 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
       .headOption
 
   def getWsmRecordFromResourceId(resourceId: WsmControlledResourceId,
-                          resourceType: WsmResourceType
+                                 resourceType: WsmResourceType
   ): DBIO[Option[RuntimeControlledResourceRecord]] =
     controlledResourceQuery
       .filter(_.resourceId === resourceId)

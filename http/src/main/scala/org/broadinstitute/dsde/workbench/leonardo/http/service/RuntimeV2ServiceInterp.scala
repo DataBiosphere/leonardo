@@ -526,7 +526,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           Left(IllegalLabelKeyException(includeDeletedKey))
         else
           Right(allLabels)
-      // TODO (me) check that the name isn't taken (?)
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
@@ -544,7 +543,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       None,
       labels,
       None,
-      None // resourceId added in back leo
+      None
     )
   }
 

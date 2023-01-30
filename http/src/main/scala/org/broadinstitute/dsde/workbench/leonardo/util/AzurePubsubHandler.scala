@@ -87,7 +87,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   /** Creates an Azure VM but doesn't wait for its completion.
    * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
-   * If a previously created persistent disk is specified, disk is transferred to new runtime
+   * If useExistingDisk is specified, disk is transferred to new runtime and no new disk is created
    * */
   private def createRuntime(params: CreateAzureRuntimeParams, jobControl: WsmJobControl)(implicit
     ev: Ask[F, AppContext]
@@ -326,8 +326,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           diskResourceOpt <- controlledResourceQuery
             .getWsmRecordFromResourceId(resourceId, WsmResourceType.AzureDisk)
             .transaction
-          disk <- F.fromOption(diskResourceOpt, new RuntimeException(s"Resource id:${resourceId} not found"))
-          diskResp = disk.resourceId.asInstanceOf[CreateDiskResponse]
+          disk <- F.fromOption(
+            diskResourceOpt,
+            new RuntimeException(
+              s"Resource id:${resourceId} not found for disk id:${params.runtimeConfig.persistentDiskId}"
+            )
+          )
+          diskResp = CreateDiskResponse(disk.resourceId)
         } yield diskResp
       case _ =>
         for {

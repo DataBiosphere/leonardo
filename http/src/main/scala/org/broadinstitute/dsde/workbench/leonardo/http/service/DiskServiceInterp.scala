@@ -196,7 +196,6 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, creatorOnly, cloudContext).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
-      x = disks.length
       diskAndProjects = disks.map(d =>
         (GoogleProject(d.cloudContext.asString), d.samResource)
       ) // TODO: update this to support Azure
