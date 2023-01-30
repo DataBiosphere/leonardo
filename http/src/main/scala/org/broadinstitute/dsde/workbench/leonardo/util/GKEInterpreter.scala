@@ -475,7 +475,8 @@ class GKEInterpreter[F[_]](
               )
 
               _ <- pvcs
-                .find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
+                // We added an extra -galaxy here: https://github.com/galaxyproject/galaxykubeman-helm/blob/f7f27be74c213deda3ae53122[…]959c96480bb21f/galaxykubeman/templates/config-setup-galaxy.yaml
+                .find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-galaxy-pvc")
                 .fold(
                   F.raiseError[Unit](
                     PubsubKubernetesError(AppError("Fail to retrieve pvc ids",
