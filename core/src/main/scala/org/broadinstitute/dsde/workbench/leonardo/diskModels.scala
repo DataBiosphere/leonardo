@@ -20,7 +20,8 @@ final case class PersistentDisk(id: DiskId,
                                 formattedBy: Option[FormattedBy],
                                 appRestore: Option[AppRestore],
                                 labels: LabelMap,
-                                sourceDisk: Option[DiskLink]
+                                sourceDisk: Option[DiskLink],
+                                resourceId: Option[WsmControlledResourceId]
 ) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }

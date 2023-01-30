@@ -457,6 +457,7 @@ object CommonTestData {
       formattedBy,
       appRestore,
       Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3"),
+      None,
       None
     )
 
@@ -541,6 +542,7 @@ object CommonTestData {
       Some(DiskSize(100)),
       None
     ),
+    false,
     Some(0)
   )
 

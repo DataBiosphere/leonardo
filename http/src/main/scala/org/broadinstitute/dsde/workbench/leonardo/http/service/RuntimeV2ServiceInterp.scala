@@ -93,24 +93,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
-      // if using existing disk, find disk in users workspace
-      disks <-
-        if (req.useExistingDisk)
-          DiskServiceDbQueries
-            .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), Some(cloudContext))
-            .transaction
-            .as(List[PersistentDisk])
-        else F.pure(none[List[PersistentDisk]])
-
-      persistentDiskOpt <- disks.traverse { disks =>
-        disks.length match {
-          case 1 => F.pure(disks.head.id)
-          case 0 => F.raiseError(NoPersistentDiskException(workspaceId))
-          case _ => F.raiseError(MultiplePersistentDisksException(workspaceId, disks.length))
-        }
-      }
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure disk")))
-
       // Get the Landing Zone Resources for the app for Azure
       leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- cloudContext.cloudProvider match {
@@ -147,10 +129,23 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
-            diskId <- persistentDiskOpt match {
-              case Some(pdId) =>
-                persistentDiskQuery.updateStatus(pdId, DiskStatus.Restoring, ctx.now).transaction
-                F.pure(pdId)
+            diskId <- req.useExistingDisk match {
+              // if using existing disk, find disk in users workspace
+              case true =>
+                for {
+                  disks <- DiskServiceDbQueries
+                    .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), Some(cloudContext))
+                    .transaction
+                  disk <- disks.length match {
+                    case 1 => F.pure(disks.head)
+                    case 0 => F.raiseError(NoPersistentDiskException(workspaceId))
+                    case _ => F.raiseError(MultiplePersistentDisksException(workspaceId, disks.length))
+                  }
+                  _ = if (disk.status != DiskStatus.Ready) {
+                    F.raiseError(PersistentDiskNotReadyException(disk.id, disk.status))
+                  }
+                  id = disk.id
+                } yield id
               case _ =>
                 for {
                   pd <- F.fromEither(
@@ -192,8 +187,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                         workspaceId,
                                         storageContainer.resourceId,
                                         landingZoneResources,
-                                        Some(ctx.traceId),
-                                        persistentDiskOpt
+                                        req.useExistingDisk,
+                                        Some(ctx.traceId)
               )
             )
           } yield ()
@@ -531,6 +526,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           Left(IllegalLabelKeyException(includeDeletedKey))
         else
           Right(allLabels)
+      // TODO (me) check that the name isn't taken (?)
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
@@ -547,7 +543,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       None,
       None,
       labels,
-      None
+      None,
+      None // resourceId added in back leo
     )
   }
 
@@ -676,4 +673,25 @@ final case class AzureRuntimeHasInvalidRuntimeConfig(cloudContext: CloudContext,
       s"Azure runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} was found with an invalid runtime config",
       StatusCodes.InternalServerError,
       traceId = Some(traceId)
+    )
+
+case class MultiplePersistentDisksException(workspaceId: WorkspaceId, numDisks: Int)
+    extends LeoException(
+      s"Workspace: ${workspaceId} contains ${numDisks} persistent disks, must have only 1. Runtime cannot be created with an existing disk ",
+      StatusCodes.PreconditionFailed,
+      traceId = None
+    )
+
+case class NoPersistentDiskException(workspaceId: WorkspaceId)
+    extends LeoException(
+      s"Workspace: ${workspaceId} does not contain any persistent disks. Runtime cannot be created with an existing disk",
+      StatusCodes.PreconditionFailed,
+      traceId = None
+    )
+
+case class PersistentDiskNotReadyException(diskId: DiskId, diskStatus: DiskStatus)
+    extends LeoException(
+      s"Existing disk: ${diskId} has status ${diskStatus}. Runtime cannot be created with an existing disk",
+      StatusCodes.PreconditionFailed,
+      traceId = None
     )

@@ -353,8 +353,8 @@ object LeoPubsubMessage {
     workspaceId: WorkspaceId,
     storageContainerResourceId: WsmControlledResourceId,
     landingZoneResources: LandingZoneResources,
-    traceId: Option[TraceId],
-    diskId: Option[DiskId] // if using existing disk, will attach to new runtime
+    useExistingDisk: Boolean, // if using existing disk, will attach pd to new runtime
+    traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
@@ -524,12 +524,12 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct5("runtimeId",
+    Decoder.forProduct6("runtimeId",
                         "workspaceId",
                         "storageContainerResourceId",
                         "landingZoneResources",
-                        "traceId",
-                        "diskId"
+                        "useExistingDisk",
+                        "traceId"
     )(
       CreateAzureRuntimeMessage.apply
     )
@@ -901,21 +901,21 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct6("messageType",
+    Encoder.forProduct7("messageType",
                         "runtimeId",
                         "workspaceId",
                         "storageContainerResourceId",
                         "landingZoneResources",
-                        "traceId",
-                        "diskId"
+                        "useExistingDisk",
+                        "traceId"
     )(x =>
       (x.messageType,
        x.runtimeId,
        x.workspaceId,
        x.storageContainerResourceId,
        x.landingZoneResources,
-       x.traceId,
-       x.diskId
+       x.useExistingDisk,
+       x.traceId
       )
     )
 
@@ -1043,8 +1043,11 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeCreationError(runtimeId: Long, workspaceId: WorkspaceId, errorMsg: String)
-      extends PubsubHandleMessageError {
+  final case class AzureRuntimeCreationError(runtimeId: Long,
+                                             workspaceId: WorkspaceId,
+                                             errorMsg: String,
+                                             useExistingDisk: Boolean
+  ) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false

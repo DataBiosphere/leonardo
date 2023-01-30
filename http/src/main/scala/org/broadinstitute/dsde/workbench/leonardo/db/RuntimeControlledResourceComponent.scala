@@ -38,6 +38,15 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
       .result
       .headOption
 
+  def getWsmRecordFromResourceId(resourceId: WsmControlledResourceId,
+                          resourceType: WsmResourceType
+  ): DBIO[Option[RuntimeControlledResourceRecord]] =
+    controlledResourceQuery
+      .filter(_.resourceId === resourceId)
+      .filter(_.resourceType === resourceType)
+      .result
+      .headOption
+
   def getAllForRuntime(runtimeId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeControlledResourceRecord]] =
     controlledResourceQuery
       .filter(_.runtimeId === runtimeId)

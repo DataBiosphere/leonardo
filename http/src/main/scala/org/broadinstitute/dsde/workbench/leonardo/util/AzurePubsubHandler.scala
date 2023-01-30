@@ -71,12 +71,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                  msg.landingZoneResources,
                                  azureConfig,
                                  config.runtimeDefaults.image,
-                                 msg.diskId
+                                 msg.useExistingDisk
         ),
         WsmJobControl(createVmJobId)
       )
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.landingZoneResources.relayNamespace, msg.diskId)
+        PollRuntimeParams(msg.workspaceId,
+                          runtime,
+                          createVmJobId,
+                          msg.landingZoneResources.relayNamespace,
+                          msg.useExistingDisk
+        )
       )
     } yield ()
 
@@ -106,77 +111,65 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            hcName,
                                                            cloudContext
       )
+
       createDiskAction = createDisk(params, auth)
-      newDiskId <- params.diskId match {
-        case None =>
-          for {
-            id <- createDiskAction.map { diskResp =>
-              diskResp.resourceId
-            }
-          } yield id
-        case Some(id) =>
-          for {
-            _ <- controlledResourceQuery
-              .save(params.runtime.id, id.asInstanceOf[WsmControlledResourceId], WsmResourceType.AzureDisk)
-              .transaction
-            _ <- persistentDiskQuery.updateStatus(id, DiskStatus.Ready, ctx.now).transaction
-          } yield id.asInstanceOf[WsmControlledResourceId]
-      }
 
       // Creating staging container
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
-      vmCommon = getCommonFields(
-        ControlledResourceName(params.runtime.runtimeName.asString),
-        config.runtimeDefaults.vmControlledResourceDesc,
-        params.runtime.auditInfo.creator,
-        Some(samResourceId)
-      )
-      arguments = List(
-        params.landingZoneResources.relayNamespace.value,
-        hcName.value,
-        "localhost",
-        primaryKey.value,
-        config.runtimeDefaults.listenerImage,
-        config.samUrl.renderString,
-        samResourceId.value.toString,
-        "csp.txt",
-        config.wsmUrl.renderString,
-        params.workspaceId.value.toString,
-        params.storageContainerResourceId.value.toString,
-        config.welderImage,
-        params.runtime.auditInfo.creator.value,
-        stagingContainerName.value,
-        stagingContainerResourceId.value.toString
-      )
-      cmdToExecute =
-        s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
-      request = CreateVmRequest(
-        params.workspaceId,
-        vmCommon,
-        CreateVmRequestData(
-          params.runtime.runtimeName,
-          params.runtimeConfig.region,
-          VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
-          config.runtimeDefaults.image,
-          CustomScriptExtension(
-            name = config.runtimeDefaults.customScriptExtension.name,
-            publisher = config.runtimeDefaults.customScriptExtension.publisher,
-            `type` = config.runtimeDefaults.customScriptExtension.`type`,
-            version = config.runtimeDefaults.customScriptExtension.version,
-            minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
-            protectedSettings = ProtectedSettings(
-              config.runtimeDefaults.customScriptExtension.fileUris,
-              cmdToExecute
-            )
+      createVmRequest <- createDiskAction.map { diskResp =>
+        val vmCommon = getCommonFields(
+          ControlledResourceName(params.runtime.runtimeName.asString),
+          config.runtimeDefaults.vmControlledResourceDesc,
+          params.runtime.auditInfo.creator,
+          Some(samResourceId)
+        )
+        val arguments = List(
+          params.landingZoneResources.relayNamespace.value,
+          hcName.value,
+          "localhost",
+          primaryKey.value,
+          config.runtimeDefaults.listenerImage,
+          config.samUrl.renderString,
+          samResourceId.value.toString,
+          "csp.txt",
+          config.wsmUrl.renderString,
+          params.workspaceId.value.toString,
+          params.storageContainerResourceId.value.toString,
+          config.welderImage,
+          params.runtime.auditInfo.creator.value,
+          stagingContainerName.value,
+          stagingContainerResourceId.value.toString
+        )
+        val cmdToExecute =
+          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
+        CreateVmRequest(
+          params.workspaceId,
+          vmCommon,
+          CreateVmRequestData(
+            params.runtime.runtimeName,
+            params.runtimeConfig.region,
+            VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
+            config.runtimeDefaults.image,
+            CustomScriptExtension(
+              name = config.runtimeDefaults.customScriptExtension.name,
+              publisher = config.runtimeDefaults.customScriptExtension.publisher,
+              `type` = config.runtimeDefaults.customScriptExtension.`type`,
+              version = config.runtimeDefaults.customScriptExtension.version,
+              minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
+              protectedSettings = ProtectedSettings(
+                config.runtimeDefaults.customScriptExtension.fileUris,
+                cmdToExecute
+              )
+            ),
+            config.runtimeDefaults.vmCredential,
+            diskResp.resourceId
           ),
-          config.runtimeDefaults.vmCredential,
-          newDiskId
-        ),
-        jobControl
-      )
-      _ <- wsmDao.createVm(request, auth)
+          jobControl
+        )
+      }
+      _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
 
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
@@ -313,31 +306,57 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateDiskResponse] =
-    for {
-      ctx <- ev.ask
-      diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
-      disk <- F.fromOption(diskOpt, new RuntimeException("no disk found"))
-      common = getCommonFields(ControlledResourceName(disk.name.value),
-                               config.runtimeDefaults.diskControlledResourceDesc,
-                               params.runtime.auditInfo.creator,
-                               None
-      )
-      request: CreateDiskRequest = CreateDiskRequest(
-        params.workspaceId,
-        common,
-        CreateDiskRequestData(
-          // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
-          AzureDiskName(disk.name.value),
-          disk.size,
-          params.runtimeConfig.region
-        )
-      )
-      diskResp <- wsmDao.createDisk(request, leoAuth)
-      _ <- controlledResourceQuery
-        .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
-        .transaction
-      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
-    } yield diskResp
+    params.useExistingDisk match {
+      case true =>
+        for {
+          ctx <- ev.ask
+          diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
+          disk <- F.fromOption(
+            diskOpt,
+            new RuntimeException(s"Disk id:${params.runtimeConfig.persistentDiskId} not found")
+          )
+          _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
+
+          resourceId <- F.fromOption(
+            disk.resourceId,
+            new RuntimeException(
+              s"No associated resourceId found for Disk id:${params.runtimeConfig.persistentDiskId}"
+            )
+          )
+          diskResourceOpt <- controlledResourceQuery
+            .getWsmRecordFromResourceId(resourceId, WsmResourceType.AzureDisk)
+            .transaction
+          disk <- F.fromOption(diskResourceOpt, new RuntimeException(s"Resource id:${resourceId} not found"))
+          diskResp = disk.resourceId.asInstanceOf[CreateDiskResponse]
+        } yield diskResp
+      case _ =>
+        for {
+          ctx <- ev.ask
+          diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
+          disk <- F.fromOption(diskOpt, new RuntimeException("no disk found"))
+          common = getCommonFields(ControlledResourceName(disk.name.value),
+                                   config.runtimeDefaults.diskControlledResourceDesc,
+                                   params.runtime.auditInfo.creator,
+                                   None
+          )
+          request: CreateDiskRequest = CreateDiskRequest(
+            params.workspaceId,
+            common,
+            CreateDiskRequestData(
+              // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
+              AzureDiskName(disk.name.value),
+              disk.size,
+              params.runtimeConfig.region
+            )
+          )
+          diskResp <- wsmDao.createDisk(request, leoAuth)
+          _ <- controlledResourceQuery
+            .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
+            .transaction
+          _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
+          _ <- persistentDiskQuery.updateResourceId(disk.id, diskResp.resourceId, ctx.now).transaction
+        } yield diskResp
+    }
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
@@ -396,7 +415,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}",
+                params.useExistingDisk
               )
             )
           case WsmJobStatus.Running =>
@@ -404,7 +424,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+                s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay",
+                params.useExistingDisk
               )
             )
           case WsmJobStatus.Succeeded =>
@@ -437,9 +458,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           taskToRun,
           Some(e =>
             handleAzureRuntimeCreationError(
-              AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage),
-              ctx.now,
-              params.diskId
+              AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage, params.useExistingDisk),
+              ctx.now
             )
           ),
           ctx.now,
@@ -663,7 +683,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
     } yield ()
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant, pd: Option[DiskId])(implicit
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -677,30 +697,25 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       auth <- samDAO.getLeoAuthToken
 
       // if no existing disk being used, delete new disk created
-      _ <- pd match {
-        case Some(diskId) =>
-          for {
-            _ <- persistentDiskQuery.updateStatus(diskId, DiskStatus.Ready, now).transaction
-          } yield ()
-        case None =>
-          for {
-            diskResourceOpt <- controlledResourceQuery
-              .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
-              .transaction
-            _ <- diskResourceOpt.traverse { disk =>
-              wsmDao.deleteDisk(
-                DeleteWsmResourceRequest(
-                  e.workspaceId,
-                  disk.resourceId,
-                  DeleteControlledAzureResourceRequest(
-                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
-                  )
-                ),
-                auth
-              )
-            }.void
-            _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
-          } yield ()
+      _ = if (e.useExistingDisk == false) {
+        for {
+          diskResourceOpt <- controlledResourceQuery
+            .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
+            .transaction
+          _ <- diskResourceOpt.traverse { disk =>
+            wsmDao.deleteDisk(
+              DeleteWsmResourceRequest(
+                e.workspaceId,
+                disk.resourceId,
+                DeleteControlledAzureResourceRequest(
+                  WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                )
+              ),
+              auth
+            )
+          }.void
+          _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
+        } yield ()
       }
 
       networkResourceOpt <- controlledResourceQuery

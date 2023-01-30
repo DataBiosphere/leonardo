@@ -457,8 +457,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           wid,
           storageContainer.resourceId,
           landingZoneResources,
-          Some(traceId),
-          None
+          false, // TODO (me) not sure if this should always be false?
+          Some(traceId)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }

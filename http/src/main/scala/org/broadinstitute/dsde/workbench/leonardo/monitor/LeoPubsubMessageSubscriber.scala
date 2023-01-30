@@ -110,7 +110,8 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.AzureRuntimeCreationError(
               msg.runtimeId,
               msg.workspaceId,
-              e.getMessage
+              e.getMessage,
+              msg.useExistingDisk
             )
           }
         case msg: DeleteAzureRuntimeMessage =>
@@ -148,7 +149,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                       ee
                     )
                   case ee: AzureRuntimeCreationError =>
-                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, now, event.msg.diskId)
+                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, now)
                   case ee: AzureRuntimeDeletionError =>
                     azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
                   case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")

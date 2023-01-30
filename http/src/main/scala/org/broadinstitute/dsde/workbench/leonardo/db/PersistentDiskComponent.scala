@@ -32,7 +32,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       blockSize: BlockSize,
                                       formattedBy: Option[FormattedBy],
                                       appRestore: Option[AppRestore],
-                                      sourceDisk: Option[DiskLink]
+                                      sourceDisk: Option[DiskLink],
+                                      resourceId: Option[WsmControlledResourceId]
 )
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
@@ -55,6 +56,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
   def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
+  def resourceId = column[Option[WsmControlledResourceId]]("resourceId", O.Length(1024))
 
   override def * =
     (id,
@@ -73,7 +75,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      blockSize,
      formattedBy,
      (galaxyPvcId, lastUsedBy),
-     sourceDisk
+     sourceDisk ,
+     resourceId
     ) <> ({
       case (id,
             (cloudProvider, cloudContextDb),
@@ -91,7 +94,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             blockSize,
             formattedBy,
             (galaxyPvcId, lastUsedBy),
-            sourceDisk
+            sourceDisk,
+            resourceId
           ) =>
         PersistentDiskRecord(
           id,
@@ -123,7 +127,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case FormattedBy.Cromwell                 => lastUsedBy.map(CromwellRestore)
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
-          sourceDisk
+          sourceDisk,
+          resourceId
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -152,7 +157,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           case Some(app: CromwellRestore) => (None, Some(app.lastUsedBy))
           case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
         },
-        record.sourceDisk
+        record.sourceDisk,
+        record.resourceId
       )
     })
 }
@@ -228,6 +234,9 @@ object persistentDiskQuery {
       .map(d => (d.status, d.formattedBy, d.dateAccessed))
       .update((newStatus, Some(formattedBy), dateAccessed))
 
+  def updateResourceId(id: DiskId, newResourceId: WsmControlledResourceId, dateAccessed: Instant) =
+    findByIdQuery(id).map(d => (d.resourceId, d.dateAccessed)).update((Some(newResourceId), dateAccessed))
+
   def markPendingDeletion(id: DiskId, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(d => (d.status, d.dateAccessed))
@@ -280,7 +289,8 @@ object persistentDiskQuery {
       disk.blockSize,
       disk.formattedBy,
       disk.appRestore,
-      disk.sourceDisk
+      disk.sourceDisk,
+      disk.resourceId
     )
 
   private[db] def aggregateLabels(
@@ -318,6 +328,7 @@ object persistentDiskQuery {
       rec.formattedBy,
       rec.appRestore,
       labels,
-      rec.sourceDisk
+      rec.sourceDisk,
+      rec.resourceId
     )
 }
