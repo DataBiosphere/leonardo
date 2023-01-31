@@ -47,6 +47,10 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.pure()
 
+  override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] = IO.pure()
+
   override def listRuntimes(
     userInfo: UserInfo,
     workspaceId: Option[WorkspaceId],

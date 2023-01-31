@@ -265,6 +265,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
     } yield ()
 
+  override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      runtimes <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map.empty, true, None, Some(workspaceId), None)
+        .map(_.toList)
+        .transaction
+      // In ListRuntimeResponse2, the runtimeName is weirdly named clusterName instead
+      runtime_names = runtimes.map(r => r.clusterName)
+
+      _ <- runtime_names.traverse(runtime_name => deleteRuntime(userInfo, runtime_name, workspaceId, deleteDisk))
+
+    } yield ()
+
   override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =

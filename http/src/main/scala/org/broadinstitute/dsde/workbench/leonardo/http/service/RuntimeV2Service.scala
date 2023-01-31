@@ -40,6 +40,10 @@ trait RuntimeV2Service[F[_]] {
     implicit as: Ask[F, AppContext]
   ): F[Unit]
 
+  def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
   def listRuntimes(userInfo: UserInfo,
                    workspaceId: Option[WorkspaceId],
                    cloudProvider: Option[CloudProvider],
