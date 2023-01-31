@@ -258,7 +258,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """extraEnv[2].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,""" +
       """extraEnv[2].valueFrom.configMapKeyRef.key=WORKSPACE_NAMESPACE,""" +
       """restore.persistence.nfs.galaxy.pvcID=galaxy-pvc-id,""" +
-      """galaxy.persistence.existingClaim=app1-galaxy-rls-galaxy-pvc""".stripMargin
+      """galaxy.persistence.existingClaim=app1-galaxy-rls-galaxy-galaxy-pvc""".stripMargin
   }
 
   it should "build Cromwell override values string" in {
