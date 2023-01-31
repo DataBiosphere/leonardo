@@ -1519,7 +1519,7 @@ class GKEInterpreter[F[_]](
     val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
       List(
         raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
-        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-pvc"""
+        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-galaxy-pvc"""
       )
     )
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
