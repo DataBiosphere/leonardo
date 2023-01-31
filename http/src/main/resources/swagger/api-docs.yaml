@@ -1728,6 +1728,45 @@ paths:
                 items:
                   $ref: "#/components/schemas/ListAppResponse"
 
+  "/api/apps/v2/{workspaceId}/deleteAll":
+    post:
+      summary: Deletes ALL apps associated with the given workspace Id
+      description: deletes all Apps in a workspace
+      operationId: deleteAllAppV2
+      tags:
+        - appsV2
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: App deletion request accepted
+        "403":
+          description: User does not have permission to perform action on App(s)
+        "404":
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Deprecated Notebook API ##
 
   "/notebooks/{googleProject}/{clusterName}":
