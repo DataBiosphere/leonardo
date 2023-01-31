@@ -65,15 +65,15 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 
 # Update rbase version and kernel list
 
-echo "Y"|sudo apt install --no-install-recommends software-properties-common dirmngr
+#echo "Y"|sudo apt install --no-install-recommends software-properties-common dirmngr
 
 # download and add the signing key (by Michael Rutter) for these repos
-echo "Y"|sudo wget -q "https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc" -O /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
+#echo "Y"|sudo wget -q "https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc" -O /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
 
 #add repository
-echo "Y"|sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu bionic-cran40/"
+#echo "Y"|sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu bionic-cran40/"
 
-echo "Y"|sudo apt install r-base
+#echo "Y"|sudo apt install r-base
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
 
