@@ -212,7 +212,7 @@ class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease
   ): IO[List[V1PersistentVolumeClaim]] =
     appRelease.flatTraverse { r =>
       val nfcMetadata = new V1ObjectMeta()
-      nfcMetadata.setName(s"${r.asString}-galaxy-pvc")
+      nfcMetadata.setName(s"${r.asString}-galaxy-galaxy-pvc")
       nfcMetadata.setUid(s"nfs-pvc-id1")
       val nfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaim()
       nfsPvc.setMetadata(nfcMetadata)
