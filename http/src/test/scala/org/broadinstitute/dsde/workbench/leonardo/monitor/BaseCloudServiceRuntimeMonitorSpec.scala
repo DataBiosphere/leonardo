@@ -255,7 +255,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
       elapsed should be >= 10000L
       status shouldBe Some(RuntimeStatus.Deleted)
-      diskStatus shouldBe (Some(DiskStatus.Deleted))
+      diskStatus shouldBe (Some(DiskStatus.Ready))
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

@@ -167,11 +167,17 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
                   persistentDiskQuery.getPersistentDiskRecord(did).transaction
                 )
-                _ <- persistentDiskOpt.traverse_(d =>
-                  googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
-                    .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
-                    .transaction
-                )
+                _ = persistentDiskOpt match {
+                  case Some(value) =>
+                    if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
+                      persistentDiskOpt.traverse_(d =>
+                        googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                          .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
+                          .transaction
+                      )
+                    }
+                  case None => F.unit
+                }
               } yield ()
             }
           } yield ()

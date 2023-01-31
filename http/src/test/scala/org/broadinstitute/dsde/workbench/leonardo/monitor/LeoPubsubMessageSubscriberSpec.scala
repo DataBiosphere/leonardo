@@ -214,7 +214,7 @@ class LeoPubsubMessageSubscriberSpec
         } yield {
           error.nonEmpty shouldBe true
           runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
-          diskStatus shouldBe Some(DiskStatus.Deleted)
+          diskStatus shouldBe Some(DiskStatus.Ready)
         }
 
         _ <- withInfiniteStream(
