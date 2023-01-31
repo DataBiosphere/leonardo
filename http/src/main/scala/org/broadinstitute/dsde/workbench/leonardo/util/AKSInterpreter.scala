@@ -334,8 +334,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           case Wds =>
             wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          case Cromwell =>
-            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          // TODO: Cromwell status check not working. Disabling temporarily until we're ready to launch Cromwell.
+//          case Cromwell =>
+//            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         }
         .toList
         .sequence
