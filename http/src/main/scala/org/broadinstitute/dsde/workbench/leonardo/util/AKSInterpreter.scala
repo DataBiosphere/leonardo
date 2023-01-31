@@ -36,7 +36,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, Cromwell, Wds}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -415,6 +415,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Enabled services configs
         raw"cbas.coaEnabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
+        raw"cbasUI.coaEnabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
         raw"wds.coaEnabled=${config.coaAppConfig.coaServices.contains(Wds)}",
         raw"cromwell.coaEnabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
