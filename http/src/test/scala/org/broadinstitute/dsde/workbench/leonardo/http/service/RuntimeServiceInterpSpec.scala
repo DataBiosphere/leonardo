@@ -70,7 +70,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         azureServiceConfig
       ),
       ConfigReader.appConfig.persistentDisk,
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
@@ -1815,7 +1815,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         userInfo,
         serviceAccount,
         FormattedBy.GCE,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         ConfigReader.appConfig.persistentDisk
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       disk = diskResult.disk
@@ -1865,7 +1865,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -1892,7 +1892,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       persistedDisk <- persistentDiskQuery
@@ -1916,7 +1916,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -1938,7 +1938,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1970,7 +1970,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -1992,7 +1992,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.Galaxy,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -2006,7 +2006,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -2034,7 +2034,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         userInfo,
         serviceAccount,
         FormattedBy.GCE,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         ConfigReader.appConfig.persistentDisk
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
     } yield ()
