@@ -710,6 +710,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/runtimes/{workspaceId}/{name}/updateDateAccessed":
+    patch:
+      summary: Update the date accessed of a runtime.
+      description: >
+        This API is used in conjunction with v2 runtime's autopause functionality. Since Azure runtimes are not proxied to Leonardo, the relay must send a 'keep-alive' 
+        message of sorts. If no requests are received after a period of time, the runtime will be stopped.
+        Each request to this API does not result in the runtime's date accessed being updated. An async process is responsible for batching them and executing updates.
+      operationId: updateDateAccessed
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Runtime update date accessed request accepted
+        "403":
+          description: User does not have permission to perform action on runtime
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
   "/api/v2/runtimes/{workspaceId}/azure/{name}":
     get:
       summary: Get details of an azure runtime
@@ -820,6 +860,13 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not disk should be deleted upon runtime deletion. Defaults to false if not specified
+          required: false
+          schema:
+            type: boolean
+            default: false
       responses:
         "202":
           description: Runtime deletion request accepted
@@ -873,6 +920,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -937,6 +990,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -1165,6 +1224,12 @@ paths:
           required: false
           schema:
             type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of apps
@@ -1225,6 +1290,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each app in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -2594,11 +2665,12 @@ components:
     AppStatus:
       type: string
       enum:
-        - DELETING
         - DELETED
+        - DELETING
         - ERROR
         - PROVISIONING
         - RUNNING
+        - STARTING
         - STATUS_UNSPECIFIED
         - STOPPED
         - STOPPING
@@ -3036,6 +3108,10 @@ components:
         defaultClientId:
           type: string
           description: The default Google Client ID.
+        timeoutInMinutes:
+          type: integer
+          description: Custom image deployment time out in minutes. The value is currently capped at a maximum of
+            30 minutes. If nothing is provided, a default of 10 minutes will be used.
         toolDockerImage:
           type: string
           description: The tool docker image to install. May be Google Container Repository (GCR),
@@ -3075,16 +3151,12 @@ components:
       description: Creates a new runtime
       type: object
       required:
-        - region
         - machineSize
         - disk
       properties:
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
-        region:
-          type: string
-          description: An azure region, see this for strings https://github.com/Azure/azure-libraries-for-java/blob/master/azure-mgmt-resources/src/main/java/com/microsoft/azure/management/resources/fluentcore/arm/Region.java
         machineSize:
           type: string
           description: The azure-specific machine size identifier string. See https://docs.microsoft.com/en-us/azure/virtual-machines/sizes-general

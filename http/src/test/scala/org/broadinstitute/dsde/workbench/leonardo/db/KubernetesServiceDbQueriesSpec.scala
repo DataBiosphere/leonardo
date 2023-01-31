@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.auditInfo
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makePersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.time.Instant
@@ -40,6 +42,33 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     listWithProject2.length shouldEqual 1
     listWithProject2.flatMap(_.nodepools).length shouldEqual 1
     listWithProject2.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
+  }
+
+  it should "list apps belonging to self only, if creator specified" in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+    val user1 = WorkbenchEmail("user1@example.com")
+    val user2 = WorkbenchEmail("user2@example.com")
+
+    val app1 = makeApp(1, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = user1)).save()
+    val app2 = makeApp(2, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = user2)).save()
+
+    val listWithCreator = dbFutureValue(KubernetesServiceDbQueries.listFullApps(None, creatorOnly = Some(user1)))
+    listWithCreator.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
+    listWithCreator.flatMap(_.nodepools).flatMap(_.apps).head shouldEqual app1
+  }
+
+  it should "list all apps, if no creator specified" in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+    val user1 = WorkbenchEmail("user1@example.com")
+    val user2 = WorkbenchEmail("user2@example.com")
+
+    val app1 = makeApp(1, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = user1)).save()
+    val app2 = makeApp(2, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = user2)).save()
+
+    val listWithCreator = dbFutureValue(KubernetesServiceDbQueries.listFullApps(None))
+    listWithCreator.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 2
   }
 
   it should "list apps with labels" in isolatedDbTest {

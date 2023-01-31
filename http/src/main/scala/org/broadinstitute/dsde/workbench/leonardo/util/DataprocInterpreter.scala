@@ -13,7 +13,6 @@ import com.google.api.services.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.{google2, DoneCheckable}
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
@@ -43,6 +42,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.{google2, DoneCheckable}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -105,6 +105,9 @@ class DataprocInterpreter[F[_]: Parallel](
     with LazyLogging {
 
   import dbRef._
+  val isMemberofGroupDoneCheckable = new DoneCheckable[Boolean] {
+    override def isDone(a: Boolean): Boolean = a
+  }
 
   override def createRuntime(
     params: CreateRuntimeParams
@@ -625,44 +628,66 @@ class DataprocInterpreter[F[_]: Parallel](
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
-    parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
-      for {
-        count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
-        // Note: Don't remove the account if there are existing active clusters in the same project,
-        // because it could potentially break other clusters. We only check this for the 'remove' case.
-        _ <-
-          if (count > 0 && !createCluster) {
-            F.unit
-          } else {
-            for {
-              projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
+    for {
+      count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
+      // Note: Don't remove the account if there are existing active clusters in the same project,
+      // because it could potentially break other clusters. We only check this for the 'remove' case.
+      _ <-
+        if (count > 0 && !createCluster) {
+          F.unit
+        } else {
+          for {
+            projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
 
-              projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
-              // Note that the Dataproc service account is used to retrieve the image, and not the user's
-              // pet service account. There is one Dataproc service account per Google project. For more details:
-              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+            projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
+            // Note that the Dataproc service account is used to retrieve the image, and not the user's
+            // pet service account. There is one Dataproc service account per Google project. For more details:
+            // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
 
-              // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
-              // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
-              // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
-              dataprocServiceAccountEmail = WorkbenchEmail(
-                s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                         dataprocServiceAccountEmail,
-                                         createCluster
-              )
-              apiServiceAccountEmail = WorkbenchEmail(
-                s"${projectNumber}@cloudservices.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                         apiServiceAccountEmail,
-                                         createCluster
-              )
-            } yield ()
-          }
-      } yield ()
-    }
+            // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
+            // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
+            // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
+            // See https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/service-accounts#dataproc_service_accounts_2
+            // for more information
+            dataprocServiceAccountEmail = WorkbenchEmail(
+              s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       dataprocServiceAccountEmail,
+                                       createCluster
+            )
+            apiServiceAccountEmail = WorkbenchEmail(
+              s"${projectNumber}@cloudservices.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       apiServiceAccountEmail,
+                                       createCluster
+            )
+          } yield ()
+        }
+    } yield ()
+
+  private[util] def waitUntilMemberAdded(memberEmail: WorkbenchEmail)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
+    implicit val doneCheckable = isMemberofGroupDoneCheckable
+    val checkMemberWithLogs = for {
+      ctx <- ev.ask
+      isMember <- F.fromFuture(
+        F.blocking(
+          googleDirectoryDAO.isGroupMember(config.groupsConfig.dataprocImageProjectGroupEmail, memberEmail)
+        )
+      )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Is ${memberEmail.value} a member of ${config.groupsConfig.dataprocImageProjectGroupEmail.value}? ${isMember}"
+      )
+    } yield isMember
+
+    F.sleep(config.groupsConfig.waitForMemberAddedPollConfig.initialDelay) >> streamUntilDoneOrTimeout(
+      checkMemberWithLogs,
+      config.groupsConfig.waitForMemberAddedPollConfig.maxAttempts,
+      config.groupsConfig.waitForMemberAddedPollConfig.interval,
+      s"fail to add ${memberEmail.value} to ${config.groupsConfig.dataprocImageProjectGroupEmail.value}"
+    )
+  }
 
   private def cleanUpGoogleResourcesOnError(
     googleProject: GoogleProject,
@@ -803,8 +828,10 @@ class DataprocInterpreter[F[_]: Parallel](
       isMember <- checkIsMember
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
+          // Sometimes adding member to a group can take longer than when it gets to the point when we create dataproc cluster.
+          // Hence add polling here to make sure the 2 service accounts are added to the image user group properly before proceeding
           logger.info(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >>
-            addMemberToGroup
+            addMemberToGroup >> waitUntilMemberAdded(memberEmail)
         case (true, false) =>
           logger.info(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >>
             removeMemberFromGroup

@@ -323,6 +323,17 @@ class MockSamDAO extends SamDAO[IO] {
   override def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Option[String]] = IO.pure(Some("token"))
+
+  /** Deletes a Sam resource R using the provided bearer token. */
+  override def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
+    sr: SamResource[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = ???
+
+  /** Returns all roles for the user for a given resource.  */
+  override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Set[SamRole]] = ???
 }
 
 object MockSamDAO {

@@ -100,6 +100,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       val expectedMessage = LeoPubsubMessage.CreateRuntimeMessage.fromRuntime(
         runtime,
         runtimeConfigInCreateRuntimeMessage,
+        None,
         None
       )
       (msg eqv Some(

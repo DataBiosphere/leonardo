@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -391,6 +392,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           rec._1._1.cloudContext,
           rec._1._1.runtimeName,
           rec._1._1.status,
+          rec._1._1.internalId,
           rec._2.map(_.inProgress).getOrElse(false),
           rec._1._2.runtimeConfig,
           rec._1._1.serviceAccountInfo,
@@ -666,6 +668,18 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     for {
       _ <- findByIdQuery(id).map(c => (c.welderEnabled, c.dateAccessed)).update((true, dateAccessed))
       _ <- clusterImageQuery.upsert(id, welderImage)
+    } yield ()
+
+  def updateDiskStatus(runtimeId: Long, dateAccessed: Instant)(implicit
+    ec: ExecutionContext
+  ): DBIO[Unit] =
+    for {
+      runtimeConfigId <- findByIdQuery(runtimeId)
+        .map(_.runtimeConfigId)
+        .result
+        .headOption
+      diskIdOpt <- runtimeConfigId.flatTraverse(rid => RuntimeConfigQueries.getDiskId(rid))
+      _ <- diskIdOpt.traverse(diskId => persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, dateAccessed))
     } yield ()
 
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =

@@ -122,9 +122,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           }
         case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
-        case _: DeleteAppV2Message   =>
-          // TODO: TOAZ-230
-          F.unit
+        case msg: DeleteAppV2Message => handleDeleteAppV2Message(msg)
       }
     } yield resp
 
@@ -233,7 +231,10 @@ class LeoPubsubMessageSubscriber[F[_]](
         )).transaction
       }
       taskToRun = for {
-        _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Creating).compile.drain
+        _ <- msg.runtimeConfig.cloudService
+          .process(msg.runtimeId, RuntimeStatus.Creating, msg.checkToolsInterruptAfter.map(x => x.minutes))
+          .compile
+          .drain
       } yield ()
       _ <- asyncTasks.offer(
         Task(
@@ -293,7 +294,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
           } yield ()
         case None =>
-          runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting).compile.drain
+          runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting, None).compile.drain
       }
       fa = msg.persistentDiskToDelete.fold(poll) { id =>
         val deleteDisk = for {
@@ -363,7 +364,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 } yield ()
               case None =>
-                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
             }
             _ <- asyncTasks.offer(
               Task(
@@ -425,7 +426,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             _ <- asyncTasks.offer(
               Task(
                 ctx.traceId,
-                runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting).compile.drain,
+                runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting, None).compile.drain,
                 Some(
                   handleRuntimeMessageError(msg.runtimeId,
                                             ctx.now,
@@ -556,7 +557,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                     )
                   } yield ()
                 case None =>
-                  runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+                  runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
               }
               now <- nowInstant
               ctxStarting = Ask.const[F, AppContext](
@@ -590,7 +591,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 asyncTasks.offer(
                   Task(
                     ctx.traceId,
-                    runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating).compile.drain,
+                    runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating, None).compile.drain,
                     Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
                     ctx.now,
                     "updateRuntime"
@@ -627,7 +628,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         )
       }
       _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction.void
-      _ <- updatedRuntimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting).compile.drain
+      _ <- updatedRuntimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting, None).compile.drain
     } yield ()
 
   private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(implicit
@@ -1335,25 +1336,75 @@ class LeoPubsubMessageSubscriber[F[_]](
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
+      _ <- metrics.incrementCounter(s"createRuntimeError", 1)
       _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create runtime ${runtimeId}")
-      errorMessage = e match {
-        case leoEx: LeoException =>
-          Some(ErrorReport.loggableString(leoEx.toErrorReport))
-        case ee: com.google.api.gax.rpc.AbortedException
-            if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
-          None // this could happen when pubsub redelivers an event unexpectedly
-        case _ =>
-          Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
-      }
-      _ <- errorMessage.traverse(m =>
-        (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
-          clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
-      )
       // want to detach persistent disk for runtime
       _ <- cloudService match {
-        case CloudService.GCE      => clusterQuery.detachPersistentDisk(runtimeId, now).transaction
-        case CloudService.Dataproc => F.unit
-        case CloudService.AzureVm  => F.unit
+        case CloudService.GCE =>
+          for {
+            runtimeOpt <- clusterQuery.getClusterById(runtimeId).transaction
+
+            _ <- runtimeOpt.traverse_ { runtime =>
+              // If the disk is in Creating status, then it means it hasn't been used previously. Hence delete the disk
+              // if the runtime fails to create.
+              // Otherwise, the disk is most likely used previously by an old runtime, and we don't want to delete it
+              if (runtime.status == RuntimeStatus.Creating) {
+                for {
+                  googleProject <- runtime.cloudContext match {
+                    case CloudContext.Gcp(value) => F.pure(value)
+                    case CloudContext.Azure(_)   => F.raiseError(new RuntimeException("This should never happen"))
+                  }
+                  runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+                  gceRuntimeConfig <- runtimeConfig match {
+                    case x: RuntimeConfig.GceWithPdConfig => F.pure(x.some)
+                    case _                                => F.pure(none[RuntimeConfig.GceWithPdConfig])
+                  }
+
+                  _ <- gceRuntimeConfig.traverse_ { rc =>
+                    for {
+                      persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
+                        persistentDiskQuery.getPersistentDiskRecord(did).transaction
+                      )
+                      _ <- persistentDiskOpt.traverse_(d =>
+                        googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                          .updateStatus(d.id, DiskStatus.Deleted, now)
+                          .transaction
+                      )
+                    } yield ()
+                  }
+                } yield ()
+              } else F.unit
+            }
+            errorMessage = e match {
+              case leoEx: LeoException =>
+                Some(ErrorReport.loggableString(leoEx.toErrorReport))
+              case ee: com.google.api.gax.rpc.AbortedException
+                  if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
+                None // this could happen when pubsub redelivers an event unexpectedly
+              case _ =>
+                Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
+            }
+            _ <- errorMessage.traverse(m =>
+              (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
+                clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
+            )
+            _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
+          } yield ()
+        case CloudService.Dataproc =>
+          val errorMessage = e match {
+            case leoEx: LeoException =>
+              Some(ErrorReport.loggableString(leoEx.toErrorReport))
+            case ee: com.google.api.gax.rpc.AbortedException
+                if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
+              None // this could happen when pubsub redelivers an event unexpectedly
+            case _ =>
+              Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
+          }
+          errorMessage.traverse(m =>
+            (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
+              clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
+          )
+        case CloudService.AzureVm => F.unit
       }
     } yield ()
 
@@ -1422,16 +1473,93 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(c) =>
-          val task =
-            azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, msg.landingZoneResourcesOpt, c)
-          asyncTasks.offer(
-            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
-          )
+          for {
+            landingZoneResources <- F.fromOption(
+              msg.landingZoneResources,
+              PubsubKubernetesError(
+                AppError(s"Landing zone required for Azure apps",
+                         ctx.now,
+                         ErrorAction.CreateApp,
+                         ErrorSource.App,
+                         None,
+                         Some(ctx.traceId)
+                ),
+                Some(msg.appId),
+                false,
+                None,
+                None,
+                None
+              )
+            )
+            task = azurePubsubHandler.createAndPollApp(msg.appId,
+                                                       msg.appName,
+                                                       msg.workspaceId,
+                                                       c,
+                                                       landingZoneResources,
+                                                       msg.storageContainer
+            )
+            _ <- asyncTasks.offer(
+              Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
+            )
+          } yield ()
         case CloudContext.Gcp(c) =>
           F.raiseError(
             PubsubKubernetesError(
               AppError(
                 s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: CreateAppV2 not supported for GCP",
+                ctx.now,
+                ErrorAction.CreateApp,
+                ErrorSource.App,
+                None,
+                Some(ctx.traceId)
+              ),
+              Some(msg.appId),
+              false,
+              None,
+              None,
+              None
+            )
+          )
+      }
+    } yield ()
+
+  private[monitor] def handleDeleteAppV2Message(
+    msg: DeleteAppV2Message
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- msg.cloudContext match {
+        case CloudContext.Azure(c) =>
+          for {
+            landingZoneResources <- F.fromOption(
+              msg.landingZoneResourcesOpt,
+              PubsubKubernetesError(
+                AppError(s"Landing zone required for Azure apps",
+                         ctx.now,
+                         ErrorAction.CreateApp,
+                         ErrorSource.App,
+                         None,
+                         Some(ctx.traceId)
+                ),
+                Some(msg.appId),
+                false,
+                None,
+                None,
+                None
+              )
+            )
+            task =
+              azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, landingZoneResources, c)
+            _ <- asyncTasks.offer(
+              Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2")
+            )
+          } yield ()
+
+        case CloudContext.Gcp(c) =>
+          F.raiseError(
+            PubsubKubernetesError(
+              AppError(
+                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: DeleteAppV2 not supported for GCP",
                 ctx.now,
                 ErrorAction.CreateApp,
                 ErrorSource.App,

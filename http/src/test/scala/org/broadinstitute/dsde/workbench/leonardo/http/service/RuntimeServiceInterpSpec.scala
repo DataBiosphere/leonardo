@@ -30,7 +30,10 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, leonard
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.calculateAutopauseThreshold
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
+  calculateAutopauseThreshold,
+  getToolFromImages
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -67,7 +70,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         azureServiceConfig
       ),
       ConfigReader.appConfig.persistentDisk,
-      whitelistAuthProvider,
+      allowListAuthProvider,
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
@@ -87,7 +90,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     None,
     None,
     Set.empty,
-    Map.empty
+    Map.empty,
+    None
   )
 
   it should "fail with AuthorizationError if user doesn't have project level permission" in {
@@ -208,7 +212,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster.cloudContext shouldBe cloudContext
       cluster.runtimeName shouldBe runtimeName
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId))
+        .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
@@ -353,7 +357,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       runtimeConfig shouldBe expectedRuntimeConfig
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
+        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
@@ -423,7 +427,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       runtimeConfig shouldBe Config.dataprocConfig.runtimeConfigDefaults.copy(numberOfWorkers = 2)
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
+        .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
@@ -641,7 +645,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         None
       ) // TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
-        .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
+        .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId), None)
         .copy(
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
@@ -771,7 +775,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     exc shouldBe a[RuntimeNotFoundException]
   }
 
-  it should "list runtimes" in isolatedDbTest {
+  it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -789,7 +793,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with a project" in isolatedDbTest {
+  it should "list runtimes with a project" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -807,7 +811,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with parameters" in isolatedDbTest {
+  it should "list runtimes with parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -828,7 +832,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
-  it should "list runtimes belonging to other users" in isolatedDbTest {
+  it should "list runtimes belonging to other users" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -856,7 +860,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with labels" in isolatedDbTest {
+  it should "list runtimes with labels" taggedAs SlickPlainQueryTest in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     val req = emptyCreateRuntimeReq.copy(
@@ -1811,7 +1815,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         userInfo,
         serviceAccount,
         FormattedBy.GCE,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         ConfigReader.appConfig.persistentDisk
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       disk = diskResult.disk
@@ -1861,7 +1865,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -1888,7 +1892,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       persistedDisk <- persistentDiskQuery
@@ -1912,7 +1916,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -1934,7 +1938,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1966,7 +1970,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -1988,7 +1992,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.Galaxy,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -2002,7 +2006,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           userInfo,
           serviceAccount,
           FormattedBy.GCE,
-          whitelistAuthProvider,
+          allowListAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
@@ -2030,7 +2034,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         userInfo,
         serviceAccount,
         FormattedBy.GCE,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         ConfigReader.appConfig.persistentDisk
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
     } yield ()
@@ -2040,6 +2044,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     }
 
     thrown shouldBe ForbiddenError(userInfo.userEmail)
+  }
+
+  it should "test getToolFromImages - get the Jupyter tool from list of cluster images" in isolatedDbTest {
+    val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage))
+    tool shouldBe Some(Tool.Jupyter)
+  }
+
+  it should "test getToolFromImages - get the RStudio tool from list of cluster images" in isolatedDbTest {
+    val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, cryptoDetectorImage))
+    tool shouldBe Some(Tool.RStudio)
   }
 
   private def withLeoPublisher(

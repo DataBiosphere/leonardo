@@ -140,8 +140,8 @@ object CommonTestData {
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = Config.applicationConfig
-  val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
-  val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  val allowlistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
+  val allowlist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   // Let's not use this pattern and directly use `Config.???` going forward :)
   // By using Config.xxx, we'll be actually testing our Config.scala code as well
   val dataprocConfig = Config.dataprocConfig
@@ -265,7 +265,8 @@ object CommonTestData {
     Some(ContainerImage("myrepo/myimage", DockerHub)),
     Some(DockerHub),
     Set.empty,
-    Map.empty
+    Map.empty,
+    None
   )
   val defaultGceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
@@ -277,10 +278,11 @@ object CommonTestData {
   def defaultGceRuntimeWithPDConfig(persistentDiskId: Option[DiskId]) =
     RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                   bootDiskSize = DiskSize(50),
-                                  persistentDiskId = None,
+                                  persistentDiskId = persistentDiskId,
                                   zone = ZoneName("us-west2-b"),
                                   gpuConfig = None
     )
+
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(
       Some(0),
@@ -314,8 +316,12 @@ object CommonTestData {
                                   None
     )
 
-  def makeCluster(index: Int): Runtime = {
+  def makeCluster(index: Int, creator: Option[WorkbenchEmail] = None): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
+    val auditInfoUpdated = creator match {
+      case Some(c) => auditInfo.copy(creator = c)
+      case None    => auditInfo
+    }
     Runtime(
       id = -1,
       workspaceId = Some(WorkspaceId(UUID.randomUUID())),
@@ -324,7 +330,7 @@ object CommonTestData {
       cloudContext = cloudContextGcp,
       serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
-      auditInfo = auditInfo,
+      auditInfo = auditInfoUpdated,
       kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, clusterName, Set(jupyterImage), None, Map.empty),
       status = RuntimeStatus.Unknown,
@@ -454,7 +460,7 @@ object CommonTestData {
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider
-  val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
+  val allowListAuthProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider)
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),
@@ -524,7 +530,6 @@ object CommonTestData {
 
   val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
     Map.empty,
-    azureRegion,
     VirtualMachineSizeTypes.STANDARD_A1,
     Map.empty,
     CreateAzureDiskRequest(
@@ -536,13 +541,19 @@ object CommonTestData {
     Some(0)
   )
 
-  val landingZoneResources = LandingZoneResources(AKSClusterName(""),
-                                                  BatchAccountName(""),
-                                                  RelayNamespace(""),
-                                                  StorageAccountName(""),
-                                                  NetworkName(""),
-                                                  SubnetworkName(""),
-                                                  SubnetworkName("")
+  val landingZoneResources = LandingZoneResources(
+    AKSClusterName(""),
+    BatchAccountName(""),
+    RelayNamespace(""),
+    StorageAccountName(""),
+    NetworkName(""),
+    PostgresName(""),
+    LogAnalyticsWorkspaceName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
+    SubnetworkName(""),
+    azureRegion
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

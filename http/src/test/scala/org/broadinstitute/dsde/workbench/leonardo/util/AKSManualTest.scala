@@ -145,17 +145,20 @@ object AKSManualTest {
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
-      appMonitorConfig
+      appMonitorConfig,
+      ConfigReader.appConfig.azure.wsm,
+      ConfigReader.appConfig.drs
     )
     // TODO Sam and Cromwell should not be using mocks
-  } yield new AKSInterpreter(config,
-                             helmClient,
-                             containerService,
-                             relayService,
-                             mock[SamDAO[IO]],
-                             mock[CromwellDAO[IO]],
-                             mock[CbasDAO[IO]],
-                             mock[WdsDAO[IO]]
+  } yield new AKSInterpreter(
+    config,
+    helmClient,
+    containerService,
+    relayService,
+    mock[SamDAO[IO]],
+    mock[CromwellDAO[IO]],
+    mock[CbasDAO[IO]],
+    mock[WdsDAO[IO]]
   )
 
   /** Deploys a CoA app */
@@ -172,8 +175,9 @@ object AKSManualTest {
           deps.app.id,
           deps.app.appName,
           workspaceId,
-          Some(landingZoneResources),
-          cloudContext
+          cloudContext,
+          landingZoneResources,
+          None
         )
       )
     }

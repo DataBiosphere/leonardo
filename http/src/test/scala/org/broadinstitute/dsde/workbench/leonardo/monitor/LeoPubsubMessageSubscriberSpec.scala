@@ -16,7 +16,7 @@ import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
@@ -166,7 +166,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -184,7 +184,9 @@ class LeoPubsubMessageSubscriberSpec
 
   "createRuntimeErrorHandler" should "handle runtime creation failure properly" in isolatedDbTest {
     val runtimeMonitor = new MockRuntimeMonitor {
-      override def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
+      override def process(
+        a: CloudService
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
         ev: Ask[IO, TraceId]
       ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
     }
@@ -198,18 +200,60 @@ class LeoPubsubMessageSubscriberSpec
             .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
             .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
         )
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
           runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           error.nonEmpty shouldBe true
           runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+          diskStatus shouldBe Some(DiskStatus.Deleted)
+        }
+
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          assertions
+        )
+      } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle dataproc runtime creation failure properly" in isolatedDbTest {
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val dataprocAlg = new BaseMockRuntimeAlgebra {
+      override def createRuntime(params: CreateRuntimeParams)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[CreateGoogleRuntimeResponse]] = IO.raiseError(new Exception("shit"))
+    }
+    val leoSubscriber = makeLeoSubscriber(dataprocRuntimeAlgebra = dataprocAlg, asyncTaskQueue = queue)
+    val res =
+      for {
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .saveWithRuntimeConfig(CommonTestData.defaultDataprocRuntimeConfig)
+        )
+        tr <- traceId.ask[TraceId]
+        gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism
+          .getOption(CommonTestData.defaultDataprocRuntimeConfig)
+          .get
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
+        )
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          status <- clusterQuery.getClusterStatus(runtime.id).transaction
+        } yield {
+          error.nonEmpty shouldBe true
+          status shouldBe Some(RuntimeStatus.Error)
         }
 
         _ <- withInfiniteStream(
@@ -248,7 +292,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -438,7 +482,9 @@ class LeoPubsubMessageSubscriberSpec
     val monitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
-      )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] =
         Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1763,12 +1809,7 @@ class LeoPubsubMessageSubscriberSpec
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
         jobId <- IO.delay(UUID.randomUUID())
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        RelayNamespace("relay-ns"),
-                                        storageContainerResourceId,
-                                        None
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, storageContainerResourceId, landingZoneResources, None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
@@ -1813,7 +1854,6 @@ class LeoPubsubMessageSubscriberSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
         vmResourceId = WsmControlledResourceId(UUID.randomUUID())
-        _ <- controlledResourceQuery.save(runtime.id, vmResourceId, WsmResourceType.AzureVm).transaction
 
         msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(vmResourceId), None)
 

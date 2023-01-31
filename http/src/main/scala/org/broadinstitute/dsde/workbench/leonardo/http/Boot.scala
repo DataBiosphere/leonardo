@@ -176,7 +176,8 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO
+          appDependencies.wsmDAO,
+          appDependencies.samDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -184,7 +185,8 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.wsmDAO,
         appDependencies.samDAO,
-        appDependencies.publisherQueue
+        appDependencies.publisherQueue,
+        appDependencies.dateAccessedUpdaterQueue
       )
 
       val httpRoutes = new HttpRoutes(
@@ -204,10 +206,10 @@ object Boot extends IOApp {
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
           AppContext(TraceId(s"Boot_${start}"), start)
         )
-//       TODO: this will be needed once we support more environments.
-//        Disable for now since this causes fiab start to fail
-//        _ <- appDependencies.samDAO.registerLeo
-
+        // This only needs to happen once in each environment
+        _ <- appDependencies.samDAO.registerLeo.handleErrorWith { case e =>
+          logger.warn(e)("fail to register Leonardo SA")
+        }
         _ <-
           if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
             appDependencies.dataprocInterp.setupDataprocImageGoogleGroup
@@ -426,11 +428,6 @@ object Boot extends IOApp {
         googleComputeRetryPolicy
       )
 
-      googleDataprocRetryPolicy = RetryPredicates.retryConfigWithPredicates(
-        RetryPredicates.standardGoogleRetryPredicate,
-        RetryPredicates.whenStatusCode(400)
-      )
-
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
@@ -605,7 +602,9 @@ object Boot extends IOApp {
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
           ConfigReader.appConfig.azure.appRegistration,
           samConfig,
-          appMonitorConfig
+          appMonitorConfig,
+          ConfigReader.appConfig.azure.wsm,
+          ConfigReader.appConfig.drs
         ),
         helmClient,
         azureContainerService,
@@ -634,6 +633,7 @@ object Boot extends IOApp {
         googleDependencies.googleComputeService,
         authProvider,
         googleDependencies.googleStorageService,
+        googleDependencies.googleDiskService,
         publisherQueue,
         gceInterp
       )
@@ -643,6 +643,7 @@ object Boot extends IOApp {
         googleDependencies.googleComputeService,
         authProvider,
         googleDependencies.googleStorageService,
+        googleDependencies.googleDiskService,
         dataprocInterp,
         googleDependencies.googleDataproc
       )

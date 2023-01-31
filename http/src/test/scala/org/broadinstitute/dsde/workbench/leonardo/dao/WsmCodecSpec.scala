@@ -153,7 +153,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
           )
         ),
         VMCredential("username", "password"),
-        WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
       ),
       WsmJobControl(WsmJobId("job1"))
@@ -191,7 +190,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/b9c7fc1ec10697f8d8e278188ebbf30f6d124d67/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/d6f5eea1a9299f8ef95cf1dc3eaf40594af26782/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
@@ -200,8 +199,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      ]
          |    },
          |    "vmUser":{"name":"username","password":"password"},
-         |    "diskId": "${fixedUUID.toString}",
-         |    "networkId": "${fixedUUID.toString}"
+         |    "diskId": "${fixedUUID.toString}"
          |  },
          |  "jobControl": {
          |    "id": "job1"

@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class PersistentDisk(id: DiskId,
                                 cloudContext: CloudContext,
-                                zone: ZoneName,
+                                zone: ZoneName, // in the case of Azure, this will be com.azure.core.management.Region
                                 name: DiskName,
                                 serviceAccount: WorkbenchEmail,
                                 samResource: PersistentDiskSamResourceId,

@@ -203,7 +203,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.offer(
-              CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
+              CreateRuntimeMessage.fromRuntime(runtime,
+                                               runtimeConfig,
+                                               Some(context.traceId),
+                                               req.checkToolsInterruptAfter
+              )
             )
           } yield ()
       }
@@ -236,9 +240,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
-      paramMap <- F.fromEither(processListParameters(params))
+      (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimes(paramMap._1, paramMap._2, cloudContext)
+        .listRuntimes(labelMap, includeDeleted, creatorOnly, cloudContext)
         .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
@@ -848,6 +853,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 }
 
 object RuntimeServiceInterp {
+
+  private[service] def getToolFromImages(clusterImages: Set[RuntimeImage]): Option[Tool] =
+    clusterImages.map(_.imageType.toString).find(Tool.namesToValuesMap.contains) match {
+      case Some(value) => Tool.withNameOption(value)
+      case None        => None
+    }
+
   private[service] def convertToRuntime(userInfo: UserInfo,
                                         serviceAccountInfo: WorkbenchEmail,
                                         cloudContext: CloudContext,
@@ -867,7 +879,7 @@ object RuntimeServiceInterp {
       Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+      getToolFromImages(clusterImages)
     ).toMap
 
     // combine default and given labels and add labels for extensions

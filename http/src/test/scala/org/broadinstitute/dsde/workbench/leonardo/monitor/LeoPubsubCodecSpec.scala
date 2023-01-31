@@ -9,6 +9,7 @@ import io.circe.Printer
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
   AzureCloudContext,
+  ContainerName,
   ManagedResourceGroupName,
   RelayNamespace,
   SubscriptionId,
@@ -18,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Name
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
@@ -55,7 +57,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                     zone = ZoneName("us-central1-a"),
                                                     None
       ),
-      None
+      None,
+      Some(1)
     )
 
     val res = decode[CreateRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
@@ -85,6 +88,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                           zone = ZoneName("us-central1-a"),
                                                           None
       ),
+      None,
       None
     )
 
@@ -133,8 +137,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val originalMessage =
       CreateAzureRuntimeMessage(1,
                                 WorkspaceId(UUID.randomUUID()),
-                                RelayNamespace("relay-ns"),
                                 storageContainerResourceId,
+                                landingZoneResources,
                                 None
       )
 
@@ -149,8 +153,13 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     RelayNamespace("relay-ns"),
     StorageAccountName("storage-account"),
     NetworkName("vnet"),
+    PostgresName("pg"),
+    LogAnalyticsWorkspaceName("logs"),
     SubnetworkName("batch-subnet"),
-    SubnetworkName("aks-subnet")
+    SubnetworkName("aks-subnet"),
+    SubnetworkName("pg-subnet"),
+    SubnetworkName("compute-subnet"),
+    com.azure.core.management.Region.US_EAST
   )
 
   it should "encode/decode LandingZoneResources properly" in {
@@ -173,6 +182,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
           )
         ),
         Some(landingZoneResources),
+        Some(StorageContainerResponse(ContainerName("sc-container"), storageContainerResourceId)),
         None
       )
 

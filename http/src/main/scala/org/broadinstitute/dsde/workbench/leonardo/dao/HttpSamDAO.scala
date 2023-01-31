@@ -51,7 +51,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     "https://www.googleapis.com/auth/userinfo.profile",
     StorageScopes.DEVSTORAGE_READ_ONLY
   )
-  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInteral)
+  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInternal)
 
   override def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
@@ -129,6 +129,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     authHeader: Authorization
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
+      ctx <- ev.ask
       _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${sr.resourceType.asString}")
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
@@ -138,6 +139,25 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
+
+  override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[SamRole]] = for {
+    ctx <- ev.ask
+    _ <- metrics.incrementCounter(s"sam/getRoles/${resourceId.resourceId}")
+    resp <- httpClient.expectOr[Set[SamRole]](
+      Request[F](
+        method = Method.GET,
+        uri = config.samUri.withPath(
+          Uri.Path.unsafeFromString(
+            s"/api/resources/v2/${resourceId.resourceType.asString}/${resourceId.resourceId}/roles"
+          )
+        ),
+        headers = Headers(authHeader)
+      )
+    )(onError)
+    _ = println(s"${ctx.asString} 00000000 all resource policies ${resp}")
+  } yield resp
 
   override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit
@@ -260,7 +280,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     deleteResourceInternal(resource, Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)))
 
-  private def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
+  def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
     sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
@@ -405,7 +425,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       now <- F.realTimeInstant
       validAccessToken <-
         if (accessToken.getExpirationTime.getTime > now.toEpochMilli)
-          getLeoAuthTokenInteral
+          getLeoAuthTokenInternal
         else F.pure(accessToken)
     } yield {
       val token = validAccessToken.getTokenValue
@@ -440,7 +460,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           } yield admins.contains(workbenchEmail)
     } yield res
 
-  private def getLeoAuthTokenInteral: F[com.google.auth.oauth2.AccessToken] =
+  private def getLeoAuthTokenInternal: F[com.google.auth.oauth2.AccessToken] =
     credentialResource(
       config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
     ).use { credential =>

@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesModels,
   PvName
 }
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
   SamResource,
@@ -134,14 +135,7 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
 
-  override def filterUserVisibleWithWorkspaceFallback[R](
-    resources: NonEmptyList[(WorkspaceId, R)],
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(WorkspaceId, R)]] = ???
-
-  override def isUserWorkspaceOwner[R](workspaceId: WorkspaceId, workspaceResource: R, userInfo: UserInfo)(implicit
-    sr: SamResource[R],
-    decoder: Decoder[R],
+  override def isUserWorkspaceOwner(workspaceResource: WorkspaceResourceSamResourceId, userInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = ???
 
@@ -162,6 +156,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = ???
+
+  override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Set[WorkspaceResourceSamResourceId]] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider
@@ -173,7 +171,7 @@ class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
   def stop: IO[Unit] = IO.unit
 }
 
-object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
+class BaseMockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[CreateGoogleRuntimeResponse]] = ???
@@ -199,6 +197,8 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 }
+
+object MockRuntimeAlgebra extends BaseMockRuntimeAlgebra
 
 class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease: List[Release] = List.empty)
     extends org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService {
@@ -271,4 +271,6 @@ class MockAKSInterp extends AKSAlgebra[IO] {
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }

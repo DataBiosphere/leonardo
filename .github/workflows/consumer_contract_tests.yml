@@ -1,0 +1,120 @@
+name: Consumer contract tests
+# The purpose of this workflow is to validate the service level contract
+# using the Pact framework.
+#
+# The workflow involves two parties: Leo as a consumer. Sam as a provider.
+# Each party owns a set of tests (aka contract tests).
+#
+#   The consumer contract tests (aka consumer tests) are completely independent of
+#   the provider contract tests (aka provider tests), and vice versa.
+#
+# Specifically
+#   Leo runs consumer tests against mock Sam service. Upon success, publish a consumer-provider pact to
+#   Pact Broker https://pact-broker.dsp-eng-tools.broadinstitute.org/. Pact Broker is the source of truth
+#   to forge contractual obligations between consumer and provider.
+#
+#   Sam obtains contract from Pact Broker and runs provider tests to validate its obligations to consumers.
+#
+# The Pact Broker is a 2-way street. The consumer can see in the dashboard if the service is able to honor their consumer expectations
+# (which is also true when those expectations are updated).  The provider can validate that a desired deployment would not break any
+# of the consumers' published expectations.  Both the consumer and the provider can gate deployment on availability/honoring of the published pact
+# (contract expectations) between the two.
+#
+# The workflow relies on github secrets:
+# - PACT_BROKER_USERNAME - the Pact Broker username
+# - PACT_BROKER_PASSWORD - the Pact Broker password
+on:
+  pull_request:
+    branches:
+      - develop
+    paths-ignore:
+      - 'README.md'
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - 'README.md'
+
+jobs:
+  leo-consumer-contract-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout current code
+        uses: actions/checkout@v3
+
+      - name: Extract branch
+        id: extract-branch
+        run: |
+          GITHUB_EVENT_NAME=${{ github.event_name }}
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            GITHUB_REF=${{ github.ref }}
+            GITHUB_SHA=${{ github.sha }}
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            GITHUB_REF=refs/heads/${{ github.head_ref }}
+            GITHUB_SHA=${{ github.event.pull_request.head.sha }}
+          else
+            echo "Failed to extract branch information"
+            exit 1
+          fi
+          echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
+          echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
+
+      - name: list directories
+        run: |
+          ls -l pact4s
+          cd pact4s
+          cat README.md
+          echo ${{ steps.extract-branch.outputs.ref }}
+          echo ${{ steps.extract-branch.outputs.sha }}
+          echo ${{ steps.extract-branch.outputs.sha_short }}
+          echo ${{ steps.extract-branch.outputs.branch }}
+
+      - name: Run consumer tests
+        run: |
+          docker run --rm -v $PWD:/working \
+                          -v jar-cache:/root/.ivy \
+                          -v jar-cache:/root/.ivy2 \
+                          -w /working \
+                          sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
+                          sbt "project pact4s" clean test
+
+      - name: Check consumer-provider contract
+        run: |
+          cd pact4s
+          cat target/pacts/leo-consumer-sam-provider.json
+
+      - name: Publish contract to Pact Broker
+        run: |
+          cd pact4s
+          PACT_DIR=publish
+          mkdir -p $PACT_DIR
+          cp target/pacts/leo*sam*.json $PACT_DIR
+
+          echo Found the following pact files:
+          for file in ${PACT_DIR}/*; do
+            echo "$(basename "$file")"
+          done
+
+          LATEST_COMMIT=$(git rev-parse --short HEAD)
+          PACT_BROKER_BASE_URL=https://pact-broker.dsp-eng-tools.broadinstitute.org/
+          PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }}
+          PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }}
+
+          docker run --rm \
+            -w ${PWD} \
+            -v ${PWD}:/pacts \
+            -e PACT_BROKER_BASE_URL=${PACT_BROKER_BASE_URL} \
+            -e PACT_BROKER_USERNAME=${PACT_BROKER_USERNAME} \
+            -e PACT_BROKER_PASSWORD=${PACT_BROKER_PASSWORD} \
+            pactfoundation/pact-cli:latest \
+            publish \
+            /pacts/${PACT_DIR} \
+            --consumer-app-version ${LATEST_COMMIT} \
+            --tag ${{ steps.extract-branch.outputs.sha_short }} \
+            --branch ${{ steps.extract-branch.outputs.branch }}
