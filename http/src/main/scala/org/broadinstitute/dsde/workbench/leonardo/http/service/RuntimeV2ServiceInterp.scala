@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
+import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
@@ -40,11 +41,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
                                              samDAO: SamDAO[F],
-                                             publisherQueue: Queue[F, LeoPubsubMessage]
+                                             publisherQueue: Queue[F, LeoPubsubMessage],
+                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
-  ec: ExecutionContext
+  ec: ExecutionContext,
+  log: StructuredLogger[F]
 ) extends RuntimeV2Service[F] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
@@ -80,11 +83,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- F
         .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      leoAuth <- samDAO.getLeoAuthToken
       storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
       storageContainer <- F.fromOption(
         storageContainerOpt,
-        BadRequestException(s"Workspace ${workspaceId} doesn't have storage container provisioned appropriately",
+        BadRequestException(s"Workspace ${workspaceId.value} doesn't have storage container provisioned appropriately",
                             Some(ctx.traceId)
         )
       )
@@ -92,14 +94,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
       // Get the Landing Zone Resources for the app for Azure
+      leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp =>
           F.raiseError(
-            BadRequestException(s"Workspace ${workspaceId} is GCP and doesn't support V2 VM creation",
+            BadRequestException(s"Workspace ${workspaceId.value} is GCP and doesn't support V2 VM creation",
                                 Some(ctx.traceId)
             )
           )
-        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
       }
 
       runtimeImage: RuntimeImage = RuntimeImage(
@@ -133,6 +136,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 DiskName(req.azureDiskConfig.name.value),
                 config.azureConfig.diskConfig,
                 req,
+                landingZoneResources.region,
                 ctx.now
               )
             )
@@ -153,7 +157,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
               disk.id,
-              req.region
+              landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
@@ -205,7 +209,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     F.pure(AzureUnimplementedException("patch not implemented yet"))
 
-  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+  override def deleteRuntime(userInfo: UserInfo,
+                             runtimeName: RuntimeName,
+                             workspaceId: WorkspaceId,
+                             deleteDisk: Boolean
+  )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -246,12 +254,46 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
-      // For now, azure disk life cycle is tied to vm life cycle and incompatible with disk routes
-      _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+      // pass the disk to delete to publisher if specified
+      diskIdToDelete <-
+        if (deleteDisk)
+          persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction.as(diskIdOpt)
+        else F.pure(none[DiskId])
 
       _ <- publisherQueue.offer(
-        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
+        DeleteAzureRuntimeMessage(runtime.id, diskIdToDelete, workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
       )
+    } yield ()
+
+  override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+
+      // If user is creator of the runtime, they should definitely be able to see the runtime.
+      hasPermission <-
+        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
+        else {
+          checkSamPermission(
+            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+            userInfo,
+            WsmResourceAction.Write
+          ).map(_._1)
+        }
+
+      _ <- ctx.span.traverse(s =>
+        F.delay(s.addAnnotation("Done auth call for update date accessed runtime permission"))
+      )
+      _ <- F
+        .raiseError[Unit](
+          RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
+        )
+        .whenA(!hasPermission)
+
+      _ <- dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, runtime.cloudContext, ctx.now)) >>
+        log.info(s"Queued message to update dateAccessed for runtime ${runtime.cloudContext}/$runtimeName")
     } yield ()
 
   def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
@@ -414,6 +456,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      diskName: DiskName,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
+                                     region: com.azure.core.management.Region,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
@@ -437,7 +480,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
-      ZoneName(req.region.toString),
+      ZoneName(region.toString),
       diskName,
       userInfo.userEmail,
       // TODO: WSM will populate this, we can update in backleo if its needed for anything

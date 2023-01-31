@@ -36,6 +36,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -327,16 +328,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
-      op = List(
-        cbasDao
-          .getStatus(relayBaseUri, authHeader)
-          .handleError(_ => false),
-        wdsDao
-          .getStatus(relayBaseUri, authHeader)
-          .handleError(_ => false)
-        // TODO (TOAZ-241): add cromwell to the status checks once it starts up
-        // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-      ).sequence
+      op = config.coaAppConfig.coaServices
+        .collect {
+          case Cbas =>
+            cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          case Wds =>
+            wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          // TODO: Cromwell status check not working. Disabling temporarily until we're ready to launch Cromwell.
+//          case Cromwell =>
+//            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        }
+        .toList
+        .sequence
       cromwellOk <- streamFUntilDone(
         op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
@@ -407,6 +410,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.name=${petManagedIdentity.name()}",
         raw"identity.resourceId=${petManagedIdentity.id()}",
         raw"identity.clientId=${petManagedIdentity.clientId()}",
+
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
+
+        // Enabled services configs
+        raw"cbas.coaEnabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
+        raw"cbasUI.coaEnabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
+        raw"wds.coaEnabled=${config.coaAppConfig.coaServices.contains(Wds)}",
+        raw"cromwell.coaEnabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}"
