@@ -99,6 +99,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
         .attempt
@@ -173,7 +174,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val thrown = the[ForbiddenError] thrownBy {
       runtimeV2Service
-        .createRuntime(userInfo, runtimeName, workspaceId, defaultCreateAzureRuntimeReq)
+        .createRuntime(userInfo, runtimeName, workspaceId, false, defaultCreateAzureRuntimeReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
@@ -182,11 +183,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "throw RuntimeAlreadyExistsException when creating a runtime with same name and context as an existing runtime" in isolatedDbTest {
     runtimeV2Service
-      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val exc = runtimeV2Service
-      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -215,6 +216,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
@@ -429,6 +431,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
@@ -466,6 +469,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       _ <- publisherQueue.tryTake // clean out create msg
@@ -521,6 +525,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
@@ -558,6 +563,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       _ <- publisherQueue.tryTake // clean out create msg
@@ -617,6 +623,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
@@ -952,7 +959,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")
     )
     runtimeV2Service
-      .createRuntime(userInfo, clusterName1, workspaceId, req)
+      .createRuntime(userInfo, clusterName1, workspaceId, false, req)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val setupControlledResource1 = for {
@@ -991,6 +998,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         userInfo,
         clusterName2,
         workspaceId,
+        false,
         req.copy(labels = Map("a" -> "b", "foo" -> "bar"),
                  azureDiskConfig = req.azureDiskConfig.copy(name = AzureDiskName("disk2"))
         )

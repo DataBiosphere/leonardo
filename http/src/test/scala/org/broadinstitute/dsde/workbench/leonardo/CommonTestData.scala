@@ -542,7 +542,6 @@ object CommonTestData {
       Some(DiskSize(100)),
       None
     ),
-    false,
     Some(0)
   )
 

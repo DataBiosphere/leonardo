@@ -130,7 +130,6 @@ object LeonardoApiClient {
       None,
       None
     ),
-    false,
     Some(0)
   )
 
@@ -679,6 +678,7 @@ object LeonardoApiClient {
   def createAzureRuntime(
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName,
+    useExistingDisk: Boolean,
     createAzureRuntimeRequest: CreateAzureRuntimeRequest = defaultCreateAzureRuntimeRequest
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
@@ -691,7 +691,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
-            ),
+            ).withQueryParam("useExistingDisk", useExistingDisk),
             entity = createAzureRuntimeRequest
           )
         )

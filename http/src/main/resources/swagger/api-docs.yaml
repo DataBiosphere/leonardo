@@ -810,10 +810,10 @@ paths:
           required: true
           schema:
             type: string
-         - in: path
+        - in: query
           name: useExistingDisk
           description: If True creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found. Defaults to False
-          required: true
+          required: false
           schema:
             type: boolean
             default: false
@@ -2714,7 +2714,6 @@ components:
           example:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             machineSize: "Standard_DS1_v2"
-            useExistingDisk: "false"
             disk: { labels: {}, name: "disk1", size: 50 }
 
   securitySchemes:
@@ -3239,9 +3238,6 @@ components:
         customEnvironmentVariabales:
           type: object
           description: an optional set of key value pairs for environment variables to be injected into the VM
-        useExistingDisk:
-          type: boolean
-          description: If True creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found. Defaults to False
         disk:
           $ref: "#/components/schemas/AzureDiskConfig"
 

@@ -123,11 +123,13 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                         pathEndOrSingleSlash {
                           post {
-                            entity(as[CreateAzureRuntimeRequest]) { req =>
-                              complete(
-                                createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
-                              )
-                            }
+                             parameterMap { params =>
+                              entity(as[CreateAzureRuntimeRequest]) { req =>
+                                complete(
+                                  createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req, params)
+                                )
+                              }
+                           }
                           } ~ get {
                             complete(
                               getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
@@ -158,14 +160,16 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def createAzureRuntimeHandler(userInfo: UserInfo,
                                              workspaceId: WorkspaceId,
                                              runtimeName: RuntimeName,
-                                             req: CreateAzureRuntimeRequest
+                                             req: CreateAzureRuntimeRequest,
+                                             params: Map[String, String]
   )(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-
-      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, req)
+      //if not specified, create new disk
+      useExistingDisk = params.get("useExistingDisk").exists(_ == "true")
+      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, useExistingDisk, req)
       _ <- metrics.incrementCounter("createRuntimeV2")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntimeV2")
@@ -306,13 +310,11 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
         .downField("customEnvironmentVariables")
         .as[Option[Map[String, String]]]
       azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
-      useExistingDisk <- c.downField("useExistingDisk").as[Boolean]
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
     } yield CreateAzureRuntimeRequest(labels,
                                       machineSize,
                                       customEnvVars.getOrElse(Map.empty),
                                       azureDiskReq,
-                                      useExistingDisk,
                                       apt
     )
   }

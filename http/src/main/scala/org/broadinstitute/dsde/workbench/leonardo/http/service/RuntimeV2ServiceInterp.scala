@@ -52,6 +52,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
+                             useExistingDisk: Boolean,
                              req: CreateAzureRuntimeRequest
   )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
@@ -129,7 +130,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
-            diskId <- req.useExistingDisk match {
+            diskId <- useExistingDisk match {
               // if using existing disk, find disk in users workspace
               case true =>
                 for {
@@ -187,7 +188,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                         workspaceId,
                                         storageContainer.resourceId,
                                         landingZoneResources,
-                                        req.useExistingDisk,
+                                        useExistingDisk,
                                         Some(ctx.traceId)
               )
             )
