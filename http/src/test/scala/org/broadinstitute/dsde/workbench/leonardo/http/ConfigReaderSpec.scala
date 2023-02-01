@@ -74,7 +74,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.191"),
+          ChartVersion("0.2.192"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -83,7 +83,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
-          )
+          ),
+          instrumentationEnabled = false
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),
