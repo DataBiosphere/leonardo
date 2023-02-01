@@ -167,7 +167,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
                   persistentDiskQuery.getPersistentDiskRecord(did).transaction
                 )
-                _ = persistentDiskOpt match {
+                _ <- persistentDiskOpt match {
                   case Some(value) =>
                     if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
                       persistentDiskOpt.traverse_(d =>
@@ -175,7 +175,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                           .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
                           .transaction
                       )
-                    }
+                    } else F.unit
                   case None => F.unit
                 }
               } yield ()
