@@ -469,8 +469,8 @@ class GKEInterpreter[F[_]](
               pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
                                                              KubernetesNamespace(app.appResources.namespace.name)
               )
-
-              galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
+              // An extra -galaxy was added here: https://github.com/galaxyproject/galaxykubeman-helm/blob/f7f27be74c213deda3ae53122[…]959c96480bb21f/galaxykubeman/templates/config-setup-galaxy.yaml
+              galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-galaxy-pvc")
               cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
               _ <- (galaxyPvc, cvmfsPvc).tupled
                 .fold(
@@ -1518,7 +1518,7 @@ class GKEInterpreter[F[_]](
       List(
         raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
         raw"""restore.persistence.nfs.cvmfsCache.pvcID=${g.cvmfsPvcId.asString}""",
-        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-pvc""",
+        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-galaxy-pvc""",
         raw"""cvmfs.cache.alienCache.existingClaim=${release.asString}-cvmfs-alien-cache-pvc"""
       )
     )
@@ -1552,6 +1552,13 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
       raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
       raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Tusd ingress configs
+      raw"""galaxy.tusd.ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""galaxy.tusd.ingress.hosts[0].paths[0].path=${ingressPath}/api/upload/resumable_upload""",
+      raw"""galaxy.tusd.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.tusd.ingress.tls[0].secretName=tls-secret""",
+      // Set RabbitMQ storage class
+      raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
       // Set Machine Type specs
       raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
       raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
