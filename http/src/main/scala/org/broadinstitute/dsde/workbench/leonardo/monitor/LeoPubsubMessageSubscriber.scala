@@ -257,7 +257,6 @@ class LeoPubsubMessageSubscriber[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(ctx.loggingCtx)("++++ handleDeleteRuntimeMessage")
       existingOperationFuture <- operationFutureCache.get(msg.runtimeId)
       _ <- existingOperationFuture.traverse(opFuture => F.delay(opFuture.cancel(true)))
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
@@ -303,7 +302,6 @@ class LeoPubsubMessageSubscriber[F[_]](
           now <- nowInstant
           diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
           disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
-          _ <- logger.info(ctx.loggingCtx)("++++ LeoPubsub delete disk")
           deleteDiskOp <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
           _ <- deleteDiskOp.traverse(x => F.blocking(x.get()))
           _ <- persistentDiskQuery.delete(id, now).transaction.void >> authProvider
@@ -768,7 +766,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
         new RuntimeException("non google project cloud context is not supported yet")
       )
-      _ <- logger.info(ctx.loggingCtx)("++++ Direct delete disk")
       opFutureOpt <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
       _ <- opFutureOpt match {
         case None => F.unit
@@ -1339,7 +1336,6 @@ class LeoPubsubMessageSubscriber[F[_]](
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      _ = print("++++ Barpes")
       _ <- metrics.incrementCounter(s"createRuntimeError", 1)
       _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create runtime ${runtimeId}")
       // want to detach persistent disk for runtime
