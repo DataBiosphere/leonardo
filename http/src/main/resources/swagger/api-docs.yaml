@@ -1732,7 +1732,7 @@ paths:
     post:
       summary: Deletes ALL apps associated with the given workspace Id
       description: deletes all Apps in a workspace
-      operationId: deleteAllAppV2
+      operationId: deleteAllAppsV2
       tags:
         - appsV2
       parameters:
@@ -1751,11 +1751,11 @@ paths:
             default: false
       responses:
         "202":
-          description: App deletion request accepted
+          description: App(s) deletion request accepted
         "403":
           description: User does not have permission to perform action on App(s)
         "404":
-          description: App not found
+          description: App(s) not found
           content:
             application/json:
               schema:

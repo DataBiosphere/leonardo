@@ -58,7 +58,7 @@ class MockAppService extends AppService[IO] {
   ): IO[Unit] =
     IO.unit
 
-  override def deleteAllAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+  override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit

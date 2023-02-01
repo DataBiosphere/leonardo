@@ -150,7 +150,7 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
     for {
       ctx <- ev.ask[AppContext]
       deleteDisk = params.get("deleteDisk").exists(_ == "true")
-      apiCall = kubernetesService.deleteAllAppV2(
+      apiCall = kubernetesService.deleteAllAppsV2(
         userInfo,
         workspaceId,
         deleteDisk

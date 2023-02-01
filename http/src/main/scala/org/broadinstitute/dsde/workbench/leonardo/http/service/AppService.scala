@@ -66,7 +66,7 @@ trait AppService[F[_]] {
     deleteDisk: Boolean
   )(implicit as: Ask[F, AppContext]): F[Unit]
 
-  def deleteAllAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+  def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 }

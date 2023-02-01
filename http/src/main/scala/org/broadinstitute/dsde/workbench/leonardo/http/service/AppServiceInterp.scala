@@ -637,7 +637,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     _ <- deleteAppV2Base(appResult.app, userInfo, workspaceId, deleteDisk)
   } yield ()
 
-  override def deleteAllAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+  override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
