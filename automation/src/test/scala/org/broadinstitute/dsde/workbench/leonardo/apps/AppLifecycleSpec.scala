@@ -48,21 +48,30 @@ class AppLifecycleSpec
     descriptorPath = descriptorPath
   )
 
-  private val appTestCases = Table(
-    ("description", "createAppRequest", "testStartStop", "testPersistentDisk"),
-    ("create CROMWELL app, delete it and re-create it with same disk",
-     createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None),
-     false,
-     true
-    ),
-    ("create GALAXY app, start/stop, delete it and re-create it with same disk",
-     createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None),
-     true,
-     true
-    )
-  )
+//  private val appTestCases = Table(
+//    ("description", "createAppRequest", "testStartStop", "testPersistentDisk"),
+//    ("create CROMWELL app, delete it and re-create it with same disk",
+//     createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None),
+//     false,
+//     true
+//    ),
+//    ("create GALAXY app, start/stop, delete it and re-create it with same disk",
+//     createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None),
+//     true,
+//     true
+//    )
+//  )
 
-  // Test CUSTOM app first so that there will be a GKE cluster created already for the next two tests
+  // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
+  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
+    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
+  }
+
+  "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
+    googleProject =>
+      test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
+  }
+
   "create CUSTOM app, start/stop, delete it" in { googleProject =>
     test(
       googleProject,
@@ -81,11 +90,11 @@ class AppLifecycleSpec
   }
 
   // Use forAll so that tests are run in parallel
-  forAll(appTestCases) { (description, createAppRequest, testStartStop, testPD) =>
-    description taggedAs Retryable in { googleProject =>
-      test(googleProject, createAppRequest, testStartStop, testPD)
-    }
-  }
+//  forAll(appTestCases) { (description, createAppRequest, testStartStop, testPD) =>
+//    description taggedAs Retryable in { googleProject =>
+//      test(googleProject, createAppRequest, testStartStop, testPD)
+//    }
+//  }
 
   def test(googleProject: GoogleProject,
            createAppRequest: CreateAppRequest,
