@@ -83,7 +83,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
-          )
+          ),
+          instrumentationEnabled = false
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),
