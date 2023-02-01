@@ -544,19 +544,6 @@ object CommonTestData {
     Some(0)
   )
 
-  val default2CreateAzureRuntimeReq = CreateAzureRuntimeRequest(
-    Map.empty,
-    VirtualMachineSizeTypes.STANDARD_A1,
-    Map.empty,
-    CreateAzureDiskRequest(
-      Map.empty,
-      AzureDiskName("diskName2"),
-      Some(DiskSize(100)),
-      None
-    ),
-    Some(0)
-  )
-
   val landingZoneResources = LandingZoneResources(
     AKSClusterName(""),
     BatchAccountName(""),

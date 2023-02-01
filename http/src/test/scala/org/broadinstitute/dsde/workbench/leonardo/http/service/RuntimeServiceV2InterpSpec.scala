@@ -664,7 +664,9 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName_2,
           workspaceId,
-          default2CreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq.copy(
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
+          )
         )
 
       _ <- publisherQueue.tryTakeN(Some(2)) // clean out create msg
