@@ -1907,6 +1907,154 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.swap.toOption.get.getMessage shouldBe s"Persistent disk Gcp/${workspaceId}/disk is already formatted by CROMWELL"
   }
 
+  it should "V2 Azure - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val appName = AppName("app1")
+    val appReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
+    val appName2 = AppName("app2")
+    val appReq2 =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, appName2, appReq2)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    val appResultPreStatusUpdate2 = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
+    }
+
+    // we can't delete while its creating, so set it to Running
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate2.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate2.get.nodepool.id, NodepoolStatus.Running))
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+
+    val appResultPreDelete2 = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
+    }
+    appResultPreDelete2.get.app.status shouldEqual AppStatus.Running
+    appResultPreDelete2.get.app.auditInfo.destroyedDate shouldBe None
+
+    kubeServiceInterp
+      .deleteAllAppsV2(userInfo, workspaceId, false)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
+    }
+
+    clusterPostDelete.length shouldEqual 1
+    val nodepools = clusterPostDelete.flatMap(_.nodepools)
+    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
+    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Running)
+    apps.map(_.status) shouldEqual List(AppStatus.Predeleting, AppStatus.Predeleting)
+
+    // throw away create messages
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteAppV2, LeoPubsubMessageType.DeleteAppV2)
+    val deleteAppMessages = messages.map(_.asInstanceOf[DeleteAppV2Message])
+    deleteAppMessages.map(_.appId) shouldBe apps.map(_.id)
+    deleteAppMessages.map(_.workspaceId) shouldBe List(workspaceId, workspaceId)
+    deleteAppMessages.map(_.diskId) shouldBe List(None, None)
+  }
+
+  it should "V2 GCP - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+
+    val appName = AppName("app1")
+    val appName2 = AppName("app2")
+    val diskConfig1 = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
+    val diskConfig2 = PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty)
+
+    val appReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Galaxy, diskConfig = Some(diskConfig1))
+    val appReq2 =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Galaxy, diskConfig = Some(diskConfig2))
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    // we can't delete/create another while its creating, so set it to Running
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId, appName2, appReq2)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate2 = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
+    }
+
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate2.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate2.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate2.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+
+    val appResultPreDelete2 = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
+    }
+    appResultPreDelete2.get.app.status shouldEqual AppStatus.Running
+    appResultPreDelete2.get.app.auditInfo.destroyedDate shouldBe None
+
+    kubeServiceInterp
+      .deleteAllAppsV2(userInfo, workspaceId, false)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
+    }
+
+    clusterPostDelete.length shouldEqual 1
+    val nodepools = clusterPostDelete.flatMap(_.nodepools)
+    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
+    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Running)
+    apps.map(_.status) shouldEqual List(AppStatus.Predeleting, AppStatus.Predeleting)
+
+    // throw away create messages
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteAppV2, LeoPubsubMessageType.DeleteAppV2)
+    val deleteAppMessages = messages.map(_.asInstanceOf[DeleteAppV2Message])
+    deleteAppMessages.map(_.appId) shouldBe apps.map(_.id)
+    deleteAppMessages.map(_.workspaceId) shouldBe List(workspaceId, workspaceId)
+    deleteAppMessages.map(_.diskId) shouldBe List(None, None)
+  }
+
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
