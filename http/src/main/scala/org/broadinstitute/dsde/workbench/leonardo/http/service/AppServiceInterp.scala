@@ -634,7 +634,29 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appOpt,
       AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
     )
-    listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+    _ <- deleteAppV2Base(appResult.app, userInfo, workspaceId, deleteDisk)
+  } yield ()
+
+  override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
+    apps = allClusters
+      .flatMap(_.nodepools)
+      .flatMap(n => n.apps)
+
+    _ <- apps
+      .filter(app => AppStatus.deletableStatuses.contains(app.status))
+      .traverse { app =>
+        deleteAppV2Base(app, userInfo, workspaceId, deleteDisk)
+      }
+  } yield ()
+
+  private def deleteAppV2Base(app: App, userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+    listOfPermissions <- authProvider.getActions(app.samResourceId, userInfo)
 
     // throw 404 if no GetAppStatus permission
     hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
@@ -642,23 +664,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       if (hasReadPermission) F.unit
       else
         F.raiseError[Unit](
-          AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "no read permission")
+          AppNotFoundByWorkspaceIdException(workspaceId, app.appName, ctx.traceId, "no read permission")
         )
 
     // throw 403 if no DeleteApp permission
     hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
     _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-    canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
+    canDelete = AppStatus.deletableStatuses.contains(app.status)
     _ <-
       if (canDelete) F.unit
       else
         F.raiseError[Unit](
-          AppCannotBeDeletedByWorkspaceIdException(workspaceId, appName, appResult.app.status, ctx.traceId)
+          AppCannotBeDeletedByWorkspaceIdException(workspaceId, app.appName, app.status, ctx.traceId)
         )
 
     // Get the disk to delete if specified
-    diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
+    diskOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
 
     // Resolve the workspace in WSM to get the cloud context
     userToken = org.http4s.headers.Authorization(
@@ -683,18 +705,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     }
 
     _ <-
-      if (appResult.app.status == AppStatus.Error) {
+      if (app.status == AppStatus.Error) {
         for {
-          _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction >> authProvider
-            .notifyResourceDeletedV2(appResult.app.samResourceId, userInfo)
+          _ <- appQuery.markAsDeleted(app.id, ctx.now).transaction >> authProvider
+            .notifyResourceDeletedV2(app.samResourceId, userInfo)
             .void
         } yield ()
       } else {
         for {
-          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.app.id).transaction
+          _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
           deleteMessage = DeleteAppV2Message(
-            appResult.app.id,
-            appResult.app.appName,
+            app.id,
+            app.appName,
             workspaceId,
             cloudContext,
             diskOpt,
@@ -1231,13 +1253,6 @@ case class AppDiskNotSupportedException(cloudContext: CloudContext,
       s"App ${cloudContext.asStringWithProvider}/${appName.value} of type ${appType} does not support persistent disk. Trace ID: ${traceId.toString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
-    )
-
-case class ClusterExistsException(googleProject: GoogleProject)
-    extends LeoException(
-      s"Cannot pre-create nodepools for project $googleProject because a cluster already exists",
-      StatusCodes.Conflict,
-      traceId = None
     )
 
 case class AppCannotBeStoppedException(cloudContext: CloudContext,
