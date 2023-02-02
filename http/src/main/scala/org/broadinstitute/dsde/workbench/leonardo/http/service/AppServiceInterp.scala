@@ -645,9 +645,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .flatMap(_.nodepools)
       .flatMap(n => n.apps)
 
-    _ <- apps.traverse { app =>
-      deleteAppV2Base(app, userInfo, workspaceId, deleteDisk)
-    }
+    _ <- apps
+      .filter(app => AppStatus.deletableStatuses.contains(app.status))
+      .traverse { app =>
+        deleteAppV2Base(app, userInfo, workspaceId, deleteDisk)
+      }
   } yield ()
 
   private def deleteAppV2Base(app: App, userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
