@@ -136,7 +136,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         PollMonitorConfig(30 seconds, 120, 15 seconds),
         PollMonitorConfig(30 seconds, 120, 15 seconds),
         PollMonitorConfig(2 seconds, 100, 3 seconds),
-        InterruptablePollMonitorConfig(120, 10 seconds, 20 minutes),
+        InterruptablePollMonitorConfig(120, 15 seconds, 30 minutes),
         PollMonitorConfig(30 seconds, 120, 10 seconds),
         PollMonitorConfig(0 days, 10, 2 seconds),
         PollMonitorConfig(0 days, 10, 2 seconds),
