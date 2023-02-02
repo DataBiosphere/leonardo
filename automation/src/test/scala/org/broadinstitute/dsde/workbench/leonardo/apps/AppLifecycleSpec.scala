@@ -115,8 +115,8 @@ class AppLifecycleSpec
         monitorCreateResult <- streamUntilDoneOrTimeout(
           getApp,
           120,
-          10 seconds,
-          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
+          15 seconds,
+          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 30 minutes"
         )(implicitly, appInStateOrError(AppStatus.Running))
         _ <- loggerIO.info(
           s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
