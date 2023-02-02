@@ -725,9 +725,9 @@ object Boot extends IOApp {
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
       )
-      client = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
+      clientWithRetry = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
       finalClient <- metricsPrefix match {
-        case None => Resource.pure[F, org.http4s.client.Client[F]](client)
+        case None => Resource.pure[F, org.http4s.client.Client[F]](clientWithRetry)
         case Some(prefix) =>
           val classifierFunc = (r: Request[F]) => Some(r.method.toString.toLowerCase)
           for {
@@ -736,7 +736,7 @@ object Boot extends IOApp {
             meteredClient = Metrics[F](
               metricsOps,
               classifierFunc
-            )(httpClientWithLogging)
+            )(clientWithRetry)
           } yield meteredClient
       }
     } yield finalClient
