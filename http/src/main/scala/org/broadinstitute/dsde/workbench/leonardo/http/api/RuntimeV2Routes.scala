@@ -84,6 +84,17 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                           )
                         )
                       }
+                    } ~
+                    path("updateDateAccessed") {
+                      patch {
+                        complete(
+                          updateDateAccessedHandler(
+                            userInfo,
+                            workspaceId,
+                            runtimeName
+                          )
+                        )
+                      }
                     }
                 } ~
                   pathPrefix("azure") {
@@ -247,6 +258,19 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
           .use(_ => apiCall)
       )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
+
+  private[api] def updateDateAccessedHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = runtimeV2Service.updateDateAccessed(userInfo, workspaceId, runtimeName)
+      _ <- metrics.incrementCounter("updateDateAccessed")
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "updateDateAccessed")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted: ToResponseMarshallable
 
   implicit val createAzureDiskReqDecoder: Decoder[CreateAzureDiskRequest] =
     Decoder.forProduct4("labels", "name", "size", "diskType")(CreateAzureDiskRequest.apply)
