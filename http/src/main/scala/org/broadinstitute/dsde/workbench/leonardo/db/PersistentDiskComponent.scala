@@ -33,7 +33,7 @@ final case class PersistentDiskRecord(id: DiskId,
                                       formattedBy: Option[FormattedBy],
                                       appRestore: Option[AppRestore],
                                       sourceDisk: Option[DiskLink],
-                                      resourceId: Option[WsmControlledResourceId]
+                                      wsmResourceId: Option[WsmControlledResourceId]
 )
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
@@ -56,7 +56,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
   def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
-  def resourceId = column[Option[WsmControlledResourceId]]("resourceId")
+  def wsmResourceId = column[Option[WsmControlledResourceId]]("wsmResourceId")
 
   override def * =
     (id,
@@ -76,7 +76,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      formattedBy,
      (galaxyPvcId, lastUsedBy),
      sourceDisk,
-     resourceId
+     wsmResourceId
     ) <> ({
       case (id,
             (cloudProvider, cloudContextDb),
@@ -95,7 +95,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             formattedBy,
             (galaxyPvcId, lastUsedBy),
             sourceDisk,
-            resourceId
+            wsmResourceId
           ) =>
         PersistentDiskRecord(
           id,
@@ -128,7 +128,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
           sourceDisk,
-          resourceId
+          wsmResourceId
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -158,7 +158,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
         },
         record.sourceDisk,
-        record.resourceId
+        record.wsmResourceId
       )
     })
 }
@@ -234,8 +234,8 @@ object persistentDiskQuery {
       .map(d => (d.status, d.formattedBy, d.dateAccessed))
       .update((newStatus, Some(formattedBy), dateAccessed))
 
-  def updateResourceId(id: DiskId, newResourceId: WsmControlledResourceId, dateAccessed: Instant) =
-    findByIdQuery(id).map(d => (d.resourceId, d.dateAccessed)).update((Some(newResourceId), dateAccessed))
+  def updateWSMResourceId(id: DiskId, newWSMResourceId: WsmControlledResourceId, dateAccessed: Instant) =
+    findByIdQuery(id).map(d => (d.wsmResourceId, d.dateAccessed)).update((Some(newWSMResourceId), dateAccessed))
 
   def markPendingDeletion(id: DiskId, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
@@ -290,7 +290,7 @@ object persistentDiskQuery {
       disk.formattedBy,
       disk.appRestore,
       disk.sourceDisk,
-      disk.resourceId
+      disk.wsmResourceId
     )
 
   private[db] def aggregateLabels(
@@ -329,6 +329,6 @@ object persistentDiskQuery {
       rec.appRestore,
       labels,
       rec.sourceDisk,
-      rec.resourceId
+      rec.wsmResourceId
     )
 }

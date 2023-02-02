@@ -812,7 +812,7 @@ paths:
             type: string
         - in: query
           name: useExistingDisk
-          description: If True creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found. Defaults to False
+          description: Defaults to false. If true ignores disk request and creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found.
           required: false
           schema:
             type: boolean

@@ -52,6 +52,14 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
       .filter(_.runtimeId === runtimeId)
       .result
       .map(_.toList)
+
+  def updateRuntime(resourceId: WsmControlledResourceId, resourceType: WsmResourceType, newRuntimeId: Long): DBIO[Int] =
+    controlledResourceQuery
+      .filter(_.resourceId === resourceId)
+      .filter(_.resourceType === resourceType)
+      .map(_.runtimeId)
+      .update(newRuntimeId)
+
 }
 
 sealed abstract class WsmResourceType

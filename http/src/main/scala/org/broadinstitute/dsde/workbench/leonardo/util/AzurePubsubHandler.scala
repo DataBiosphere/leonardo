@@ -315,24 +315,26 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             diskOpt,
             new RuntimeException(s"Disk id:${params.runtimeConfig.persistentDiskId} not found")
           )
-          _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
-
           resourceId <- F.fromOption(
-            disk.resourceId,
+            disk.wsmResourceId,
             new RuntimeException(
-              s"No associated resourceId found for Disk id:${params.runtimeConfig.persistentDiskId}"
+              s"No associated resourceId found for Disk id:${params.runtimeConfig.persistentDiskId.value}"
             )
           )
           diskResourceOpt <- controlledResourceQuery
             .getWsmRecordFromResourceId(resourceId, WsmResourceType.AzureDisk)
             .transaction
-          disk <- F.fromOption(
+          wsmDisk <- F.fromOption(
             diskResourceOpt,
             new RuntimeException(
-              s"Resource id:${resourceId} not found for disk id:${params.runtimeConfig.persistentDiskId}"
+              s"Resource id:${resourceId} not found for disk id:${params.runtimeConfig.persistentDiskId.value}"
             )
           )
-          diskResp = CreateDiskResponse(disk.resourceId)
+          _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
+          _ <- controlledResourceQuery
+            .updateRuntime(wsmDisk.resourceId, WsmResourceType.AzureDisk, params.runtime.id)
+            .transaction // set runtime to new runtimeId
+          diskResp = CreateDiskResponse(wsmDisk.resourceId)
         } yield diskResp
       case _ =>
         for {
@@ -359,7 +361,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
             .transaction
           _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
-          _ <- persistentDiskQuery.updateResourceId(disk.id, diskResp.resourceId, ctx.now).transaction
+          _ <- persistentDiskQuery.updateWSMResourceId(disk.id, diskResp.resourceId, ctx.now).transaction
         } yield diskResp
     }
 

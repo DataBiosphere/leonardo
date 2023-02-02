@@ -471,6 +471,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def getClusterById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryById(id).result map { recs => unmarshalFullCluster(recs).headOption }
 
+  def getClusterByPersistentDiskId(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Runtime] =
+    clusterQuery.filter(_.persistentDiskId === diskId).headOption
+  
   def getActiveClusterInternalIdByName(cloudContext: CloudContext, name: RuntimeName)(implicit
     ec: ExecutionContext
   ): DBIO[Option[RuntimeSamResourceId]] =
