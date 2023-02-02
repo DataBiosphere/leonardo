@@ -274,10 +274,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .listRuntimesForWorkspace(Map.empty, true, None, Some(workspaceId), None)
         .map(_.toList)
         .transaction
-      // In ListRuntimeResponse2, the runtimeName is weirdly named clusterName instead
-      runtime_names = runtimes.map(r => r.clusterName)
 
-      _ <- runtime_names.traverse(runtime_name => deleteRuntime(userInfo, runtime_name, workspaceId, deleteDisk))
+      // Make sure that we only delete runtimes that are in a deletable status
+      deletable_runtimes = runtimes.filter(r => r.status.isDeletable)
+      // In ListRuntimeResponse2, the runtimeName is weirdly named clusterName instead
+      deletable_runtime_names = deletable_runtimes.map(r => r.clusterName)
+
+      _ <- deletable_runtime_names.traverse(runtime_name =>
+        deleteRuntime(userInfo, runtime_name, workspaceId, deleteDisk)
+      )
 
     } yield ()
 
