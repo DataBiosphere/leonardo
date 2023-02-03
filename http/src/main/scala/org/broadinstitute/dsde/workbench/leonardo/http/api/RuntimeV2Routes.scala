@@ -62,6 +62,14 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       )
                     }
                   }
+                } ~ pathPrefix("deleteAll") {
+                  post {
+                    parameterMap { params =>
+                      complete(
+                        deleteAllRuntimesForWorkspaceHandler(userInfo, workspaceId, params)
+                      )
+                    }
+                  }
                 } ~ pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                   path("stop") {
                     post {
@@ -139,14 +147,6 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                           }
                         }
                       }
-                  } ~ pathPrefix("deleteAll") {
-                    post {
-                      parameterMap { params =>
-                        complete(
-                          deleteAllRuntimesForWorkspaceHandler(userInfo, workspaceId, params)
-                        )
-                      }
-                    }
                   }
               }
           }
