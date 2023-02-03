@@ -137,6 +137,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """galaxy.ingress.tls[0].secretName=tls-secret,""" +
       """cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-app1-galaxy-rls,""" +
+      """cvmfs.cvmfscsi.cache.alien.pvc.name=cvmfs-alien-cache,""" +
       """galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,""" +
       """galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,""" +
       """galaxy.terra.launch.workspace=test-workspace,""" +
@@ -217,6 +218,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """galaxy.ingress.tls[0].secretName=tls-secret,""" +
       """cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-app1-galaxy-rls,""" +
+      """cvmfs.cvmfscsi.cache.alien.pvc.name=cvmfs-alien-cache,""" +
       """galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,""" +
       """galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,""" +
       """galaxy.terra.launch.workspace=test-workspace,""" +

@@ -218,7 +218,7 @@ class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease
       nfsPvc.setMetadata(nfcMetadata)
 
       val cvmfsMetadata = new V1ObjectMeta()
-      cvmfsMetadata.setName(s"${r.asString}-cvmfs-alien-cache-pvc")
+      cvmfsMetadata.setName(s"cvmfs-alien-cache")
       cvmfsMetadata.setUid(s"cvmfs-pvc-id1")
       val cvmfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaim()
       cvmfsPvc.setMetadata(cvmfsMetadata)
