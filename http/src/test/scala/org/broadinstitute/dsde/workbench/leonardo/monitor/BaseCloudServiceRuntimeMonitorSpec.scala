@@ -269,6 +269,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       tid <- traceId.ask[TraceId]
       implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
       disk <- makePersistentDisk().save()
+      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Failed, Instant.now()).transaction
       runtime <- IO(
         makeCluster(0)
           .copy(status = RuntimeStatus.Creating)
@@ -278,7 +279,6 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, runtimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Failed, Instant.now()).transaction
       runCheckTools = Stream.eval(
         runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
       )
