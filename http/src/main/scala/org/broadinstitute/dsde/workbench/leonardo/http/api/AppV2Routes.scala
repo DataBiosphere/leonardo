@@ -22,6 +22,7 @@ import org.http4s.Uri
 class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
 ) {
+
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
@@ -56,6 +57,14 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
                       )
                     }
                   }
+              }
+            } ~ pathPrefix("deleteAll") {
+              post {
+                parameterMap { params =>
+                  complete(
+                    deleteAllAppsForWorkspaceHandler(userInfo, workspaceId, params)
+                  )
+                }
               }
             }
           }
@@ -130,6 +139,25 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
       tags = Map("deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteAppV2", 1, tags)
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteAppV2").use(_ => apiCall))
+    } yield StatusCodes.Accepted
+
+  private[api] def deleteAllAppsForWorkspaceHandler(userInfo: UserInfo,
+                                                    workspaceId: WorkspaceId,
+                                                    params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      apiCall = kubernetesService.deleteAllAppsV2(
+        userInfo,
+        workspaceId,
+        deleteDisk
+      )
+      tags = Map("deleteDisk" -> deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteAllAppV2", 1, tags)
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteAllAppV2").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
 }
