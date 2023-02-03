@@ -723,7 +723,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "Azure V2 - deleteAllRuntimes, only delete runtimes in deletable status" in isolatedDbTest {
+  it should "Azure V2 - deleteAllRuntimes, error out if any runtime is not in a deletable status" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -777,38 +777,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       _ <- azureService.deleteAllRuntimes(userInfo, workspaceId, true)
 
-      delete_messages <- publisherQueue.tryTakeN(Some(2))
+    } yield ()
 
-      postDeleteClusterOpt_1 <- clusterQuery
-        .getClusterById(preDeleteCluster_1.id)
-        .transaction
-      postDeleteClusterOpt_2 <- clusterQuery
-        .getClusterById(preDeleteCluster_2.id)
-        .transaction
-
-      runtimeConfig_1 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_1.runtimeConfigId).transaction
-      runtimeConfig_2 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_2.runtimeConfigId).transaction
-      diskOpt_1 <- persistentDiskQuery
-        .getById(runtimeConfig_1.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
-        .transaction
-      diskOpt_2 <- persistentDiskQuery
-        .getById(runtimeConfig_2.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
-        .transaction
-      disk_1 = diskOpt_1.get
-      disk_2 = diskOpt_2.get
-    } yield {
-      postDeleteClusterOpt_1.map(_.status) shouldBe Some(RuntimeStatus.Creating)
-      disk_1.status shouldBe DiskStatus.Creating
-      postDeleteClusterOpt_2.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
-      disk_2.status shouldBe DiskStatus.Deleting
-
-      val expectedMessage = List(
-        DeleteAzureRuntimeMessage(preDeleteCluster_2.id, Some(disk_2.id), workspaceId, None, Some(context.traceId))
-      )
-      delete_messages shouldBe expectedMessage
+    the[NonDeletableRuntimesInWorkspaceFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {

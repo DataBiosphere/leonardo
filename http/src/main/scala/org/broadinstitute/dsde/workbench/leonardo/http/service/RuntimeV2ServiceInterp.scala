@@ -275,15 +275,20 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .map(_.toList)
         .transaction
 
-      // Make sure that we only delete runtimes that are in a deletable status
-      deletable_runtimes = runtimes.filter(r => r.status.isDeletable)
-      // In ListRuntimeResponse2, the runtimeName is weirdly named clusterName instead
-      deletable_runtime_names = deletable_runtimes.map(r => r.clusterName)
+      nonDeletableRuntimes = runtimes.filter(r => !r.status.isDeletable)
 
-      _ <- deletable_runtime_names.traverse(runtime_name =>
-        deleteRuntime(userInfo, runtime_name, workspaceId, deleteDisk)
-      )
-
+      _ <-
+        if (nonDeletableRuntimes.isEmpty)
+          runtimes
+            .map(r => r.clusterName)
+            .traverse(runtime_name => deleteRuntime(userInfo, runtime_name, workspaceId, deleteDisk))
+        else
+          // Error out if any runtime is in a non deletable state
+          F.raiseError[Unit](
+            NonDeletableRuntimesInWorkspaceFoundException(workspaceId,
+                                                          s"${nonDeletableRuntimes.map(r => r.clusterName)}"
+            )
+          )
     } yield ()
 
   override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
