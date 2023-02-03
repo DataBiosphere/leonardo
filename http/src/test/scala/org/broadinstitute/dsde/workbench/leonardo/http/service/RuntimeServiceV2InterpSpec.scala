@@ -682,7 +682,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
         .transaction
       preDeleteCluster_1 = preDeleteClusterOpt_1.get
-      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Running, context.now).transaction
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Error, context.now).transaction
       preDeleteCluster_2 = preDeleteClusterOpt_2.get
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_2.id, RuntimeStatus.Running, context.now).transaction
 
