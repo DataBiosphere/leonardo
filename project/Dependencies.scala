@@ -17,7 +17,7 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.7.0"
 
-  private val workbenchLibsHash = "6392bb3"
+  private val workbenchLibsHash = "1a6839f"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.22-$workbenchLibsHash"
@@ -61,7 +61,7 @@ object Dependencies {
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.5"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
-  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.2"
+  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
@@ -73,7 +73,7 @@ object Dependencies {
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.51.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
-  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
+  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-16" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
@@ -123,9 +123,9 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.31"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.18.0"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.17.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.0" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.124.21" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.2"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
