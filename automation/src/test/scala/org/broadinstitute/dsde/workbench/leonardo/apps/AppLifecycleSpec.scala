@@ -50,12 +50,11 @@ class AppLifecycleSpec
 
   private val appTestCases = Table(
     ("description", "createAppRequest", "testStartStop", "testPersistentDisk"),
-    // Uncomment once https://broadworkbench.atlassian.net/browse/IA-4021 has been merged
-//    ("create CROMWELL app, delete it and re-create it with same disk",
-//     createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None),
-//     false,
-//     true
-//    ),
+    ("create CROMWELL app, delete it and re-create it with same disk",
+     createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None),
+     false,
+     true
+    ),
     ("create GALAXY app, start/stop, delete it",
      createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None),
      true,
