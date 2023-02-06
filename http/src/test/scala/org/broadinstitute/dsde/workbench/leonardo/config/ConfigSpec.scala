@@ -82,7 +82,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "69.173.127.240/28",
         "69.173.112.0/21"
       ).map(CidrIP),
-      KubernetesClusterVersion("1.21"),
+      KubernetesClusterVersion("1.24"),
       1 hour,
       200
     )
@@ -126,5 +126,22 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
     val expectedResult =
       GalaxyDiskConfig("nfs-disk", DiskSize(100), "postgres-disk", "gxy-postres-disk", DiskSize(10), BlockSize(4096))
     Config.gkeGalaxyDiskConfig shouldBe expectedResult
+  }
+
+  it should "read gkeGalaxyAppConfig properly" in {
+    val expectedResult =
+      AppMonitorConfig(
+        PollMonitorConfig(10 seconds, 90, 10 seconds),
+        PollMonitorConfig(10 seconds, 90, 10 seconds),
+        PollMonitorConfig(30 seconds, 120, 15 seconds),
+        PollMonitorConfig(30 seconds, 120, 15 seconds),
+        PollMonitorConfig(2 seconds, 100, 3 seconds),
+        InterruptablePollMonitorConfig(120, 15 seconds, 30 minutes),
+        PollMonitorConfig(30 seconds, 120, 10 seconds),
+        PollMonitorConfig(0 days, 10, 2 seconds),
+        PollMonitorConfig(0 days, 10, 2 seconds),
+        InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes)
+      )
+    Config.appMonitorConfig shouldBe expectedResult
   }
 }

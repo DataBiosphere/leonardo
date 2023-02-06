@@ -470,9 +470,9 @@ class GKEInterpreter[F[_]](
                                                              KubernetesNamespace(app.appResources.namespace.name)
               )
 
-              galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
-              cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
-              _ <- (galaxyPvc, cvmfsPvc).tupled
+              _ <- pvcs
+                // We added an extra -galaxy here: https://github.com/galaxyproject/galaxykubeman-helm/blob/f7f27be74c213deda3ae53122[…]959c96480bb21f/galaxykubeman/templates/config-setup-galaxy.yaml
+                .find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-galaxy-pvc")
                 .fold(
                   F.raiseError[Unit](
                     PubsubKubernetesError(AppError("Fail to retrieve pvc ids",
@@ -489,10 +489,9 @@ class GKEInterpreter[F[_]](
                                           None
                     )
                   )
-                ) { case (gp, cp) =>
+                ) { galaxyPvc =>
                   val galaxyDiskRestore = GalaxyRestore(
-                    PvcId(gp.getMetadata.getUid),
-                    PvcId(cp.getMetadata.getUid),
+                    PvcId(galaxyPvc.getMetadata.getUid),
                     app.id
                   )
                   persistentDiskQuery
@@ -688,7 +687,6 @@ class GKEInterpreter[F[_]](
       _ <- appRestore.traverse { restore =>
         for {
           _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
-          _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.cvmfsPvcId.asString}"))
         } yield ()
       }
       _ <-
@@ -732,11 +730,12 @@ class GKEInterpreter[F[_]](
                 nodepoolId,
                 NodePoolAutoscaling.newBuilder().setEnabled(false).build()
               )
+              _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
               lastOp <- gkeService
                 .pollOperation(
                   KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                  config.monitorConfig.setNodepoolAutoscaling.interval,
-                  config.monitorConfig.setNodepoolAutoscaling.maxAttempts
+                  config.monitorConfig.scalingDownNodepool.interval,
+                  config.monitorConfig.scalingDownNodepool.maxAttempts
                 )
                 .compile
                 .lastOrError
@@ -758,11 +757,12 @@ class GKEInterpreter[F[_]](
       _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
         for {
           op <- gkeService.setNodepoolSize(nodepoolId, 0)
+          _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
           lastOp <- gkeService
             .pollOperation(
               KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-              config.monitorConfig.scaleNodepool.interval,
-              config.monitorConfig.scaleNodepool.maxAttempts
+              config.monitorConfig.scalingDownNodepool.interval,
+              config.monitorConfig.scalingDownNodepool.maxAttempts
             )
             .compile
             .lastOrError
@@ -819,11 +819,12 @@ class GKEInterpreter[F[_]](
             nodepoolId,
             dbNodepool.numNodes.amount
           )
+          _ <- F.sleep(config.monitorConfig.scalingUpNodepool.initialDelay)
           lastOp <- gkeService
             .pollOperation(
               KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-              config.monitorConfig.scaleNodepool.interval,
-              config.monitorConfig.scaleNodepool.maxAttempts
+              config.monitorConfig.scalingUpNodepool.interval,
+              config.monitorConfig.scalingUpNodepool.maxAttempts
             )
             .compile
             .lastOrError
@@ -913,11 +914,12 @@ class GKEInterpreter[F[_]](
                           .build
                       )
 
+                      _ <- F.sleep(config.monitorConfig.scalingUpNodepool.initialDelay)
                       lastOp <- gkeService
                         .pollOperation(
                           KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                          config.monitorConfig.setNodepoolAutoscaling.interval,
-                          config.monitorConfig.setNodepoolAutoscaling.maxAttempts
+                          config.monitorConfig.scalingUpNodepool.interval,
+                          config.monitorConfig.scalingUpNodepool.maxAttempts
                         )
                         .compile
                         .lastOrError
@@ -1517,9 +1519,7 @@ class GKEInterpreter[F[_]](
     val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
       List(
         raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
-        raw"""restore.persistence.nfs.cvmfsCache.pvcID=${g.cvmfsPvcId.asString}""",
-        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-pvc""",
-        raw"""cvmfs.cache.alienCache.existingClaim=${release.asString}-cvmfs-alien-cache-pvc"""
+        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-galaxy-pvc"""
       )
     )
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
@@ -1528,10 +1528,7 @@ class GKEInterpreter[F[_]](
     List(
       // Storage class configs
       raw"""nfs.storageClass.name=nfs-${release.asString}""",
-      raw"""cvmfs.repositories.cvmfs-gxy-data-${release.asString}=data.galaxyproject.org""",
-      raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.asString}""",
       raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
-      raw"""galaxy.cvmfs.galaxyPersistentVolumeClaims.data.storageClassName=cvmfs-gxy-data-${release.asString}""",
       // Node selector config: this ensures the app is run on the user's nodepool
       raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
@@ -1545,6 +1542,9 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.ingress.hosts[0].paths[0].path=${ingressPath}""",
       raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
+      // CVMFS configs
+      raw"""cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-${release.asString}""",
+      raw"""cvmfs.cvmfscsi.cache.alien.pvc.name=cvmfs-alien-cache""",
       // Galaxy configs
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
@@ -1552,6 +1552,13 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
       raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
       raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Tusd ingress configs
+      raw"""galaxy.tusd.ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""galaxy.tusd.ingress.hosts[0].paths[0].path=${ingressPath}/api/upload/resumable_upload""",
+      raw"""galaxy.tusd.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.tusd.ingress.tls[0].secretName=tls-secret""",
+      // Set RabbitMQ storage class
+      raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
       // Set Machine Type specs
       raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
       raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
