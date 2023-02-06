@@ -9,7 +9,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByCreator, filterByWorkspaceId, nonDeletedAppQuery}
-import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
+import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.{
+  joinMinimalClusterAndUnmarshal,
+  unmarshalKubernetesCluster
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -60,7 +63,7 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * List all apps that need monitoring. Called by MonitorAtBoot.
+   * List all apps that need status monitoring. Called by MonitorAtBoot.
    */
   def listMonitoredApps(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status
@@ -68,6 +71,16 @@ object KubernetesServiceDbQueries {
       kubernetesClusterQuery,
       nodepoolQuery,
       appQuery.filter(_.status inSetBind AppStatus.monitoredStatuses)
+    )
+
+  /**
+   * List all apps for health checks. Called by AppHealthMonitor.
+   */
+  def listAppsForHealthCheck(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
+    joinFullAppAndUnmarshal(
+      kubernetesClusterQuery,
+      nodepoolQuery,
+      nonDeletedAppQuery
     )
 
   /**
