@@ -639,13 +639,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] = for {
+    ctx <- as.ask
     allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
     apps = allClusters
       .flatMap(_.nodepools)
       .flatMap(n => n.apps)
 
+    nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app.status))
+
+    _ <- F
+      .raiseError(DeleteAllAppsCannotBePerformed(workspaceId, nonDeletableApps, ctx.traceId))
+      .whenA(!nonDeletableApps.isEmpty)
+
     _ <- apps
-      .filter(app => AppStatus.deletableStatuses.contains(app.status))
       .traverse { app =>
         deleteAppV2Base(app, userInfo, workspaceId, deleteDisk)
       }
@@ -1227,12 +1233,10 @@ case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
       traceId = Some(traceId)
     )
 
-case class AppCannotBeCreatedException(googleProject: GoogleProject,
-                                       appName: AppName,
-                                       status: AppStatus,
-                                       traceId: TraceId
-) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be created in ${status} status.",
+case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
+    extends LeoException(
+      s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
+          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted their status(es).",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
