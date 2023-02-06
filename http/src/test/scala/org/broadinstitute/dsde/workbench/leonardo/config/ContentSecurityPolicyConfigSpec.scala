@@ -51,7 +51,9 @@ class ContentSecurityPolicyConfigSpec extends LeonardoTestSuite with AnyFlatSpec
           "https://portals.broadinstitute.org/webservices/igv/",
           "https://igv.org/genomes/",
           "https://raw.githubusercontent.com/PAIR-code/facets/1.0.0/facets-dist/facets-jupyter.html",
-          "https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/1.3.3/webcomponents-lite.js"
+          "https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/1.3.3/webcomponents-lite.js",
+          "https://*.jupyter-dev.firecloud.org",
+          "https://*.jupyter-prod.firecloud.org"
         )
       ),
       ObjectSrc(
