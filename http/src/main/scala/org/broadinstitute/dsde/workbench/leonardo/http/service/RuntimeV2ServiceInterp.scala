@@ -265,6 +265,32 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
     } yield ()
 
+  override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      runtimes <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map.empty, true, None, Some(workspaceId), None)
+        .map(_.toList)
+        .transaction
+
+      nonDeletableRuntimes = runtimes.filter(r => !r.status.isDeletable)
+
+      _ <-
+        if (nonDeletableRuntimes.isEmpty)
+          runtimes
+            .map(r => r.clusterName)
+            .traverse(runtime_name => deleteRuntime(userInfo, runtime_name, workspaceId, deleteDisk))
+        else
+          // Error out if any runtime is in a non deletable state
+          F.raiseError[Unit](
+            NonDeletableRuntimesInWorkspaceFoundException(workspaceId,
+                                                          s"${nonDeletableRuntimes.map(r => r.clusterName)}"
+            )
+          )
+    } yield ()
+
   override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =

@@ -881,6 +881,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  "/api/v2/runtimes/{workspaceId}/deleteAll":
+    post:
+      summary: Deletes ALL runtimes associated with the given workspace Id
+      description: deletes all runtimes in a workspace
+      operationId: deleteAllRuntimesV2
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: Runtime(s) deletion request accepted
+        "403":
+          description: User does not have permission to perform action on runtime(s)
+        "404":
+          description: Runtime(s) not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Persistent Disk paths ##
 
   /api/google/v1/disks:

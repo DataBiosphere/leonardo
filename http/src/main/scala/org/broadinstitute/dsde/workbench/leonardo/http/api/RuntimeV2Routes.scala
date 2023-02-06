@@ -62,6 +62,14 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       )
                     }
                   }
+                } ~ pathPrefix("deleteAll") {
+                  post {
+                    parameterMap { params =>
+                      complete(
+                        deleteAllRuntimesForWorkspaceHandler(userInfo, workspaceId, params)
+                      )
+                    }
+                  }
                 } ~ pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                   path("stop") {
                     post {
@@ -238,6 +246,21 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       _ <- metrics.incrementCounter("deleteRuntimeV2", 1, tags)
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "deleteRuntimeV2")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+  def deleteAllRuntimesForWorkspaceHandler(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      apiCall = runtimeV2Service.deleteAllRuntimes(userInfo, workspaceId, deleteDisk)
+      tags = Map("deleteDisk" -> deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteAllRuntimesV2", 1, tags)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "deleteAllRuntimesV2")
           .use(_ => apiCall)
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable

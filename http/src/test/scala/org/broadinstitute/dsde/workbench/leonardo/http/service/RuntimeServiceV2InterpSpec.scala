@@ -635,6 +635,155 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
+  it should "Azure V2 - deleteAllRuntimes, update all status appropriately, and queue multiple messages" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow listed
+    val runtimeName_1 = RuntimeName("clusterName1")
+    val runtimeName_2 = RuntimeName("clusterName2")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName_1,
+          workspaceId,
+          defaultCreateAzureRuntimeReq
+        )
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName_2,
+          workspaceId,
+          defaultCreateAzureRuntimeReq.copy(
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
+          )
+        )
+
+      _ <- publisherQueue.tryTakeN(Some(2)) // clean out create msg
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      preDeleteClusterOpt_1 <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_1)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      preDeleteClusterOpt_2 <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_2)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      preDeleteCluster_1 = preDeleteClusterOpt_1.get
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Error, context.now).transaction
+      preDeleteCluster_2 = preDeleteClusterOpt_2.get
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_2.id, RuntimeStatus.Running, context.now).transaction
+
+      _ <- azureService.deleteAllRuntimes(userInfo, workspaceId, true)
+
+      delete_messages <- publisherQueue.tryTakeN(Some(2))
+
+      postDeleteClusterOpt_1 <- clusterQuery
+        .getClusterById(preDeleteCluster_1.id)
+        .transaction
+      postDeleteClusterOpt_2 <- clusterQuery
+        .getClusterById(preDeleteCluster_2.id)
+        .transaction
+
+      runtimeConfig_1 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_1.runtimeConfigId).transaction
+      runtimeConfig_2 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_2.runtimeConfigId).transaction
+      diskOpt_1 <- persistentDiskQuery
+        .getById(runtimeConfig_1.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .transaction
+      diskOpt_2 <- persistentDiskQuery
+        .getById(runtimeConfig_2.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .transaction
+      disk_1 = diskOpt_1.get
+      disk_2 = diskOpt_2.get
+    } yield {
+      postDeleteClusterOpt_1.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+      disk_1.status shouldBe DiskStatus.Deleting
+      postDeleteClusterOpt_2.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+      disk_2.status shouldBe DiskStatus.Deleting
+
+      val expectedMessages = List(
+        DeleteAzureRuntimeMessage(preDeleteCluster_1.id, Some(disk_1.id), workspaceId, None, Some(context.traceId)),
+        DeleteAzureRuntimeMessage(preDeleteCluster_2.id, Some(disk_2.id), workspaceId, None, Some(context.traceId))
+      )
+      delete_messages shouldBe expectedMessages
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "Azure V2 - deleteAllRuntimes, error out if any runtime is not in a deletable status" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow listed
+    val runtimeName_1 = RuntimeName("clusterName1")
+    val runtimeName_2 = RuntimeName("clusterName2")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName_1,
+          workspaceId,
+          defaultCreateAzureRuntimeReq
+        )
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName_2,
+          workspaceId,
+          defaultCreateAzureRuntimeReq.copy(
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
+          )
+        )
+
+      _ <- publisherQueue.tryTakeN(Some(2)) // clean out create msg
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      preDeleteClusterOpt_1 <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_1)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      preDeleteClusterOpt_2 <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_2)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      // Let's keep the first cluster in the creating status so we won't deleted it in this test
+      preDeleteCluster_1 = preDeleteClusterOpt_1.get
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Creating, context.now).transaction
+      preDeleteCluster_2 = preDeleteClusterOpt_2.get
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_2.id, RuntimeStatus.Running, context.now).transaction
+
+      _ <- azureService.deleteAllRuntimes(userInfo, workspaceId, true)
+
+    } yield ()
+
+    the[NonDeletableRuntimesInWorkspaceFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
