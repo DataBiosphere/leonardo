@@ -48,17 +48,22 @@ class AppLifecycleSpec
     descriptorPath = descriptorPath
   )
 
-  // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
-  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
-    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
-  }
+  private val appTestCases = Table(
+    ("description", "createAppRequest", "testStartStop", "testPersistentDisk"),
+    ("create CROMWELL app, delete it and re-create it with same disk",
+     createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None),
+     false,
+     true
+    ),
+    ("create GALAXY app, start/stop, delete it and re-create it with same disk",
+     createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None),
+     true,
+     true
+    )
+  )
 
-  "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
-    googleProject =>
-      test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
-  }
-
-  "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
+  // Test custom app first so that there will be a GKE cluster created already for the next two tests
+  "create CUSTOM app, start/stop, delete it" in { googleProject =>
     test(
       googleProject,
       createAppRequest(
@@ -73,6 +78,13 @@ class AppLifecycleSpec
       true,
       false
     )
+  }
+
+  // Use forAll so that tests are run in parallel
+  forAll(appTestCases) { (description, createAppRequest, testStartStop, testPD) =>
+    description taggedAs Retryable in { googleProject =>
+      test(googleProject, createAppRequest, testStartStop, testPD)
+    }
   }
 
   def test(googleProject: GoogleProject,
@@ -103,8 +115,8 @@ class AppLifecycleSpec
         monitorCreateResult <- streamUntilDoneOrTimeout(
           getApp,
           120,
-          10 seconds,
-          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
+          15 seconds,
+          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 30 minutes"
         )(implicitly, appInStateOrError(AppStatus.Running))
         _ <- loggerIO.info(
           s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
@@ -124,13 +136,13 @@ class AppLifecycleSpec
               getAppResponse <- getApp
               _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
 
-              // Verify the app eventually becomes Stopped
-              _ <- IO.sleep(60 seconds)
+              // Verify the app eventually becomes Stopped. Resizing nodepool to 0 takes more than 10 minutes
+              _ <- IO.sleep(10 minutes)
               monitorStopResult <- streamUntilDoneOrTimeout(
                 getApp,
-                180,
+                360,
                 10 seconds,
-                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 60 minutes"
               )(implicitly, appInStateOrError(AppStatus.Stopped))
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"

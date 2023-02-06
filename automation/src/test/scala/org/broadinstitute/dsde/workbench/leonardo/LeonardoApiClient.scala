@@ -275,8 +275,8 @@ object LeonardoApiClient {
       res <- IO.sleep(80 seconds) >> streamUntilDoneOrTimeout(
         ioa,
         120,
-        10 seconds,
-        s"app ${googleProject.value}/${appName.value} did not finish app creation after 20 minutes."
+        15 seconds,
+        s"app ${googleProject.value}/${appName.value} did not finish app creation after 30 minutes."
       )
       _ <- res.status match {
         case AppStatus.Error =>
