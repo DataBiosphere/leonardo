@@ -65,7 +65,7 @@ object RuntimeMonitor {
       _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
-  private def findToolImageInfo(images: Set[RuntimeImage], imageConfig: ImageConfig): String = {
+  private def findToolImageInfo(images: Set[RuntimeImage], imageConfig: ImageConfig, custom: Boolean): String = {
     val terraJupyterImage = imageConfig.jupyterImageRegex.r
     val anvilRStudioImage = imageConfig.rstudioImageRegex.r
     val broadDockerhubImageRegex = imageConfig.broadDockerhubImageRegex.r
@@ -74,10 +74,10 @@ object RuntimeMonitor {
     ) match {
       case Some(toolImage) =>
         toolImage.imageUrl match {
-          case terraJupyterImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
-          case anvilRStudioImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
-          case broadDockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
-          case _                                         => "custom_image"
+          case terraJupyterImage(imageType, hash) if !custom        => s"GCR/${imageType}/${hash}"
+          case anvilRStudioImage(imageType, hash) if !custom        => s"GCR/${imageType}/${hash}"
+          case broadDockerhubImageRegex(imageType, hash) if !custom => s"DockerHub/${imageType}/${hash}"
+          case _                                                    => "custom_image"
         }
       case None => "unknown"
     }
@@ -92,7 +92,7 @@ object RuntimeMonitor {
   )(implicit openTelemetry: OpenTelemetryMetrics[F]): F[Unit] =
     for {
       endTime <- Async[F].realTimeInstant
-      toolImageInfo = if (custom) "custom_image" else findToolImageInfo(images, imageConfig)
+      toolImageInfo = findToolImageInfo(images, imageConfig, custom)
       metricsName = s"monitor/runtimeCreation"
       duration = (endTime.toEpochMilli - createdDate.toEpochMilli).milliseconds
       tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
