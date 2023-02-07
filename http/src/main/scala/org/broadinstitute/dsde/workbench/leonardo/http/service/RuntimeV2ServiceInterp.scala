@@ -275,7 +275,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .map(_.toList)
         .transaction
 
-      nonDeletableRuntimes = runtimes.filter(r => !r.status.isDeletable)
+      nonDeletableRuntimes = runtimes.filterNot(r => r.status.isDeletable)
 
       _ <-
         if (nonDeletableRuntimes.isEmpty)
