@@ -65,11 +65,8 @@ jobs:
           echo "sha-short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
 
-      - name: list directories
+      - name: Echo branch information
         run: |
-          ls -l pact4s
-          cd pact4s
-          cat README.md
           echo ${{ steps.extract-branch.outputs.ref }}
           echo ${{ steps.extract-branch.outputs.sha }}
           echo ${{ steps.extract-branch.outputs.sha-short }}
@@ -98,7 +95,7 @@ jobs:
       contents: 'read'
       id-token: 'write'
     steps:
-      - name: dispatch to terra-github-workflows
+      - name: Dispatch to terra-github-workflows
         uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
         with:
           workflow: publish-pacts.yaml
