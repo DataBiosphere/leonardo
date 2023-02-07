@@ -44,13 +44,13 @@ class AppMetricsMonitor[F[_]](config: AppHealthMonitorConfig,
         .handleErrorWith(e => logger.error(e)("Unexpected error occurred during app health monitoring"))
     )).repeat
 
-  /** Collects and records all app metrics */
+  /** Queries for all apps in the DB and collects metrics. */
   private[monitor] def healthCheck: F[Unit] =
     for {
       now <- F.realTimeInstant
       traceId = TraceId(s"AppHealthMonitor_${now.toEpochMilli}")
       implicit0(appContext: Ask[F, AppContext]) = Ask.const[F, AppContext](AppContext(traceId, now))
-      clusters <- KubernetesServiceDbQueries.listAppsForHealthCheck.transaction
+      clusters <- KubernetesServiceDbQueries.listAppsForMetrics.transaction
       appDbStatus = countAppsByDbStatus(clusters)
       _ <- recordMetric(appDbStatus)
       appHealth <- countAppsByHealth(clusters)
@@ -86,7 +86,7 @@ class AppMetricsMonitor[F[_]](config: AppHealthMonitorConfig,
       .parTraverseN(parallelism) { case (cloudContext, baseUri, appName, appType, userEmail, serviceName) =>
         for {
           ctx <- ev.ask
-          // For GCP just test the app is avaible through the Leo proxy.
+          // For GCP just test the app is available through the Leo proxy.
           // For Azure impersonate the user and call the app's status endpoint via Azure Relay.
           isUp <- cloudContext match {
             case CloudContext.Gcp(project) => appDAO.isProxyAvailable(project, appName, serviceName)
@@ -126,7 +126,8 @@ class AppMetricsMonitor[F[_]](config: AppHealthMonitorConfig,
         for {
           ctx <- ev.ask
           _ <- metrics.gauge(
-            metric.name count,
+            metric.name,
+            count,
             metric.tags
           )
           _ <- logger.info(ctx.loggingCtx)(s"Recorded metric: ${metric.name}, tags: ${metric.tags}, value: ${count}")
