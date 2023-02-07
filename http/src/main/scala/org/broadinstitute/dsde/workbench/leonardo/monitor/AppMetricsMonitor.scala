@@ -22,7 +22,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 /** Monitors metrics about app deployments. */
-class AppMetricsMonitor[F[_]](config: AppHealthMonitorConfig,
+class AppMetricsMonitor[F[_]](config: AppMetricsMonitorConfig,
                               appDAO: AppDAO[F],
                               wdsDAO: WdsDAO[F],
                               cbasDAO: CbasDAO[F],
@@ -136,7 +136,7 @@ class AppMetricsMonitor[F[_]](config: AppHealthMonitorConfig,
       .void
 }
 
-case class AppHealthMonitorConfig(checkInterval: FiniteDuration)
+case class AppMetricsMonitorConfig(checkInterval: FiniteDuration)
 
 sealed trait AppMetric {
   def name: String

@@ -257,6 +257,15 @@ object Boot extends IOApp {
               appDependencies.asyncTasksQueue
             )
 
+          val appMetrics = new AppMetricsMonitor(
+            AppMetricsMonitorConfig(5 minutes),
+            appDependencies.appDAO,
+            appDependencies.wdsDAO,
+            appDependencies.cbasDAO,
+            appDependencies.cromwellDAO,
+            appDependencies.samDAO
+          )
+
           List(
             nonLeoMessageSubscriber.process,
             Stream.eval(appDependencies.nonLeoMessageGoogleSubscriber.start),
@@ -264,7 +273,8 @@ object Boot extends IOApp {
             appDependencies.pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
-            autopauseMonitor.process // check database to autopause runtimes periodically
+            autopauseMonitor.process, // check database to autopause runtimes periodically
+            appMetrics.process // checks database and collects metrics about active apps
           )
         }
 
@@ -688,7 +698,11 @@ object Boot extends IOApp {
         gkeAlg,
         dataprocInterp,
         oidcConfig,
-        aksAlg
+        aksAlg,
+        appDAO,
+        wdsDao,
+        cbasDao,
+        cromwellDao
       )
     }
 
@@ -788,5 +802,9 @@ final case class AppDependencies[F[_]](
   gkeAlg: GKEAlgebra[F],
   dataprocInterp: DataprocInterpreter[F],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
-  aksInterp: AKSAlgebra[F]
+  aksInterp: AKSAlgebra[F],
+  appDAO: AppDAO[F],
+  wdsDAO: WdsDAO[F],
+  cbasDAO: CbasDAO[F],
+  cromwellDAO: CromwellDAO[F]
 )
