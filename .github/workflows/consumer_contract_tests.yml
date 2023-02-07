@@ -104,5 +104,5 @@ jobs:
           workflow: publish-pacts.yaml
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          token: ${{ secrets.BROADBOT_GITHUB_TOKEN }} # github token for access to kick off a job in the private repo
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{ "consumer-name": "leo-consumer", "consumer-version": "${{ needs.leo-consumer-contract-tests.outputs.sha-short }}", "provider-name": "sam-provider", "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}" }'
