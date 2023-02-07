@@ -182,3 +182,14 @@ final case class DiskAlreadyFormattedError(alreadyFormattedBy: FormattedBy, targ
       message = s"Disk is formatted by $alreadyFormattedBy already, cannot be used for $targetAppName app",
       traceId = Some(traceId)
     )
+
+case class NonDeletableRuntimesInWorkspaceFoundException(
+  workspaceId: WorkspaceId,
+  msg: String,
+  traceId: Option[TraceId] = None
+) extends LeoException(
+      s"Workspace ${workspaceId} contains runtimes in a non deletable state.",
+      StatusCodes.Conflict,
+      extraMessageInLogging = s"Details: ${msg}",
+      traceId = traceId
+    )

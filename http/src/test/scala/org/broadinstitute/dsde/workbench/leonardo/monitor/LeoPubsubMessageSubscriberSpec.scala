@@ -830,7 +830,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       getDisk.status shouldBe DiskStatus.Ready
       galaxyRestore shouldBe Some(
-        GalaxyRestore(PvcId(s"nfs-pvc-id1"), PvcId("cvmfs-pvc-id1"), getApp.app.id)
+        GalaxyRestore(PvcId(s"nfs-pvc-id1"), getApp.app.id)
       )
     }
 

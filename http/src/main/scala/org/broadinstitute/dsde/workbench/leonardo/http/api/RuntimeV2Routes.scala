@@ -62,6 +62,14 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       )
                     }
                   }
+                } ~ pathPrefix("deleteAll") {
+                  post {
+                    parameterMap { params =>
+                      complete(
+                        deleteAllRuntimesForWorkspaceHandler(userInfo, workspaceId, params)
+                      )
+                    }
+                  }
                 } ~ pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                   path("stop") {
                     post {
@@ -78,6 +86,17 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       post {
                         complete(
                           startRuntimeHandler(
+                            userInfo,
+                            workspaceId,
+                            runtimeName
+                          )
+                        )
+                      }
+                    } ~
+                    path("updateDateAccessed") {
+                      patch {
+                        complete(
+                          updateDateAccessedHandler(
                             userInfo,
                             workspaceId,
                             runtimeName
@@ -231,6 +250,21 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
+  def deleteAllRuntimesForWorkspaceHandler(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      apiCall = runtimeV2Service.deleteAllRuntimes(userInfo, workspaceId, deleteDisk)
+      tags = Map("deleteDisk" -> deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteAllRuntimesV2", 1, tags)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "deleteAllRuntimesV2")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        workspaceId: Option[WorkspaceId],
                                        cloudProvider: Option[CloudProvider],
@@ -247,6 +281,19 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
           .use(_ => apiCall)
       )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
+
+  private[api] def updateDateAccessedHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = runtimeV2Service.updateDateAccessed(userInfo, workspaceId, runtimeName)
+      _ <- metrics.incrementCounter("updateDateAccessed")
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "updateDateAccessed")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted: ToResponseMarshallable
 
   implicit val createAzureDiskReqDecoder: Decoder[CreateAzureDiskRequest] =
     Decoder.forProduct4("labels", "name", "size", "diskType")(CreateAzureDiskRequest.apply)

@@ -40,6 +40,10 @@ trait RuntimeV2Service[F[_]] {
     implicit as: Ask[F, AppContext]
   ): F[Unit]
 
+  def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
   def listRuntimes(userInfo: UserInfo,
                    workspaceId: Option[WorkspaceId],
                    cloudProvider: Option[CloudProvider],
@@ -47,6 +51,10 @@ trait RuntimeV2Service[F[_]] {
   )(implicit
     as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
+
+  def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
 }
 
 final case class CustomScriptExtensionConfig(name: String,

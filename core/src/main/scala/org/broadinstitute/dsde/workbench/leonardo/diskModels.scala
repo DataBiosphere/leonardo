@@ -133,7 +133,7 @@ sealed trait AppRestore extends Product with Serializable {
 
 object AppRestore {
   // information needed for restoring a Galaxy app
-  final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
+  final case class GalaxyRestore(galaxyPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
 
   // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
   final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore

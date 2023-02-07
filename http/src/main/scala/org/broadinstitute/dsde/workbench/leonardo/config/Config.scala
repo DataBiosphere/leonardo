@@ -272,7 +272,7 @@ object Config {
 
   implicit private val pollMonitorConfigReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
     PollMonitorConfig(
-      config.as[Option[FiniteDuration]]("initial-delay").getOrElse(2 seconds),
+      config.as[FiniteDuration]("initial-delay"),
       config.as[Int]("max-attempts"),
       config.as[FiniteDuration]("interval")
     )
@@ -811,8 +811,8 @@ object Config {
       config.as[PollMonitorConfig]("createIngress"),
       config.as[InterruptablePollMonitorConfig]("createApp"),
       config.as[PollMonitorConfig]("deleteApp"),
-      config.as[PollMonitorConfig]("scaleNodepool"),
-      config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
+      config.as[PollMonitorConfig]("scalingUpNodepool"),
+      config.as[PollMonitorConfig]("scalingDownNodepool"),
       config.as[InterruptablePollMonitorConfig]("startApp")
     )
   }

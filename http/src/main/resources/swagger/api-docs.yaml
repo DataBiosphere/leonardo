@@ -25,10 +25,6 @@ tags:
   - name: service_info
     description: Service Info API
 security:
-  - googleoauth:
-      - openid
-      - email
-      - profile
   - oidc:
       - openid
       - email
@@ -710,6 +706,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/runtimes/{workspaceId}/{name}/updateDateAccessed":
+    patch:
+      summary: Update the date accessed of a runtime.
+      description: >
+        This API is used in conjunction with v2 runtime's autopause functionality. Since Azure runtimes are not proxied to Leonardo, the relay must send a 'keep-alive' 
+        message of sorts. If no requests are received after a period of time, the runtime will be stopped.
+        Each request to this API does not result in the runtime's date accessed being updated. An async process is responsible for batching them and executing updates.
+      operationId: updateDateAccessed
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Runtime update date accessed request accepted
+        "403":
+          description: User does not have permission to perform action on runtime
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
   "/api/v2/runtimes/{workspaceId}/azure/{name}":
     get:
       summary: Get details of an azure runtime
@@ -834,6 +870,45 @@ paths:
           description: User does not have permission to perform action on runtime
         "404":
           description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
+  "/api/v2/runtimes/{workspaceId}/deleteAll":
+    post:
+      summary: Deletes ALL runtimes associated with the given workspace Id
+      description: deletes all runtimes in a workspace
+      operationId: deleteAllRuntimesV2
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: Runtime(s) deletion request accepted
+        "403":
+          description: User does not have permission to perform action on runtime(s)
+        "404":
+          description: Runtime(s) not found
           content:
             application/json:
               schema:
@@ -1687,6 +1762,45 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ListAppResponse"
+
+  "/api/apps/v2/{workspaceId}/deleteAll":
+    post:
+      summary: Deletes ALL apps associated with the given workspace Id
+      description: deletes all Apps in a workspace
+      operationId: deleteAllAppsV2
+      tags:
+        - appsV2
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: App(s) deletion request accepted
+        "403":
+          description: User does not have permission to perform action on App(s)
+        "404":
+          description: App(s) not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
 
   ## Deprecated Notebook API ##
 
@@ -2596,15 +2710,6 @@ components:
             disk: { labels: {}, name: "disk1", size: 50 }
 
   securitySchemes:
-    googleoauth:
-      type: oauth2
-      flows:
-        implicit:
-          authorizationUrl: https://accounts.google.com/o/oauth2/auth
-          scopes:
-            openid: open id authorization
-            email: email authorization
-            profile: profile authorization
     oidc:
       type: oauth2
       flows:
@@ -2625,11 +2730,12 @@ components:
     AppStatus:
       type: string
       enum:
-        - DELETING
         - DELETED
+        - DELETING
         - ERROR
         - PROVISIONING
         - RUNNING
+        - STARTING
         - STATUS_UNSPECIFIED
         - STOPPED
         - STOPPING

@@ -141,7 +141,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
-      "fullnameOverride=coa-rel-1"
+      "cbas.coaEnabled=true," +
+      "cbasUI.coaEnabled=true," +
+      "wds.coaEnabled=true," +
+      "cromwell.coaEnabled=true," +
+      "fullnameOverride=coa-rel-1," +
+      "instrumentationEnabled=false"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {

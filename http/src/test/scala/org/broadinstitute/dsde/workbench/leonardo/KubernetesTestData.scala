@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
@@ -39,7 +40,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("/leonardo/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("1.6.1")
+  val galaxyChartVersion = ChartVersion("2.4.5")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -49,7 +50,8 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.186")
+  val coaChartVersion = ChartVersion("0.2.195")
+
   val coaChart = Chart(coaChartName, coaChartVersion)
 
   val serviceKind = KubernetesServiceKindName("ClusterIP")
@@ -134,6 +136,32 @@ object KubernetesTestData {
     KubernetesCluster(
       KubernetesClusterLeoId(-1),
       uniqueCloudContextGcp,
+      name,
+      location,
+      region,
+      status,
+      ingressChart,
+      auditInfo,
+      None,
+      List(),
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
+    )
+  }
+
+  def makeAzureCluster(index: Int,
+                       withDefaultNodepool: Boolean = true,
+                       status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
+  ): KubernetesCluster = {
+    val name = KubernetesClusterName("kubecluster" + index)
+    val uniqueCloudContextAzure = CloudContext.Azure(
+      AzureCloudContext(tenantId = TenantId("tenant-id"),
+                        subscriptionId = SubscriptionId("sub-id"),
+                        managedResourceGroupName = ManagedResourceGroupName("mrg-name")
+      )
+    )
+    KubernetesCluster(
+      KubernetesClusterLeoId(-1),
+      uniqueCloudContextAzure,
       name,
       location,
       region,
