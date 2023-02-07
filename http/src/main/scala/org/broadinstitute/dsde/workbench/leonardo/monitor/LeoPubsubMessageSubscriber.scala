@@ -1343,7 +1343,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         case CloudService.GCE =>
           for {
             runtimeOpt <- clusterQuery.getClusterById(runtimeId).transaction
-
             _ <- runtimeOpt.traverse_ { runtime =>
               // If the disk is in Creating status, then it means it hasn't been used previously. Hence delete the disk
               // if the runtime fails to create.
@@ -1365,11 +1364,17 @@ class LeoPubsubMessageSubscriber[F[_]](
                       persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
                         persistentDiskQuery.getPersistentDiskRecord(did).transaction
                       )
-                      _ <- persistentDiskOpt.traverse_(d =>
-                        googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
-                          .updateStatus(d.id, DiskStatus.Deleted, now)
-                          .transaction
-                      )
+                      _ <- persistentDiskOpt match {
+                        case Some(value) =>
+                          if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
+                            persistentDiskOpt.traverse_(d =>
+                              googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                                .updateStatus(d.id, DiskStatus.Deleted, now)
+                                .transaction
+                            )
+                          } else F.unit
+                        case None => F.unit
+                      }
                     } yield ()
                   }
                 } yield ()
