@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+# If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
+
 # This is to avoid the error Ref BioC
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
@@ -61,6 +63,26 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 /anaconda/envs/py38_default/bin/pip3 install igv-jupyter
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn
+
+# Update rbase
+
+echo "Y"|sudo apt install --no-install-recommends r-base
+
+#Update kernel list
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkrkernel
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel  
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python 
+
+echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
+
+echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
+
+/anaconda/bin/jupyter kernelspec install /anaconda/envs/py38_default/share/jupyter/kernels/python3
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
