@@ -28,7 +28,7 @@ on:
       - 'README.md'
   push:
     branches:
-      - QA-2047
+      - develop
     paths-ignore:
       - 'README.md'
 
