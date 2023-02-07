@@ -1236,7 +1236,7 @@ case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
 case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
     extends LeoException(
       s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
-          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted their status(es).",
+          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
