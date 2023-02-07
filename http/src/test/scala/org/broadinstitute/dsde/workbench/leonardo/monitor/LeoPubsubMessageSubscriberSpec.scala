@@ -214,6 +214,50 @@ class LeoPubsubMessageSubscriberSpec
         } yield {
           error.nonEmpty shouldBe true
           runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+          diskStatus shouldBe Some(DiskStatus.Ready)
+        }
+
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          assertions
+        )
+      } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  "createRuntimeErrorHandler" should "delete creating disk on failed runtime start" in isolatedDbTest {
+    val runtimeMonitor = new MockRuntimeMonitor {
+      override def process(
+        a: CloudService
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val leoSubscriber = makeLeoSubscriber(runtimeMonitor = runtimeMonitor, asyncTaskQueue = queue)
+    val res =
+      for {
+        disk <- makePersistentDisk().save()
+        _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Failed, Instant.now()).transaction
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+        )
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+        tr <- traceId.ask[TraceId]
+        gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
+        )
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
+        } yield {
+          error.nonEmpty shouldBe true
+          runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
           diskStatus shouldBe Some(DiskStatus.Deleted)
         }
 
