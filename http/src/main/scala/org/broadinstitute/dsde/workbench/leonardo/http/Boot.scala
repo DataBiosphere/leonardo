@@ -257,8 +257,13 @@ object Boot extends IOApp {
               appDependencies.asyncTasksQueue
             )
 
-          val appMetrics = new AppMetricsMonitor(
-            AppMetricsMonitorConfig(1 minute),
+          implicit val clusterToolToToolDao =
+            ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
+                                         appDependencies.welderDAO,
+                                         appDependencies.rstudioDAO
+            )
+          val appMetrics = new LeoMetricsMonitor(
+            LeoMetricsMonitorConfig(1 minute),
             appDependencies.appDAO,
             appDependencies.wdsDAO,
             appDependencies.cbasDAO,
@@ -685,6 +690,8 @@ object Boot extends IOApp {
         samDao,
         dockerDao,
         jupyterDao,
+        rstudioDAO,
+        welderDao,
         wsmDao,
         serviceAccountProvider,
         authProvider,
@@ -790,6 +797,8 @@ final case class AppDependencies[F[_]](
   samDAO: HttpSamDAO[F],
   dockerDAO: HttpDockerDAO[F],
   jupyterDAO: HttpJupyterDAO[F],
+  rstudioDAO: HttpRStudioDAO[F],
+  welderDAO: HttpWelderDAO[F],
   wsmDAO: HttpWsmDao[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],

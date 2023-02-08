@@ -414,9 +414,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       scopes <- scopeQuery.getAllForCluster(runtimeId)
     } yield ExtraInfoForCreateRuntime(images.toSet, extention, scopes)
 
-  def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =
+  def listActiveForMetrics(implicit ec: ExecutionContext): DBIO[Seq[RuntimeContainers]] =
     clusterJoinClusterImageQuery.filter(_._1.status === (RuntimeStatus.Running: RuntimeStatus)).result map {
-      unmarshalRunningCluster
+      unmarshalRuntimeContainers
     }
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
@@ -746,17 +746,25 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }.toSeq
   }
 
-  private def unmarshalRunningCluster(clusterImages: Seq[(ClusterRecord, ClusterImageRecord)]): Seq[RunningRuntime] = {
-    val clusterContainerMap: Map[RunningRuntime, Chain[RuntimeContainerServiceType]] = clusterImages.toList.foldMap {
+  private def unmarshalRuntimeContainers(
+    clusterImages: Seq[(ClusterRecord, ClusterImageRecord)]
+  ): Seq[RuntimeContainers] = {
+    val clusterContainerMap: Map[RuntimeContainers, Chain[RuntimeContainerServiceType]] = clusterImages.toList.foldMap {
       case (clusterRec, clusterImageRec) =>
         val containers = Chain.fromSeq(
           RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(clusterImageRec.imageType).toSeq
         )
-        Map(RunningRuntime(clusterRec.cloudContext, clusterRec.runtimeName, List.empty) -> containers)
+        Map(
+          RuntimeContainers(clusterRec.cloudContext,
+                            clusterRec.runtimeName,
+                            clusterRec.status,
+                            List.empty
+          ) -> containers
+        )
     }
 
-    clusterContainerMap.toSeq.map { case (runningCluster, containers) =>
-      runningCluster.copy(containers = containers.toList)
+    clusterContainerMap.toSeq.map { case (runtimeContainers, containers) =>
+      runtimeContainers.copy(containers = containers.toList)
     }
   }
 
