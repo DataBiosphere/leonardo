@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureRuntimeCreationError,
   AzureRuntimeStartingError,
   AzureRuntimeStoppingError,
   PubsubKubernetesError
@@ -112,6 +113,91 @@ class AzurePubsubHandlerSpec
 
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
         controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+      } yield {
+        controlledResources.length shouldBe 2
+        val resourceTypes = controlledResources.map(_.resourceType)
+        resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
+        resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "create azure vm properly with a persistent disk" in isolatedDbTest {
+    val vmReturn = mock[VirtualMachine]
+    val ipReturn: PublicIpAddress = mock[PublicIpAddress]
+
+    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+
+    val stubIp = "0.0.0.0"
+    when(vmReturn.getPrimaryPublicIPAddress()).thenReturn(ipReturn)
+    when(ipReturn.ipAddress()).thenReturn(stubIp)
+
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId))),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
+            None
+          )
+        )
+    }
+    val azurePubsubHandler =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Restoring).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime1 = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+        runtime2 = makeCluster(2)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        resourceId = WsmControlledResourceId(UUID.randomUUID())
+        _ <- controlledResourceQuery
+          .save(runtime1.id, resourceId, WsmResourceType.AzureDisk)
+          .transaction
+        now <- IO.realTimeInstant
+        _ <- persistentDiskQuery.updateWSMResourceId(disk.id, resourceId, now).transaction
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime2.id).transaction
+          getRuntime = getRuntimeOpt.get
+        } yield {
+          // check diskId is correct
+          getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
+          getRuntime.status shouldBe RuntimeStatus.Running
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime2.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        true,
+                                        None
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azurePubsubHandler.createAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime2.id).transaction
       } yield {
         controlledResources.length shouldBe 2
         val resourceTypes = controlledResources.map(_.resourceType)
@@ -479,6 +565,115 @@ class AzurePubsubHandlerSpec
 
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to create runtime with persistent disk if no resourceId" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId))),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
+            None
+          )
+        )
+    }
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        true,
+                                        None
+        )
+
+        err <- azureInterp.createAndPollRuntime(msg).attempt
+
+      } yield err shouldBe Left(
+        AzureRuntimeCreationError(
+          runtime.id,
+          workspaceId,
+          s"No associated resourceId found for Disk id:${disk.id.value}",
+          true
+        )
+      )
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to create runtime with persistent disk if WSMresource not found" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId))),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
+            None
+          )
+        )
+    }
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+        now <- IO.realTimeInstant
+        _ <- persistentDiskQuery.updateWSMResourceId(disk.id, resourceId, now).transaction
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        true,
+                                        None
+        )
+
+        err <- azureInterp.createAndPollRuntime(msg).attempt
+
+      } yield err shouldBe
+        Left(
+          AzureRuntimeCreationError(
+            runtime.id,
+            workspaceId,
+            s"WSMResource:${resourceId} not found for disk id:${disk.id.value}",
+            true
+          )
+        )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

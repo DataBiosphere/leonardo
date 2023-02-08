@@ -471,9 +471,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def getClusterById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryById(id).result map { recs => unmarshalFullCluster(recs).headOption }
 
-  def getClusterByPersistentDiskId(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Runtime] =
-    clusterQuery.filter(_.persistentDiskId === diskId).headOption
-  
   def getActiveClusterInternalIdByName(cloudContext: CloudContext, name: RuntimeName)(implicit
     ec: ExecutionContext
   ): DBIO[Option[RuntimeSamResourceId]] =
@@ -524,6 +521,26 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def getClusterStatus(id: Long): DBIO[Option[RuntimeStatus]] =
     findByIdQuery(id).map(_.status).result.headOption
+
+  def getClusterFromRuntimeConfig(runtimeConfigId: RuntimeConfigId): DBIO[Option[ClusterRecord]] =
+    clusterQuery
+      .filter(_.runtimeConfigId === runtimeConfigId)
+      .result
+      .headOption
+
+  def getClusterFromDiskId(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Option[ClusterRecord]] =
+    // get most recently created runtime with the specified persistent disk
+    for {
+      runtimeConfigId <- runtimeConfigs
+        .filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === diskId)
+        .sortBy(_.dateAccessed.desc)
+        .map(_.id)
+        .result
+        .headOption
+
+      // cluster table is distinct by runtimeConfigId
+      runtimeOpt <- runtimeConfigId.flatTraverse(rid => getClusterFromRuntimeConfig(rid))
+    } yield runtimeOpt
 
   def getInitBucket(id: Long)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
     findByIdQuery(id)

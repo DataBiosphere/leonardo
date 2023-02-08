@@ -317,8 +317,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
           resourceId <- F.fromOption(
             disk.wsmResourceId,
-            new RuntimeException(
-              s"No associated resourceId found for Disk id:${params.runtimeConfig.persistentDiskId.value}"
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"No associated resourceId found for Disk id:${params.runtimeConfig.persistentDiskId.value}",
+              params.useExistingDisk
             )
           )
           diskResourceOpt <- controlledResourceQuery
@@ -326,8 +329,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .transaction
           wsmDisk <- F.fromOption(
             diskResourceOpt,
-            new RuntimeException(
-              s"Resource id:${resourceId} not found for disk id:${params.runtimeConfig.persistentDiskId.value}"
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"WSMResource:${resourceId} not found for disk id:${params.runtimeConfig.persistentDiskId.value}",
+              params.useExistingDisk
             )
           )
           _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
@@ -703,8 +709,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       auth <- samDAO.getLeoAuthToken
 
-      // if no existing disk being used, delete new disk created
-      _ = if (e.useExistingDisk == false) {
+      deleteDiskAction =
         for {
           diskResourceOpt <- controlledResourceQuery
             .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
@@ -723,7 +728,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           }.void
           _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
         } yield ()
-      }
+
+      // if no existing disk being used, delete new disk created
+      _ <- deleteDiskAction.whenA(!e.useExistingDisk)
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)

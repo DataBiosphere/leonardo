@@ -45,7 +45,7 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
       .filter(_.resourceId === resourceId)
       .filter(_.resourceType === resourceType)
       .result
-      .headOption
+      .headOption //db entry is updated with new runtimeId, so there will only ever be 1 entry per resourceId
 
   def getAllForRuntime(runtimeId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeControlledResourceRecord]] =
     controlledResourceQuery
