@@ -258,10 +258,11 @@ object Boot extends IOApp {
             )
 
           val appMetrics = new AppMetricsMonitor(
-            AppMetricsMonitorConfig(5 minutes),
+            AppMetricsMonitorConfig(1 minute),
             appDependencies.appDAO,
             appDependencies.wdsDAO,
             appDependencies.cbasDAO,
+            appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
             appDependencies.samDAO
           )
@@ -363,6 +364,9 @@ object Boot extends IOApp {
       )
       cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
         new HttpCbasDAO[F](client)
+      )
+      cbasUiDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_ui_client"), false).map(
+        client => new HttpCbasUiDAO[F](client)
       )
       wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
         new HttpWdsDAO[F](client)
@@ -622,6 +626,7 @@ object Boot extends IOApp {
         samDao,
         cromwellDao,
         cbasDao,
+        cbasUiDao,
         wdsDao
       )
 
@@ -702,6 +707,7 @@ object Boot extends IOApp {
         appDAO,
         wdsDao,
         cbasDao,
+        cbasUiDao,
         cromwellDao
       )
     }
@@ -806,5 +812,6 @@ final case class AppDependencies[F[_]](
   appDAO: AppDAO[F],
   wdsDAO: WdsDAO[F],
   cbasDAO: CbasDAO[F],
+  cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F]
 )

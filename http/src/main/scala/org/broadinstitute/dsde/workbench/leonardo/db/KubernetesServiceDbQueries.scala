@@ -9,10 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByCreator, filterByWorkspaceId, nonDeletedAppQuery}
-import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.{
-  joinMinimalClusterAndUnmarshal,
-  unmarshalKubernetesCluster
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException

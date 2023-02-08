@@ -61,6 +61,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            samDao: SamDAO[F],
                            cromwellDao: CromwellDAO[F],
                            cbasDao: CbasDAO[F],
+                           cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F]
 )(implicit
   executionContext: ExecutionContext,
@@ -332,11 +333,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .collect {
           case Cbas =>
             cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          case CbasUI =>
+            cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           case Wds =>
             wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          // TODO: Cromwell status check not working. Disabling temporarily until we're ready to launch Cromwell.
-//          case Cromwell =>
-//            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          case Cromwell =>
+            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         }
         .toList
         .sequence

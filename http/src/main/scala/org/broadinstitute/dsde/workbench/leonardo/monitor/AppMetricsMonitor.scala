@@ -26,6 +26,7 @@ class AppMetricsMonitor[F[_]](config: AppMetricsMonitorConfig,
                               appDAO: AppDAO[F],
                               wdsDAO: WdsDAO[F],
                               cbasDAO: CbasDAO[F],
+                              cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
                               samDAO: SamDAO[F]
 )(implicit
@@ -99,9 +100,14 @@ class AppMetricsMonitor[F[_]](config: AppMetricsMonitorConfig,
                 authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
                 relayPath = Uri.unsafeFromString(baseUri.asString) / appName.value
                 isUp <- serviceName match {
-                  case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader)
-                  case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader)
-                  case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader)
+                  case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cbas-ui")  => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case s =>
+                    logger.warn(ctx.loggingCtx)(
+                      s"Unexpected app service encountered during health checks: ${s.value}"
+                    ) >> F.pure(false)
                 }
               } yield isUp
           }
