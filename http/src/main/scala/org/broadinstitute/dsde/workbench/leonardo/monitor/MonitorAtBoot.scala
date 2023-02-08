@@ -459,7 +459,6 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                                    WorkspaceNotFoundException(wid, traceId)
           )
           workspaceStorageContainerUrl = StringUtils.substringBefore(storageContainerSasToken.url, "?")
-          // workspaces/v1/${workspaceId}/resources/controlled/azure/storageContainer/${containerId}/getSasToken?sasExpirationDuration=28800
           // Get the Landing Zone Resources for the app for Azure
           landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(

@@ -74,7 +74,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.image,
           msg.useExistingDisk,
           msg.workspaceName,
-          msg.workspaceStorageContainerUrl
+          msg.workspaceStorageContainerUrl,
+          workspaceName = "", // TODO
+          workspaceStorageContainerUrl = "" // TODO
         ),
         WsmJobControl(createVmJobId)
       )
@@ -142,9 +144,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.welderImage,
           params.runtime.auditInfo.creator.value,
           stagingContainerName.value,
-          stagingContainerResourceId.value.toString,
-          params.workspaceName,
-          params.workspaceStorageContainerUrl
+          stagingContainerResourceId.value.toString
+          // params.workspaceName,
+          // workspaceStorageContainerUrl
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
