@@ -1364,6 +1364,7 @@ class GKEInterpreter[F[_]](
             .addTags(config.vpcNetworkTag.value)
             .setMachineType(nodepool.machineType.value)
             .setServiceAccount(sa)
+            .setResourceLabels(Map("creator" -> app.auditInfo.creator, "appName" -> app.appName))
         )
       case _ =>
         nodepoolBuilder.setConfig(
@@ -1371,6 +1372,7 @@ class GKEInterpreter[F[_]](
             .newBuilder()
             .setMachineType(nodepool.machineType.value)
             .addTags(config.vpcNetworkTag.value)
+            .setResourceLabels(Map("creator" -> app.auditInfo.creator, "appName" -> app.appName))
         )
     }
 
