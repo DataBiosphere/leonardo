@@ -79,7 +79,9 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           landingZoneResources: LandingZoneResources,
                                           runtimeConfig: RuntimeConfig.AzureConfig,
                                           vmImage: AzureImage,
-                                          useExistingDisk: Boolean
+                                          useExistingDisk: Boolean,
+                                          workspaceName: String,
+                                          workspaceStorageContainerUrl: String
 )
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 

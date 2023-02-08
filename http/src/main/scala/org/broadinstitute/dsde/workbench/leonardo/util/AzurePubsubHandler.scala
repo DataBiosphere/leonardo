@@ -65,13 +65,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
       createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
       _ <- createRuntime(
-        CreateAzureRuntimeParams(msg.workspaceId,
-                                 runtime,
-                                 msg.storageContainerResourceId,
-                                 msg.landingZoneResources,
-                                 azureConfig,
-                                 config.runtimeDefaults.image,
-                                 msg.useExistingDisk
+        CreateAzureRuntimeParams(
+          msg.workspaceId,
+          runtime,
+          msg.storageContainerResourceId,
+          msg.landingZoneResources,
+          azureConfig,
+          config.runtimeDefaults.image,
+          msg.useExistingDisk,
+          msg.workspaceName,
+          msg.workspaceStorageContainerUrl
         ),
         WsmJobControl(createVmJobId)
       )
@@ -139,7 +142,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.welderImage,
           params.runtime.auditInfo.creator.value,
           stagingContainerName.value,
-          stagingContainerResourceId.value.toString
+          stagingContainerResourceId.value.toString,
+          params.workspaceName,
+          params.workspaceStorageContainerUrl
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"

@@ -214,12 +214,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
             _ <- publisherQueue.offer(
-              CreateAzureRuntimeMessage(savedRuntime.id,
-                                        workspaceId,
-                                        storageContainer.resourceId,
-                                        landingZoneResources,
-                                        useExistingDisk,
-                                        Some(ctx.traceId)
+              CreateAzureRuntimeMessage(
+                savedRuntime.id,
+                workspaceId,
+                storageContainer.resourceId,
+                landingZoneResources,
+                useExistingDisk,
+                Some(ctx.traceId),
+                req.workspaceName,
+                req.workspaceStorageContainerUrl
               )
             )
           } yield ()

@@ -383,6 +383,29 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     }.headOption
   } yield res
 
+  def getStorageContainerSasToken(workspaceId: WorkspaceId,
+                                  storageContainerId: WsmControlledResourceId,
+                                  authorization: Authorization
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[StorageContainerSasTokenResponse]] = for {
+    ctx <- ev.ask
+    res <- httpClient.expectOptionOr[StorageContainerSasTokenResponse](
+      Request[F](
+        method = Method.POST,
+        uri = config.uri
+          .withPath(
+            Uri.Path
+              .unsafeFromString(
+                s"/api/workspaces/v1/${workspaceId.value}/resources/controlled/azure/storageContainer${storageContainerId.value}/getSasToken"
+              )
+          )
+          .withQueryParam("sasExpirationDuration", "28800"),
+        headers = headers(authorization, ctx.traceId, false)
+      )
+    )(onError)
+  } yield res
+
   private def getWorkspaceResourceHelper(workspaceId: WorkspaceId,
                                          authorization: Authorization,
                                          wsmResourceType: WsmResourceType
