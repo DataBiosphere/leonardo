@@ -8,13 +8,16 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineSizeTypes}
+import org.apache.commons.lang3.StringUtils
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
@@ -74,9 +77,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.image,
           msg.useExistingDisk,
           msg.workspaceName,
-          msg.workspaceStorageContainerUrl,
-          workspaceName = "", // TODO
-          workspaceStorageContainerUrl = "" // TODO
+          msg.workspaceStorageContainerUrl
         ),
         WsmJobControl(createVmJobId)
       )

@@ -6,15 +6,11 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
-import org.apache.commons.lang3.StringUtils
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  CloudContextNotFoundException,
-  WorkspaceNotFoundException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
@@ -453,12 +449,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           )
           workspaceDescOpt <- wsmDao.getWorkspace(wid, leoAuth)
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
-          azureContext <- F.fromOption(workspaceDesc.azureContext, CloudContextNotFoundException(wid, traceId))
-          storageContainerSasTokenOpt <- wsmDao.getStorageContainerSasToken(wid, storageContainer.resourceId, leoAuth)
-          storageContainerSasToken <- F.fromOption(storageContainerSasTokenOpt,
-                                                   WorkspaceNotFoundException(wid, traceId)
-          )
-          workspaceStorageContainerUrl = StringUtils.substringBefore(storageContainerSasToken.url, "?")
+
           // Get the Landing Zone Resources for the app for Azure
           landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
