@@ -50,7 +50,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.197")
+  val coaChartVersion = ChartVersion("0.2.198")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
