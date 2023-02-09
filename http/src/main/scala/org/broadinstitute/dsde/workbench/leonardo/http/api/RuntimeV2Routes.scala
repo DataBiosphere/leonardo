@@ -123,13 +123,13 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                         pathEndOrSingleSlash {
                           post {
-                             parameterMap { params =>
+                            parameterMap { params =>
                               entity(as[CreateAzureRuntimeRequest]) { req =>
                                 complete(
                                   createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req, params)
                                 )
                               }
-                           }
+                            }
                           } ~ get {
                             complete(
                               getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
@@ -167,7 +167,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      //if not specified, create new disk
+      // if not specified, create new disk
       useExistingDisk = params.get("useExistingDisk").exists(_ == "true")
       apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, useExistingDisk, req)
       _ <- metrics.incrementCounter("createRuntimeV2")
@@ -311,12 +311,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
         .as[Option[Map[String, String]]]
       azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
-    } yield CreateAzureRuntimeRequest(labels,
-                                      machineSize,
-                                      customEnvVars.getOrElse(Map.empty),
-                                      azureDiskReq,
-                                      apt
-    )
+    } yield CreateAzureRuntimeRequest(labels, machineSize, customEnvVars.getOrElse(Map.empty), azureDiskReq, apt)
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =

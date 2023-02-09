@@ -689,9 +689,12 @@ object LeonardoApiClient {
           Request[IO](
             method = Method.POST,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(
-              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
-            ).withQueryParam("useExistingDisk", useExistingDisk),
+            uri = rootUri
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+              )
+              .withQueryParam("useExistingDisk", useExistingDisk),
             entity = createAzureRuntimeRequest
           )
         )
