@@ -6,7 +6,9 @@ import cats.effect.implicits.concurrentParTraverseOps
 import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ToolDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, _}
@@ -21,7 +23,7 @@ import org.typelevel.log4cats.StructuredLogger
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
-/** Monitors metrics about runtime and app deployments. */
+/** Collects metrics about Leo runtime and app deployments. */
 class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               appDAO: AppDAO[F],
                               wdsDAO: WdsDAO[F],
@@ -46,7 +48,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
         .handleErrorWith(e => logger.error(e)("Unexpected error occurred during metric monitoring"))
     )).repeat
 
-  /** Queries for all apps and runtimes in the DB and collects metrics. */
   private[monitor] def retrieveMetrics: F[Unit] =
     for {
       now <- F.realTimeInstant
@@ -56,26 +57,30 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       _ <- retrieveRuntimeMetrics
     } yield ()
 
-  /** Processes apps. */
+  /** Queries the DB for all active apps and collects metrics */
   private[monitor] def retrieveAppMetrics(implicit ev: Ask[F, AppContext]): F[Unit] = for {
     clusters <- KubernetesServiceDbQueries.listAppsForMetrics.transaction
     appDbStatus = countAppsByDbStatus(clusters)
     _ <- recordMetric(appDbStatus)
+    _ <- logger.info(s"Recorded status metrics for ${appDbStatus.size} apps")
     appHealth <- countAppsByHealth(clusters)
     _ <- recordMetric(appHealth)
+    _ <- logger.info(s"Recorded health metrics for ${appHealth.size} apps")
   } yield ()
 
-  /** Processes runtimes. */
+  /** Queries the DB for all active runtimes and collects metrics */
   private[monitor] def retrieveRuntimeMetrics(implicit ev: Ask[F, AppContext]): F[Unit] = for {
     runtimeSeq <- clusterQuery.listActiveForMetrics.transaction
     runtimes = runtimeSeq.toList
     runtimeDbStatus = countRuntimesByDbStatus(runtimes)
     _ <- recordMetric(runtimeDbStatus)
+    _ <- logger.info(s"Recorded status metrics for ${runtimeDbStatus.size} runtimes")
     runtimeHealth <- countRuntimesByHealth(runtimes)
     _ <- recordMetric(runtimeHealth)
+    _ <- logger.info(s"Recorded health metrics for ${runtimeHealth.size} runtimes")
   } yield ()
 
-  /** Counts apps by (cloudProvider, appType, dbStatus) */
+  /** Transforms apps to AppDbStatus metric type and computes counts. */
   private[monitor] def countAppsByDbStatus(
     allClusters: List[KubernetesCluster]
   ): Map[AppDbStatus, Int] = {
@@ -83,12 +88,36 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       c <- allClusters
       n <- c.nodepools
       a <- n.apps
-    } yield Map(AppDbStatus(c.cloudContext.cloudProvider, a.appType, a.status) -> 1)
+    } yield Map(
+      AppDbStatus(c.cloudContext.cloudProvider,
+                  a.appType,
+                  a.status,
+                  getRuntimeUI(a.labels),
+                  getAzureCloudContext(c.cloudContext)
+      ) -> 1
+    )
 
     allApps.combineAll
   }
 
-  /** Performs health checks for Running apps, and counts apps by (cloudProvider, appType, serviceName, isUp) */
+  /** Transforms runtimes to RuntimeDbStatus metric type and computes counts. */
+  private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeContainers]): Map[RuntimeDbStatus, Int] = {
+    val allContainers = for {
+      r <- allRuntimes
+      c <- r.containers if c != RuntimeContainerServiceType.WelderService
+    } yield Map(
+      RuntimeDbStatus(r.cloudContext.cloudProvider,
+                      c.imageType,
+                      r.status,
+                      getRuntimeUI(r.labels),
+                      getAzureCloudContext(r.cloudContext)
+      ) -> 1
+    )
+
+    allContainers.combineAll
+  }
+
+  /** Performs health checks for Running apps, and transforms to AppHealth metric type. */
   private[monitor] def countAppsByHealth(
     allClusters: List[KubernetesCluster]
   )(implicit ev: Ask[F, AppContext]): F[Map[AppHealth, Int]] = {
@@ -98,24 +127,25 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       // Only care about Running apps for health check metrics
       a <- n.apps if a.status == AppStatus.Running
       s <- a.appResources.services
-    } yield (c.cloudContext, c.asyncFields.get.loadBalancerIp, a.appName, a.appType, a.auditInfo.creator, s.config.name)
+    } yield (c.cloudContext, c.asyncFields.get.loadBalancerIp, a, s.config.name)
 
     allServices
-      .parTraverseN(parallelism) { case (cloudContext, baseUri, appName, appType, userEmail, serviceName) =>
+      .parTraverseN(parallelism) { case (cloudContext, baseUri, app, serviceName) =>
         for {
           ctx <- ev.ask
-          // For GCP just test the app is available through the Leo proxy.
+          // For GCP just test if the app is available through the Leo proxy.
           // For Azure impersonate the user and call the app's status endpoint via Azure Relay.
           isUp <- cloudContext match {
-            case CloudContext.Gcp(project) => appDAO.isProxyAvailable(project, appName, serviceName)
+            case CloudContext.Gcp(project) => appDAO.isProxyAvailable(project, app.appName, serviceName)
             case CloudContext.Azure(_) =>
               for {
-                tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(userEmail)
-                token <- F.fromOption(tokenOpt,
-                                      AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId))
+                tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+                token <- F.fromOption(
+                  tokenOpt,
+                  AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
                 )
                 authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-                relayPath = Uri.unsafeFromString(baseUri.asString) / appName.value
+                relayPath = Uri.unsafeFromString(baseUri.asString) / app.appName.value
                 isUp <- serviceName match {
                   case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
@@ -132,27 +162,35 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           _ <-
             if (isUp) F.unit
             else
-              logger.warn(ctx.loggingCtx)(
-                s"App is DOWN with cloudContext={${cloudContext.asStringWithProvider}}, name={${appName.value}}, type={${appType.toString}}, service={${serviceName.value}}"
+              logger.error(ctx.loggingCtx)(
+                s"App is DOWN with " +
+                  s"workspace={${app.workspaceId.map(_.value.toString).getOrElse("")}}, " +
+                  s"cloudContext={${cloudContext.asStringWithProvider}}, " +
+                  s"name={${app.appName.value}}, " +
+                  s"type={${app.appType.toString}}, " +
+                  s"service={${serviceName.value}}"
               )
-        } yield Map(AppHealth(cloudContext.cloudProvider, appType, serviceName, isUp) -> 1,
-                    AppHealth(cloudContext.cloudProvider, appType, serviceName, !isUp) -> 0
+        } yield Map(
+          AppHealth(cloudContext.cloudProvider,
+                    app.appType,
+                    serviceName,
+                    getRuntimeUI(app.labels),
+                    getAzureCloudContext(cloudContext),
+                    isUp
+          ) -> 1,
+          AppHealth(cloudContext.cloudProvider,
+                    app.appType,
+                    serviceName,
+                    getRuntimeUI(app.labels),
+                    getAzureCloudContext(cloudContext),
+                    !isUp
+          ) -> 0
         )
       }
       .map(_.combineAll)
   }
 
-  /** Counts runtimes by (cloudProvider, imageType, status). */
-  private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeContainers]): Map[RuntimeDbStatus, Int] = {
-    val allContainers = for {
-      r <- allRuntimes
-      c <- r.containers if c != RuntimeContainerServiceType.WelderService
-    } yield Map(RuntimeDbStatus(r.cloudContext.cloudProvider, c.imageType, r.status) -> 1)
-
-    allContainers.combineAll
-  }
-
-  /** Performs health checks for Running runtimes, and counts runtimes by (cloudProvider, imageType, isUp) */
+  /** Performs health checks for Running runtimes, and transforms to RuntimeHealth metric type. */
   private[monitor] def countRuntimesByHealth(
     allRuntimes: List[RuntimeContainers]
   )(implicit ev: Ask[F, AppContext]): F[Map[RuntimeHealth, Int]] = {
@@ -171,12 +209,25 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           _ <-
             if (isUp) F.unit
             else
-              logger.warn(ctx.loggingCtx)(
-                s"Runtime container is DOWN with cloudContext={${runtime.cloudContext.asStringWithProvider}}, name={${runtime.runtimeName.asString}}, type={${container.imageType.toString}}"
+              logger.error(ctx.loggingCtx)(
+                s"Runtime is DOWN with " +
+                  s"cloudContext={${runtime.cloudContext.asStringWithProvider}}, " +
+                  s"name={${runtime.runtimeName.asString}}, " +
+                  s"type={${container.imageType.toString}}"
               )
         } yield Map(
-          RuntimeHealth(runtime.cloudContext.cloudProvider, container.imageType, isUp) -> 1,
-          RuntimeHealth(runtime.cloudContext.cloudProvider, container.imageType, !isUp) -> 0
+          RuntimeHealth(runtime.cloudContext.cloudProvider,
+                        container.imageType,
+                        getRuntimeUI(runtime.labels),
+                        getAzureCloudContext(runtime.cloudContext),
+                        isUp
+          ) -> 1,
+          RuntimeHealth(runtime.cloudContext.cloudProvider,
+                        container.imageType,
+                        getRuntimeUI(runtime.labels),
+                        getAzureCloudContext(runtime.cloudContext),
+                        !isUp
+          ) -> 0
         )
       }
       .map(_.combineAll)
@@ -195,46 +246,90 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
             count,
             metric.tags
           )
-          _ <- logger.info(ctx.loggingCtx)(s"Recorded metric: ${metric.name}, tags: ${metric.tags}, value: ${count}")
+          _ <- logger.debug(ctx.loggingCtx)(s"Recorded metric: ${metric.name}, tags: ${metric.tags}, value: ${count}")
         } yield ()
       }
       .void
+
+  private def getRuntimeUI(labels: LabelMap): RuntimeUI =
+    if (labels.contains(Config.uiConfig.terraLabel)) RuntimeUI.Terra
+    else if (labels.contains(Config.uiConfig.allOfUsLabel)) RuntimeUI.AoU
+    else RuntimeUI.Other
+
+  private def getAzureCloudContext(cloudContext: CloudContext): Option[AzureCloudContext] =
+    (config.includeAzureCloudContext, cloudContext) match {
+      case (true, CloudContext.Azure(cc)) => Some(cc)
+      case _                              => None
+    }
 }
 
-case class LeoMetricsMonitorConfig(checkInterval: FiniteDuration)
+case class LeoMetricsMonitorConfig(checkInterval: FiniteDuration, includeAzureCloudContext: Boolean)
 
 sealed trait LeoMetric {
   def name: String
   def tags: Map[String, String]
 }
 object LeoMetric {
-  final case class AppDbStatus(cloudProvider: CloudProvider, appType: AppType, status: AppStatus) extends LeoMetric {
-    override def name: String = "appDbStatus"
+  final case class AppDbStatus(cloudProvider: CloudProvider,
+                               appType: AppType,
+                               status: AppStatus,
+                               runtimeUI: RuntimeUI,
+                               azureCloudContext: Option[AzureCloudContext]
+  ) extends LeoMetric {
+    override def name: String = "leoAppStatus"
     override def tags: Map[String, String] =
-      Map("cloudProvider" -> cloudProvider.asString, "appType" -> appType.toString, "status" -> status.toString)
+      Map(
+        "cloudProvider" -> cloudProvider.asString,
+        "appType" -> appType.toString,
+        "status" -> status.toString,
+        "uiClient" -> runtimeUI.asString
+      ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
   }
 
-  final case class AppHealth(cloudProvider: CloudProvider, appType: AppType, serviceName: ServiceName, isUp: Boolean)
-      extends LeoMetric {
-    override def name: String = "appHealth"
-    override def tags: Map[String, String] = Map("cloudProvider" -> cloudProvider.asString,
-                                                 "appType" -> appType.toString,
-                                                 "serviceName" -> serviceName.value,
-                                                 "isUp" -> isUp.toString
-    )
+  final case class AppHealth(cloudProvider: CloudProvider,
+                             appType: AppType,
+                             serviceName: ServiceName,
+                             runtimeUI: RuntimeUI,
+                             azureCloudContext: Option[AzureCloudContext],
+                             isUp: Boolean
+  ) extends LeoMetric {
+    override def name: String = "leoAppHealth"
+    override def tags: Map[String, String] = Map(
+      "cloudProvider" -> cloudProvider.asString,
+      "appType" -> appType.toString,
+      "serviceName" -> serviceName.value,
+      "uiClient" -> runtimeUI.asString,
+      "isUp" -> isUp.toString
+    ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
   }
 
-  final case class RuntimeDbStatus(cloudProvider: CloudProvider, imageType: RuntimeImageType, status: RuntimeStatus)
-      extends LeoMetric {
-    override def name: String = "runtimeDbStatus"
+  final case class RuntimeDbStatus(cloudProvider: CloudProvider,
+                                   imageType: RuntimeImageType,
+                                   status: RuntimeStatus,
+                                   runtimeUI: RuntimeUI,
+                                   azureCloudContext: Option[AzureCloudContext]
+  ) extends LeoMetric {
+    override def name: String = "leoRuntimeStatus"
     override def tags: Map[String, String] =
-      Map("cloudProvider" -> cloudProvider.asString, "imageType" -> imageType.toString, "status" -> status.toString)
+      Map("cloudProvider" -> cloudProvider.asString,
+          "imageType" -> imageType.toString,
+          "status" -> status.toString,
+          "uiClient" -> runtimeUI.asString
+      ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
   }
 
-  final case class RuntimeHealth(cloudProvider: CloudProvider, imageType: RuntimeImageType, isUp: Boolean)
-      extends LeoMetric {
-    override def name: String = "runtimeHealth"
+  final case class RuntimeHealth(cloudProvider: CloudProvider,
+                                 imageType: RuntimeImageType,
+                                 runtimeUI: RuntimeUI,
+                                 azureCloudContext: Option[AzureCloudContext],
+                                 isUp: Boolean
+  ) extends LeoMetric {
+    override def name: String = "leoRuntimeHealth"
     override def tags: Map[String, String] =
-      Map("cloudProvider" -> cloudProvider.asString, "imageType" -> imageType.toString, "isUp" -> isUp.toString)
+      Map("cloudProvider" -> cloudProvider.asString,
+          "imageType" -> imageType.toString,
+          "uiClient" -> runtimeUI.asString,
+          "isUp" -> isUp.toString
+      ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
   }
 }

@@ -263,7 +263,7 @@ object Boot extends IOApp {
                                          appDependencies.rstudioDAO
             )
           val appMetrics = new LeoMetricsMonitor(
-            LeoMetricsMonitorConfig(1 minute),
+            ConfigReader.appConfig.metrics,
             appDependencies.appDAO,
             appDependencies.wdsDAO,
             appDependencies.cbasDAO,

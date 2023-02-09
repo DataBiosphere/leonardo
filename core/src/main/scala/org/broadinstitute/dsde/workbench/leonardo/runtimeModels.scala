@@ -514,7 +514,8 @@ final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
 final case class RuntimeContainers(cloudContext: CloudContext,
                                    runtimeName: RuntimeName,
                                    status: RuntimeStatus,
-                                   containers: List[RuntimeContainerServiceType]
+                                   containers: List[RuntimeContainerServiceType],
+                                   labels: LabelMap
 )
 
 final case class RuntimeName(asString: String) extends AnyVal
