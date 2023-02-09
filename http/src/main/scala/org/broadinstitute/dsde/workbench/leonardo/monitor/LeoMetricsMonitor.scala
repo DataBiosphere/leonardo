@@ -101,7 +101,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
   }
 
   /** Transforms runtimes to RuntimeDbStatus metric type and computes counts. */
-  private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeContainers]): Map[RuntimeDbStatus, Int] = {
+  private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeMetrics]): Map[RuntimeDbStatus, Int] = {
     val allContainers = for {
       r <- allRuntimes
       c <- r.containers if c != RuntimeContainerServiceType.WelderService
@@ -192,7 +192,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
 
   /** Performs health checks for Running runtimes, and transforms to RuntimeHealth metric type. */
   private[monitor] def countRuntimesByHealth(
-    allRuntimes: List[RuntimeContainers]
+    allRuntimes: List[RuntimeMetrics]
   )(implicit ev: Ask[F, AppContext]): F[Map[RuntimeHealth, Int]] = {
     val allContainers = for {
       // Only care about Running runtimes for health checks
@@ -282,8 +282,9 @@ object LeoMetric {
         "cloudProvider" -> cloudProvider.asString,
         "appType" -> appType.toString,
         "status" -> status.toString,
-        "uiClient" -> runtimeUI.asString
-      ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
+        "uiClient" -> runtimeUI.asString,
+        "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
+      )
   }
 
   final case class AppHealth(cloudProvider: CloudProvider,
@@ -299,8 +300,9 @@ object LeoMetric {
       "appType" -> appType.toString,
       "serviceName" -> serviceName.value,
       "uiClient" -> runtimeUI.asString,
-      "isUp" -> isUp.toString
-    ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
+      "isUp" -> isUp.toString,
+      "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
+    )
   }
 
   final case class RuntimeDbStatus(cloudProvider: CloudProvider,
@@ -311,11 +313,13 @@ object LeoMetric {
   ) extends LeoMetric {
     override def name: String = "leoRuntimeStatus"
     override def tags: Map[String, String] =
-      Map("cloudProvider" -> cloudProvider.asString,
-          "imageType" -> imageType.toString,
-          "status" -> status.toString,
-          "uiClient" -> runtimeUI.asString
-      ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
+      Map(
+        "cloudProvider" -> cloudProvider.asString,
+        "imageType" -> imageType.toString,
+        "status" -> status.toString,
+        "uiClient" -> runtimeUI.asString,
+        "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
+      )
   }
 
   final case class RuntimeHealth(cloudProvider: CloudProvider,
@@ -326,10 +330,12 @@ object LeoMetric {
   ) extends LeoMetric {
     override def name: String = "leoRuntimeHealth"
     override def tags: Map[String, String] =
-      Map("cloudProvider" -> cloudProvider.asString,
-          "imageType" -> imageType.toString,
-          "uiClient" -> runtimeUI.asString,
-          "isUp" -> isUp.toString
-      ) ++ azureCloudContext.map(c => Map("azureCloudContext" -> c.asString)).getOrElse(Map.empty)
+      Map(
+        "cloudProvider" -> cloudProvider.asString,
+        "imageType" -> imageType.toString,
+        "uiClient" -> runtimeUI.asString,
+        "isUp" -> isUp.toString,
+        "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
+      )
   }
 }

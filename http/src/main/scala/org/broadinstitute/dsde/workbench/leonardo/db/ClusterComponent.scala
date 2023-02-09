@@ -421,7 +421,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       scopes <- scopeQuery.getAllForCluster(runtimeId)
     } yield ExtraInfoForCreateRuntime(images.toSet, extention, scopes)
 
-  def listActiveForMetrics(implicit ec: ExecutionContext): DBIO[Seq[RuntimeContainers]] =
+  def listActiveForMetrics(implicit ec: ExecutionContext): DBIO[Seq[RuntimeMetrics]] =
     clusterMetricsQuery.filter(_._1.status inSetBind RuntimeStatus.activeStatuses).result map {
       unmarshalRuntimeForMetrics
     }
@@ -755,25 +755,27 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   private def unmarshalRuntimeForMetrics(
     runtimeRecords: Seq[(ClusterRecord, ClusterImageRecord, Option[LabelRecord])]
-  ): Seq[RuntimeContainers] = {
-    val clusterContainerMap: Map[RuntimeContainers, (Chain[RuntimeContainerServiceType], Map[String, Chain[String]])] =
+  ): Seq[RuntimeMetrics] = {
+    val clusterContainerMap: Map[RuntimeMetrics, (Chain[RuntimeContainerServiceType], Map[String, Chain[String]])] =
       runtimeRecords.toList.foldMap { case (clusterRec, clusterImageRec, labelRecordOpt) =>
         val containers = Chain.fromSeq(
           RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(clusterImageRec.imageType).toSeq
         )
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
         Map(
-          RuntimeContainers(clusterRec.cloudContext,
-                            clusterRec.runtimeName,
-                            clusterRec.status,
-                            List.empty,
-                            Map.empty
+          RuntimeMetrics(clusterRec.cloudContext,
+                         clusterRec.runtimeName,
+                         clusterRec.status,
+                         Set.empty,
+                         Map.empty
           ) -> (containers, labelMap)
         )
       }
 
     clusterContainerMap.toSeq.map { case (runtimeContainers, (containers, labels)) =>
-      runtimeContainers.copy(containers = containers.toList, labels = labels.view.mapValues(_.toList.toSet.head).toMap)
+      runtimeContainers.copy(containers = containers.toList.toSet,
+                             labels = labels.view.mapValues(_.toList.toSet.head).toMap
+      )
     }
   }
 
