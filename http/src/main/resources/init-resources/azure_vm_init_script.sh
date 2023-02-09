@@ -82,9 +82,7 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
 
 echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
 
-echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install --user 
-
-/anaconda/bin/jupyter kernelspec install /anaconda/envs/py38_default/share/jupyter/kernels/python3
+echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install 
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
