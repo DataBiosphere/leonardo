@@ -725,6 +725,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName_1,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
 
@@ -733,6 +734,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName_2,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq.copy(
             azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
           )
@@ -836,6 +838,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName_1,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
 
@@ -844,6 +847,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName_2,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq.copy(
             azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
           )
@@ -1191,6 +1195,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
@@ -1229,6 +1234,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
+          false,
           defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
