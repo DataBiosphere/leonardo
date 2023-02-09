@@ -58,6 +58,7 @@ export WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
 export NATE_ENV_VAR = "Nathan!!!"
 
 echo 'export TEST_ENV_VAR="test test"' >> /home/$VM_JUP_USER/.bashrc
+echo 'export TEST_ENV_VAR_ETC="test test"' >> /etc/profile
 
 # Jupyter variables for listener
 SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
