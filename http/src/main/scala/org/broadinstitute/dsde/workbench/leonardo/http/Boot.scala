@@ -262,7 +262,7 @@ object Boot extends IOApp {
                                          appDependencies.welderDAO,
                                          appDependencies.rstudioDAO
             )
-          val appMetrics = new LeoMetricsMonitor(
+          val metricsMonitor = new LeoMetricsMonitor(
             ConfigReader.appConfig.metrics,
             appDependencies.appDAO,
             appDependencies.wdsDAO,
@@ -280,7 +280,7 @@ object Boot extends IOApp {
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitor.process, // check database to autopause runtimes periodically
-            appMetrics.process // checks database and collects metrics about active apps
+            metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }
 

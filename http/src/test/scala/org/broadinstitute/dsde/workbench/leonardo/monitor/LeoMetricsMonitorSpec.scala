@@ -6,19 +6,16 @@ import org.scalatest.flatspec.AnyFlatSpec
 
 class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
-  "LeoMetricsMonitor" should "record db status for apps" in {}
+  "LeoMetricsMonitor" should "record status for apps" in {}
 
-  it should "record db status for runtimes" in {}
+  it should "record status for runtimes" in {}
 
-  // record db status for apps
-  // cloud provider, app type, status
+  it should "record health for apps" in {}
 
-  // record db status for runtimes
-  // cloud provider, image type, status
+  it should "record health for runtines" in {}
 
-  // health check apps
-  //
+  it should "log down runtimes" in {}
 
-  // health check runtimes
+  it should "log down apps" in {}
 
 }

@@ -514,6 +514,7 @@ final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
 final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
                                 status: RuntimeStatus,
+                                workspaceId: Option[WorkspaceId],
                                 containers: Set[RuntimeContainerServiceType],
                                 labels: LabelMap
 )

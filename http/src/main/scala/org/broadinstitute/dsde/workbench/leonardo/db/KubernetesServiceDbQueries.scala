@@ -60,7 +60,7 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * List all apps that need status monitoring. Called by MonitorAtBoot.
+   * List all apps that need monitoring. Called by MonitorAtBoot.
    */
   def listMonitoredApps(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status

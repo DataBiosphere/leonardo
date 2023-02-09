@@ -766,6 +766,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           RuntimeMetrics(clusterRec.cloudContext,
                          clusterRec.runtimeName,
                          clusterRec.status,
+                         clusterRec.workspaceId,
                          Set.empty,
                          Map.empty
           ) -> (containers, labelMap)

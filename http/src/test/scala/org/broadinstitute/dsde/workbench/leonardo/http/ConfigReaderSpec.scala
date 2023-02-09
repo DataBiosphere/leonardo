@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   CustomScriptExtensionConfig,
   VMCredential
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
@@ -102,7 +102,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       ),
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
-      )
+      ),
+      LeoMetricsMonitorConfig(5 minutes, true)
     )
 
     config shouldBe expectedConfig
