@@ -78,7 +78,7 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python 
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
+#echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
 
 echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
 
