@@ -53,8 +53,11 @@ WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID="${15:-dummy}"
 WORKSPACE_ID="${10:-dummy}"
 WORKSPACE_STORAGE_CONTAINER_ID="${15:-dummy}"
 WORKSPACE_NAME="${16:-dummy}"
-WORKSPACE_NAMESPACE="${17:-dummy}"
-WORKSPACE_STORAGE_CONTAINER_URL="${18:-dummy}"
+export WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
+
+export NATE_ENV_VAR = "Nathan!!!"
+
+echo 'export TEST_ENV_VAR="test test"' >> /home/$VM_JUP_USER/.bashrc
 
 # Jupyter variables for listener
 SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"

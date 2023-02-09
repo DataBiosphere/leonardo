@@ -145,9 +145,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.welderImage,
           params.runtime.auditInfo.creator.value,
           stagingContainerName.value,
-          stagingContainerResourceId.value.toString
-          // params.workspaceName,
-          // workspaceStorageContainerUrl
+          stagingContainerResourceId.value.toString,
+          params.workspaceName,
+          params.workspaceStorageContainerUrl
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
