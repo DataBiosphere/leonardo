@@ -141,10 +141,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
-      "cbas.coaEnabled=true," +
-      "cbasUI.coaEnabled=true," +
-      "wds.coaEnabled=true," +
-      "cromwell.coaEnabled=true," +
+      "cbas.enabled=true," +
+      "cbasUI.enabled=true," +
+      "wds.enabled=true," +
+      "cromwell.enabled=true," +
       "fullnameOverride=coa-rel-1," +
       "instrumentationEnabled=false"
   }

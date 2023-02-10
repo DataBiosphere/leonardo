@@ -415,10 +415,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"sam.url=${config.samConfig.server}",
 
         // Enabled services configs
-        raw"cbas.coaEnabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
-        raw"cbasUI.coaEnabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
-        raw"wds.coaEnabled=${config.coaAppConfig.coaServices.contains(Wds)}",
-        raw"cromwell.coaEnabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
+        raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
+        raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
+        raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}",
+        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}",
