@@ -42,7 +42,7 @@ class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSui
       """.stripMargin
 
     val okCrom = Client.fromHttpApp[IO](
-      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.BadGateway).withEntity(r))))
     )
 
     val cromwellDAO = new HttpCromwellDAO(okCrom)
