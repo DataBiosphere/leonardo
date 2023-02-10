@@ -53,12 +53,14 @@ WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID="${15:-dummy}"
 WORKSPACE_ID="${10:-dummy}"
 WORKSPACE_STORAGE_CONTAINER_ID="${15:-dummy}"
 WORKSPACE_NAME="${16:-dummy}"
-export WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
+WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
 
-export NATE_ENV_VAR = "Nathan!!!"
+ENV_JSON = $(jq )
 
-echo 'export TEST_ENV_VAR="test test"' >> /home/$VM_JUP_USER/.bashrc
-sudo echo 'export TEST_ENV_VAR_ETC="test test"' >> /etc/profile
+echo "{ 'env': { 'WORKSPACE_ID': '${WORKSPACE_ID}', 'WORKSPACE_STORAGE_CONTAINER_ID': '${WORKSPACE_STORAGE_CONTAINER_ID}', 'WORKSPACE_NAME': '${WORKSPACE_NAME}', 'WORKSPACE_STORAGE_CONTAINER_URL': '${WORKSPACE_STORAGE_CONTAINER_URL}' }}" | jq . >> wsenv.json
+jq -s . /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json > /usr/local/share/jupyter/kernels/julia-1.6/kernel.json
+
+echo "WORKSPACE_ID='${WORKSPACE_ID}'\nWORKSPACE_NAME='${WORKSPACE_NAME}\nWORKSPACE_STORAGE_CONTAINER_ID='${WORKSPACE_STORAGE_CONTAINER_ID}\nWORKSPACE_STORAGE_CONTAINER_URL='${WORKSPACE_STORAGE_CONTAINER_URL}" >> /home/${VM_JUP_USER}/.env
 
 # Jupyter variables for listener
 SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
