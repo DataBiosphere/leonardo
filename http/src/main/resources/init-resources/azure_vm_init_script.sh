@@ -55,13 +55,6 @@ WORKSPACE_STORAGE_CONTAINER_ID="${15:-dummy}"
 WORKSPACE_NAME="${16:-dummy}"
 WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
 
-ENV_JSON = $(jq )
-
-echo "{ 'env': { 'WORKSPACE_ID': '${WORKSPACE_ID}', 'WORKSPACE_STORAGE_CONTAINER_ID': '${WORKSPACE_STORAGE_CONTAINER_ID}', 'WORKSPACE_NAME': '${WORKSPACE_NAME}', 'WORKSPACE_STORAGE_CONTAINER_URL': '${WORKSPACE_STORAGE_CONTAINER_URL}' }}" | jq . >> wsenv.json
-jq -s . /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json > /usr/local/share/jupyter/kernels/julia-1.6/kernel.json
-
-echo "WORKSPACE_ID='${WORKSPACE_ID}'\nWORKSPACE_NAME='${WORKSPACE_NAME}\nWORKSPACE_STORAGE_CONTAINER_ID='${WORKSPACE_STORAGE_CONTAINER_ID}\nWORKSPACE_STORAGE_CONTAINER_URL='${WORKSPACE_STORAGE_CONTAINER_URL}" >> /home/${VM_JUP_USER}/.env
-
 # Jupyter variables for listener
 SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
 SERVER_APP_ALLOW_ORIGIN="*"
@@ -134,3 +127,10 @@ docker run -d --restart always --network host --name welder \
 --env STAGING_BUCKET=$WELDER_STAGING_BUCKET \
 --env SHOULD_BACKGROUND_SYNC="false" \
 $WELDER_WELDER_DOCKER_IMAGE
+
+echo "{ 'env': { 'WORKSPACE_ID': '${WORKSPACE_ID}', 'WORKSPACE_STORAGE_CONTAINER_ID': '${WORKSPACE_STORAGE_CONTAINER_ID}', 'WORKSPACE_NAME': '${WORKSPACE_NAME}', 'WORKSPACE_STORAGE_CONTAINER_URL': '${WORKSPACE_STORAGE_CONTAINER_URL}' }}" | jq . >> wsenv.json
+jq -s . /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json > /usr/local/share/jupyter/kernels/julia-1.6/kernel.json
+
+echo "WORKSPACE_ID='${WORKSPACE_ID}'\nWORKSPACE_NAME='${WORKSPACE_NAME}\nWORKSPACE_STORAGE_CONTAINER_ID='${WORKSPACE_STORAGE_CONTAINER_ID}\nWORKSPACE_STORAGE_CONTAINER_URL='${WORKSPACE_STORAGE_CONTAINER_URL}" >> /home/${VM_JUP_USER}/.env
+
+touch /home/jupyter/mynewfile.txt
