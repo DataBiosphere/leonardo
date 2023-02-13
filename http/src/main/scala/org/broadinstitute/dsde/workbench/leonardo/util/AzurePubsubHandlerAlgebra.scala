@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -81,7 +81,7 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           vmImage: AzureImage,
                                           useExistingDisk: Boolean,
                                           workspaceName: String,
-                                          workspaceStorageContainerUrl: String
+                                          storageContainerName: ContainerName
 )
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 

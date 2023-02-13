@@ -287,4 +287,9 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   override def deleteStorageContainer(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[DeleteWsmResourceResult]] = IO.pure(None)
+
+  override def getStorageContainerSasToken(workspaceId: WorkspaceId,
+                                           storageContainerId: WsmControlledResourceId,
+                                           authorization: Authorization
+  )(implicit ev: Ask[IO, AppContext]): IO[Option[StorageContainerSasTokenResponse]] = IO.pure(None)
 }

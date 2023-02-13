@@ -8,7 +8,6 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineSizeTypes}
-import org.apache.commons.lang3.StringUtils
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
@@ -77,7 +76,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.image,
           msg.useExistingDisk,
           msg.workspaceName,
-          msg.workspaceStorageContainerUrl
+          msg.containerName
         ),
         WsmJobControl(createVmJobId)
       )
@@ -123,6 +122,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
+      wsStorageContainerUrl =
+        s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.storageContainerName.value}"
       createVmRequest <- createDiskAction.map { diskResp =>
         val vmCommon = getCommonFields(
           ControlledResourceName(params.runtime.runtimeName.asString),
@@ -130,6 +131,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.runtime.auditInfo.creator,
           Some(samResourceId)
         )
+
         val arguments = List(
           params.landingZoneResources.relayNamespace.value,
           hcName.value,
@@ -147,8 +149,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           stagingContainerName.value,
           stagingContainerResourceId.value.toString,
           params.workspaceName,
-          params.workspaceStorageContainerUrl
+          wsStorageContainerUrl
         )
+        println("---------")
+        println(config.runtimeDefaults.customScriptExtension.fileUris)
+        println("---------")
+        logger.info("+++++++++")
+        logger.info(config.runtimeDefaults.customScriptExtension.fileUris.toString())
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
         CreateVmRequest(
