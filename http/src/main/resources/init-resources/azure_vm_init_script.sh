@@ -128,8 +128,15 @@ docker run -d --restart always --network host --name welder \
 --env SHOULD_BACKGROUND_SYNC="false" \
 $WELDER_WELDER_DOCKER_IMAGE
 
-echo "{ 'env': { 'WORKSPACE_ID': '${WORKSPACE_ID}', 'WORKSPACE_STORAGE_CONTAINER_ID': '${WORKSPACE_STORAGE_CONTAINER_ID}', 'WORKSPACE_NAME': '${WORKSPACE_NAME}', 'WORKSPACE_STORAGE_CONTAINER_URL': '${WORKSPACE_STORAGE_CONTAINER_URL}' }}" | jq . >> wsenv.json
-jq -s . /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json > /usr/local/share/jupyter/kernels/julia-1.6/kernel.json
+jq --null-input \
+--arg workspace_id $WORKSPACE_ID \
+--arg workspace_storage_container_id $WORKSPACE_STORAGE_CONTAINER_ID \
+--arg workspace_name $WORKSPACE_NAME \
+--arg workspace_storage_container_url $WORKSPACE_STORAGE_CONTAINER_URL \
+'{ "env": { "WORKSPACE_ID": $workspace_id, "WORKSPACE_STORAGE_CONTAINER_ID": $workspace_storage_container_id, "WORKSPACE_NAME": $workspace_name, "WORKSPACE_STORAGE_CONTAINER_URL": $workspace_storage_container_url }}' \
+> wsenv.json
+
+jq -s add /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json
 
 echo "WORKSPACE_ID='${WORKSPACE_ID}'\nWORKSPACE_NAME='${WORKSPACE_NAME}\nWORKSPACE_STORAGE_CONTAINER_ID='${WORKSPACE_STORAGE_CONTAINER_ID}\nWORKSPACE_STORAGE_CONTAINER_URL='${WORKSPACE_STORAGE_CONTAINER_URL}" >> /home/${VM_JUP_USER}/.env
 
