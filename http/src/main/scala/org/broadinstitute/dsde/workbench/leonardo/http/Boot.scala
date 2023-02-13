@@ -257,6 +257,9 @@ object Boot extends IOApp {
               appDependencies.asyncTasksQueue
             )
 
+          // LeoMetricsMonitor collects metrics from both runtimes and apps.
+          // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
+          // - appDAO, wdsDAO, cbasDAO, cbasUiDAO, cromwellDAO are for status checking apps.
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,

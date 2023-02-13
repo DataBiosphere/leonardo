@@ -43,10 +43,12 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
 
   /** Entry point of this class; starts the async process */
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.checkInterval) ++ Stream.eval(
-      retrieveMetrics
-        .handleErrorWith(e => logger.error(e)("Unexpected error occurred during metric monitoring"))
-    )).repeat
+    if (config.enabled) {
+      (Stream.sleep[F](config.checkInterval) ++ Stream.eval(
+        retrieveMetrics
+          .handleErrorWith(e => logger.error(e)("Unexpected error occurred during metric monitoring"))
+      )).repeat
+    } else Stream.unit
 
   private[monitor] def retrieveMetrics: F[Unit] =
     for {
@@ -97,6 +99,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       ) -> 1
     )
 
+    // combineAll folds a List[Map[metric -> 1]] structure to a Map[metric -> n]
+    // using Monoid instances for List, Map, Int.
     allApps.combineAll
   }
 
@@ -104,6 +108,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
   private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeMetrics]): Map[RuntimeStatusMetric, Int] = {
     val allContainers = for {
       r <- allRuntimes
+      // Exclude welder to not double-count runtimes. Assume every runtime has a jupyter or rstudio
+      // container, but not both.
       c <- r.containers if c != RuntimeContainerServiceType.WelderService
     } yield Map(
       RuntimeStatusMetric(r.cloudContext.cloudProvider,
@@ -264,7 +270,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     }
 }
 
-case class LeoMetricsMonitorConfig(checkInterval: FiniteDuration, includeAzureCloudContext: Boolean)
+case class LeoMetricsMonitorConfig(enabled: Boolean, checkInterval: FiniteDuration, includeAzureCloudContext: Boolean)
 
 sealed trait LeoMetric {
   def name: String

@@ -103,7 +103,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
       ),
-      LeoMetricsMonitorConfig(5 minutes, true)
+      LeoMetricsMonitorConfig(true, 5 minutes, true)
     )
 
     config shouldBe expectedConfig

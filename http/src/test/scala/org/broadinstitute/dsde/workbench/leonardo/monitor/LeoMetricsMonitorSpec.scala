@@ -76,7 +76,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   implicit val clusterToolToToolDao =
     ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, rstudioDAO)
   implicit val ec = cats.effect.unsafe.IORuntime.global.compute
-  val config = LeoMetricsMonitorConfig(1 minute, true)
+  val config = LeoMetricsMonitorConfig(true, 1 minute, true)
   val leoMetricsMonitor = new LeoMetricsMonitor[IO](
     config,
     appDAO,
@@ -215,6 +215,39 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         )
       ) shouldBe Some(0)
     }
+  }
+
+  it should "not include AzureCloudContext if disabled" in {
+    val config = LeoMetricsMonitorConfig(true, 1 minute, false)
+    val azureDisabledMetricsMonitor = new LeoMetricsMonitor[IO](
+      config,
+      appDAO,
+      wdsDAO,
+      cbasDAO,
+      cbasUiDAO,
+      cromwellDAO,
+      samDAO
+    )
+    val test =
+      azureDisabledMetricsMonitor
+        .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp))
+        .unsafeRunSync()(IORuntime.global)
+    // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
+    test.size shouldBe 10
+    List("wds", "cromwell", "cbas", "cbas-ui").foreach { s =>
+      test.get(
+        AppHealthMetric(CloudProvider.Azure, AppType.Cromwell, ServiceName(s), RuntimeUI.Terra, None, s != "cbas")
+      ) shouldBe Some(1)
+      test.get(
+        AppHealthMetric(CloudProvider.Azure, AppType.Cromwell, ServiceName(s), RuntimeUI.Terra, None, s == "cbas")
+      ) shouldBe Some(0)
+    }
+    test.get(
+      AppHealthMetric(CloudProvider.Gcp, AppType.Galaxy, ServiceName("galaxy"), RuntimeUI.Terra, None, true)
+    ) shouldBe Some(1)
+    test.get(
+      AppHealthMetric(CloudProvider.Gcp, AppType.Galaxy, ServiceName("galaxy"), RuntimeUI.Terra, None, false)
+    ) shouldBe Some(0)
   }
 
   // Data generators
