@@ -43,13 +43,13 @@ CONTENTSECURITYPOLICY_FILE=$8
 # Envs for welder
 WELDER_WSM_URL=${9:-localhost}
 WORKSPACE_ID="${10:-dummy}"
-WELDER_STORAGE_CONTAINER_RESOURCE_ID="${11:-dummy}"
+WORKSPACE_STORAGE_CONTAINER_ID="${11:-dummy}"
 WELDER_WELDER_DOCKER_IMAGE="${12:-dummy}"
 WELDER_OWNER_EMAIL="${13:-dummy}"
 WELDER_STAGING_BUCKET="${14:-dummy}"
+WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID="${15:-dummy}"
 
-# Envs for Azure
-WORKSPACE_STORAGE_CONTAINER_ID="${15:-dummy}"
+# Envs for Jupyter
 WORKSPACE_NAME="${16:-dummy}"
 WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
 
@@ -117,8 +117,8 @@ docker run -d --restart always --network host --name welder \
 --env WSM_URL=$WELDER_WSM_URL \
 --env PORT=8081 \
 --env WORKSPACE_ID=$WORKSPACE_ID \
---env STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STORAGE_CONTAINER_RESOURCE_ID \
---env STAGING_STORAGE_CONTAINER_RESOURCE_ID=WORKSPACE_STORAGE_CONTAINER_ID \
+--env STORAGE_CONTAINER_RESOURCE_ID=$WORKSPACE_STORAGE_CONTAINER_ID \
+--env STAGING_STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID \
 --env OWNER_EMAIL=$WELDER_OWNER_EMAIL \
 --env CLOUD_PROVIDER="azure" \
 --env LOCKING_ENABLED=false \
@@ -134,8 +134,8 @@ jq --null-input \
 '{ "env": { "WORKSPACE_ID": $workspace_id, "WORKSPACE_STORAGE_CONTAINER_ID": $workspace_storage_container_id, "WORKSPACE_NAME": $workspace_name, "WORKSPACE_STORAGE_CONTAINER_URL": $workspace_storage_container_url }}' \
 > wsenv.json
 
-jq -s add /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json
+jq -s add /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json > julia_kernel.json && mv julia_kernel.json /usr/local/share/jupyter/kernels/julia-1.6/kernel.json
 
-echo "WORKSPACE_ID='${WORKSPACE_ID}'\nWORKSPACE_NAME='${WORKSPACE_NAME}\nWORKSPACE_STORAGE_CONTAINER_ID='${WORKSPACE_STORAGE_CONTAINER_ID}\nWORKSPACE_STORAGE_CONTAINER_URL='${WORKSPACE_STORAGE_CONTAINER_URL}" >> /home/${VM_JUP_USER}/.env
+#echo "WORKSPACE_ID='${WORKSPACE_ID}'\nWORKSPACE_NAME='${WORKSPACE_NAME}\nWORKSPACE_STORAGE_CONTAINER_ID='${WORKSPACE_STORAGE_CONTAINER_ID}\nWORKSPACE_STORAGE_CONTAINER_URL='${WORKSPACE_STORAGE_CONTAINER_URL}" >> /home/${VM_JUP_USER}/.env
 
-touch /home/jupyter/mynewfile.txt
+#touch /home/jupyter/mynewfile.txt

@@ -14,9 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
-import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
