@@ -71,6 +71,16 @@ object KubernetesServiceDbQueries {
     )
 
   /**
+   * List all apps for metrics. Called by AppHealthMonitor.
+   */
+  def listAppsForMetrics(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
+    joinFullAppAndUnmarshal(
+      kubernetesClusterQuery,
+      nodepoolQuery,
+      nonDeletedAppQuery
+    )
+
+  /**
    * Looks up or persists a KubernetesCluster, and returns it.
    * Throws an error if the cluster is in creating status.
    */
