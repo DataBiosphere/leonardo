@@ -7,6 +7,7 @@ import com.google.cloud.compute.v1.Disk
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.azure.ContainerName
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
@@ -356,7 +357,7 @@ object LeoPubsubMessage {
     useExistingDisk: Boolean, // if using existing disk, will attach pd to new runtime
     traceId: Option[TraceId],
     workspaceName: String,
-    workspaceStorageContainerUrl: String
+    containerName: ContainerName
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
@@ -534,7 +535,7 @@ object LeoPubsubCodec {
       "useExistingDisk",
       "traceId",
       "workspaceName",
-      "workspaceStorageContainerUrl"
+      "containerName"
     )(
       CreateAzureRuntimeMessage.apply
     )
