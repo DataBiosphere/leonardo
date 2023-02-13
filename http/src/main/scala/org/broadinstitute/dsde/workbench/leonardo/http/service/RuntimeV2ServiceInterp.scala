@@ -270,8 +270,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // We should not list runtimes that are already in a `Deleted` status
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, true, None, Some(workspaceId), None)
+        .listRuntimesForWorkspace(Map.empty, false, None, Some(workspaceId), None)
         .map(_.toList)
         .transaction
 
