@@ -52,6 +52,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockSamDAO = setUpMockSamDAO
   val mockCromwellDAO = setUpMockCromwellDAO
   val mockCbasDAO = setUpMockCbasDAO
+  val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
 
   val aksInterp = new AKSInterpreter[IO](
@@ -62,6 +63,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockSamDAO,
     mockCromwellDAO,
     mockCbasDAO,
+    mockCbasUiDAO,
     mockWdsDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
@@ -329,6 +331,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       cbas.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     cbas
+  }
+
+  private def setUpMockCbasUiDAO: CbasUiDAO[IO] = {
+    val cbasUi = mock[CbasUiDAO[IO]]
+    when {
+      cbasUi.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    cbasUi
   }
 
   private def setUpMockWdsDAO: WdsDAO[IO] = {

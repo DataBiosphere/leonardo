@@ -9,6 +9,7 @@ import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 
 object ConfigReader {
   lazy val appConfig =
@@ -48,5 +49,6 @@ final case class AppConfig(
   persistentDisk: PersistentDiskConfig,
   azure: AzureConfig,
   oidc: OidcAuthConfig,
-  drs: DrsConfig
+  drs: DrsConfig,
+  metrics: LeoMetricsMonitorConfig
 )

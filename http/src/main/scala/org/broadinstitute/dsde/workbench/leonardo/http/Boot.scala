@@ -257,6 +257,24 @@ object Boot extends IOApp {
               appDependencies.asyncTasksQueue
             )
 
+          // LeoMetricsMonitor collects metrics from both runtimes and apps.
+          // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
+          // - appDAO, wdsDAO, cbasDAO, cbasUiDAO, cromwellDAO are for status checking apps.
+          implicit val clusterToolToToolDao =
+            ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
+                                         appDependencies.welderDAO,
+                                         appDependencies.rstudioDAO
+            )
+          val metricsMonitor = new LeoMetricsMonitor(
+            ConfigReader.appConfig.metrics,
+            appDependencies.appDAO,
+            appDependencies.wdsDAO,
+            appDependencies.cbasDAO,
+            appDependencies.cbasUiDAO,
+            appDependencies.cromwellDAO,
+            appDependencies.samDAO
+          )
+
           List(
             nonLeoMessageSubscriber.process,
             Stream.eval(appDependencies.nonLeoMessageGoogleSubscriber.start),
@@ -264,7 +282,8 @@ object Boot extends IOApp {
             appDependencies.pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
-            autopauseMonitor.process // check database to autopause runtimes periodically
+            autopauseMonitor.process, // check database to autopause runtimes periodically
+            metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }
 
@@ -353,6 +372,9 @@ object Boot extends IOApp {
       )
       cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
         new HttpCbasDAO[F](client)
+      )
+      cbasUiDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_ui_client"), false).map(
+        client => new HttpCbasUiDAO[F](client)
       )
       wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
         new HttpWdsDAO[F](client)
@@ -612,6 +634,7 @@ object Boot extends IOApp {
         samDao,
         cromwellDao,
         cbasDao,
+        cbasUiDao,
         wdsDao
       )
 
@@ -670,6 +693,8 @@ object Boot extends IOApp {
         samDao,
         dockerDao,
         jupyterDao,
+        rstudioDAO,
+        welderDao,
         wsmDao,
         serviceAccountProvider,
         authProvider,
@@ -688,7 +713,12 @@ object Boot extends IOApp {
         gkeAlg,
         dataprocInterp,
         oidcConfig,
-        aksAlg
+        aksAlg,
+        appDAO,
+        wdsDao,
+        cbasDao,
+        cbasUiDao,
+        cromwellDao
       )
     }
 
@@ -770,6 +800,8 @@ final case class AppDependencies[F[_]](
   samDAO: HttpSamDAO[F],
   dockerDAO: HttpDockerDAO[F],
   jupyterDAO: HttpJupyterDAO[F],
+  rstudioDAO: HttpRStudioDAO[F],
+  welderDAO: HttpWelderDAO[F],
   wsmDAO: HttpWsmDao[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],
@@ -788,5 +820,10 @@ final case class AppDependencies[F[_]](
   gkeAlg: GKEAlgebra[F],
   dataprocInterp: DataprocInterpreter[F],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
-  aksInterp: AKSAlgebra[F]
+  aksInterp: AKSAlgebra[F],
+  appDAO: AppDAO[F],
+  wdsDAO: WdsDAO[F],
+  cbasDAO: CbasDAO[F],
+  cbasUiDAO: CbasUiDAO[F],
+  cromwellDAO: CromwellDAO[F]
 )
