@@ -2,6 +2,10 @@ name: Consumer contract tests
 # The purpose of this workflow is to validate the service level contract
 # using the Pact framework.
 #
+# More details on Contract Testing can be found in our handbook
+#
+# https://broadworkbench.atlassian.net/wiki/spaces/IRT/pages/2660368406/Getting+Started+with+Pact+Contract+Testing
+#
 # The workflow involves two parties: Leo as a consumer. Sam as a provider.
 # Each party owns a set of tests (aka contract tests).
 #
