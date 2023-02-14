@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   CustomScriptExtensionConfig,
   VMCredential
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
@@ -63,7 +63,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/d6f5eea1a9299f8ef95cf1dc3eaf40594af26782/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/8dc8a0171fa4267197305eddddafb9dda8ce97fa/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:3393dcb",
@@ -74,7 +74,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.197"),
+          ChartVersion("0.2.199"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -102,7 +102,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       ),
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
-      )
+      ),
+      LeoMetricsMonitorConfig(true, 5 minutes, true)
     )
 
     config shouldBe expectedConfig

@@ -61,6 +61,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            samDao: SamDAO[F],
                            cromwellDao: CromwellDAO[F],
                            cbasDao: CbasDAO[F],
+                           cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F]
 )(implicit
   executionContext: ExecutionContext,
@@ -332,11 +333,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .collect {
           case Cbas =>
             cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          case CbasUI =>
+            cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           case Wds =>
             wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          // TODO: Cromwell status check not working. Disabling temporarily until we're ready to launch Cromwell.
-//          case Cromwell =>
-//            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          case Cromwell =>
+            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         }
         .toList
         .sequence
@@ -415,10 +417,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"sam.url=${config.samConfig.server}",
 
         // Enabled services configs
-        raw"cbas.coaEnabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
-        raw"cbasUI.coaEnabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
-        raw"wds.coaEnabled=${config.coaAppConfig.coaServices.contains(Wds)}",
-        raw"cromwell.coaEnabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
+        raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
+        raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
+        raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}",
+        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}",

@@ -643,6 +643,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     ) // this email is allow listed
     val runtimeName_1 = RuntimeName("clusterName1")
     val runtimeName_2 = RuntimeName("clusterName2")
+    val runtimeName_3 = RuntimeName("clusterName3")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val publisherQueue = QueueFactory.makePublisherQueue()
@@ -669,7 +670,17 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
         )
 
-      _ <- publisherQueue.tryTakeN(Some(2)) // clean out create msg
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName_3,
+          workspaceId,
+          defaultCreateAzureRuntimeReq.copy(
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName3"))
+          )
+        )
+
+      _ <- publisherQueue.tryTakeN(Some(3)) // clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       preDeleteClusterOpt_1 <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_1)(
@@ -681,14 +692,21 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           scala.concurrent.ExecutionContext.global
         )
         .transaction
+      preDeleteClusterOpt_3 <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_3)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
       preDeleteCluster_1 = preDeleteClusterOpt_1.get
-      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Error, context.now).transaction
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Deleted, context.now).transaction
       preDeleteCluster_2 = preDeleteClusterOpt_2.get
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_2.id, RuntimeStatus.Running, context.now).transaction
+      preDeleteCluster_3 = preDeleteClusterOpt_3.get
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster_3.id, RuntimeStatus.Error, context.now).transaction
 
       _ <- azureService.deleteAllRuntimes(userInfo, workspaceId, true)
 
-      delete_messages <- publisherQueue.tryTakeN(Some(2))
+      delete_messages <- publisherQueue.tryTakeN(Some(3))
 
       postDeleteClusterOpt_1 <- clusterQuery
         .getClusterById(preDeleteCluster_1.id)
@@ -696,26 +714,32 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       postDeleteClusterOpt_2 <- clusterQuery
         .getClusterById(preDeleteCluster_2.id)
         .transaction
-
-      runtimeConfig_1 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_1.runtimeConfigId).transaction
-      runtimeConfig_2 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_2.runtimeConfigId).transaction
-      diskOpt_1 <- persistentDiskQuery
-        .getById(runtimeConfig_1.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+      postDeleteClusterOpt_3 <- clusterQuery
+        .getClusterById(preDeleteCluster_3.id)
         .transaction
+
+      runtimeConfig_2 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_2.runtimeConfigId).transaction
+      runtimeConfig_3 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_3.runtimeConfigId).transaction
+
       diskOpt_2 <- persistentDiskQuery
         .getById(runtimeConfig_2.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
         .transaction
-      disk_1 = diskOpt_1.get
+      diskOpt_3 <- persistentDiskQuery
+        .getById(runtimeConfig_3.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .transaction
+
       disk_2 = diskOpt_2.get
+      disk_3 = diskOpt_3.get
     } yield {
-      postDeleteClusterOpt_1.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
-      disk_1.status shouldBe DiskStatus.Deleting
+      postDeleteClusterOpt_1.map(_.status) shouldBe Some(RuntimeStatus.Deleted)
       postDeleteClusterOpt_2.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
       disk_2.status shouldBe DiskStatus.Deleting
+      postDeleteClusterOpt_3.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+      disk_3.status shouldBe DiskStatus.Deleting
 
       val expectedMessages = List(
-        DeleteAzureRuntimeMessage(preDeleteCluster_1.id, Some(disk_1.id), workspaceId, None, Some(context.traceId)),
-        DeleteAzureRuntimeMessage(preDeleteCluster_2.id, Some(disk_2.id), workspaceId, None, Some(context.traceId))
+        DeleteAzureRuntimeMessage(preDeleteCluster_2.id, Some(disk_2.id), workspaceId, None, Some(context.traceId)),
+        DeleteAzureRuntimeMessage(preDeleteCluster_3.id, Some(disk_3.id), workspaceId, None, Some(context.traceId))
       )
       delete_messages shouldBe expectedMessages
     }

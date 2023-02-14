@@ -374,7 +374,7 @@ sealed trait RuntimeContainerServiceType extends EnumEntry with Serializable wit
 object RuntimeContainerServiceType extends Enum[RuntimeContainerServiceType] {
   val values = findValues
   val imageTypeToRuntimeContainerServiceType: Map[RuntimeImageType, RuntimeContainerServiceType] =
-    values.toList.map(v => v.imageType -> v).toMap
+    values.toList.map(v => v.imageType -> v).toMap ++ Map(RuntimeImageType.Azure -> JupyterService)
   case object JupyterService extends RuntimeContainerServiceType {
     override def imageType: RuntimeImageType = Jupyter
     override def proxySegment: String = "jupyter"
@@ -511,9 +511,12 @@ object MemorySize {
  */
 final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
 
-final case class RunningRuntime(cloudContext: CloudContext,
+final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
-                                containers: List[RuntimeContainerServiceType]
+                                status: RuntimeStatus,
+                                workspaceId: Option[WorkspaceId],
+                                containers: Set[RuntimeContainerServiceType],
+                                labels: LabelMap
 )
 
 final case class RuntimeName(asString: String) extends AnyVal
