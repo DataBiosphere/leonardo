@@ -84,6 +84,18 @@ echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
 
 echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install 
 
+# Add feature
+
+echo "Y"| sudo apt-get install wget gpg
+wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+echo "Y"| sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
+echo "Y"| sudo sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+rm -f packages.microsoft.gpg
+
+echo "Y"| sudo apt install apt-transport-https
+echo "Y"| sudo apt update
+echo "Y"| sudo apt install code # or code-insiders
+
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
 sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py"
