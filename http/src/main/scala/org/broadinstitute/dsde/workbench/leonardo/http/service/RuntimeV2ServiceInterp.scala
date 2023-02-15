@@ -222,7 +222,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 landingZoneResources,
                 useExistingDisk,
                 Some(ctx.traceId),
-                workspaceDesc.displayName,
+                "MyWorkspace", // workspaceDesc.displayName,
                 storageContainer.name
               )
             )

@@ -157,7 +157,6 @@ final case class CustomScriptExtension(name: String,
                                        protectedSettings: ProtectedSettings
 )
 final case class StorageContainerResponse(name: ContainerName, resourceId: WsmControlledResourceId)
-final case class StorageContainerSasTokenResponse(token: String, url: String)
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,
