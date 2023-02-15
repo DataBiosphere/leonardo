@@ -24,14 +24,9 @@ name: Consumer contract tests
 # - PACT_BROKER_USERNAME - the Pact Broker username
 # - PACT_BROKER_PASSWORD - the Pact Broker password
 on:
-  pull_request:
-    branches:
-      - develop
-    paths-ignore:
-      - 'README.md'
   push:
     branches:
-      - develop
+      - iv-cttt-demo
     paths-ignore:
       - 'README.md'
 
