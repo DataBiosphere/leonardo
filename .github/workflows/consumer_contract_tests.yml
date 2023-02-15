@@ -23,6 +23,7 @@ name: Consumer contract tests
 # The workflow relies on github secrets:
 # - PACT_BROKER_USERNAME - the Pact Broker username
 # - PACT_BROKER_PASSWORD - the Pact Broker password
+#
 on:
   push:
     branches:
