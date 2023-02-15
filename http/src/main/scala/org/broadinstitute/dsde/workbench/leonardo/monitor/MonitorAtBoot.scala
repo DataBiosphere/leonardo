@@ -459,7 +459,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           landingZoneResources,
           false,
           Some(traceId),
-          workspaceDesc.displayName,
+          "MyWorkspace2",
           storageContainer.name
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))

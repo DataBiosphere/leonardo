@@ -907,13 +907,16 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct7("messageType",
-                        "runtimeId",
-                        "workspaceId",
-                        "storageContainerResourceId",
-                        "landingZoneResources",
-                        "useExistingDisk",
-                        "traceId"
+    Encoder.forProduct9(
+      "messageType",
+      "runtimeId",
+      "workspaceId",
+      "storageContainerResourceId",
+      "landingZoneResources",
+      "useExistingDisk",
+      "traceId",
+      "workspaceName",
+      "containerName"
     )(x =>
       (x.messageType,
        x.runtimeId,
@@ -921,7 +924,9 @@ object LeoPubsubCodec {
        x.storageContainerResourceId,
        x.landingZoneResources,
        x.useExistingDisk,
-       x.traceId
+       x.traceId,
+       x.workspaceName,
+       x.containerName
       )
     )
 
