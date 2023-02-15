@@ -23,7 +23,7 @@ name: Consumer contract tests
 # (which is also true when those expectations are updated).  The provider can validate that a desired deployment would not break any
 # of the consumers' published expectations.  Both the consumer and the provider can gate deployment on availability/honoring of the published pact
 # (contract expectations) between the two.
-
+#
 on:
   pull_request:
     branches:
