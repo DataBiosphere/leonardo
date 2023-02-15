@@ -20,7 +20,7 @@ trait SamClient[F[_]] {
   )(implicit
     sr: SamResource[R],
     decoder: Decoder[R]
-  ): F[Iterable[ListResourceResponse[R]]]
+  ): F[ListResourceResponse[R]]
 
   def fetchSystemStatus(): F[StatusCheckResponse]
 }
