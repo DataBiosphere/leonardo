@@ -97,12 +97,6 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
 
-  def getStorageContainerSasToken(workspaceId: WorkspaceId,
-                                  storageContainerId: WsmControlledResourceId,
-                                  authorization: Authorization
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[StorageContainerSasTokenResponse]]
 }
 
 final case class StorageContainerRequest(storageContainerName: ContainerName)
@@ -432,14 +426,6 @@ object WsmDecoders {
       gcpContext <- c.downField("gcpContext").as[Option[WsmGcpContext]]
     } yield WorkspaceDescription(id, displayName, spendProfile, azureContext, gcpContext.map(_.projectId))
   }
-
-  implicit val getStorageContainerSasTokenResponseDecoder: Decoder[StorageContainerSasTokenResponse] =
-    Decoder.instance { c =>
-      for {
-        token <- c.downField("token").as[String]
-        url <- c.downField("url").as[String]
-      } yield StorageContainerSasTokenResponse(token, url)
-    }
 
   implicit val wsmJobStatusDecoder: Decoder[WsmJobStatus] =
     Decoder.decodeString.emap(s => WsmJobStatus.stringToObject.get(s).toRight(s"Invalid WsmJobStatus found: $s"))

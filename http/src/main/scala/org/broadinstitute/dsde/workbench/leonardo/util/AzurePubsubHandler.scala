@@ -149,11 +149,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.workspaceName,
           wsStorageContainerUrl
         )
-        println("---------")
-        println(config.runtimeDefaults.customScriptExtension.fileUris)
-        println("---------")
-        logger.info("+++++++++")
-        logger.info(config.runtimeDefaults.customScriptExtension.fileUris.toString())
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
         CreateVmRequest(
