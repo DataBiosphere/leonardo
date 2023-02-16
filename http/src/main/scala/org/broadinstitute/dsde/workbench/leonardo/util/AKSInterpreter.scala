@@ -100,6 +100,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
+
       ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppCreationException(
@@ -385,7 +386,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceType=kubernetes-app",
+        raw"relaylistener.samResourceType=${samResourceId.resourceType}",
         raw"relaylistener.samAction=connect",
 
         // general configs

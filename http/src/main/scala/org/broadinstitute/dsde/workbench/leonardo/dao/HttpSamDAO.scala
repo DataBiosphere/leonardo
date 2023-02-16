@@ -14,7 +14,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -214,7 +214,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
-  def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceWithGcpParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
@@ -238,6 +238,46 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
       )
       parent = SerializableSamResource(SamResourceType.Project, ProjectSamResourceId(googleProject))
+      _ <- httpClient
+        .run(
+          Request[F](
+            method = Method.POST,
+            uri = config.samUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+            headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
+            entity = CreateSamResourceRequest[R](resource, policies, parent)
+          )
+        )
+        .use { resp =>
+          if (resp.status.isSuccess)
+            F.unit
+          else
+            onError(resp).flatMap(F.raiseError[Unit])
+        }
+    } yield ()
+
+  def createResourceWithWorkspaceParent[R](resource: R,
+                                           creatorEmail: WorkbenchEmail,
+                                           userInfo: UserInfo,
+                                           workspaceId: WorkspaceId
+  )(implicit
+    sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    for {
+      traceId <- ev.ask
+      // TODO: Check if this is the best way to get the token, there are no petSA for Workspace resources, only google-projects
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+      loggingCtx = Map("traceId" -> traceId.asString)
+      _ <- logger.info(loggingCtx)(
+        s"Creating ${sr.resourceType.asString} resource in sam v2 for ${workspaceId}/${sr.resourceIdAsString(resource)}"
+      )
+      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
+      policies = Map[SamPolicyName, SamPolicyData](
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
+      )
+      parent = SerializableSamResource(SamResourceType.Workspace, WorkspaceResourceSamResourceId(workspaceId))
       _ <- httpClient
         .run(
           Request[F](

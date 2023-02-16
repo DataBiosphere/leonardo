@@ -1607,6 +1607,13 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: accessScope
+          description: Whether or not the app created can be shared across different users. Set to WORKSPACE_SHARED to enable sharing permissions, or set to USER_PRIVATE to keep it private. Default to USER_PRIVATE if not specified.
+          required: false
+          schema:
+            type: string
+            default: USER_PRIVATE
       requestBody:
         $ref: "#/components/requestBodies/CreateAppRequest"
       responses:
