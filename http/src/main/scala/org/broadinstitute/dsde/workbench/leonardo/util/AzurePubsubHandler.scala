@@ -129,7 +129,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.runtime.auditInfo.creator,
           Some(samResourceId)
         )
-
         val arguments = List(
           params.landingZoneResources.relayNamespace.value,
           hcName.value,

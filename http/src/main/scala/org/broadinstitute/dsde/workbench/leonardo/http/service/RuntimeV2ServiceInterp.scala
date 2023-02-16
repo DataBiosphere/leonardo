@@ -212,7 +212,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
-
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
             _ <- publisherQueue.offer(
               CreateAzureRuntimeMessage(
