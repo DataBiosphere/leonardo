@@ -114,7 +114,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       createDiskAction = createDisk(params, auth)
 
-      // Creating staging container
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
@@ -307,6 +306,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     ev: Ask[F, AppContext]
   ): F[CreateDiskResponse] =
     params.useExistingDisk match {
+
+      // if using existing disk, check conditions and update tables
       case true =>
         for {
           ctx <- ev.ask
@@ -336,17 +337,26 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               params.useExistingDisk
             )
           )
-          _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
+          // set runtime to new runtimeId for disk
           _ <- controlledResourceQuery
             .updateRuntime(wsmDisk.resourceId, WsmResourceType.AzureDisk, params.runtime.id)
-            .transaction // set runtime to new runtimeId
+            .transaction
           diskResp = CreateDiskResponse(wsmDisk.resourceId)
         } yield diskResp
-      case _ =>
+
+      // if not using existing disk, send a create disk request
+      case false =>
         for {
           ctx <- ev.ask
           diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
-          disk <- F.fromOption(diskOpt, new RuntimeException("no disk found"))
+          disk <- F.fromOption(
+            diskOpt,
+            AzureRuntimeCreationError(params.runtime.id,
+                                      params.workspaceId,
+                                      s"Disk ${params.runtimeConfig.persistentDiskId.value} not found",
+                                      params.useExistingDisk
+            )
+          )
           common = getCommonFields(ControlledResourceName(disk.name.value),
                                    config.runtimeDefaults.diskControlledResourceDesc,
                                    params.runtime.auditInfo.creator,
@@ -709,28 +719,30 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       auth <- samDAO.getLeoAuthToken
 
-      deleteDiskAction =
-        for {
-          diskResourceOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
-            .transaction
-          _ <- diskResourceOpt.traverse { disk =>
-            wsmDao.deleteDisk(
-              DeleteWsmResourceRequest(
-                e.workspaceId,
-                disk.resourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
-                )
-              ),
-              auth
-            )
-          }.void
-          _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
-        } yield ()
+      // only delete disk on error if not using existing disk
+      _ <- e.useExistingDisk match {
+        case false =>
+          for {
+            diskResourceOpt <- controlledResourceQuery
+              .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
+              .transaction
+            _ <- diskResourceOpt.traverse { disk =>
+              wsmDao.deleteDisk(
+                DeleteWsmResourceRequest(
+                  e.workspaceId,
+                  disk.resourceId,
+                  DeleteControlledAzureResourceRequest(
+                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                  )
+                ),
+                auth
+              )
+            }.void
+            _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
+          } yield ()
 
-      // if no existing disk being used, delete new disk created
-      _ <- deleteDiskAction.whenA(!e.useExistingDisk)
+        case true => F.unit
+      }
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)

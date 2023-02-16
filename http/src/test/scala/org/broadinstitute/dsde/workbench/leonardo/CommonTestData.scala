@@ -516,12 +516,7 @@ object CommonTestData {
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
-  val cloudContextAzure = CloudContext.Azure(
-    AzureCloudContext(TenantId(workspaceId.toString),
-                      SubscriptionId(workspaceId.toString),
-                      ManagedResourceGroupName(workspaceId.toString)
-    )
-  )
+  val cloudContextAzure = CloudContext.Azure(azureCloudContext)
 
   val testCommonControlledResourceFields = ControlledResourceCommonFields(
     ControlledResourceName("name"),

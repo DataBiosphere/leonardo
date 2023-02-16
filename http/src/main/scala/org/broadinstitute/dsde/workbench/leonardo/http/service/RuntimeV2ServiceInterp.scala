@@ -131,11 +131,17 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case None =>
           for {
             diskId <- useExistingDisk match {
+
               // if using existing disk, find disk in users workspace
               case true =>
                 for {
                   disks <- DiskServiceDbQueries
-                    .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), Some(cloudContext))
+                    .listDisks(Map.empty,
+                               includeDeleted = false,
+                               Some(userInfo.userEmail),
+                               Some(cloudContext),
+                               Some(workspaceId)
+                    )
                     .transaction
                   // check if 0 or multiple disks
                   disk <- disks.length match {
@@ -151,19 +157,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
                   // check previously attached runtime is deleted
                   runtimeOpt <- clusterQuery.getClusterFromDiskId(disk.id).transaction
-                  _ <- F
-                    .raiseError(
-                      new Exception(
-                        s"This should never happen. No previous runtime associated with disk ${disk.id}"
+                  _ <- runtimeOpt match {
+                    case Some(runtime) =>
+                      F.raiseError(NoUnattachedPersistentDiskException(disk.id, runtime.runtimeName))
+                        .whenA(runtime.status != RuntimeStatus.Deleted)
+                    case None =>
+                      F.raiseError(
+                        new LeoException(
+                          s"This should never happen. No previous runtime associated with disk ${disk.id}",
+                          traceId = None
+                        )
                       )
-                    )
-                    .whenA(runtimeOpt.isEmpty)
-                  _ <- F
-                    .raiseError(NoUnattachedPersistentDiskException(disk.id, runtimeOpt.get.runtimeName))
-                    .whenA(runtimeOpt.get.status != RuntimeStatus.Deleted)
-                  id = disk.id
-                } yield id
-              case _ =>
+                  }
+                } yield disk.id
+
+              // if not using existing disk, create a new one
+              case false =>
                 for {
                   pd <- F.fromEither(
                     convertToDisk(
@@ -176,8 +185,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       ctx.now
                     )
                   )
-                  d <- persistentDiskQuery.save(pd).transaction
-                } yield d.id
+                  disk <- persistentDiskQuery.save(pd).transaction
+                } yield disk.id
             }
 
             runtime = convertToRuntime(
@@ -693,29 +702,29 @@ final case class AzureRuntimeHasInvalidRuntimeConfig(cloudContext: CloudContext,
 
 case class MultiplePersistentDisksException(workspaceId: WorkspaceId, numDisks: Int, disks: List[PersistentDisk])
     extends LeoException(
-      s"Workspace: ${workspaceId} contains ${numDisks} persistent disks, must have only 1. Current PDs: ${disks
-          .map(disks => s"(${disks.name},${disks.id})")}. Runtime cannot be created with an existing disk ",
+      s"Workspace: ${workspaceId.value} contains ${numDisks} persistent disks, must have only 1. Current PDs: ${disks
+          .map(disks => s"(${disks.name.value},${disks.id.value})")}. Runtime cannot be created with an existing disk ",
       StatusCodes.PreconditionFailed,
       traceId = None
     )
 
 case class NoPersistentDiskException(workspaceId: WorkspaceId)
     extends LeoException(
-      s"Workspace: ${workspaceId} does not contain any persistent disks. Runtime cannot be created with an existing disk",
+      s"Workspace: ${workspaceId.value} does not contain any persistent disks. Runtime cannot be created with an existing disk",
       StatusCodes.PreconditionFailed,
       traceId = None
     )
 
 case class PersistentDiskNotReadyException(diskId: DiskId, diskStatus: DiskStatus)
     extends LeoException(
-      s"Existing disk: ${diskId} has status ${diskStatus}. Runtime cannot be created with an existing disk",
+      s"Existing disk: ${diskId.value} has status ${diskStatus}. Runtime cannot be created with an existing disk",
       StatusCodes.PreconditionFailed,
       traceId = None
     )
 
 case class NoUnattachedPersistentDiskException(diskId: DiskId, runtime: RuntimeName)
     extends LeoException(
-      s"Only existing disk: ${diskId} is associated with active runtime: ${runtime}. New runtime cannot be created with an existing disk",
+      s"Only existing disk: ${diskId.value} is associated with active runtime: ${runtime.asString}. New runtime cannot be created with an existing disk",
       StatusCodes.PreconditionFailed,
       traceId = None
     )

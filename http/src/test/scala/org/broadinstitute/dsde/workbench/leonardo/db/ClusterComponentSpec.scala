@@ -363,7 +363,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
   it should "get cluster from diskId" in isolatedDbTest {
     val res = for {
       savedDisk <- makePersistentDisk(None).save()
-      savedRuntime <- IO(
+      savedRuntime1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                     savedDisk.id,
@@ -371,7 +371,15 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           )
         )
       )
+      savedRuntime2 <- IO(
+        makeCluster(2).saveWithRuntimeConfig(
+          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                    savedDisk.id,
+                                    azureRegion
+          )
+        )
+      )
       retrievedRuntime <- clusterQuery.getClusterFromDiskId(savedDisk.id).transaction
-    } yield retrievedRuntime shouldBe defined
+    } yield retrievedRuntime shouldBe savedRuntime2
   }
 }

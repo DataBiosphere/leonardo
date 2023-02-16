@@ -198,17 +198,41 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime with existing disk if there are multiple disks" in isolatedDbTest {
-    val res = for {
 
-      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextAzure)).save()
-      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextAzure)).save()
+    runtimeV2Service
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-      err <- runtimeV2Service
-        .createRuntime(userInfo, name0, workspaceId, true, defaultCreateAzureRuntimeReq)
-        .attempt
-    } yield err should (be(Left(MultiplePersistentDisksException(workspaceId, 2, List(disk2, disk1)))) or
-      be(Left(MultiplePersistentDisksException(workspaceId, 2, List(disk1, disk2)))))
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    runtimeV2Service
+      .createRuntime(
+        userInfo,
+        name1,
+        workspaceId,
+        false,
+        CreateAzureRuntimeRequest(
+          Map.empty,
+          VirtualMachineSizeTypes.STANDARD_A1,
+          Map.empty,
+          CreateAzureDiskRequest(
+            Map.empty,
+            AzureDiskName("diskName2"),
+            Some(DiskSize(100)),
+            None
+          ),
+          Some(0)
+        )
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val exc = runtimeV2Service
+      .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+
+    exc shouldBe a[MultiplePersistentDisksException]
   }
 
   it should "fail to create a runtime with existing disk if there are 0 disks" in isolatedDbTest {
@@ -223,17 +247,19 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime with existing disk if disk isn't ready" in isolatedDbTest {
-    val res = for {
+    runtimeV2Service
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-      disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextAzure)).save()
-      now <- IO.realTimeInstant
-      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Restoring, now).transaction
+    val exc = runtimeV2Service
+      .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
 
-      err <- runtimeV2Service
-        .createRuntime(userInfo, name0, workspaceId, true, defaultCreateAzureRuntimeReq)
-        .attempt
-    } yield err shouldBe Left(PersistentDiskNotReadyException(disk.id, DiskStatus.Restoring))
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    exc shouldBe a[PersistentDiskNotReadyException]
   }
 
   it should "fail to create a runtime with existing disk if disk is attached to non-deleted runtime" in isolatedDbTest {
@@ -242,7 +268,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
 
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), Some(cloudContextAzure))
+        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       now <- IO.realTimeInstant
