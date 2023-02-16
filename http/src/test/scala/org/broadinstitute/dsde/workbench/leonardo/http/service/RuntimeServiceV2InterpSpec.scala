@@ -175,7 +175,9 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         storageContainerResourceId,
         landingZoneResources,
         false,
-        Some(context.traceId)
+        Some(context.traceId),
+        "WorkspaceName",
+        ContainerName("dummy")
       )
       message shouldBe expectedMessage
     }

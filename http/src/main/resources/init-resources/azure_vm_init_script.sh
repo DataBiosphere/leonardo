@@ -134,6 +134,4 @@ jq --null-input \
 '{ "env": { "WORKSPACE_ID": $workspace_id, "WORKSPACE_STORAGE_CONTAINER_ID": $workspace_storage_container_id, "WORKSPACE_NAME": $workspace_name, "WORKSPACE_STORAGE_CONTAINER_URL": $workspace_storage_container_url }}' \
 > wsenv.json
 
-#jq -s add /usr/local/share/jupyter/kernels/julia-1.6/kernel.json wsenv.json > julia_kernel.json && mv julia_kernel.json /usr/local/share/jupyter/kernels/julia-1.6/kernel.json
-
 /anaconda/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
