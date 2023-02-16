@@ -35,6 +35,11 @@ on:
       - develop
     paths-ignore:
       - 'README.md'
+  merge_group:
+    branches:
+      - develop
+    paths-ignore:
+      - 'README.md'
 
 jobs:
   leo-consumer-contract-tests:
