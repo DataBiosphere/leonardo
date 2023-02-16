@@ -492,3 +492,14 @@ final case class GalaxyOrchUrl(value: String) extends AnyVal
 final case class GalaxyDrsUrl(value: String) extends AnyVal
 final case class AppMachineType(memorySizeInGb: Int, numOfCpus: Int)
 final case class KsaName(value: String) extends AnyVal
+
+sealed abstract class AppAccessScope
+object AppAccessScope {
+  case object UserPrivate extends AppAccessScope {
+    override def toString: String = "USER_PRIVATE"
+  }
+
+  case object WorkspaceShared extends AppAccessScope {
+    override def toString: String = "WORKSPACE_SHARED"
+  }
+}

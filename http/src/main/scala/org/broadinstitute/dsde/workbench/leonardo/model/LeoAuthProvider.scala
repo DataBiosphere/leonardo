@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   PersistentDiskSamResource,
   ProjectSamResource,
   RuntimeSamResource,
+  SharedAppSamResource,
   WorkspaceResource,
   WsmResource
 }
@@ -44,6 +45,11 @@ object SamResource {
     val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Manager)
     def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
   }
+  class SharedAppSamResource extends SamResource[AppSamResourceId] {
+    val resourceType = SamResourceType.SharedApp
+    val policyNames = Set(SamPolicyName.Owner, SamPolicyName.Other("user"))
+    def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
+  }
   class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {
     val resourceType = SamResourceType.Workspace
     val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Owner) // TODO: is this policy name correct?
@@ -59,6 +65,7 @@ object SamResource {
   implicit object RuntimeSamResource extends RuntimeSamResource
   implicit object PersistentDiskSamResource extends PersistentDiskSamResource
   implicit object AppSamResource extends AppSamResource
+  implicit object SharedAppSamResource extends SharedAppSamResource
   implicit object WorkspaceResource extends WorkspaceResource
   implicit object WsmResource extends WsmResource
 }
@@ -100,6 +107,15 @@ object SamResourceAction {
     val decoder = Decoder[AppAction]
     val allActions = AppAction.allActions.toList
     val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
+    def actionAsString(a: AppAction): String = a.asString
+  }
+
+  implicit def SharedAppSamResourceAction = new SharedAppSamResource
+    with SamResourceAction[AppSamResourceId, AppAction] {
+    val decoder = Decoder[AppAction]
+    val allActions = AppAction.allActions.toList
+    val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
+
     def actionAsString(a: AppAction): String = a.asString
   }
 

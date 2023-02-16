@@ -103,7 +103,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](AppAlreadyExistsException(cloudContext, appName, c.app.status, ctx.traceId))
       )
 
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
+      // Shared app SAM resource is not enabled for V1 endpoint
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, AppAccessScope.UserPrivate))
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
@@ -521,9 +522,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
       }
 
-      // Create a new Sam resource for the app
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
-      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent.
+      // Create a new Sam resource for the app (either shared or not)
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
+      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent google project.
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
       _ <- authProvider
         .notifyResourceCreatedV2(samResourceId, originatingUserEmail, cloudContext, workspaceId, userInfo)

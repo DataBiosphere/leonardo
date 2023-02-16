@@ -189,7 +189,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     if (sr.resourceType != SamResourceType.App)
       samDao.createResourceAsGcpPet(samResource, creatorEmail, googleProject)
     else
-      samDao.createResourceWithParent(samResource, creatorEmail, googleProject)
+      samDao.createResourceWithGcpParent(samResource, creatorEmail, googleProject)
 
   override def notifyResourceCreatedV2[R](
     samResource: R,
@@ -198,10 +198,10 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     workspaceId: WorkspaceId,
     userInfo: UserInfo
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // Note: apps on GCP are defined with a google-project as a parent Sam resource.
+    // Note: V2 apps on both GCP and azure are defined with a workspace as a parent Sam resource.
     // Otherwise the Sam resource has no parent.
-    if (sr.resourceType == SamResourceType.App && cloudContext.cloudProvider == CloudProvider.Gcp)
-      samDao.createResourceWithParent(samResource, creatorEmail, GoogleProject(cloudContext.asString))
+    if (List(SamResourceType.App, SamResourceType.SharedApp).contains(sr.resourceType))
+      samDao.createResourceWithWorkspaceParent(samResource, creatorEmail, userInfo, workspaceId)
     else
       samDao.createResourceWithUserInfo(samResource, userInfo)
 

@@ -650,7 +650,9 @@ object JsonCodec {
   implicit val kubeClusterStatusDecoder: Decoder[KubernetesClusterStatus] = Decoder.decodeString.emap(s =>
     KubernetesClusterStatus.stringToObject.get(s).toRight(s"Invalid cluster status ${s}")
   )
-  implicit val appSamIdDecoder: Decoder[AppSamResourceId] = Decoder.decodeString.map(AppSamResourceId)
+  implicit val appSamIdDecoder: Decoder[AppSamResourceId] =
+    Decoder.forProduct2("resourceId", "accessScope")(AppSamResourceId.apply)
+
   implicit val namespaceNameDecoder: Decoder[NamespaceName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NamespaceName).leftMap(_.getMessage))
   implicit val namespaceIdDecoder: Decoder[NamespaceId] = Decoder.decodeLong.map(NamespaceId)

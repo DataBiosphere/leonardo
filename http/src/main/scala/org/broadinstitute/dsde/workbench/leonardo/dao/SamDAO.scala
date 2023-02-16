@@ -70,7 +70,19 @@ trait SamDAO[F[_]] {
 
   /** Creates a Sam resource R with the provided google project as the parent resource using a GCP pet credential
      for the given email/project. */
-  def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceWithGcpParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
+  /** Creates a Sam resource R with the provided workspace as the parent resource
+   * for the given email/project. */
+  def createResourceWithWorkspaceParent[R](resource: R,
+                                           creatorEmail: WorkbenchEmail,
+                                           userInfo: UserInfo,
+                                           workspaceId: WorkspaceId
+  )(implicit
     sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]

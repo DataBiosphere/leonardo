@@ -24,8 +24,12 @@ object SamResourceId {
     override def resourceType: SamResourceType = SamResourceType.Project
   }
 
-  final case class AppSamResourceId(resourceId: String) extends SamResourceId {
-    override def resourceType: SamResourceType = SamResourceType.App
+  final case class AppSamResourceId(resourceId: String, accessScope: Option[AppAccessScope]) extends SamResourceId {
+    override def resourceType: SamResourceType = accessScope match {
+      case Some(AppAccessScope.UserPrivate)     => SamResourceType.App
+      case Some(AppAccessScope.WorkspaceShared) => SamResourceType.SharedApp
+      case None                                 => SamResourceType.App
+    }
   }
 
   final case class WorkspaceResourceSamResourceId(workspaceId: WorkspaceId) extends SamResourceId {
@@ -54,6 +58,9 @@ object SamResourceType {
   }
   final case object App extends SamResourceType {
     val asString = "kubernetes-app"
+  }
+  final case object SharedApp extends SamResourceType {
+    val asString = "kubernetes-app-shared"
   }
   final case object Workspace extends SamResourceType {
     val asString = "workspace"
