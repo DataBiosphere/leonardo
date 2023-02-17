@@ -57,9 +57,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     for {
       now <- IO.realTimeInstant
       runtime <- RuntimeServiceDbQueries
-        .getActiveRuntime(workspaceId, name)(
-          scala.concurrent.ExecutionContext.global
-        )
+        .getActiveRuntime(workspaceId, name)
         .transaction
 
       _ <- clusterQuery

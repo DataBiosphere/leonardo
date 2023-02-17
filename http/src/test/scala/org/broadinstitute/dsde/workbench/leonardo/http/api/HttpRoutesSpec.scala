@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeServiceDbQueries, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
@@ -501,14 +501,34 @@ class HttpRoutesSpec
           azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName(s"azureDisk-$i"))
         )
 
-    for (i <- 1 to 10)
-      Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-$i",
-           runtimesWithLabels(i).asJson
-      ) ~> httpRoutes.route ~> check {
-        status shouldEqual StatusCodes.Accepted
-      }
+    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-1",
+         runtimesWithLabels(1).asJson
+    ) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
 
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?label6=value6") ~> httpRoutes.route ~> check {
+    val now = IO.realTimeInstant.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val runtime = RuntimeServiceDbQueries
+      .getActiveRuntime(workspaceId, RuntimeName("azureruntime-1"))(
+        scala.concurrent.ExecutionContext.global
+      )
+      .transaction
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    clusterQuery
+      .updateClusterStatus(runtime.id, RuntimeStatus.Deleted, now)
+      .transaction
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-2",
+         runtimesWithLabels(2).asJson
+    ) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+
+    Get(
+      s"/api/v2/runtimes/${workspaceId.value.toString}/azure?label1=value1&includeDeleted=true"
+    ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -516,20 +536,20 @@ class HttpRoutesSpec
 
       val cluster = responseClusters.head
       cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
-      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-6")
+      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-1")
       cluster.labels shouldEqual Map(
-        "clusterName" -> s"azureruntime-6",
-        "runtimeName" -> s"azureruntime-6",
+        "clusterName" -> s"azureruntime-1",
+        "runtimeName" -> s"azureruntime-1",
         "creator" -> "user1@example.com",
         "cloudContext" -> cluster.cloudContext.asStringWithProvider,
         "tool" -> "JupyterLab",
-        "label6" -> "value6"
+        "label1" -> "value1"
       ) ++ saLabels
 
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=label4%3Dvalue4") ~> httpRoutes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=label2%3Dvalue2") ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -537,14 +557,14 @@ class HttpRoutesSpec
 
       val cluster = responseClusters.head
       cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
-      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-4")
+      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-2")
       cluster.labels shouldEqual Map(
-        "clusterName" -> s"azureruntime-4",
-        "runtimeName" -> s"azureruntime-4",
+        "clusterName" -> s"azureruntime-2",
+        "runtimeName" -> s"azureruntime-2",
         "creator" -> "user1@example.com",
         "cloudContext" -> cluster.cloudContext.asStringWithProvider,
         "tool" -> "JupyterLab",
-        "label4" -> "value4"
+        "label2" -> "value2"
       ) ++ saLabels
 
       // validateCookie { header[`Set-Cookie`] }

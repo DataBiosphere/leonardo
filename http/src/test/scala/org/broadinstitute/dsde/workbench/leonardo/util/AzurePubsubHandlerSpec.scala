@@ -49,7 +49,6 @@ class AzurePubsubHandlerSpec
     with MockitoSugar
     with Eventually
     with LeonardoTestSuite {
-
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   it should "create azure vm properly" in isolatedDbTest {
