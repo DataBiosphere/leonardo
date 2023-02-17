@@ -91,6 +91,26 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                             Some(ctx.traceId)
         )
       )
+
+      // enforcing one runtime per workspace/user at a time
+      runtime <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map.empty,
+                                  false,
+                                  Some(userInfo.userEmail),
+                                  Some(workspaceId),
+                                  Some(cloudContext.cloudProvider)
+        )
+        .transaction
+      _ <- F
+        .raiseError(
+          OnlyOneRuntimePerWorkspacePerCreator(workspaceId,
+                                               userInfo.userEmail,
+                                               runtime.head.clusterName,
+                                               runtime.head.status
+          )
+        )
+        .whenA(runtime.length != 0)
+
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
@@ -154,21 +174,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                   _ <- F
                     .raiseError(PersistentDiskNotReadyException(disk.id, disk.status))
                     .whenA(disk.status != DiskStatus.Ready)
-
-                  // check previously attached runtime is deleted
-                  runtimeOpt <- clusterQuery.getClusterFromDiskId(disk.id).transaction
-                  _ <- runtimeOpt match {
-                    case Some(runtime) =>
-                      F.raiseError(NoUnattachedPersistentDiskException(disk.id, runtime.runtimeName))
-                        .whenA(runtime.status != RuntimeStatus.Deleted)
-                    case None =>
-                      F.raiseError(
-                        new LeoException(
-                          s"This should never happen. No previous runtime associated with disk ${disk.id}",
-                          traceId = None
-                        )
-                      )
-                  }
                 } yield disk.id
 
               // if not using existing disk, create a new one
@@ -722,9 +727,12 @@ case class PersistentDiskNotReadyException(diskId: DiskId, diskStatus: DiskStatu
       traceId = None
     )
 
-case class NoUnattachedPersistentDiskException(diskId: DiskId, runtime: RuntimeName)
-    extends LeoException(
-      s"Only existing disk: ${diskId.value} is associated with active runtime: ${runtime.asString}. New runtime cannot be created with an existing disk",
+case class OnlyOneRuntimePerWorkspacePerCreator(workspaceId: WorkspaceId,
+                                                creator: WorkbenchEmail,
+                                                runtime: RuntimeName,
+                                                status: RuntimeStatus
+) extends LeoException(
+      s"There is already an active runtime ${runtime.asString} in this workspace ${workspaceId.value} created by user ${creator.value} with the status ${status}. New runtime cannot be created until this one is deleted",
       StatusCodes.PreconditionFailed,
       traceId = None
     )

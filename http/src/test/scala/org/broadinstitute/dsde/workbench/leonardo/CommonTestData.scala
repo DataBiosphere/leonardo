@@ -94,7 +94,10 @@ object CommonTestData {
   val cloudContext2Gcp = CloudContext.Gcp(project2)
   val userEmail = WorkbenchEmail("user1@example.com")
   val userEmail2 = WorkbenchEmail("user2@example.com")
+  val userEmail3 = WorkbenchEmail("user3@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
+  val userInfo2 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user2"), userEmail2, 0)
+  val userInfo3 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user3"), userEmail3, 0)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
   val unauthorizedUserInfo =

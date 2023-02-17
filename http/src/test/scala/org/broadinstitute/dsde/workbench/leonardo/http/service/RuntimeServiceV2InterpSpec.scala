@@ -9,11 +9,13 @@ import cats.mtl.Ask
 import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, StorageContainerResponse, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
@@ -49,6 +51,21 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                  dateAccessedQueue: Queue[IO, UpdateDateAccessMessage] = QueueFactory.makeDateAccessedQueue()
   ) =
     new RuntimeV2ServiceInterp[IO](serviceConfig, allowListAuthProvider, wsmDao, mockSamDAO, queue, dateAccessedQueue)
+
+  // need to set previous runtime to deleted status before creating next to avoid exception
+  def setRuntimetoDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[(Long)] =
+    for {
+      now <- IO.realTimeInstant
+      runtime <- RuntimeServiceDbQueries
+        .getActiveRuntime(workspaceId, name)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+
+      _ <- clusterQuery
+        .updateClusterStatus(runtime.id, RuntimeStatus.Deleted, now)
+        .transaction
+    } yield runtime.id
 
   val runtimeV2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
@@ -187,7 +204,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val exc = runtimeV2Service
-      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .createRuntime(userInfo2, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -201,6 +218,9 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     runtimeV2Service
       .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // set runtime status to deleted before creating next
+    setRuntimetoDeleted(workspaceId, name0).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     runtimeV2Service
       .createRuntime(
@@ -222,6 +242,9 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // set runtime status to deleted before creating next
+    setRuntimetoDeleted(workspaceId, name1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val exc = runtimeV2Service
       .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
@@ -250,6 +273,9 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
+    // set runtime status to deleted before creating next
+    setRuntimetoDeleted(workspaceId, name0).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
     val exc = runtimeV2Service
       .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
       .attempt
@@ -273,11 +299,44 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       now <- IO.realTimeInstant
       _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, now).transaction
 
+      runtime <- clusterQuery.getLastClusterWithDiskId(disk.id).transaction
+
       err <- runtimeV2Service
         .createRuntime(userInfo, name1, workspaceId, true, defaultCreateAzureRuntimeReq)
         .attempt
 
-    } yield err shouldBe Left(NoUnattachedPersistentDiskException(disk.id, name0))
+    } yield err shouldBe Left(
+      OnlyOneRuntimePerWorkspacePerCreator(workspaceId, userInfo.userEmail, runtime.get.runtimeName, runtime.get.status)
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to create a runtime with existing disk if called twice" in isolatedDbTest {
+    val res = for {
+      _ <- runtimeV2Service
+        .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+
+      disks <- DiskServiceDbQueries
+        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .transaction
+      disk = disks.head
+      now <- IO.realTimeInstant
+      runtime <- clusterQuery.getLastClusterWithDiskId(disk.id).transaction
+      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, now).transaction
+      _ <- clusterQuery.updateClusterStatus(runtime.get.id, RuntimeStatus.Deleted, now).transaction
+
+      _ <- runtimeV2Service
+        .createRuntime(userInfo, name1, workspaceId, true, defaultCreateAzureRuntimeReq)
+
+      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, name1).transaction
+
+      err <- runtimeV2Service
+        .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
+        .attempt
+
+    } yield err shouldBe Left(
+      OnlyOneRuntimePerWorkspacePerCreator(workspaceId, userInfo.userEmail, runtime.clusterName, runtime.status)
+    )
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -756,7 +815,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       _ <- azureService
         .createRuntime(
-          userInfo,
+          userInfo2,
           runtimeName_2,
           workspaceId,
           false,
@@ -767,7 +826,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       _ <- azureService
         .createRuntime(
-          userInfo,
+          userInfo3,
           runtimeName_3,
           workspaceId,
           false,
@@ -870,7 +929,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       _ <- azureService
         .createRuntime(
-          userInfo,
+          userInfo2,
           runtimeName_2,
           workspaceId,
           false,
@@ -1085,7 +1144,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val wsmJobId2 = WsmJobId("job2")
     runtimeV2Service
       .createRuntime(
-        userInfo,
+        userInfo2,
         clusterName2,
         workspaceId,
         false,

@@ -379,7 +379,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           )
         )
       )
-      retrievedRuntime <- clusterQuery.getClusterFromDiskId(savedDisk.id).transaction
+      retrievedRuntime <- clusterQuery.getLastClusterWithDiskId(savedDisk.id).transaction
     } yield retrievedRuntime shouldBe savedRuntime2
   }
 }
