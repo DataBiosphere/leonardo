@@ -189,7 +189,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     if (sr.resourceType != SamResourceType.App)
       samDao.createResourceAsGcpPet(samResource, creatorEmail, googleProject)
     else
-      samDao.createResourceWithGcpParent(samResource, creatorEmail, googleProject)
+      samDao.createResourceWithGoogleProjectParent(samResource, creatorEmail, googleProject)
 
   override def notifyResourceCreatedV2[R](
     samResource: R,
