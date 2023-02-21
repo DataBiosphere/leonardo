@@ -214,7 +214,8 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
-  def createResourceWithGcpParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceWithGoogleProjectParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
@@ -267,7 +268,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   ): F[Unit] =
     for {
       traceId <- ev.ask
-      // TODO: Check if this is the best way to get the token, there are no petSA for Workspace resources, only google-projects
+      // We can use getCachedArbitraryPetAccessToken instead of using the userInfo if this ever needs to become asynchronous
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(

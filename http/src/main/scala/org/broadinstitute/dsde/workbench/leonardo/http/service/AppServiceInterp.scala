@@ -104,7 +104,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
 
       // Shared app SAM resource is not enabled for V1 endpoint
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, AppAccessScope.UserPrivate))
+      samResourceId <- req.accessScope match {
+        case None => F.delay(AppSamResourceId(UUID.randomUUID().toString, Some(AppAccessScope.UserPrivate)))
+        case Some(req.accessScope) =>
+          F.raiseError(BadRequestException("accessScope is not a V1 parameter", Some(ctx.traceId)))
+      }
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
