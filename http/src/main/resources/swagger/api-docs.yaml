@@ -866,11 +866,11 @@ paths:
             type: string
         - in: query
           name: deleteDisk
-          description: Whether or not disk should be deleted upon runtime deletion. Defaults to false if not specified
+          description: Whether or not disk should be deleted upon runtime deletion. Defaults to true if not specified
           required: false
           schema:
             type: boolean
-            default: false
+            default: true
       responses:
         "202":
           description: Runtime deletion request accepted

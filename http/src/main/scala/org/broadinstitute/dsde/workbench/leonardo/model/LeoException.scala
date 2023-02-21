@@ -68,7 +68,7 @@ final case class RuntimeNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
                                                        msg: String,
                                                        traceId: Option[TraceId] = None
 ) extends LeoException(
-      s"Runtime ${workspaceId} ${runtimeName.asString} not found",
+      s"Runtime ${runtimeName.asString} not found in workspace ${workspaceId}",
       StatusCodes.NotFound,
       extraMessageInLogging = s"Details: ${msg}",
       traceId = traceId

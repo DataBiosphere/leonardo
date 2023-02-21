@@ -438,7 +438,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}",
+                s"Wsm createVm job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}",
                 params.useExistingDisk
               )
             )

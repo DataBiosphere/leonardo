@@ -416,6 +416,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]] =
     for {
+      _ <- logger.info(
+        s"WSM delete call: /api/workspaces/v1/${req.workspaceId.value.toString}/resources/controlled/azure/${resource}/${req.resourceId.value.toString}, \nrequest: ${req.deleteRequest}"
+      )
       ctx <- ev.ask
       res <- httpClient.expectOptionOr[DeleteWsmResourceResult](
         Request[F](
