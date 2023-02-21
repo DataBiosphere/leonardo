@@ -243,8 +243,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      // default to true, if `deleteDisk` is explicitly set to false, then we don't delete disk
+      deleteDisk = !params.get("deleteDisk").exists(_ == "false")
       apiCall = runtimeV2Service.deleteRuntime(userInfo, runtimeName, workspaceId, deleteDisk)
       tags = Map("deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteRuntimeV2", 1, tags)
@@ -259,7 +259,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      // default to true, if `deleteDisk` is explicitly set to false, then we don't delete disk
+      deleteDisk = !params.get("deleteDisk").exists(_ == "false")
       apiCall = runtimeV2Service.deleteAllRuntimes(userInfo, workspaceId, deleteDisk)
       tags = Map("deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteAllRuntimesV2", 1, tags)
