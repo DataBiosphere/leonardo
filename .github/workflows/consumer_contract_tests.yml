@@ -2,6 +2,10 @@ name: Consumer contract tests
 # The purpose of this workflow is to validate the service level contract
 # using the Pact framework.
 #
+# More details on Contract Testing can be found in our handbook
+#
+# https://broadworkbench.atlassian.net/wiki/spaces/IRT/pages/2660368406/Getting+Started+with+Pact+Contract+Testing
+#
 # The workflow involves two parties: Leo as a consumer. Sam as a provider.
 # Each party owns a set of tests (aka contract tests).
 #
@@ -20,9 +24,6 @@ name: Consumer contract tests
 # of the consumers' published expectations.  Both the consumer and the provider can gate deployment on availability/honoring of the published pact
 # (contract expectations) between the two.
 #
-# The workflow relies on github secrets:
-# - PACT_BROKER_USERNAME - the Pact Broker username
-# - PACT_BROKER_PASSWORD - the Pact Broker password
 on:
   pull_request:
     branches:
@@ -34,6 +35,11 @@ on:
       - develop
     paths-ignore:
       - 'README.md'
+  merge_group:
+    branches:
+      - develop
+    paths-ignore:
+      - 'README.md'
 
 jobs:
   leo-consumer-contract-tests:
@@ -41,6 +47,9 @@ jobs:
     permissions:
       contents: 'read'
       id-token: 'write'
+    outputs:
+      sha-short: ${{ steps.extract-branch.outputs.sha-short }}
+      pact-b64: ${{ steps.encode-pact.outputs.pact-b64 }}
 
     steps:
       - name: Checkout current code
@@ -62,17 +71,14 @@ jobs:
           fi
           echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
           echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "sha-short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
 
-      - name: list directories
+      - name: Echo branch information
         run: |
-          ls -l pact4s
-          cd pact4s
-          cat README.md
           echo ${{ steps.extract-branch.outputs.ref }}
           echo ${{ steps.extract-branch.outputs.sha }}
-          echo ${{ steps.extract-branch.outputs.sha_short }}
+          echo ${{ steps.extract-branch.outputs.sha-short }}
           echo ${{ steps.extract-branch.outputs.branch }}
 
       - name: Run consumer tests
@@ -84,37 +90,25 @@ jobs:
                           sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
                           sbt "project pact4s" clean test
 
-      - name: Check consumer-provider contract
+      - name: Output consumer contract as non-breaking base64 string
+        id: encode-pact
         run: |
           cd pact4s
-          cat target/pacts/leo-consumer-sam-provider.json
+          NON_BREAKING_B64=$(cat target/pacts/leo-consumer-sam-provider.json | base64 -w 0)
+          echo "pact-b64=${NON_BREAKING_B64}" >> $GITHUB_OUTPUT
 
-      - name: Publish contract to Pact Broker
-        run: |
-          cd pact4s
-          PACT_DIR=publish
-          mkdir -p $PACT_DIR
-          cp target/pacts/leo*sam*.json $PACT_DIR
-
-          echo Found the following pact files:
-          for file in ${PACT_DIR}/*; do
-            echo "$(basename "$file")"
-          done
-
-          LATEST_COMMIT=$(git rev-parse --short HEAD)
-          PACT_BROKER_BASE_URL=https://pact-broker.dsp-eng-tools.broadinstitute.org/
-          PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }}
-          PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }}
-
-          docker run --rm \
-            -w ${PWD} \
-            -v ${PWD}:/pacts \
-            -e PACT_BROKER_BASE_URL=${PACT_BROKER_BASE_URL} \
-            -e PACT_BROKER_USERNAME=${PACT_BROKER_USERNAME} \
-            -e PACT_BROKER_PASSWORD=${PACT_BROKER_PASSWORD} \
-            pactfoundation/pact-cli:latest \
-            publish \
-            /pacts/${PACT_DIR} \
-            --consumer-app-version ${LATEST_COMMIT} \
-            --tag ${{ steps.extract-branch.outputs.sha_short }} \
-            --branch ${{ steps.extract-branch.outputs.branch }}
+  publish-pact:
+    runs-on: ubuntu-latest
+    needs: [leo-consumer-contract-tests]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: Dispatch to terra-github-workflows
+        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        with:
+          workflow: publish-pacts.yaml
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
+          inputs: '{ "consumer-name": "leo-consumer", "consumer-version": "${{ needs.leo-consumer-contract-tests.outputs.sha-short }}", "provider-name": "sam-provider", "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}" }'
