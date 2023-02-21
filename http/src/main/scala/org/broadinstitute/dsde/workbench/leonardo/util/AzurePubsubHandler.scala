@@ -573,9 +573,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           case Some(resp) =>
             resp.jobReport.status match {
               case WsmJobStatus.Succeeded =>
-                dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-                logger.info(ctx.loggingCtx)("runtime is deleted successfully")
-                deleteDiskAction
+                for {
+                  _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+                  _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
+                  _ <- deleteDiskAction
+                } yield ()
               case WsmJobStatus.Failed =>
                 F.raiseError[Unit](
                   AzureRuntimeDeletionError(
