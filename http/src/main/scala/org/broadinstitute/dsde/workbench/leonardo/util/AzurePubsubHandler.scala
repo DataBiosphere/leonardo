@@ -563,9 +563,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             }.void
 
             _ <- msg.diskIdToDelete.traverse(diskId =>
-              dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+              for {
+                _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+                _ <- logger.info(ctx.loggingCtx)(s"runtime disk ${diskId} is deleted successfully")
+              } yield ()
             )
-            _ <- logger.info(ctx.loggingCtx)("runtime disk is deleted successfully")
           } yield ()
         }.void
 
@@ -575,7 +577,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               case WsmJobStatus.Succeeded =>
                 for {
                   _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-                  _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
+                  _ <- logger.info(ctx.loggingCtx)(s"runtime ${msg.runtimeId} is deleted successfully")
                   _ <- deleteDiskAction
                 } yield ()
               case WsmJobStatus.Failed =>
