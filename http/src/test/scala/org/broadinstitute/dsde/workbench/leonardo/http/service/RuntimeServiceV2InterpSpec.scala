@@ -439,7 +439,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val exception = res.swap.toOption.get
     exception.isInstanceOf[RuntimeNotFoundByWorkspaceIdException] shouldBe true
-    exception.getMessage shouldBe s"Runtime ${workspaceId} clusterName1 not found"
+    exception.getMessage shouldBe s"Runtime clusterName1 not found in workspace ${workspaceId}"
   }
 
   it should "fail to start a runtime when runtime is not in startable statuses" in isolatedDbTest {
@@ -526,7 +526,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val exception = res.swap.toOption.get
     exception.isInstanceOf[RuntimeNotFoundByWorkspaceIdException] shouldBe true
-    exception.getMessage shouldBe s"Runtime ${workspaceId} clusterName1 not found"
+    exception.getMessage shouldBe s"Runtime clusterName1 not found in workspace ${workspaceId}"
   }
 
   it should "fail to stop a runtime when runtime is not in startable statuses" in isolatedDbTest {
