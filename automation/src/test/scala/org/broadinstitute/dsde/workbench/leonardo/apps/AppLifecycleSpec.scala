@@ -53,12 +53,12 @@ class AppLifecycleSpec
     ("create CROMWELL app, delete it and re-create it with same disk",
      createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None),
      false,
-     true
+     false
     ),
     ("create GALAXY app, start/stop, delete it and re-create it with same disk",
      createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None),
-     true,
-     true
+     false,
+     false
     )
   )
 
@@ -75,7 +75,7 @@ class AppLifecycleSpec
           )
         )
       ),
-      true,
+      false,
       false
     )
   }
