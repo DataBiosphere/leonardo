@@ -78,7 +78,8 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           storageContainerResourceId: WsmControlledResourceId,
                                           landingZoneResources: LandingZoneResources,
                                           runtimeConfig: RuntimeConfig.AzureConfig,
-                                          vmImage: AzureImage
+                                          vmImage: AzureImage,
+                                          useExistingDisk: Boolean
 )
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
@@ -87,7 +88,8 @@ final case class StartAzureRuntimeParams(runtime: Runtime, runtimeConfig: Runtim
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
                                    jobId: WsmJobId,
-                                   relayNamespace: RelayNamespace
+                                   relayNamespace: RelayNamespace,
+                                   useExistingDisk: Boolean
 )
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,

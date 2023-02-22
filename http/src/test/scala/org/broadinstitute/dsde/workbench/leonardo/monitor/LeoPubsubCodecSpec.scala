@@ -139,6 +139,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                 WorkspaceId(UUID.randomUUID()),
                                 storageContainerResourceId,
                                 landingZoneResources,
+                                false,
                                 None
       )
 

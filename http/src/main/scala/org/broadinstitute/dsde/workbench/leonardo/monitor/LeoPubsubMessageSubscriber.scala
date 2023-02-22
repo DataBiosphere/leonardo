@@ -110,7 +110,8 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.AzureRuntimeCreationError(
               msg.runtimeId,
               msg.workspaceId,
-              e.getMessage
+              e.getMessage,
+              msg.useExistingDisk
             )
           }
         case msg: DeleteAzureRuntimeMessage =>

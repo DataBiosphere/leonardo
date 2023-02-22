@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroy
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
@@ -18,10 +19,12 @@ object DiskServiceDbQueries {
   def listDisks(labelMap: LabelMap,
                 includeDeleted: Boolean,
                 creatorOnly: Option[WorkbenchEmail],
-                cloudContextOpt: Option[CloudContext] = None
+                cloudContextOpt: Option[CloudContext] = None,
+                workspaceOpt: Option[WorkspaceId] = None
   )(implicit
     ec: ExecutionContext
   ): DBIO[List[PersistentDisk]] = {
+
     // filtered by creator first as it may have great impact
     val diskQueryFilteredByCreator = creatorOnly match {
       case Some(email) => persistentDiskQuery.tableQuery.filter(_.creator === email)
@@ -39,7 +42,20 @@ object DiskServiceDbQueries {
           .filter(_.cloudProvider === p.cloudProvider)
       )
 
-    val diskQueryJoinedWithLabel = persistentDiskQuery.joinLabelQuery(diskQueryFilteredByProject)
+    val diskQueryFilteredByWorkspace = workspaceOpt match {
+      case Some(workspace) =>
+        // pre-filter by workspace
+        val runtimes =
+          clusterQuery.filter(_.workspaceId === workspace).join(runtimeConfigs).on(_.runtimeConfigId === _.id)
+        for {
+          disks <- diskQueryFilteredByProject
+            .join(runtimes)
+            .on(_.id === _._2.persistentDiskId)
+        } yield disks._1
+      case None => diskQueryFilteredByProject
+    }
+
+    val diskQueryJoinedWithLabel = persistentDiskQuery.joinLabelQuery(diskQueryFilteredByWorkspace)
 
     val diskQueryFilteredByLabel = if (labelMap.isEmpty) {
       diskQueryJoinedWithLabel

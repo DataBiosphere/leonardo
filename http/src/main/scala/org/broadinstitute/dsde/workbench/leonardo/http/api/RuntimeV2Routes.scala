@@ -123,10 +123,12 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                         pathEndOrSingleSlash {
                           post {
-                            entity(as[CreateAzureRuntimeRequest]) { req =>
-                              complete(
-                                createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
-                              )
+                            parameterMap { params =>
+                              entity(as[CreateAzureRuntimeRequest]) { req =>
+                                complete(
+                                  createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req, params)
+                                )
+                              }
                             }
                           } ~ get {
                             complete(
@@ -158,14 +160,16 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def createAzureRuntimeHandler(userInfo: UserInfo,
                                              workspaceId: WorkspaceId,
                                              runtimeName: RuntimeName,
-                                             req: CreateAzureRuntimeRequest
+                                             req: CreateAzureRuntimeRequest,
+                                             params: Map[String, String]
   )(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-
-      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, req)
+      // if not specified, create new disk
+      useExistingDisk = params.get("useExistingDisk").exists(_ == "true")
+      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, useExistingDisk, req)
       _ <- metrics.incrementCounter("createRuntimeV2")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntimeV2")
@@ -239,8 +243,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      // default to true, if `deleteDisk` is explicitly set to false, then we don't delete disk
+      deleteDisk = !params.get("deleteDisk").exists(_ == "false")
       apiCall = runtimeV2Service.deleteRuntime(userInfo, runtimeName, workspaceId, deleteDisk)
       tags = Map("deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteRuntimeV2", 1, tags)
@@ -255,7 +259,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      // default to true, if `deleteDisk` is explicitly set to false, then we don't delete disk
+      deleteDisk = !params.get("deleteDisk").exists(_ == "false")
       apiCall = runtimeV2Service.deleteAllRuntimes(userInfo, workspaceId, deleteDisk)
       tags = Map("deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteAllRuntimesV2", 1, tags)

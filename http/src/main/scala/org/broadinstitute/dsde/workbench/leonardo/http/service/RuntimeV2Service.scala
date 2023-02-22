@@ -11,6 +11,7 @@ trait RuntimeV2Service[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
+                    useExistingDisk: Boolean,
                     req: CreateAzureRuntimeRequest
   )(implicit
     as: Ask[F, AppContext]

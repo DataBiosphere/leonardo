@@ -923,6 +923,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       None,
       None,
       labels,
+      None,
       None
     )
   }
