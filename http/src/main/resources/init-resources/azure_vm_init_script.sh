@@ -42,8 +42,8 @@ CONTENTSECURITYPOLICY_FILE=$8
 
 # Envs for welder
 WELDER_WSM_URL=${9:-localhost}
-WORKSPACE_ID="${10:-dummy}"
-WORKSPACE_STORAGE_CONTAINER_ID="${11:-dummy}"
+WORKSPACE_ID="${10:-dummy}" # Additionally used for welder
+WORKSPACE_STORAGE_CONTAINER_ID="${11:-dummy}" # Additionally used for welder
 WELDER_WELDER_DOCKER_IMAGE="${12:-dummy}"
 WELDER_OWNER_EMAIL="${13:-dummy}"
 WELDER_STAGING_BUCKET="${14:-dummy}"
@@ -126,6 +126,7 @@ docker run -d --restart always --network host --name welder \
 --env SHOULD_BACKGROUND_SYNC="false" \
 $WELDER_WELDER_DOCKER_IMAGE
 
+# This next command creates a json file which contains the "env" variables to be added to the kernel.json files.
 jq --null-input \
 --arg workspace_id $WORKSPACE_ID \
 --arg workspace_storage_container_id $WORKSPACE_STORAGE_CONTAINER_ID \
@@ -134,4 +135,5 @@ jq --null-input \
 '{ "env": { "WORKSPACE_ID": $workspace_id, "WORKSPACE_STORAGE_CONTAINER_ID": $workspace_storage_container_id, "WORKSPACE_NAME": $workspace_name, "WORKSPACE_STORAGE_CONTAINER_URL": $workspace_storage_container_url }}' \
 > wsenv.json
 
+# This next command iterates through the available kernels, and uses jq to include the env variables from the previous step
 /anaconda/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done

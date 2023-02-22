@@ -120,6 +120,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
+      // Construct the workspace storage container URL which will be passed to the JupyterLab environment variables.
       wsStorageContainerUrl =
         s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.storageContainerName.value}"
       createVmRequest <- createDiskAction.map { diskResp =>

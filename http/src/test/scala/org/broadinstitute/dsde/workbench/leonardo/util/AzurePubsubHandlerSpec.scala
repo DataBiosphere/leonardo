@@ -192,7 +192,9 @@ class AzurePubsubHandlerSpec
                                         storageContainerResourceId,
                                         landingZoneResources,
                                         true,
-                                        None
+                                        None,
+                                        "WorkspaceName",
+                                        ContainerName("dummy")
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -613,7 +615,9 @@ class AzurePubsubHandlerSpec
                                         storageContainerResourceId,
                                         landingZoneResources,
                                         true,
-                                        None
+                                        None,
+                                        "WorkspaceName",
+                                        ContainerName("dummy")
         )
 
         err <- azureInterp.createAndPollRuntime(msg).attempt
@@ -668,7 +672,9 @@ class AzurePubsubHandlerSpec
                                         storageContainerResourceId,
                                         landingZoneResources,
                                         true,
-                                        None
+                                        None,
+                                        "WorkspaceName",
+                                        ContainerName("dummy")
         )
 
         err <- azureInterp.createAndPollRuntime(msg).attempt
