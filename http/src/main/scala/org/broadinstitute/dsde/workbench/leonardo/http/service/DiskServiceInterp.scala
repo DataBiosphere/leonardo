@@ -380,7 +380,8 @@ object DiskServiceInterp {
       sourceDisk.flatMap(_.formattedBy),
       None,
       labels,
-      sourceDisk.map(_.diskLink)
+      sourceDisk.map(_.diskLink),
+      None
     )
   }
 }
