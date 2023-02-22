@@ -85,7 +85,7 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
               rstudioPage.pressKeys("system(\"cat tests.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-              Thread.sleep(25000)
+              Thread.sleep(45000)
 
               val newCreatedContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName("tests.Rmd"))
@@ -103,7 +103,7 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
               rstudioPage.pressKeys("system(\"echo 'teterererrdffsfsfsfafafafafafafafafaffwewew' >> gcsFile.Rmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-              Thread.sleep(25000)
+              Thread.sleep(45000)
               val newRemoteContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
@@ -119,7 +119,7 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
               rstudioPage.pressKeys("system(\"echo 'teterererrdffsfsfsfafafafafafafafafaffwewew' >> tested.lmd\")")
               rstudioPage.pressKeys(Keys.ENTER.toString)
 
-              Thread.sleep(25000)
+              Thread.sleep(45000)
 
               val incorrectFileEndingContentSize: Int =
                 getObjectSize(gcsPath.bucketName, GcsBlobName("tested.lmd"))
