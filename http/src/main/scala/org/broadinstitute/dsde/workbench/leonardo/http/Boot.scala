@@ -751,6 +751,9 @@ object Boot extends IOApp {
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(dnsResolver)
+        .withConnectTimeout(30 seconds)
+        .withRequestTimeout(60 seconds)
+        .withMaxTotalConnections(100)
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
