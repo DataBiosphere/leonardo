@@ -58,7 +58,7 @@ class AppLifecycleSpec
     ("create GALAXY app, start/stop, delete it and re-create it with same disk",
      createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None),
      false,
-     false
+     true
     )
   )
 
