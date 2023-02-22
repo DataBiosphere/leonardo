@@ -5,7 +5,12 @@ import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  AzureCloudContext,
+  RelayNamespace
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
@@ -146,6 +151,9 @@ object JsonCodec {
   )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig, x.configType))
 
   implicit val azureRegionEncoder: Encoder[Region] = Encoder.encodeString.contramap(_.toString)
+
+  implicit val applicationInsightsNameEncoder: Encoder[ApplicationInsightsName] =
+    Encoder.encodeString.contramap(_.value)
   implicit val azureRuntimeConfigEncoder: Encoder[RuntimeConfig.AzureConfig] = Encoder.forProduct5(
     "cloudService",
     "machineType",
@@ -493,6 +501,8 @@ object JsonCodec {
         else none[Region]
       regionOpt.toRight(s"Invalid azure region ${s}")
     }
+  implicit val applicationInsightsNameDecoder: Decoder[ApplicationInsightsName] =
+    Decoder.decodeString.map(ApplicationInsightsName)
 
   implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
     "gpuType",
@@ -732,7 +742,7 @@ object JsonCodec {
   )(x => (x.publisher, x.offer, x.sku, x.version))
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct12(
+    Decoder.forProduct13(
       "clusterName",
       "batchAccountName",
       "relayNamespace",
@@ -744,12 +754,13 @@ object JsonCodec {
       "aksSubnetName",
       "postgresSubnetName",
       "computeSubnetName",
-      "region"
+      "region",
+      "applicationInsightsName"
     )(
       LandingZoneResources.apply
     )
 
-  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct12(
+  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct13(
     "clusterName",
     "batchAccountName",
     "relayNamespace",
@@ -761,7 +772,8 @@ object JsonCodec {
     "aksSubnetName",
     "postgresSubnetName",
     "computeSubnetName",
-    "region"
+    "region",
+    "applicationInsightsName"
   )(x =>
     (x.clusterName,
      x.batchAccountName,
@@ -774,7 +786,8 @@ object JsonCodec {
      x.aksSubnetName,
      x.postgresSubnetName,
      x.computeSubnetName,
-     x.region
+     x.region,
+     x.applicationInsightsName
     )
   )
 }
