@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   PersistentDiskSamResource,
   ProjectSamResource,
   RuntimeSamResource,
-  SharedAppSamResource,
   WorkspaceResource,
   WsmResource
 }
@@ -40,14 +39,17 @@ object SamResource {
     val policyNames = Set(SamPolicyName.Creator)
     def resourceIdAsString(r: PersistentDiskSamResourceId): String = r.resourceId
   }
-  class AppSamResource extends SamResource[AppSamResourceId] {
-    val resourceType = SamResourceType.App
-    val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Manager)
-    def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
-  }
-  class SharedAppSamResource extends SamResource[AppSamResourceId] {
-    val resourceType = SamResourceType.SharedApp
-    val policyNames = Set(SamPolicyName.Owner, SamPolicyName.Other("user"))
+  class AppSamResource(accessScope: Option[AppAccessScope]) extends SamResource[AppSamResourceId] {
+    val resourceType = accessScope match {
+      case Some(AppAccessScope.UserPrivate)     => SamResourceType.App
+      case Some(AppAccessScope.WorkspaceShared) => SamResourceType.SharedApp
+      case None                                 => SamResourceType.App
+    }
+    val policyNames = accessScope match {
+      case Some(AppAccessScope.UserPrivate)     => Set(SamPolicyName.Creator, SamPolicyName.Manager)
+      case Some(AppAccessScope.WorkspaceShared) => Set(SamPolicyName.Owner, SamPolicyName.Other("user"))
+      case None                                 => Set(SamPolicyName.Creator, SamPolicyName.Manager)
+    }
     def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
   }
   class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {
@@ -64,8 +66,6 @@ object SamResource {
   implicit object ProjectSamResource extends ProjectSamResource
   implicit object RuntimeSamResource extends RuntimeSamResource
   implicit object PersistentDiskSamResource extends PersistentDiskSamResource
-  implicit object AppSamResource extends AppSamResource
-  implicit object SharedAppSamResource extends SharedAppSamResource
   implicit object WorkspaceResource extends WorkspaceResource
   implicit object WsmResource extends WsmResource
 }
@@ -103,19 +103,12 @@ object SamResourceAction {
       def actionAsString(a: PersistentDiskAction): String = a.asString
     }
 
-  implicit def AppSamResourceAction = new AppSamResource with SamResourceAction[AppSamResourceId, AppAction] {
+  implicit def AppSamResourceAction(implicit accessScope: Option[AppAccessScope]) = new AppSamResource(
+    accessScope: Option[AppAccessScope]
+  ) with SamResourceAction[AppSamResourceId, AppAction] {
     val decoder = Decoder[AppAction]
     val allActions = AppAction.allActions.toList
     val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
-    def actionAsString(a: AppAction): String = a.asString
-  }
-
-  implicit def SharedAppSamResourceAction = new SharedAppSamResource
-    with SamResourceAction[AppSamResourceId, AppAction] {
-    val decoder = Decoder[AppAction]
-    val allActions = AppAction.allActions.toList
-    val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
-
     def actionAsString(a: AppAction): String = a.asString
   }
 

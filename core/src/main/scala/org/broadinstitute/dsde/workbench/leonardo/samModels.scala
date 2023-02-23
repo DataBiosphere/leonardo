@@ -276,3 +276,17 @@ object SamPolicyName {
 
 final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
 final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])
+
+sealed abstract class AppAccessScope
+object AppAccessScope {
+  case object UserPrivate extends AppAccessScope {
+    override def toString: String = "USER_PRIVATE"
+  }
+  case object WorkspaceShared extends AppAccessScope {
+    override def toString: String = "WORKSPACE_SHARED"
+  }
+
+  def values: Set[AppAccessScope] = sealerate.values[AppAccessScope]
+
+  def stringToObject: Map[String, AppAccessScope] = values.map(v => v.toString -> v).toMap
+}
