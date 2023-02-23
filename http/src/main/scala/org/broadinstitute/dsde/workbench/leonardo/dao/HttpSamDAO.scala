@@ -110,14 +110,14 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     ev: Ask[F, TraceId]
   ): F[List[A]] = {
     implicit val d = sr.decoder
-    metrics.incrementCounter(s"sam/getListOfResourcePermissions/${sr.resourceType.asString}") >>
+    metrics.incrementCounter(s"sam/getListOfResourcePermissions/${sr.resourceType(resource).asString}") >>
       httpClient.expectOr[List[A]](
         Request[F](
           method = Method.GET,
           uri = config.samUri
             .withPath(
               Uri.Path.unsafeFromString(
-                s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"
+                s"/api/resources/v2/${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)}/actions"
               )
             ),
           headers = Headers(authHeader)
@@ -126,15 +126,16 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   }
 
   override def getResourcePolicies[R](
-    authHeader: Authorization
+    authHeader: Authorization,
+    resourceType: SamResourceType,
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
       ctx <- ev.ask
-      _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${resourceType.asString}")
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${resourceType.asString}")),
           headers = Headers(authHeader)
         )
       )(onError)
@@ -191,9 +192,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       traceId <- ev.ask
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(
-        s"Creating ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} resource in Sam"
+        s"Creating ${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)} resource in Sam"
       )
-      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
       _ <- httpClient
         .run(
           Request[F](
@@ -201,7 +202,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             uri = config.samUri
               .withPath(
                 Uri.Path
-                  .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+                  .unsafeFromString(
+                    s"/api/resources/v2/${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)}"
+                  )
               ),
             headers = Headers(authHeader)
           )
@@ -232,9 +235,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(
-        s"Creating ${sr.resourceType.asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
+        s"Creating ${sr.resourceType(resource).asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
       )
-      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
       policies = Map[SamPolicyName, SamPolicyData](
         SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
       )
@@ -244,7 +247,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType(resource).asString}")),
             headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
             entity = CreateSamResourceRequest[R](resource, policies, parent)
           )
@@ -272,9 +275,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(
-        s"Creating ${sr.resourceType.asString} resource in sam v2 for ${workspaceId}/${sr.resourceIdAsString(resource)}"
+        s"Creating ${sr.resourceType(resource).asString} resource in sam v2 for ${workspaceId}/${sr.resourceIdAsString(resource)}"
       )
-      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
       policies = Map[SamPolicyName, SamPolicyData](
         SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
       )
@@ -284,7 +287,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType(resource).asString}")),
             headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
             entity = CreateSamResourceRequest[R](resource, policies, parent)
           )
@@ -329,9 +332,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       traceId <- ev.ask
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(
-        s"Deleting ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} resource in Sam"
+        s"Deleting ${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)} resource in Sam"
       )
-      _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType(resource).asString}")
       _ <- httpClient
         .run(
           Request[F](
@@ -339,7 +342,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             uri = config.samUri
               .withPath(
                 Uri.Path
-                  .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+                  .unsafeFromString(
+                    s"/api/resources/v2/${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)}"
+                  )
               ),
             headers = Headers(authHeader)
           )
@@ -348,7 +353,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           resp.status match {
             case Status.NotFound =>
               logger.info(loggingCtx)(
-                s"Fail to delete Sam resource ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} because it doesn't exist in Sam"
+                s"Fail to delete Sam resource ${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)} because it doesn't exist in Sam"
               )
             case s if s.isSuccess => F.unit
             case _                => onError(resp).flatMap(F.raiseError[Unit])
