@@ -111,7 +111,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.status,
       app.chart,
       app.release,
-      app.samResourceId,
+      AppSamResourceId(app.samResourceId.resourceId, app.appAccessScope),
       app.googleServiceAccount,
       AuditInfo(
         app.creator,

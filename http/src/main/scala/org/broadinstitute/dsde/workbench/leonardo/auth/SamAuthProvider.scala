@@ -38,12 +38,24 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     if (config.authCacheEnabled && sr.cacheableActions.contains(action)) {
       authCache.cachingF(
-        AuthCacheKey(sr.resourceType, sr.resourceIdAsString(samResource), authHeader, sr.actionAsString(action))
+        AuthCacheKey(sr.resourceType(samResource),
+                     sr.resourceIdAsString(samResource),
+                     authHeader,
+                     sr.actionAsString(action)
+        )
       )(None) {
-        checkPermission(sr.resourceType, sr.resourceIdAsString(samResource), sr.actionAsString(action), authHeader)
+        checkPermission(sr.resourceType(samResource),
+                        sr.resourceIdAsString(samResource),
+                        sr.actionAsString(action),
+                        authHeader
+        )
       }
     } else {
-      checkPermission(sr.resourceType, sr.resourceIdAsString(samResource), sr.actionAsString(action), authHeader)
+      checkPermission(sr.resourceType(samResource),
+                      sr.resourceIdAsString(samResource),
+                      sr.actionAsString(action),
+                      authHeader
+      )
     }
   }
 
@@ -124,10 +136,11 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     for {
       ctx <- ev.ask
 
-      resourcePolicies <- samDao
-        .getResourcePolicies[R](authHeader)
-      res = resourcePolicies.filter { case (_, pn) =>
-        sr.policyNames.contains(pn)
+      resourcePolicies <- resources.map(resource =>
+        samDao.getResourcePolicies[R](authHeader, sr.resourceType(resource))
+      )
+      res = resourcePolicies.Filter { case (r, pn) =>
+        sr.policyNames(r).contains(pn)
       }
     } yield resources.filter(r => res.exists(_._1 == r))
   }
@@ -142,13 +155,17 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
-      projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader)
-      owningProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
-        r.googleProject
-      }
-      resourcePolicies <- samDao
-        .getResourcePolicies[R](authHeader)
-      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
+      projectPolicies <- resources.map(resource =>
+        samDao.getResourcePolicies[ProjectSamResourceId](authHeader, sr.resourceType(resource._2))
+      )
+      owningProjects =
+        projectPolicies.collect { case (r, SamPolicyName.Owner) =>
+          r.googleProject
+        }
+      resourcePolicies <- resources.map(resource =>
+        samDao.getResourcePolicies[R](authHeader, sr.resourceType(resource._2))
+      )
+      res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
     } yield resources.filter { case (project, r) =>
       owningProjects.contains(project) || res.exists(_._1 == r)
     }
@@ -162,7 +179,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[Set[WorkspaceResourceSamResourceId]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
-      workspacePolicies <- samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader)
+      workspacePolicies <- resources.map(resource =>
+        samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader, resource.resourceType)
+      )
       owningWorkspaces = workspacePolicies.collect { case (r, SamPolicyName.Owner) =>
         r
       }
@@ -186,7 +205,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
     // Note: apps on GCP are defined with a google-project as a parent Sam resource.
     // Otherwise the Sam resource has no parent.
-    if (sr.resourceType != SamResourceType.App)
+    if (sr.resourceType(samResource) != SamResourceType.App)
       samDao.createResourceAsGcpPet(samResource, creatorEmail, googleProject)
     else
       samDao.createResourceWithGoogleProjectParent(samResource, creatorEmail, googleProject)
@@ -200,7 +219,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
     // Note: V2 apps on both GCP and azure are defined with a workspace as a parent Sam resource.
     // Otherwise the Sam resource has no parent.
-    if (List(SamResourceType.App, SamResourceType.SharedApp).contains(sr.resourceType))
+    if (List(SamResourceType.App, SamResourceType.SharedApp).contains(sr.resourceType(samResource)))
       samDao.createResourceWithWorkspaceParent(samResource, creatorEmail, userInfo, workspaceId)
     else
       samDao.createResourceWithUserInfo(samResource, userInfo)

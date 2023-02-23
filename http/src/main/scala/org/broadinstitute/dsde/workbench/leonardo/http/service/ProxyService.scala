@@ -339,9 +339,6 @@ class ProxyService(
     for {
       ctx <- ev.ask[AppContext]
       samResource <- getCachedAppSamResource(AppCacheKey(cloudContext, appName, workspaceId))
-      implicit0(accessScope: Option[AppAccessScope]) =
-        if (samResource.resourceType == SamResourceType.App) AppAccessScope.UserPrivate
-        else AppAccessScope.WorkspaceShared
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
                                                                                    AppAction.GetAppStatus,
