@@ -1607,13 +1607,6 @@ paths:
           required: true
           schema:
             type: string
-        - in: query
-          name: accessScope
-          description: Whether or not the app created can be shared across different users. Set to WORKSPACE_SHARED to enable sharing permissions, or set to USER_PRIVATE to keep it private. Default to USER_PRIVATE if not specified.
-          required: false
-          schema:
-            type: string
-            default: USER_PRIVATE
       requestBody:
         $ref: "#/components/requestBodies/CreateAppRequest"
       responses:
@@ -2753,6 +2746,11 @@ components:
         - STATUS_UNSPECIFIED
         - STOPPED
         - STOPPING
+    AppAccessScope:
+      type: string
+      enum:
+        - USER_PRIVATE
+        - WORKSPACE_SHARED
     DiskType:
       type: string
       enum:
@@ -3712,6 +3710,8 @@ components:
           $ref: '#/components/schemas/PersistentDiskRequest'
         appType:
           $ref: '#/components/schemas/AppType'
+        accessScope:
+          $ref: '#components/schemas/AppAccessScope'
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:
