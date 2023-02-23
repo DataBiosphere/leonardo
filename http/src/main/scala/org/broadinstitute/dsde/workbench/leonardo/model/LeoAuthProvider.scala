@@ -45,6 +45,7 @@ object SamResource {
     def policyNames(r: AppSamResourceId): Set[SamPolicyName] = r.resourceType match {
       case SamResourceType.App       => Set(SamPolicyName.Creator, SamPolicyName.Manager)
       case SamResourceType.SharedApp => Set(SamPolicyName.Owner, SamPolicyName.Other("user"))
+      case _                         => Set(SamPolicyName.Creator, SamPolicyName.Manager) // TODO properly raise error
     }
   }
   class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {

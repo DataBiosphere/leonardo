@@ -136,10 +136,10 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     for {
       ctx <- ev.ask
 
-      resourcePolicies <- resources.map(resource =>
+      resourcePolicies <- resources.toList.flatTraverse(resource =>
         samDao.getResourcePolicies[R](authHeader, sr.resourceType(resource))
       )
-      res = resourcePolicies.Filter { case (r, pn) =>
+      res = resourcePolicies.filter { case (r, pn) =>
         sr.policyNames(r).contains(pn)
       }
     } yield resources.filter(r => res.exists(_._1 == r))
@@ -155,14 +155,14 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
-      projectPolicies <- resources.map(resource =>
+      projectPolicies <- resources.toList.flatTraverse(resource =>
         samDao.getResourcePolicies[ProjectSamResourceId](authHeader, sr.resourceType(resource._2))
       )
       owningProjects =
         projectPolicies.collect { case (r, SamPolicyName.Owner) =>
           r.googleProject
         }
-      resourcePolicies <- resources.map(resource =>
+      resourcePolicies <- resources.toList.flatTraverse(resource =>
         samDao.getResourcePolicies[R](authHeader, sr.resourceType(resource._2))
       )
       res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
@@ -179,7 +179,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[Set[WorkspaceResourceSamResourceId]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
-      workspacePolicies <- resources.map(resource =>
+      workspacePolicies <- resources.toList.flatTraverse(resource =>
         samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader, resource.resourceType)
       )
       owningWorkspaces = workspacePolicies.collect { case (r, SamPolicyName.Owner) =>
