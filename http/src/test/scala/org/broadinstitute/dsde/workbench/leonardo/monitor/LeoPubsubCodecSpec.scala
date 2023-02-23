@@ -8,6 +8,7 @@ import _root_.io.circe.syntax._
 import io.circe.Printer
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
+  ApplicationInsightsName,
   AzureCloudContext,
   ContainerName,
   ManagedResourceGroupName,
@@ -162,7 +163,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     SubnetworkName("aks-subnet"),
     SubnetworkName("pg-subnet"),
     SubnetworkName("compute-subnet"),
-    com.azure.core.management.Region.US_EAST
+    com.azure.core.management.Region.US_EAST,
+    ApplicationInsightsName("TEMP")
   )
 
   it should "encode/decode LandingZoneResources properly" in {

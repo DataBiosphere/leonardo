@@ -3,6 +3,7 @@ package util
 
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
+import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
 import com.azure.resourcemanager.compute.ComputeManager
 import com.azure.resourcemanager.compute.fluent.{ComputeManagementClient, VirtualMachineScaleSetsClient}
 import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, VirtualMachineScaleSets}
@@ -54,11 +55,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockAzureContainerService = setUpMockAzureContainerService
+  val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
 
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
-    setUpMockAzureContainerService,
+    mockAzureContainerService,
+    mockAzureApplicationInsightsService,
     FakeAzureRelayService,
     mockSamDAO,
     mockCromwellDAO,
@@ -91,7 +95,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SubnetworkName("subnet2"),
     SubnetworkName("subnet3"),
     SubnetworkName("subnet4"),
-    azureRegion
+    azureRegion,
+    ApplicationInsightsName("TEMP") // TODO
   )
 
   val storageContainer = StorageContainerResponse(
@@ -123,7 +128,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Uri.unsafeFromString("https://relay.com/app"),
       setUpMockIdentity,
-      storageContainer
+      storageContainer,
+      "TEMP" // TODO
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -279,6 +285,15 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     container
   }
 
+  private def setUpMockAzureApplicationInsightsService: AzureApplicationInsightsService[IO] = {
+    val container = mock[AzureApplicationInsightsService[IO]]
+    val applicationInsightsComponent = mock[ApplicationInsightsComponent]
+    when {
+      container.getApplicationInsights(any[String].asInstanceOf[ApplicationInsightsName], any)(any)
+    } thenReturn IO.pure(applicationInsightsComponent)
+    container
+  }
+
   private def setUpMockKubeAPI: CoreV1Api = {
     val coreV1Api = mock[CoreV1Api]
     val podList = mock[V1PodList]
@@ -348,4 +363,5 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn IO.pure(true)
     wds
   }
+
 }
