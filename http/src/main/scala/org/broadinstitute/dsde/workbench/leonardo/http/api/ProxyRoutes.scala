@@ -217,7 +217,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService
-        .proxyAppRequest(userInfo, googleProject, appName, serviceName, request)
+        .proxyAppRequest(userInfo, CloudContext.Gcp(googleProject), appName, None, serviceName, request)
         .onError { case e =>
           IO(
             logger.warn(
