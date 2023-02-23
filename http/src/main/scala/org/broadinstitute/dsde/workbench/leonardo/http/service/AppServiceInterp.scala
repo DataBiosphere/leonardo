@@ -112,6 +112,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
+      implicit0(accessScope: Option[AppAccessScope]) = req.accessScope
       _ <- authProvider
         .notifyResourceCreated(samResourceId, originatingUserEmail, googleProject)
         .handleErrorWith { t =>
@@ -245,6 +246,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
       app <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB"))
 
+      implicit0(accessScope: Option[AppAccessScope]) = app.app.appAccessScope
       hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
                                                                                AppAction.GetAppStatus,
                                                                                userInfo
@@ -287,6 +289,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       tags = Map("appType" -> appResult.app.appType.toString, "deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteApp", 1, tags)
+      implicit0(accessScope: Option[AppAccessScope]) = appResult.app.appAccessScope
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no GetAppStatus permission
@@ -356,6 +359,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       tags = Map("appType" -> appResult.app.appType.toString)
       _ <- metrics.incrementCounter("stopApp", 1, tags)
+      implicit0(accessScope: Option[AppAccessScope]) = appResult.app.appAccessScope
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no StopStartApp permission
@@ -397,6 +401,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       tags = Map("appType" -> appResult.app.appType.toString)
       _ <- metrics.incrementCounter("startApp", 1, tags)
+      implicit0(accessScope: Option[AppAccessScope]) = appResult.app.appAccessScope
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no StopStartApp permission
@@ -448,6 +453,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         appOpt,
         AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
       )
+      implicit0(accessScope: Option[AppAccessScope]) = app.app.appAccessScope
       hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
                                                                                AppAction.GetAppStatus,
                                                                                userInfo
@@ -527,6 +533,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       // Create a new Sam resource for the app (either shared or not)
+      implicit0(accessScope: Option[AppAccessScope]) = req.accessScope
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
       // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent google project.
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
@@ -1094,6 +1101,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         nodepoolId,
         req.appType,
         appName,
+        req.accessScope,
         workspaceId,
         AppStatus.Precreating,
         chart,

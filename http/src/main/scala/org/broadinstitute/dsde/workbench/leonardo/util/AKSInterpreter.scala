@@ -312,15 +312,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                     config.appMonitorConfig.deleteApp.initialDelay,
                                     "delete namespace timed out"
       )
-
+      implicit0(samResourceId: AppSamResourceId) = AppSamResourceId(dbApp.app.samResourceId.resourceId,
+                                                                    dbApp.app.appAccessScope
+      )
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
       _ <- tokenOpt match {
         case Some(token) =>
-          samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                        Authorization(Credentials.Token(AuthScheme.Bearer, token))
-          )
+          samDao.deleteResourceInternal(samResourceId, Authorization(Credentials.Token(AuthScheme.Bearer, token)))
         case None =>
           logger.warn(
             s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."

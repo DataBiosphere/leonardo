@@ -363,6 +363,7 @@ final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
                      appName: AppName,
+                     appAccessScope: Option[AppAccessScope],
                      workspaceId: Option[WorkspaceId],
                      status: AppStatus,
                      chart: Chart,
@@ -492,17 +493,3 @@ final case class GalaxyOrchUrl(value: String) extends AnyVal
 final case class GalaxyDrsUrl(value: String) extends AnyVal
 final case class AppMachineType(memorySizeInGb: Int, numOfCpus: Int)
 final case class KsaName(value: String) extends AnyVal
-
-sealed abstract class AppAccessScope
-object AppAccessScope {
-  case object UserPrivate extends AppAccessScope {
-    override def toString: String = "USER_PRIVATE"
-  }
-  case object WorkspaceShared extends AppAccessScope {
-    override def toString: String = "WORKSPACE_SHARED"
-  }
-
-  def values: Set[AppAccessScope] = sealerate.values[AppAccessScope]
-
-  def stringToObject: Map[String, AppAccessScope] = values.map(v => v.toString -> v).toMap
-}

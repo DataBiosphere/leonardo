@@ -202,6 +202,7 @@ object AppRoutes {
       for {
         c <- x.downField("kubernetesRuntimeConfig").as[Option[KubernetesRuntimeConfig]]
         a <- x.downField("appType").as[Option[AppType]]
+        s <- x.downField("accessScope").as[Option[AppAccessScope]]
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
@@ -209,6 +210,7 @@ object AppRoutes {
         ea <- x.downField("extraArgs").as[Option[List[String]]]
       } yield CreateAppRequest(c,
                                a.getOrElse(AppType.Galaxy),
+                               s,
                                d,
                                l.getOrElse(Map.empty),
                                cv.getOrElse(Map.empty),

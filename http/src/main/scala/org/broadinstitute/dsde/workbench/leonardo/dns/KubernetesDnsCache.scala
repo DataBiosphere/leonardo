@@ -10,14 +10,13 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesSer
 import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, GetAppResult}
 import org.broadinstitute.dsde.workbench.leonardo.{AppName, CloudContext, CloudProvider}
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 import scalacache.Cache
 
 import scala.concurrent.ExecutionContext
 
-final case class KubernetesDnsCacheKey(googleProject: GoogleProject, appName: AppName)
+final case class KubernetesDnsCacheKey(cloudContext: CloudContext, appName: AppName)
 
 /**
  * This class provides an in-memory cache of (GoogleProject, AppName) -> HostStatus.
@@ -37,7 +36,7 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   private def getHostStatusHelper(key: KubernetesDnsCacheKey): F[HostStatus] =
     for {
       appResultOpt <- dbRef.inTransaction {
-        KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(key.googleProject),
+        KubernetesServiceDbQueries.getActiveFullAppByName(key.cloudContext,
                                                           key.appName
         ) // TODO: support proxying Azure apps
       }

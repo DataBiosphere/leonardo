@@ -43,16 +43,11 @@ import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 final case class HostContext(status: HostStatus, description: String)
 
-sealed trait SamResourceCacheKey extends Product with Serializable {
-  def googleProject: GoogleProject
-}
+sealed trait SamResourceCacheKey extends Product with Serializable {}
 object SamResourceCacheKey {
-  final case class RuntimeCacheKey(cloudContext: CloudContext, name: RuntimeName) extends SamResourceCacheKey {
-    override val googleProject: GoogleProject = GoogleProject(
-      cloudContext.asString
-    ) // TODO: remove this once AppCacheKey is also moved to use cloudContext
-  }
-  final case class AppCacheKey(googleProject: GoogleProject, name: AppName) extends SamResourceCacheKey
+  final case class RuntimeCacheKey(cloudContext: CloudContext, name: RuntimeName) extends SamResourceCacheKey {}
+  final case class AppCacheKey(cloudContext: CloudContext, name: AppName, workspaceId: Option[WorkspaceId])
+      extends SamResourceCacheKey
 }
 
 final case class ProxyHostNotReadyException(context: HostContext, traceId: TraceId)
@@ -160,11 +155,49 @@ class ProxyService(
     samResourceCacheKey match {
       case RuntimeCacheKey(cloudContext, name) =>
         clusterQuery.getActiveClusterInternalIdByName(cloudContext, name).map(_.map(_.resourceId)).transaction
-      case AppCacheKey(googleProject, name) =>
-        KubernetesServiceDbQueries
-          .getActiveFullAppByName(CloudContext.Gcp(googleProject), name) // TODO: support Azure
-          .map(_.map(_.app.samResourceId.resourceId))
-          .transaction
+      case AppCacheKey(cloudContext, name, workspaceId) =>
+        cloudContext match {
+          case CloudContext.Gcp(_) =>
+            KubernetesServiceDbQueries
+              .getActiveFullAppByName(cloudContext, name)
+              .map(_.map(_.app.samResourceId.resourceId))
+              .transaction
+          case CloudContext.Azure(_) =>
+            workspaceId match {
+              case Some(w) =>
+                KubernetesServiceDbQueries
+                  .getActiveFullAppByWorkspaceIdAndAppName(w, name)
+                  .map(_.map(_.app.samResourceId.resourceId))
+                  .transaction
+              case None => IO(None)
+            }
+
+        }
+
+    }
+
+  private[leonardo] def getSamAppAccessScopeFromDb(
+    samResourceCacheKey: SamResourceCacheKey
+  ): IO[Option[String]] =
+    samResourceCacheKey match {
+      case RuntimeCacheKey(_, _) => IO(None) // Runtimes do not have an AppAccessScope field
+      case AppCacheKey(cloudContext, name, workspaceId) =>
+        cloudContext match {
+          case CloudContext.Gcp(_) =>
+            KubernetesServiceDbQueries
+              .getActiveFullAppByName(cloudContext, name)
+              .map(_.map(_.app.appAccessScope.toString))
+              .transaction
+          case CloudContext.Azure(_) =>
+            workspaceId match {
+              case Some(w) =>
+                KubernetesServiceDbQueries
+                  .getActiveFullAppByWorkspaceIdAndAppName(w, name)
+                  .map(_.map(_.app.appAccessScope.toString))
+                  .transaction
+              case None => IO(None)
+            }
+        }
     }
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(implicit
@@ -194,16 +227,22 @@ class ProxyService(
   ): IO[AppSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
-      cacheResult <- samResourceCache.cachingF(key)(None)(
+      cacheSamResourceId <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )
-      resourceId = cacheResult.map(AppSamResourceId)
+      cacheAppAccessScopeString <- samResourceCache.cachingF(key)(None)(
+        getSamAppAccessScopeFromDb(key)
+      )
+
+      cacheAppAccessScope = cacheAppAccessScopeString.map(AppAccessScope.stringToObject)
+      resourceId = cacheSamResourceId.map(s => AppSamResourceId(s, cacheAppAccessScope))
+
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
           IO.raiseError(
             AppNotFoundException(
-              CloudContext.Gcp(key.googleProject),
+              key.cloudContext,
               key.name,
               ctx.traceId,
               s"Unable to look up sam resource for ${key.toString}"
@@ -289,8 +328,9 @@ class ProxyService(
     } yield r
 
   def proxyAppRequest(userInfo: UserInfo,
-                      googleProject: GoogleProject,
+                      cloudContext: CloudContext,
                       appName: AppName,
+                      workspaceId: Option[WorkspaceId],
                       serviceName: ServiceName,
                       request: HttpRequest
   )(implicit
@@ -298,7 +338,10 @@ class ProxyService(
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
-      samResource <- getCachedAppSamResource(AppCacheKey(googleProject, appName))
+      samResource <- getCachedAppSamResource(AppCacheKey(cloudContext, appName, workspaceId))
+      implicit0(accessScope: Option[AppAccessScope]) =
+        if (samResource.resourceType == SamResourceType.App) AppAccessScope.UserPrivate
+        else AppAccessScope.WorkspaceShared
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
                                                                                    AppAction.GetAppStatus,
@@ -307,7 +350,7 @@ class ProxyService(
       _ <-
         if (!hasViewPermission) {
           IO.raiseError(
-            AppNotFoundException(CloudContext.Gcp(googleProject), appName, ctx.traceId, "no view permission")
+            AppNotFoundException(cloudContext, appName, ctx.traceId, "no view permission")
           )
         } else IO.unit
       hasConnectPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
@@ -318,8 +361,8 @@ class ProxyService(
         if (!hasConnectPermission) {
           IO.raiseError(ForbiddenError(userInfo.userEmail))
         } else IO.unit
-      hostStatus <- getAppTargetHost(googleProject, appName)
-      hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
+      hostStatus <- getAppTargetHost(cloudContext, appName)
+      hostContext = HostContext(hostStatus, s"${cloudContext.asString}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
       appType <- appQuery.getAppType(appName).transaction
       result = if (r.status.isSuccess()) "success" else "failure"
@@ -332,8 +375,8 @@ class ProxyService(
   private[service] def getRuntimeTargetHost(cloudContext: CloudContext, runtimeName: RuntimeName): IO[HostStatus] =
     Proxy.getRuntimeTargetHost[IO](runtimeDnsCache, cloudContext, runtimeName)
 
-  private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
-    Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
+  private[service] def getAppTargetHost(cloudContext: CloudContext, appName: AppName): IO[HostStatus] =
+    Proxy.getAppTargetHost[IO](kubernetesDnsCache, cloudContext, appName)
 
   private def proxyInternal(hostContext: HostContext, request: HttpRequest)(implicit
     ev: Ask[IO, AppContext]
