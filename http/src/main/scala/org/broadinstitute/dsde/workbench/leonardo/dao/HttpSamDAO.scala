@@ -127,7 +127,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
 
   override def getResourcePolicies[R](
     authHeader: Authorization,
-    resourceType: SamResourceType,
+    resourceType: SamResourceType
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
       ctx <- ev.ask

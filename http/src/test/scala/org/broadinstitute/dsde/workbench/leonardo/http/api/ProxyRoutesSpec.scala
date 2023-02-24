@@ -89,7 +89,7 @@ class ProxyRoutesSpec
         None
       )
       _ <- samResourceCache.put(
-        AppCacheKey(GoogleProject(googleProject), AppName(appName))
+        AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
       )(
         Some(appSamId.resourceId),
         None

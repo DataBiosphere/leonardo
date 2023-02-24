@@ -2,7 +2,22 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.{App, AppAccessScope, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, CloudProvider, KubernetesCluster, KubernetesRuntimeConfig, LabelMap, Nodepool, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
+  AppAccessScope,
+  AppError,
+  AppName,
+  AppStatus,
+  AppType,
+  AuditInfo,
+  CloudContext,
+  CloudProvider,
+  KubernetesCluster,
+  KubernetesRuntimeConfig,
+  LabelMap,
+  Nodepool,
+  WorkspaceId
+}
 import org.http4s.Uri
 
 import java.net.URL

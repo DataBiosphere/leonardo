@@ -69,7 +69,7 @@ object AKSManualTest {
   val uamiName = ManagedIdentityName("uami-name")
 
   val appName = AppName("coa-app")
-  val appSamResourceId = AppSamResourceId("sam-id")
+  val appSamResourceId = AppSamResourceId("sam-id", None)
 
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]

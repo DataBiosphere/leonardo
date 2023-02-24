@@ -23,7 +23,7 @@ object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
+  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289", None)
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
@@ -66,6 +66,7 @@ object KubernetesTestData {
     Some(kubernetesRuntimeConfig),
     AppType.Galaxy,
     None,
+    None,
     Map.empty,
     Map.empty,
     None,
@@ -98,6 +99,7 @@ object KubernetesTestData {
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
+      None,
       diskConfig = diskConfig,
       labels = Map.empty,
       customEnvironmentVariables = customEnvVars,
@@ -193,6 +195,7 @@ object KubernetesTestData {
       nodepoolId,
       appType,
       name,
+      None,
       Some(workspaceId),
       status,
       galaxyChart,
