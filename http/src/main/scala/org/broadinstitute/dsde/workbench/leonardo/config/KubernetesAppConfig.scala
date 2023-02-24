@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Wds}
 import org.broadinstitute.dsde.workbench.leonardo.{
   Chart,
   DbPassword,
