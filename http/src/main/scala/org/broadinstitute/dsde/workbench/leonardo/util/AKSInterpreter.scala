@@ -176,8 +176,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
       )
-      _ <- logger.info("+++ APPLICAITON INSIGHTS STRING +++")
-      _ <- logger.info(applicationInsightsComponent.connectionString())
+
       // Deploy app chart
       _ <- app.appType match {
         case AppType.Cromwell =>
