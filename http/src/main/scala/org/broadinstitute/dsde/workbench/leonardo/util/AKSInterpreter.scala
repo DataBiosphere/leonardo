@@ -331,14 +331,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       op = config.coaAppConfig.coaServices
         .collect {
-          case Cbas =>
-            cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          case CbasUI =>
-            cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           case Wds =>
             wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          case Cromwell =>
-            cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         }
         .toList
         .sequence
@@ -417,10 +411,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"sam.url=${config.samConfig.server}",
 
         // Enabled services configs
-        raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
-        raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
-        raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}",
-        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
+//        raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
+//        raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
+//        raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}",
+//        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}",
