@@ -206,6 +206,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                             SHARED_RESOURCE,
                                                             false
       )
+      _ <- logger.info("+++ HTTPWSMDAO APPINSIGHTS +++")
+      _ <- logger.info(applicationInsightsName)
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
                                                          "DeployedSubnet",

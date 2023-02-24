@@ -1019,6 +1019,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         _ <- List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
 
         // create and monitor app
+        _ <- logger.info("+++ WOWMONITOR IT LMAO CMON +++")
         _ <- gkeAlg
           .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType))
           .onError { case e =>
@@ -1497,6 +1498,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 None
               )
             )
+            _ <- logger.info("+++ CALM DOWN +++")
             task = azurePubsubHandler.createAndPollApp(msg.appId,
                                                        msg.appName,
                                                        msg.workspaceId,
