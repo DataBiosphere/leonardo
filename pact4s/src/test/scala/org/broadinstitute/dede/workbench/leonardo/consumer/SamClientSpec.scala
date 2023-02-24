@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ListResourceResponse, MockSamDAO}
-import org.broadinstitute.dsde.workbench.leonardo.{SamPolicyName, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{SamPolicyName, SamResourceType, WorkspaceId}
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
 import org.http4s.Uri
@@ -198,7 +198,9 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
 
   it should "fetch authorized workspace resources" in {
     new SamClientImpl[IO](client, Uri.unsafeFromString(mockServer.getUrl), mockAuthToken(MockSamDAO.petSA))
-      .fetchResourcePolicies[WorkspaceResourceSamResourceId](Authorization(mockAuthToken(MockSamDAO.petSA)))
+      .fetchResourcePolicies[WorkspaceResourceSamResourceId](Authorization(mockAuthToken(MockSamDAO.petSA)),
+                                                             SamResourceType.Workspace
+      )
       .attempt
       .unsafeRunSync() shouldBe Right(workspaceResourceResponse) // workspaceResourceResponse1 also works
   }
