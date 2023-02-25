@@ -849,7 +849,7 @@ class GKEInterpreter[F[_]](
       isUp <- dbApp.app.appType match {
         case AppType.Galaxy =>
           streamFUntilDone(
-            appDao.isProxyAvailable(CloudContext.Gcp(googleProject), dbApp.app.appName, ServiceName("galaxy")),
+            appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy")),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
@@ -857,7 +857,7 @@ class GKEInterpreter[F[_]](
           streamFUntilDone(
             config.cromwellAppConfig.services
               .map(_.name)
-              .traverse(s => appDao.isProxyAvailable(CloudContext.Gcp(googleProject), dbApp.app.appName, s)),
+              .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
@@ -871,7 +871,7 @@ class GKEInterpreter[F[_]](
             }
             last <- streamFUntilDone(
               descriptor.services.keys.toList.traverse(s =>
-                appDao.isProxyAvailable(CloudContext.Gcp(googleProject), dbApp.app.appName, ServiceName(s))
+                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
               ),
               config.monitorConfig.startApp.maxAttempts,
               config.monitorConfig.startApp.interval
@@ -1096,7 +1096,7 @@ class GKEInterpreter[F[_]](
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
       isDone <- streamFUntilDone(
-        appDao.isProxyAvailable(CloudContext.Gcp(googleProject), appName, ServiceName("galaxy")),
+        appDao.isProxyAvailable(googleProject, appName, ServiceName("galaxy")),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1171,7 +1171,7 @@ class GKEInterpreter[F[_]](
       last <- streamFUntilDone(
         config.cromwellAppConfig.services
           .map(_.name)
-          .traverse(s => appDao.isProxyAvailable(CloudContext.Gcp(googleProject), appName, s)),
+          .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1282,9 +1282,7 @@ class GKEInterpreter[F[_]](
       )
       // Poll app until it starts up
       last <- streamFUntilDone(
-        descriptor.services.keys.toList.traverse(s =>
-          appDao.isProxyAvailable(CloudContext.Gcp(googleProject), appName, ServiceName(s))
-        ),
+        descriptor.services.keys.toList.traverse(s => appDao.isProxyAvailable(googleProject, appName, ServiceName(s))),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError

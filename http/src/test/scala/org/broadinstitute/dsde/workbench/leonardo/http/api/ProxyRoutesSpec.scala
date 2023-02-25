@@ -94,6 +94,12 @@ class ProxyRoutesSpec
         Some(appSamId.resourceId),
         None
       )
+      _ <- samResourceCache.put(
+        AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
+      )(
+        Some(appSamId.resourceId),
+        None
+      )
     } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
