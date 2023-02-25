@@ -230,10 +230,9 @@ class ProxyService(
       cacheSamResourceId <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )
-      cacheAppAccessScopeString <- samResourceCache.cachingF(key)(None)(
-        getSamAppAccessScopeFromDb(key)
-      )
-
+      // TODO modify the cache to store more than just the App Resource ID string
+      // TODO REENABLE CACHE IMMEDIATELY AFTER FIGURING OUT THE ABOVE
+      cacheAppAccessScopeString <- getSamAppAccessScopeFromDb(key)
       cacheAppAccessScope = cacheAppAccessScopeString.map(AppAccessScope.stringToObject)
       resourceId = cacheSamResourceId.map(s => AppSamResourceId(s, cacheAppAccessScope))
 

@@ -156,7 +156,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       projectPolicies <- resources.toList.flatTraverse(resource =>
-        samDao.getResourcePolicies[ProjectSamResourceId](authHeader, sr.resourceType(resource._2))
+        samDao.getResourcePolicies[ProjectSamResourceId](authHeader, ProjectSamResourceId(resource._1).resourceType)
       )
       owningProjects =
         projectPolicies.collect { case (r, SamPolicyName.Owner) =>
