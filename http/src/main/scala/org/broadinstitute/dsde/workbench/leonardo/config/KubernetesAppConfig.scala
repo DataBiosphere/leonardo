@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Wds}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.Wds
 import org.broadinstitute.dsde.workbench.leonardo.{
   Chart,
   DbPassword,
@@ -78,8 +78,8 @@ final case class CoaAppConfig(chartName: ChartName,
   override val serviceAccountName = ServiceAccountName(ksaName.value)
   def coaServices: Set[CoaService] = services
     .map(_.name)
-    .collect {
-      case ServiceName("wds")      => Wds
+    .collect { case ServiceName("wds") =>
+      Wds
     }
     .toSet
 }
