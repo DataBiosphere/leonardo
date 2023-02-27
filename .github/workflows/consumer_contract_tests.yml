@@ -37,21 +37,14 @@ on:
       - 'README.md'
 
 jobs:
-  leo-consumer-contract-tests:
+  ci-init:
     runs-on: ubuntu-latest
-    permissions:
-      contents: 'read'
-      id-token: 'write'
     outputs:
       repo-branch: ${{ steps.extract-branch.outputs.repo-branch }}
-      pact-b64: ${{ steps.encode-pact.outputs.pact-b64 }}
 
     steps:
-      - name: Checkout current code
-        uses: actions/checkout@v3
-
-      - name: Extract branch
-        id: extract-branch
+      - uses: actions/checkout@v3
+      - id: extract-branch
         run: |
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
@@ -70,6 +63,13 @@ jobs:
           echo "repo-name=${{ github.event.repository.name }}"
           echo "repo-branch=${{ steps.extract-branch.outputs.repo-branch }}"
 
+  leo-consumer-contract-tests:
+    runs-on: ubuntu-latest
+    needs: [ci-init]
+    outputs:
+      pact-b64: ${{ steps.encode-pact.outputs.pact-b64 }}
+
+    steps:
       - name: Run consumer tests
         run: |
           docker run --rm -v $PWD:/working \
@@ -88,7 +88,7 @@ jobs:
 
   publish-contracts:
     runs-on: ubuntu-latest
-    needs: [leo-consumer-contract-tests]
+    needs: [ci-init, leo-consumer-contract-tests]
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -100,4 +100,4 @@ jobs:
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
-          inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.leo-consumer-contract-tests.outputs.repo-branch }}" }'
+          inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.ci-init.outputs.repo-branch }}" }'
