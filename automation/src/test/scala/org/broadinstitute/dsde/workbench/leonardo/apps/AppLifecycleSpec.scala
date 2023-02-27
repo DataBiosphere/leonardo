@@ -62,23 +62,24 @@ class AppLifecycleSpec
     )
   )
 
-  // Test custom app first so that there will be a GKE cluster created already for the next two tests
-  "create CUSTOM app, start/stop, delete it" in { googleProject =>
-    test(
-      googleProject,
-      createAppRequest(
-        AppType.Custom,
-        "custom-test-workspace",
-        Some(
-          org.http4s.Uri.unsafeFromString(
-            "https://raw.githubusercontent.com/DataBiosphere/terra-app/acb66d96045e199d2cae6876723e028296794292/apps/ucsc_genome_browser/app.yaml"
-          )
-        )
-      ),
-      false,
-      false
-    )
-  }
+  // Disabling custom app integration tests as none are used, and the underlying image got deleted anyways
+  // See more details in https://broadworkbench.atlassian.net/browse/IA-4089
+//  "create CUSTOM app, start/stop, delete it" in { googleProject =>
+//    test(
+//      googleProject,
+//      createAppRequest(
+//        AppType.Custom,
+//        "custom-test-workspace",
+//        Some(
+//          org.http4s.Uri.unsafeFromString(
+//            "https://raw.githubusercontent.com/DataBiosphere/terra-app/acb66d96045e199d2cae6876723e028296794292/apps/ucsc_genome_browser/app.yaml"
+//          )
+//        )
+//      ),
+//      false,
+//      false
+//    )
+//  }
 
   // Use forAll so that tests are run in parallel
   forAll(appTestCases) { (description, createAppRequest, testStartStop, testPD) =>
