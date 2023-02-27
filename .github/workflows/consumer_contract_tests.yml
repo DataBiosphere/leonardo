@@ -64,12 +64,11 @@ jobs:
           fi
           echo "repo-branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
 
-
       - name: Echo repo and branch information
         run: |
           echo "repo-owner=${{ github.repository_owner }}"
           echo "repo-name=${{ github.event.repository.name }}"
-          echo "repo-branch=${{ steps.extract-branch.outputs.branch }}"
+          echo "repo-branch=${{ steps.extract-branch.outputs.repo-branch }}"
 
       - name: Run consumer tests
         run: |
