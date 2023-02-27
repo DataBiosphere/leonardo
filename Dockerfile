@@ -56,8 +56,8 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
 
-COPY ./wds-azure-helm-0.2.0.tgz /leonardo
-RUN tar -xzf /leonardo/wds-azure-helm-0.2.0.tgz -C /leonardo
+COPY ./wds-azure-helm-0.3.0.tgz /leonardo
+RUN tar -xzf /leonardo/wds-azure-helm-0.3.0.tgz -C /leonardo
 
 RUN cd /leonardo && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
