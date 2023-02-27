@@ -35,7 +35,7 @@ object CookieSupport {
       domain = None, // Do not specify domain, making it default to Leo's domain
       maxAge = Option(userInfo.tokenExpiresIn), // cookie expiry is tied to the token expiry
       path = Some("/") // needed so it works for AJAX requests
-    )
+    )l
 
   private def buildRawCookie(userInfo: UserInfo) =
     RawHeader(

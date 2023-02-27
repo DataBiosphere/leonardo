@@ -369,7 +369,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
          |    "gpuConfig" : {
          |      "gpuType" : "nvidia-tesla-t4",
          |      "numOfGpus" : 2
-         |    }
+         |    },
+         |    "configType": "GceConfig"
          |  },
          |  "proxyUrl" : "https://leo.org/proxy",
          |  "status" : "Running",
@@ -437,7 +438,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |    "diskSize" : 500,
         |    "cloudService" : "GCE",
         |    "bootDiskSize" : 50,
-        |    "zone" : "us-west2-b"
+        |    "zone" : "us-west2-b",
+        |    "configType": "GceConfig"
         |  },
         |  "proxyUrl" : "https://leo.org/proxy",
         |  "status" : "Running",
