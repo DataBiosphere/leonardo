@@ -115,9 +115,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
+      _ <- logger.info("+++ RIGHT BEFORE INSTALL CHART +++")
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
+      _ <- logger.info(config.aadPodIdentityConfig.release.asString)
+      _ <- logger.info(config.aadPodIdentityConfig.chartName.asString)
+      _ <- logger.info(config.aadPodIdentityConfig.chartVersion.asString)
+      _ <- logger.info(config.aadPodIdentityConfig.values.asString)
       _ <- helmClient
         .installChart(
           config.aadPodIdentityConfig.release,
@@ -128,6 +133,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
+      _ <- logger.info("+++ AFTER!!! +++")
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(params.appName.value)
       relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
@@ -176,7 +182,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
       )
-
+      storageContainer <- F.fromOption(
+        params.storageContainer,
+        AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
+      )
+      _ <- logger.info(" ++++ BUILD OVERRIDE LOG ++++")
+      _ <- logger.info(
+        buildCromwellChartOverrideValues(
+          app.release,
+          params.appName,
+          params.cloudContext,
+          params.workspaceId,
+          params.landingZoneResources,
+          relayPath,
+          petMi,
+          storageContainer,
+          applicationInsightsComponent.connectionString()
+        ).asString
+      )
       // Deploy app chart
       _ <- app.appType match {
         case AppType.Cromwell =>
@@ -413,6 +436,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.applicationInsightsAccountKey=${}",
          */
         raw"config.region=${landingZoneResources.region.name()}",
+        raw"config.subscriptionId=${cloudContext.subscriptionId}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
         // relay configs
