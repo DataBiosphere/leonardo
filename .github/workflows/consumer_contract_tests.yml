@@ -25,14 +25,9 @@ name: Consumer contract tests
 # (contract expectations) between the two.
 #
 on:
-  pull_request:
-    branches:
-      - develop
-    paths-ignore:
-      - 'README.md'
   push:
     branches:
-      - develop
+      - QA-2053
     paths-ignore:
       - 'README.md'
   merge_group:
@@ -48,7 +43,7 @@ jobs:
       contents: 'read'
       id-token: 'write'
     outputs:
-      sha-short: ${{ steps.extract-branch.outputs.sha-short }}
+      repo-branch: ${{ steps.extract-branch.outputs.repo-branch }}
       pact-b64: ${{ steps.encode-pact.outputs.pact-b64 }}
 
     steps:
@@ -61,25 +56,20 @@ jobs:
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             GITHUB_REF=${{ github.ref }}
-            GITHUB_SHA=${{ github.sha }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             GITHUB_REF=refs/heads/${{ github.head_ref }}
-            GITHUB_SHA=${{ github.event.pull_request.head.sha }}
           else
             echo "Failed to extract branch information"
             exit 1
           fi
-          echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
-          echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
-          echo "sha-short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
+          echo "repo-branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
 
-      - name: Echo branch information
+
+      - name: Echo repo and branch information
         run: |
-          echo ${{ steps.extract-branch.outputs.ref }}
-          echo ${{ steps.extract-branch.outputs.sha }}
-          echo ${{ steps.extract-branch.outputs.sha-short }}
-          echo ${{ steps.extract-branch.outputs.branch }}
+          echo "repo-owner=${{ github.repository_owner }}"
+          echo "repo-name=${{ github.event.repository.name }}"
+          echo "repo-branch=${{ steps.extract-branch.outputs.branch }}"
 
       - name: Run consumer tests
         run: |
@@ -107,8 +97,8 @@ jobs:
       - name: Dispatch to terra-github-workflows
         uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
         with:
-          workflow: publish-pacts.yaml
+          workflow: publish-contracts
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
-          inputs: '{ "consumer-name": "leo-consumer", "consumer-version": "${{ needs.leo-consumer-contract-tests.outputs.sha-short }}", "provider-name": "sam-provider", "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}" }'
+          inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.leo-consumer-contract-tests.outputs.repo-branch }}" }'
