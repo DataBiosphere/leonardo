@@ -24,7 +24,7 @@ name: Consumer contract tests
 # of the consumers' published expectations.  Both the consumer and the provider can gate deployment on availability/honoring of the published pact
 # (contract expectations) between the two.
 #
-# NOTE: The publish-contracts workflow will assign the latest commit hash of the branch as the unique version of the contract tracked by Pact Broker.
+# NOTE: The publish-contracts workflow will use the latest commit of the branch that triggers this workflow to publish the unique consumer contract version to Pact Broker.
 on:
   pull_request:
     branches:
