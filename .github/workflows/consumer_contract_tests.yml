@@ -86,7 +86,7 @@ jobs:
           NON_BREAKING_B64=$(cat target/pacts/leo-consumer-sam-provider.json | base64 -w 0)
           echo "pact-b64=${NON_BREAKING_B64}" >> $GITHUB_OUTPUT
 
-  publish-pact:
+  publish-contracts:
     runs-on: ubuntu-latest
     needs: [leo-consumer-contract-tests]
     permissions:
