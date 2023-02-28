@@ -115,14 +115,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
-      _ <- logger.info("DEBUGN8 RIGHT BEFORE INSTALL CHART")
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
-      _ <- logger.info(config.aadPodIdentityConfig.release.asString)
-      _ <- logger.info(config.aadPodIdentityConfig.chartName.asString)
-      _ <- logger.info(config.aadPodIdentityConfig.chartVersion.asString)
-      _ <- logger.info(config.aadPodIdentityConfig.values.asString)
       _ <- helmClient
         .installChart(
           config.aadPodIdentityConfig.release,
@@ -133,7 +128,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
-      _ <- logger.info("DEBUGN8 AFTER!!!")
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(params.appName.value)
       relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
@@ -176,10 +170,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
       _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
-      // TODO:N8 Application Insights connection string.
-      // TODO:N8 Use the workbench libs api to get it
-      _ <- logger.info("DEBUGN8 AKSINTERP")
-      _ <- logger.info(params.landingZoneResources.applicationInsightsName.value)
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
@@ -187,20 +177,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       storageContainer <- F.fromOption(
         params.storageContainer,
         AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
-      )
-      _ <- logger.info("DEBUGN8 BUILD OVERRIDE LOG")
-      _ <- logger.info(
-        buildCromwellChartOverrideValues(
-          app.release,
-          params.appName,
-          params.cloudContext,
-          params.workspaceId,
-          params.landingZoneResources,
-          relayPath,
-          petMi,
-          storageContainer,
-          applicationInsightsComponent.connectionString()
-        ).asString
       )
       // Deploy app chart
       _ <- app.appType match {
@@ -429,16 +405,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
-        // raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
-        /*
-        raw"config.landingZoneId=${}",
-        raw"config.subscriptionId=${}",
-
-        raw"config.batchAccountKey=${}",
-        raw"config.applicationInsightsAccountKey=${}",
-         */
-        raw"config.region=${landingZoneResources.region.name()}",
-        raw"config.subscriptionId=${cloudContext.subscriptionId}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
         // relay configs

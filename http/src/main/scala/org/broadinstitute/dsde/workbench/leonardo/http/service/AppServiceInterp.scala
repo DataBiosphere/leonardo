@@ -621,7 +621,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         storageContainer,
         Some(ctx.traceId)
       )
-      _ = println("DEBUGN8 publish create app v2 message")
       _ <- publisherQueue.offer(createAppV2Message)
     } yield ()
 
