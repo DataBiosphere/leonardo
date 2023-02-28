@@ -25,7 +25,7 @@ name: Consumer contract tests
 # (contract expectations) between the two.
 #
 # NOTE: The publish-contracts workflow will use the latest commit of the branch that triggers this workflow to publish the unique consumer contract version to Pact Broker.
-#
+
 on:
   pull_request:
     branches:
