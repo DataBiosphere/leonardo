@@ -96,7 +96,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SubnetworkName("subnet3"),
     SubnetworkName("subnet4"),
     azureRegion,
-    ApplicationInsightsName("TEMP") // TODO
+    ApplicationInsightsName("lzappinsights")
   )
 
   val storageContainer = StorageContainerResponse(
@@ -129,7 +129,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Uri.unsafeFromString("https://relay.com/app"),
       setUpMockIdentity,
       storageContainer,
-      "TEMP" // TODO
+      "applicationInsightsConnectionString"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -137,6 +137,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.batchNodesSubnetId=subnet1," +
       s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
       "config.workflowExecutionIdentity=identity-id," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +

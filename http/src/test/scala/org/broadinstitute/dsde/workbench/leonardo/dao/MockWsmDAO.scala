@@ -158,7 +158,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
         SubnetworkName("postgressub"),
         SubnetworkName("computesub"),
         com.azure.core.management.Region.US_WEST,
-        ApplicationInsightsName("TEMP")
+        ApplicationInsightsName("lzappinsights")
       )
     )
 

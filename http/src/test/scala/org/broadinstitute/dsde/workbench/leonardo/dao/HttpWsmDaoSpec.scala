@@ -73,7 +73,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
           buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
           buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
           buildMockLandingZoneResource("microsoft.dbforpostgresql/servers", "lzpostgres"),
-          buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics")
+          buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics"),
+          buildMockLandingZoneResource("Microsoft.Insights/components", "lzappinsights")
         )
       ),
       LandingZoneResourcesByPurpose(
@@ -140,7 +141,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       SubnetworkName("postgressub"),
       SubnetworkName("computesub"),
       com.azure.core.management.Region.US_EAST,
-      ApplicationInsightsName("TEMP")
+      ApplicationInsightsName("lzappinsights")
     )
 
     val landingZoneResources = res.toOption.get

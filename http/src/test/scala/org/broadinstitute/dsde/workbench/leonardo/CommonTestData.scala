@@ -563,7 +563,7 @@ object CommonTestData {
     SubnetworkName(""),
     SubnetworkName(""),
     azureRegion,
-    ApplicationInsightsName("TEMP")
+    ApplicationInsightsName("lzappinsights")
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
