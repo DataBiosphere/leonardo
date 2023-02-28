@@ -201,14 +201,11 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                               SHARED_RESOURCE,
                                                               false
       )
-      // N8 TODO: may not be returning what I expect
-      _ <- logger.info("+++ APPINSIGHTNAME +++")
       applicationInsightsName <- getLandingZoneResourceName(groupedLzResources,
                                                             "Microsoft.Insights/components",
                                                             SHARED_RESOURCE,
                                                             false
       )
-      _ <- logger.info(applicationInsightsName)
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
                                                          "DeployedSubnet",

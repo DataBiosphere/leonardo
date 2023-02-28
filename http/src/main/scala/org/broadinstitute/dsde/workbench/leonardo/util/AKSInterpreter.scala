@@ -174,10 +174,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
       )
-      storageContainer <- F.fromOption(
-        params.storageContainer,
-        AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
-      )
       // Deploy app chart
       _ <- app.appType match {
         case AppType.Cromwell =>
@@ -405,6 +401,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
+        raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
         // relay configs
