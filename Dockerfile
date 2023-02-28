@@ -64,7 +64,7 @@ RUN cd /leonardo && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
-    helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
+#    helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm repo update && \
     cd /
 
