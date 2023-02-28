@@ -178,6 +178,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // TODO:N8 Application Insights connection string.
       // TODO:N8 Use the workbench libs api to get it
+      _ <- logger.info("DEBUGN8 AKSINTERP")
+      _ <- logger.info(params.landingZoneResources.applicationInsightsName.value)
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
