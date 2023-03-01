@@ -23,7 +23,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.7")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.8")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -63,10 +63,10 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/8dc8a0171fa4267197305eddddafb9dda8ce97fa/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/IA-3957-include-additional-create-parameters/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:3393dcb",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:3a932af",
             VMCredential(username = "username", password = "password")
           )
         ),

@@ -7,6 +7,7 @@ import com.google.cloud.compute.v1.Disk
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.azure.ContainerName
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
@@ -354,7 +355,9 @@ object LeoPubsubMessage {
     storageContainerResourceId: WsmControlledResourceId,
     landingZoneResources: LandingZoneResources,
     useExistingDisk: Boolean, // if using existing disk, will attach pd to new runtime
-    traceId: Option[TraceId]
+    traceId: Option[TraceId],
+    workspaceName: String,
+    containerName: ContainerName
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
@@ -524,12 +527,15 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct6("runtimeId",
-                        "workspaceId",
-                        "storageContainerResourceId",
-                        "landingZoneResources",
-                        "useExistingDisk",
-                        "traceId"
+    Decoder.forProduct8(
+      "runtimeId",
+      "workspaceId",
+      "storageContainerResourceId",
+      "landingZoneResources",
+      "useExistingDisk",
+      "traceId",
+      "workspaceName",
+      "containerName"
     )(
       CreateAzureRuntimeMessage.apply
     )
@@ -901,13 +907,16 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct7("messageType",
-                        "runtimeId",
-                        "workspaceId",
-                        "storageContainerResourceId",
-                        "landingZoneResources",
-                        "useExistingDisk",
-                        "traceId"
+    Encoder.forProduct9(
+      "messageType",
+      "runtimeId",
+      "workspaceId",
+      "storageContainerResourceId",
+      "landingZoneResources",
+      "useExistingDisk",
+      "traceId",
+      "workspaceName",
+      "containerName"
     )(x =>
       (x.messageType,
        x.runtimeId,
@@ -915,7 +924,9 @@ object LeoPubsubCodec {
        x.storageContainerResourceId,
        x.landingZoneResources,
        x.useExistingDisk,
-       x.traceId
+       x.traceId,
+       x.workspaceName,
+       x.containerName
       )
     )
 
