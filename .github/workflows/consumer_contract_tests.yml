@@ -58,6 +58,8 @@ jobs:
             GITHUB_REF=${{ github.ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             GITHUB_REF=refs/heads/${{ github.head_ref }}
+          elif [[ "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
+            GITHUB_REF=refs/heads/${{ github.head_ref }}
           else
             echo "Failed to extract branch information"
             exit 1
