@@ -65,13 +65,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
       createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
       _ <- createRuntime(
-        CreateAzureRuntimeParams(msg.workspaceId,
-                                 runtime,
-                                 msg.storageContainerResourceId,
-                                 msg.landingZoneResources,
-                                 azureConfig,
-                                 config.runtimeDefaults.image,
-                                 msg.useExistingDisk
+        CreateAzureRuntimeParams(
+          msg.workspaceId,
+          runtime,
+          msg.storageContainerResourceId,
+          msg.landingZoneResources,
+          azureConfig,
+          config.runtimeDefaults.image,
+          msg.useExistingDisk,
+          msg.workspaceName,
+          msg.containerName
         ),
         WsmJobControl(createVmJobId)
       )
@@ -117,6 +120,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
+      // Construct the workspace storage container URL which will be passed to the JupyterLab environment variables.
+      wsStorageContainerUrl =
+        s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.storageContainerName.value}"
       createVmRequest <- createDiskAction.map { diskResp =>
         val vmCommon = getCommonFields(
           ControlledResourceName(params.runtime.runtimeName.asString),
@@ -139,7 +145,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.welderImage,
           params.runtime.auditInfo.creator.value,
           stagingContainerName.value,
-          stagingContainerResourceId.value.toString
+          stagingContainerResourceId.value.toString,
+          params.workspaceName,
+          wsStorageContainerUrl
         )
         val cmdToExecute =
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
