@@ -140,7 +140,9 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                 storageContainerResourceId,
                                 landingZoneResources,
                                 false,
-                                None
+                                None,
+                                "WorkspaceName",
+                                ContainerName("dummy")
       )
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
