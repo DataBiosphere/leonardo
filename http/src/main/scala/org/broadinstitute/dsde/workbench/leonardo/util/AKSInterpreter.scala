@@ -213,7 +213,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               Some(ctx.traceId)
             )
           )
-
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
       _ <- kubernetesClusterQuery
@@ -359,7 +358,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
         raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
-        raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
+        raw"relaylistener.targetHost=http://coa-${release.asString}-wds-svc:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         raw"relaylistener.samResourceType=kubernetes-app",
