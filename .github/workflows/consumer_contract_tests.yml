@@ -59,7 +59,7 @@ jobs:
         id: extract-branch
         run: |
           GITHUB_EVENT_NAME=${{ github.event_name }}
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "push" || "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
             GITHUB_REF=${{ github.ref }}
             GITHUB_SHA=${{ github.sha }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
