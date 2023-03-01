@@ -71,7 +71,7 @@ import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
 
-import java.net.InetSocketAddress
+import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -741,7 +741,16 @@ object Boot extends IOApp {
     metricsPrefix: Option[String],
     withRetry: Boolean
   ): Resource[F, org.http4s.client.Client[F]] = {
-    val retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
+    // Retry all SocketExceptions to deal with pooled HTTP connections getting closed.
+    // See https://broadworkbench.atlassian.net/browse/IA-4069.
+    val retryPolicy = RetryPolicy[F](
+      RetryPolicy.exponentialBackoff(30 seconds, 5),
+      (req, result) =>
+        result match {
+          case Left(e) if e.isInstanceOf[SocketException] => true
+          case _                                          => RetryPolicy.defaultRetriable(req, result)
+        }
+    )
 
     for {
       httpClient <- client
@@ -754,6 +763,7 @@ object Boot extends IOApp {
         .withConnectTimeout(30 seconds)
         .withRequestTimeout(60 seconds)
         .withMaxTotalConnections(100)
+        .withMaxIdleDuration(30 seconds)
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
