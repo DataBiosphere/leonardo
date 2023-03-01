@@ -145,6 +145,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   ): IO[LandingZoneResources] =
     IO.pure(
       LandingZoneResources(
+        UUID("lzid")
         AKSClusterName("lzcluster"),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),

@@ -215,6 +215,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )
       postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
     } yield LandingZoneResources(
+      landingZoneId,
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
       RelayNamespace(relayNamespace),

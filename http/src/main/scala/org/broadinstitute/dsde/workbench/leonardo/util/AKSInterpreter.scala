@@ -394,7 +394,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
-        raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
+
+        // TODO (LM)
+        // AppKey for connecting to Batch account as config.batchAccountKey
+        // Account key for connecting to Application Insights as config.applicationInsightsAccountKey
+        raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
+        raw"config.subscriptionId=${cloudContext.subscriptionId}",
+        raw"config.region=${landingZoneResources.region}",
+        raw"config.batchAccountKey=${}",
+        raw"config.applicationInsightsAccountKey=${}",
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",
