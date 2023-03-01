@@ -741,7 +741,7 @@ object Boot extends IOApp {
     metricsPrefix: Option[String],
     withRetry: Boolean
   ): Resource[F, org.http4s.client.Client[F]] = {
-    // Retry all SocketExceptions to deal with pooled HTTP connections getting closed on the server-side.
+    // Retry all SocketExceptions to deal with pooled HTTP connections getting closed.
     // See https://broadworkbench.atlassian.net/browse/IA-4069.
     val retryPolicy = RetryPolicy[F](
       RetryPolicy.exponentialBackoff(30 seconds, 5),
