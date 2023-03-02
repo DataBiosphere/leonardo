@@ -136,6 +136,7 @@ object AKSManualTest {
   /** Creates an AKSInterpreter */
   def getAksInterp(implicit dbRef: DbReference[IO]): Resource[IO, AKSInterpreter[IO]] = for {
     containerService <- AzureContainerService.fromAzureAppRegistrationConfig[IO](appRegConfig)
+    azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     relayService <- AzureRelayService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     helmConcurrency <- Resource.eval(Semaphore[IO](20L))
     helmClient = new HelmInterpreter[IO](helmConcurrency)
@@ -154,6 +155,7 @@ object AKSManualTest {
     config,
     helmClient,
     containerService,
+    azureApplicationInsightsService,
     relayService,
     mock[SamDAO[IO]],
     mock[CromwellDAO[IO]],
