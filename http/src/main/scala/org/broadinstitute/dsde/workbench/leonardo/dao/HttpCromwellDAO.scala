@@ -37,7 +37,7 @@ class HttpCromwellDAO[F[_]](httpClient: Client[F])(implicit
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter("cromwell/status")
-      cromwellStatusUri = baseUri / "cromwell" / "engine" / "v1" / "status"
+      cromwellStatusUri = baseUri / "status"
       // Note: cromwell-as-an-app /status returns '{}' in the response body for some reason.
       // For now just check the HTTP status code instead of parsing the response body.
       res <- httpClient.status(

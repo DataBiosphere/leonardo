@@ -39,7 +39,7 @@ class HttpCbasDAO[F[_]](httpClient: Client[F])(implicit
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter("cbas/status")
-      cbasStatusUri = baseUri / "cbas" / "status"
+      cbasStatusUri = baseUri / "status"
       res <- httpClient.expectOr[CbasStatusCheckResponse](
         Request[F](
           method = Method.GET,
