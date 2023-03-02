@@ -65,7 +65,8 @@ where `map` is a substring within the test name.
 
 If you made a change to the leonardo Db by adding a changeset xml file, and then adding that file path to the changelog
 file, you have to set `initWithLiquibase = true` in the leonardo.conf file for these changes to be reflected in the unit
-tests.
+tests. Once youare done testing your changes, make sure to switch it back to `initWithLiquibase = false`, as this can do
+some damage if you are running local Leo against Dev!
 
 Once you're done, tear down MySQL.
 ```

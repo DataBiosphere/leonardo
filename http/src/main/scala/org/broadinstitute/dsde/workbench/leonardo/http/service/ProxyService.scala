@@ -91,7 +91,7 @@ class ProxyService(
   proxyResolver: ProxyResolver[IO],
   samDAO: SamDAO[IO],
   googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]]
+  samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])]
 )(implicit
   val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -151,54 +151,52 @@ class ProxyService(
       }
     } yield res
 
-  private[leonardo] def getSamResourceFromDb(samResourceCacheKey: SamResourceCacheKey): IO[Option[String]] =
-    samResourceCacheKey match {
-      case RuntimeCacheKey(cloudContext, name) =>
-        clusterQuery.getActiveClusterInternalIdByName(cloudContext, name).map(_.map(_.resourceId)).transaction
-      case AppCacheKey(cloudContext, name, workspaceId) =>
-        cloudContext match {
-          case CloudContext.Gcp(_) =>
-            KubernetesServiceDbQueries
-              .getActiveFullAppByName(cloudContext, name)
-              .map(_.map(_.app.samResourceId.resourceId))
-              .transaction
-          case CloudContext.Azure(_) =>
-            workspaceId match {
-              case Some(w) =>
-                KubernetesServiceDbQueries
-                  .getActiveFullAppByWorkspaceIdAndAppName(w, name)
-                  .map(_.map(_.app.samResourceId.resourceId))
-                  .transaction
-              case None => IO(None)
-            }
-
-        }
-
-    }
-
-  private[leonardo] def getSamAppAccessScopeFromDb(
+  private[leonardo] def getSamResourceFromDb(
     samResourceCacheKey: SamResourceCacheKey
-  ): IO[Option[String]] =
-    samResourceCacheKey match {
-      case RuntimeCacheKey(_, _) => IO(None) // Runtimes do not have an AppAccessScope field
-      case AppCacheKey(cloudContext, name, workspaceId) =>
-        cloudContext match {
-          case CloudContext.Gcp(_) =>
-            KubernetesServiceDbQueries
-              .getActiveFullAppByName(cloudContext, name)
-              .map(_.map(_.app.appAccessScope.toString))
-              .transaction
-          case CloudContext.Azure(_) =>
-            workspaceId match {
-              case Some(w) =>
-                KubernetesServiceDbQueries
-                  .getActiveFullAppByWorkspaceIdAndAppName(w, name)
-                  .map(_.map(_.app.appAccessScope.toString))
-                  .transaction
-              case None => IO(None)
-            }
-        }
-    }
+  ): IO[(Option[String], Option[AppAccessScope])] =
+    for {
+      resourceId <- samResourceCacheKey match {
+        case RuntimeCacheKey(cloudContext, name) =>
+          clusterQuery.getActiveClusterInternalIdByName(cloudContext, name).map(_.map(_.resourceId)).transaction
+        case AppCacheKey(cloudContext, name, workspaceId) =>
+          cloudContext match {
+            case CloudContext.Gcp(_) =>
+              KubernetesServiceDbQueries
+                .getActiveFullAppByName(cloudContext, name)
+                .map(_.map(_.app.samResourceId.resourceId))
+                .transaction
+            case CloudContext.Azure(_) =>
+              workspaceId match {
+                case Some(w) =>
+                  KubernetesServiceDbQueries
+                    .getActiveFullAppByWorkspaceIdAndAppName(w, name)
+                    .map(_.map(_.app.samResourceId.resourceId))
+                    .transaction
+                case None => IO(None)
+              }
+          }
+      }
+      appAccessScope <- samResourceCacheKey match {
+        case RuntimeCacheKey(_, _) => IO(None) // Runtimes do not have an AppAccessScope field
+        case AppCacheKey(cloudContext, name, workspaceId) =>
+          cloudContext match {
+            case CloudContext.Gcp(_) =>
+              KubernetesServiceDbQueries
+                .getActiveFullAppByName(cloudContext, name)
+                .map(_.map(_.app.appAccessScope))
+                .transaction
+            case CloudContext.Azure(_) =>
+              workspaceId match {
+                case Some(w) =>
+                  KubernetesServiceDbQueries
+                    .getActiveFullAppByWorkspaceIdAndAppName(w, name)
+                    .map(_.map(_.app.appAccessScope))
+                    .transaction
+                case None => IO(None)
+              }
+          }
+      }
+    } yield (resourceId, appAccessScope.flatten)
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(implicit
     ev: Ask[IO, AppContext]
@@ -208,7 +206,8 @@ class ProxyService(
       cacheResult <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )
-      resourceId = cacheResult.map(RuntimeSamResourceId)
+      cacheResourceId = cacheResult._1
+      resourceId = cacheResourceId.map(RuntimeSamResourceId)
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
@@ -227,13 +226,12 @@ class ProxyService(
   ): IO[AppSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
-      cacheSamResourceId <- samResourceCache.cachingF(key)(None)(
+      cacheResult <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )
-      // TODO modify the cache to store more than just the App Resource ID string
-      // TODO REENABLE CACHE IMMEDIATELY AFTER FIGURING OUT THE ABOVE
-      cacheAppAccessScopeString <- getSamAppAccessScopeFromDb(key)
-      cacheAppAccessScope = cacheAppAccessScopeString.map(AppAccessScope.stringToObject)
+
+      cacheSamResourceId = cacheResult._1
+      cacheAppAccessScope = cacheResult._2
       resourceId = cacheSamResourceId.map(s => AppSamResourceId(s, cacheAppAccessScope))
 
       res <- resourceId match {
