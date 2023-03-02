@@ -774,6 +774,16 @@ class HttpRoutesSpec
     }
   }
 
+  it should "create an app V2" in {
+    Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
+      .withEntity(ContentTypes.`application/json`,
+                  createAppRequest.copy(accessScope = Some(AppAccessScope.WorkspaceShared)).asJson.spaces2
+      ) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
   it should "list apps v2 with project" in {
     Get(s"/api/apps/v2/${workspaceId.value.toString}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK

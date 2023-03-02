@@ -255,7 +255,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } yield {
       app shouldBe defined
       app.get.app.status shouldBe AppStatus.Running
-      app.get.app.appAccessScope shouldBe AppAccessScope.WorkspaceShared
+      app.get.app.appAccessScope shouldBe Some(AppAccessScope.WorkspaceShared)
       app.get.app.samResourceId.resourceType shouldBe SamResourceType.SharedApp
       app.get.cluster.asyncFields shouldBe defined
       app
