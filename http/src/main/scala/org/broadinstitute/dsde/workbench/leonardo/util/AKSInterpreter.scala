@@ -171,7 +171,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
       // get the batch account key
-      batchAccountKey <- azureBatchService.getBatchAccount(landingZoneResources.batchAccountName).getKeys.primaryKey
+      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResouces.batchAccountName,
+                                                        params.cloudContext
+      )
+      batchAccountKey <- batchAccount.getKeys().primaryKey
 
       // Deploy app chart
       _ <- app.appType match {
