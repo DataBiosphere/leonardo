@@ -765,7 +765,7 @@ object Boot extends IOApp {
         .withMaxTotalConnections(100)
         .withMaxIdleDuration(30 seconds)
         .resource
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = true, logAction = Some(s => logAction(s)))(
         httpClient
       )
       clientWithRetry = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
