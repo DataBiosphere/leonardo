@@ -25,7 +25,7 @@ object KubernetesTestData {
 
   val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289", None)
   val sharedAppSamId =
-    AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b290", Some(AppAccessScope.stringToObject("WORKSPACE_SHARED")))
+    AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b290", Some(AppAccessScope.WorkspaceShared))
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
