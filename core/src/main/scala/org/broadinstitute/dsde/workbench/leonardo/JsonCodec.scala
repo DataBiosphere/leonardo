@@ -5,7 +5,7 @@ import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, BatchAccountName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp

@@ -171,10 +171,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
       // get the batch account key
-      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResouces.batchAccountName,
+      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
                                                         params.cloudContext
       )
-      batchAccountKey <- batchAccount.getKeys().primaryKey
+      batchAccountKey = batchAccount.getKeys().primary
 
       // Deploy app chart
       _ <- app.appType match {
@@ -200,7 +200,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   relayPath,
                   petMi,
                   storageContainer,
-                  batchAccountKey
+                  BatchAccountKey(batchAccountKey)
                 ),
                 createNamespace = true
               )

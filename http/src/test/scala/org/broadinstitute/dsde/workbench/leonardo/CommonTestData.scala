@@ -70,6 +70,7 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
   AzureCloudContext,
+  BatchAccountName,
   ManagedResourceGroupName,
   RelayNamespace,
   SubscriptionId,
