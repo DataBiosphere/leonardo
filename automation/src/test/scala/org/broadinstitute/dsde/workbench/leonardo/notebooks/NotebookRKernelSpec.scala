@@ -1,17 +1,17 @@
-// package org.broadinstitute.dsde.workbench.leonardo.notebooks
+package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-// import cats.effect.unsafe.implicits.global
-// import org.broadinstitute.dsde.workbench.auth.AuthToken
-// import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
-// import org.scalatest.DoNotDiscover
+import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
+import org.scalatest.DoNotDiscover
 
-// import scala.concurrent.duration._
+import scala.concurrent.duration._
 
-// /**
-//  * This spec verifies notebook functionality specifically around the R kernel.
-//  */
-// @DoNotDiscover
-// class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
+/**
+ * This spec verifies notebook functionality specifically around the R kernel.
+ */
+@DoNotDiscover
+class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 //   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
 //   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
@@ -164,4 +164,4 @@
 //       }
 //     }
 //   }
-// }
+}

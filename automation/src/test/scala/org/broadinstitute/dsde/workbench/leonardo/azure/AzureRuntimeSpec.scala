@@ -1,24 +1,24 @@
-// package org.broadinstitute.dsde.workbench.leonardo.azure
+package org.broadinstitute.dsde.workbench.leonardo.azure
 
-// import cats.effect.IO
-// import cats.effect.unsafe.implicits.global
-// import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
-// import org.broadinstitute.dsde.workbench.leonardo.LeonardoConfig.Leonardo.workspaceId
-// import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-// import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, LeonardoApiClient, LeonardoTestUtils}
-// import org.scalatest.flatspec.AnyFlatSpec
-// import org.scalatest.prop.TableDrivenPropertyChecks
-// import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoConfig.Leonardo.workspaceId
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, LeonardoApiClient, LeonardoTestUtils}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 
-// import scala.concurrent.duration._
+import scala.concurrent.duration._
 
-// @DoNotDiscover
-// class AzureRuntimeSpec
-//     extends AnyFlatSpec
-//     with LeonardoTestUtils
-//     with ParallelTestExecution
-//     with TableDrivenPropertyChecks
-//     with Retries {
+@DoNotDiscover
+class AzureRuntimeSpec
+    extends AnyFlatSpec
+    with LeonardoTestUtils
+    with ParallelTestExecution
+    with TableDrivenPropertyChecks
+    with Retries {
 //   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
 //   it should "create, get, delete azure runtime" ignore {
@@ -56,4 +56,4 @@
 //     }
 //     res.unsafeRunSync()
 //   }
-// }
+}
