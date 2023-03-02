@@ -85,19 +85,19 @@ class ProxyRoutesSpec
       _ <- samResourceCache.put(
         RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
       )(
-        Some(runtimeSamResource.resourceId),
+        (Some(runtimeSamResource.resourceId), None),
         None
       )
       _ <- samResourceCache.put(
         AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
       )(
-        Some(appSamId.resourceId),
+        (Some(appSamId.resourceId), appSamId.accessScope),
         None
       )
       _ <- samResourceCache.put(
         AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
       )(
-        Some(appSamId.resourceId),
+        (Some(appSamId.resourceId), appSamId.accessScope),
         None
       )
     } yield ()
@@ -147,7 +147,7 @@ class ProxyRoutesSpec
     samResourceCache
       .put(
         RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(newName))
-      )(Some(runtimeSamResource.resourceId), None)
+      )((Some(runtimeSamResource.resourceId), None), None)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     Get(s"/proxy/$googleProject/$newName")
       .addHeader(Cookie(tokenCookie))
@@ -206,7 +206,7 @@ class ProxyRoutesSpec
       )
     samResourceCache.put(
       RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
-    )(Some(runtimeSamResource.resourceId), None)
+    )((Some(runtimeSamResource.resourceId), None), None)
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Cookie(tokenCookie))

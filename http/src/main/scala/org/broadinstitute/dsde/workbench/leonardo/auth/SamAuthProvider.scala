@@ -135,9 +135,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       ctx <- ev.ask
-
-      resourcePolicies <- resources.toList.flatTraverse(resource =>
-        samDao.getResourcePolicies[R](authHeader, sr.resourceType(resource))
+      resourceTypes = resources.map(r => sr.resourceType(r)).toList.toSet
+      resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
+        samDao.getResourcePolicies[R](authHeader, resourceType)
       )
       res = resourcePolicies.filter { case (r, pn) =>
         sr.policyNames(r).contains(pn)
@@ -154,16 +154,20 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    val resourceGoogleProjects = resources.map(_._1).toList.toSet
+    val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
     for {
-      projectPolicies <- resources.toList.flatTraverse(resource =>
-        samDao.getResourcePolicies[ProjectSamResourceId](authHeader, ProjectSamResourceId(resource._1).resourceType)
+      projectPolicies <- resourceGoogleProjects.toList.flatTraverse(resourceGoogleProject =>
+        samDao.getResourcePolicies[ProjectSamResourceId](authHeader,
+                                                         ProjectSamResourceId(resourceGoogleProject).resourceType
+        )
       )
       owningProjects =
         projectPolicies.collect { case (r, SamPolicyName.Owner) =>
           r.googleProject
         }
-      resourcePolicies <- resources.toList.flatTraverse(resource =>
-        samDao.getResourcePolicies[R](authHeader, sr.resourceType(resource._2))
+      resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
+        samDao.getResourcePolicies[R](authHeader, resourceType)
       )
       res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
     } yield resources.filter { case (project, r) =>
