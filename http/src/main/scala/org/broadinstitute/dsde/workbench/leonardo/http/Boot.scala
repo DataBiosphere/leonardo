@@ -523,12 +523,16 @@ object Boot extends IOApp {
         F.delay(CaffeineCache[F, String, (UserInfo, Instant)](underlyingGoogleTokenCache))
       )(_.close)
 
-      underlyingSamResourceCache = buildCache[SamResourceCacheKey, scalacache.Entry[(Option[String], Option[AppAccessScope])]](
+      underlyingSamResourceCache = buildCache[SamResourceCacheKey,
+                                              scalacache.Entry[(Option[String], Option[AppAccessScope])]
+      ](
         proxyConfig.internalIdCacheMaxSize,
         proxyConfig.internalIdCacheExpiryTime
       )
       samResourceCache <- Resource.make(
-        F.delay(CaffeineCache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])](underlyingSamResourceCache))
+        F.delay(
+          CaffeineCache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])](underlyingSamResourceCache)
+        )
       )(s => s.close)
 
       underlyingOperationFutureCache = buildCache[Long, scalacache.Entry[OperationFuture[Operation, Operation]]](
