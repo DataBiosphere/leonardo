@@ -371,7 +371,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       MockSamDAO.appManagerActions
     )
 
-    val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.stringToObject("WORKSPACE_SHARED")))
+    val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.WorkspaceShared))
     samAuthProvider
       .notifyResourceCreatedV2(newSharedApp, userEmail, cloudContextGcp, workspaceId, userInfo)
       .unsafeRunSync()
@@ -429,7 +429,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       newApp
     )
 
-    val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.stringToObject("WORKSPACE_SHARED")))
+    val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.WorkspaceShared))
     mockSam.createResourceWithWorkspaceParent(newSharedApp, userEmail3, userInfo, workspaceId).unsafeRunSync()
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), userInfo)
