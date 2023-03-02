@@ -148,7 +148,10 @@ trait TestLeoRoutes {
   val googleTokenCache: Cache[IO, String, (UserInfo, Instant)] =
     CaffeineCache[IO, String, (UserInfo, Instant)](underlyingGoogleTokenCache)
   val underlyingSamResourceCache =
-    Caffeine.newBuilder().maximumSize(10000L).build[SamResourceCacheKey, scalacache.Entry[(Option[String], Option[AppAccessScope])]]()
+    Caffeine
+      .newBuilder()
+      .maximumSize(10000L)
+      .build[SamResourceCacheKey, scalacache.Entry[(Option[String], Option[AppAccessScope])]]()
   val samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])] =
     CaffeineCache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])](underlyingSamResourceCache)
 
