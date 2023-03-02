@@ -56,6 +56,7 @@ import scala.jdk.CollectionConverters._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
+                           azureBatchService: AzureBatchService[F],
                            azureContainerService: AzureContainerService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
@@ -401,8 +402,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
         raw"config.subscriptionId=${cloudContext.subscriptionId}",
         raw"config.region=${landingZoneResources.region}",
-        raw"config.batchAccountKey=${}",
-        raw"config.applicationInsightsAccountKey=${}",
+        raw"config.batchAccountKey=${landingZoneResources.batchAccountKey}",
+        raw"config.applicationInsightsAccountKey=${}", // account.getKeys.primary
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",

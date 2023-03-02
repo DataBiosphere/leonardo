@@ -17,7 +17,13 @@ import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.{AzureContainerService, AzureRelayService, AzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureApplicationInsightsService,
+  AzureBatchService,
+  AzureContainerService,
+  AzureRelayService,
+  AzureVmService
+}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{
   GoogleProjectDAO,
@@ -407,6 +413,9 @@ object Boot extends IOApp {
       azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
       )
+      azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
+        ConfigReader.appConfig.azure.appRegistration
+      )
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
@@ -629,6 +638,7 @@ object Boot extends IOApp {
           ConfigReader.appConfig.drs
         ),
         helmClient,
+        azureBatchService,
         azureContainerService,
         azureRelay,
         samDao,
