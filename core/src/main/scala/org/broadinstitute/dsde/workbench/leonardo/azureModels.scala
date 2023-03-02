@@ -19,6 +19,8 @@ final case class ManagedIdentityName(value: String) extends AnyVal
 
 final case class BatchAccountName(value: String) extends AnyVal
 
+final case class BatchAccountKey(value: String) extends AnyVal
+
 final case class PostgresName(value: String) extends AnyVal
 
 final case class LogAnalyticsWorkspaceName(value: String) extends AnyVal

@@ -18,7 +18,6 @@ import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure.{
-  AzureApplicationInsightsService,
   AzureBatchService,
   AzureContainerService,
   AzureRelayService,

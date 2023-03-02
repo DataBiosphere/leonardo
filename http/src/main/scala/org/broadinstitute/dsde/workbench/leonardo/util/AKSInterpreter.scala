@@ -170,6 +170,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
       _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
+      // get the batch account key
+      batchAccountKey <- azureBatchService.getBatchAccount(landingZoneResources.batchAccountName).getKeys.primaryKey
+
       // Deploy app chart
       _ <- app.appType match {
         case AppType.Cromwell =>
@@ -179,6 +182,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               params.storageContainer,
               AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
             )
+
             _ <- helmClient
               .installChart(
                 app.release,
@@ -192,7 +196,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.landingZoneResources,
                   relayPath,
                   petMi,
-                  storageContainer
+                  storageContainer,
+                  batchAccountKey
                 ),
                 createNamespace = true
               )
@@ -385,25 +390,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      landingZoneResources: LandingZoneResources,
                                                      relayPath: Uri,
                                                      petManagedIdentity: Identity,
-                                                     storageContainer: StorageContainerResponse
+                                                     storageContainer: StorageContainerResponse,
+                                                     batchAccountKey: BatchAccountKey
   ): Values =
     Values(
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
         // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
+        raw"config.batchAccountKey=${batchAccountKey}",
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
-
-        // TODO (LM)
-        // AppKey for connecting to Batch account as config.batchAccountKey
-        // Account key for connecting to Application Insights as config.applicationInsightsAccountKey
         raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
         raw"config.subscriptionId=${cloudContext.subscriptionId}",
         raw"config.region=${landingZoneResources.region}",
-        raw"config.batchAccountKey=${landingZoneResources.batchAccountKey}",
-        raw"config.applicationInsightsAccountKey=${}", // account.getKeys.primary
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",

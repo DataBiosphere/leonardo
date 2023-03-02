@@ -8,7 +8,6 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.prop.TableDrivenPropertyChecks
