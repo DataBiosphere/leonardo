@@ -83,6 +83,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
+      // Result on the left from thing on the right
+      // Concurrency if they aren't dependent on return values
+
+      // Everything in this function _could_ be async, short circuiting for for-yield pattern
+      // every return value has to be wrapped in "container" -- F (general type variable for "monad") -- you can map over it, Unit is "nothing"
+      // essentially creating a side-effect
+      // Futures start running right at definition -- function will give back an "IO" with a handful of "actions"
+
       ctx <- ev.ask
 
       // Grab records from the database
@@ -231,6 +239,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
 
       // If we've got here, update the App status to Running.
+      // TODO: Aaron
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(

@@ -422,6 +422,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- publisherQueue.offer(message)
     } yield ()
 
+  // TODO: Aaron
   override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
     as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] = for {
