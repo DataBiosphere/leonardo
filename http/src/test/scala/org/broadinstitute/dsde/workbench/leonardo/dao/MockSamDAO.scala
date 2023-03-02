@@ -228,7 +228,8 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Unit] = {
     val authHeader = userEmailToAuthorization(creatorEmail)
-    val ownerAuthHeader = userEmailToAuthorization(projectOwnerEmail)
+    val projectOwnerAuthHeader = userEmailToAuthorization(projectOwnerEmail)
+    val workspaceOwnerAuthHeader = userEmailToAuthorization(workspaceOwnerEmail)
     resource match {
       case r: RuntimeSamResourceId =>
         IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
@@ -257,16 +258,30 @@ class MockSamDAO extends SamDAO[IO] {
           )
         }.void
       case r: AppSamResourceId =>
-        IO(
-          apps ++=
-            Map((r, authHeader) -> AppAction.allActions, (r, ownerAuthHeader) -> appManagerActions)
-        ) >>
-          IO {
-            appCreators = appCreators |+| Map(
-              authHeader -> Set((r, SamPolicyName.Creator)),
-              ownerAuthHeader -> Set((r, SamPolicyName.Manager))
-            )
-          }.void
+        r.resourceType match {
+          case SamResourceType.App =>
+            IO(
+              apps ++=
+                Map((r, authHeader) -> AppAction.allActions, (r, projectOwnerAuthHeader) -> appManagerActions)
+            ) >>
+              IO {
+                appCreators = appCreators |+| Map(
+                  authHeader -> Set((r, SamPolicyName.Creator)),
+                  projectOwnerAuthHeader -> Set((r, SamPolicyName.Manager))
+                )
+              }.void
+          case _ =>
+            IO(
+              apps ++=
+                Map((r, authHeader) -> AppAction.allActions, (r, workspaceOwnerAuthHeader) -> appManagerActions)
+            ) >>
+              IO {
+                appCreators = appCreators |+| Map(
+                  authHeader -> Set((r, SamPolicyName.Owner)),
+                  workspaceOwnerAuthHeader -> Set((r, SamPolicyName.Other("user")))
+                )
+              }.void
+        }
     }
   }
 
@@ -409,6 +424,7 @@ object MockSamDAO {
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val petMI = WorkbenchEmail("/subscriptions/foo/resourceGroups/bar/userAssignedManagedIdentities/pet-1234")
   val projectOwnerEmail = WorkbenchEmail("project-owner@test.org")
+  val workspaceOwnerEmail = WorkbenchEmail("workspace-owner@test.org")
   val appManagerActions = Set(AppAction.GetAppStatus, AppAction.DeleteApp)
   def userEmailToAuthorization(workbenchEmail: WorkbenchEmail): Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${workbenchEmail}"))
