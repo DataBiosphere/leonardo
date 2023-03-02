@@ -661,7 +661,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   )
                 )
             }
-          case None => deleteDiskAction
+          case None =>
+            // Error'd runtimes might not have a WSM resourceId and therefore no WsmJobStatus.
+            // We still want deletion to succeed in this case.
+            for {
+              _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+              _ <- logger.info(ctx.loggingCtx)(s"runtime ${msg.runtimeId} is deleted successfully")
+              _ <- deleteDiskAction
+            } yield ()
         }
       } yield ()
 
