@@ -13,8 +13,8 @@ object AppRoutesTestJsonCodec {
 
   implicit val createAppEncoder: Encoder[CreateAppRequest] = Encoder.forProduct8(
     "kubernetesRuntimeConfig",
-    "accessScope",
     "appType",
+    "accessScope",
     "diskConfig",
     "labels",
     "customEnvironmentVariables",
