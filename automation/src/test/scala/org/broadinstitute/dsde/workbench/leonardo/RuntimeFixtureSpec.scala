@@ -138,9 +138,9 @@ abstract class RuntimeFixtureSpec
 
 //     super.afterAll()
 //   }
-// }
+}
 
-// object RuntimeFixtureSpec {
+object RuntimeFixtureSpec {
 //   // Simulate custom environment variables set by Terra UI
 //   def getCustomEnvironmentVariables: Map[String, String] =
 //     Map(
