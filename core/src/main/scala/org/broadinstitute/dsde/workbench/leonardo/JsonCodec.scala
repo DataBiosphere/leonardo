@@ -655,7 +655,7 @@ object JsonCodec {
   implicit val appAccessScopeDecoder: Decoder[AppAccessScope] =
     Decoder.decodeString.emap(s => AppAccessScope.stringToObject.get(s).toRight(s"Invalid app accessScope ${s}"))
   implicit val appSamIdDecoder: Decoder[AppSamResourceId] =
-    Decoder.forProduct2("resourceId", "accessScope")(AppSamResourceId)
+    Decoder.forProduct2("resourceId", "accessScope")(AppSamResourceId.apply)
 
   implicit val namespaceNameDecoder: Decoder[NamespaceName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NamespaceName).leftMap(_.getMessage))
