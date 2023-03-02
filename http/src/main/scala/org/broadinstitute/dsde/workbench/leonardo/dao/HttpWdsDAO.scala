@@ -38,8 +38,8 @@ class HttpWdsDAO[F[_]](httpClient: Client[F])(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
-      _ <- metrics.incrementCounter("wds/status")
-      wdsStatusUri = baseUri / "wds" / "status"
+      _ <- metrics.incrementCounter("status")
+      wdsStatusUri = baseUri / "status"
       res <- httpClient.expectOr[WdsStatusCheckResponse](
         Request[F](
           method = Method.GET,
