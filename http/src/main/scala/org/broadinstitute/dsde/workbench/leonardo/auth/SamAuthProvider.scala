@@ -133,9 +133,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     ev: Ask[F, TraceId]
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    val resourceTypes = resources.map(r => sr.resourceType(r)).toList.toSet
     for {
-      ctx <- ev.ask
-      resourceTypes = resources.map(r => sr.resourceType(r)).toList.toSet
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
@@ -154,18 +153,12 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    val resourceGoogleProjects = resources.map(_._1).toList.toSet
     val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
     for {
-      projectPolicies <- resourceGoogleProjects.toList.flatTraverse(resourceGoogleProject =>
-        samDao.getResourcePolicies[ProjectSamResourceId](authHeader,
-                                                         ProjectSamResourceId(resourceGoogleProject).resourceType
-        )
-      )
-      owningProjects =
-        projectPolicies.collect { case (r, SamPolicyName.Owner) =>
-          r.googleProject
-        }
+      projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
+      owningProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
+        r.googleProject
+      }
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
@@ -183,9 +176,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[Set[WorkspaceResourceSamResourceId]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
-      workspacePolicies <- resources.toList.flatTraverse(resource =>
-        samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader, resource.resourceType)
-      )
+      workspacePolicies <- samDao
+        .getResourcePolicies[WorkspaceResourceSamResourceId](authHeader, SamResourceType.Workspace)
       owningWorkspaces = workspacePolicies.collect { case (r, SamPolicyName.Owner) =>
         r
       }
