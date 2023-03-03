@@ -278,8 +278,7 @@ object JsonCodec {
       case _                                   => status.toString
     }
   )
-  implicit val kubeSamIdEncoder: Encoder[AppSamResourceId] =
-    Encoder.forProduct2("resourceId", "accessScope")(x => AppSamResourceId.unapply(x).get)
+  implicit val appSamIdEncoder: Encoder[AppSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val namespaceEncoder: Encoder[NamespaceName] = Encoder.encodeString.contramap(_.value)
   implicit val appNameEncoder: Encoder[AppName] = Encoder.encodeString.contramap(_.value)
   implicit val appStatusEncoder: Encoder[AppStatus] = Encoder.encodeString.contramap { x =>
@@ -654,8 +653,7 @@ object JsonCodec {
   )
   implicit val appAccessScopeDecoder: Decoder[AppAccessScope] =
     Decoder.decodeString.emap(s => AppAccessScope.stringToObject.get(s).toRight(s"Invalid app accessScope ${s}"))
-  implicit val appSamIdDecoder: Decoder[AppSamResourceId] =
-    Decoder.forProduct2("resourceId", "accessScope")(AppSamResourceId.apply)
+  implicit val appSamIdDecoder: Decoder[AppSamResourceId] = Decoder.decodeString.map(s => AppSamResourceId(s, None))
 
   implicit val namespaceNameDecoder: Decoder[NamespaceName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NamespaceName).leftMap(_.getMessage))
