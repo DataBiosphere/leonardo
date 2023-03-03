@@ -171,13 +171,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
       _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
-
       // get the batch account key
       batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
                                                         params.cloudContext
       )
       batchAccountKey = batchAccount.getKeys().primary
-
 
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
@@ -208,7 +206,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   relayPath,
                   petMi,
                   storageContainer,
-                  BatchAccountKey(batchAccountKey)
+                  BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString()
                 ),
                 createNamespace = true
@@ -403,7 +401,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      relayPath: Uri,
                                                      petManagedIdentity: Identity,
                                                      storageContainer: StorageContainerResponse,
-                                                     batchAccountKey: BatchAccountKey
+                                                     batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String
   ): Values =
     Values(
@@ -420,7 +418,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.region=${landingZoneResources.region}",
         raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
-
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",
