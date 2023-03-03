@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, BatchAccountName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, BatchAccountName, RelayNamespace}
+
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 
 import java.util.UUID
@@ -35,5 +36,6 @@ final case class LandingZoneResources(landingZoneId: UUID,
                                       aksSubnetName: SubnetworkName,
                                       postgresSubnetName: SubnetworkName,
                                       computeSubnetName: SubnetworkName,
-                                      region: com.azure.core.management.Region
+                                      region: com.azure.core.management.Region,
+                                      applicationInsightsName: ApplicationInsightsName
 )

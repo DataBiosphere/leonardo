@@ -3,6 +3,7 @@ package util
 
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
+import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
 import com.azure.resourcemanager.compute.ComputeManager
 import com.azure.resourcemanager.compute.fluent.{ComputeManagementClient, VirtualMachineScaleSetsClient}
 import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, VirtualMachineScaleSets}
@@ -54,12 +55,16 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockAzureContainerService = setUpMockAzureContainerService
+  val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
+  val mockAzureBatchService = setUpMockAzureBatchService
 
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
-    setUpMockAzureBatchService,
-    setUpMockAzureContainerService,
+    mockAzureBatchService,
+    mockAzureContainerService,
+    mockAzureApplicationInsightsService,
     FakeAzureRelayService,
     mockSamDAO,
     mockCromwellDAO,
@@ -93,7 +98,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SubnetworkName("subnet2"),
     SubnetworkName("subnet3"),
     SubnetworkName("subnet4"),
-    azureRegion
+    azureRegion,
+    ApplicationInsightsName("lzappinsights")
   )
 
   val storageContainer = StorageContainerResponse(
@@ -126,7 +132,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Uri.unsafeFromString("https://relay.com/app"),
       setUpMockIdentity,
       storageContainer,
-      BatchAccountKey("key")
+      BatchAccountKey("key"),
+      "applicationInsightsConnectionString"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -134,6 +141,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.batchNodesSubnetId=subnet1," +
       s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
       "config.workflowExecutionIdentity=identity-id," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
@@ -283,23 +291,16 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   private def setUpMockAzureBatchService: AzureBatchService[IO] =
-    mock[AzureBatchService[IO]]
-  // val cluster = mock[KubernetesCluster]
-//    when {
-//      cluster.nodeResourceGroup()
-//    } thenReturn "node-rg"
-//    when {
-//      container.getCluster(any[String].asInstanceOf[AKSClusterName], any)(any)
-//    } thenReturn IO.pure(cluster)
-//    when {
-//      container.getClusterCredentials(any[String].asInstanceOf[AKSClusterName], any)(any)
-//    } thenReturn IO.pure(
-//      AKSCredentials(AKSServer("server"),
-//        AKSToken("token"),
-//        AKSCertificate(Base64.getEncoder.encodeToString("cert".getBytes()))
-//      )
-//    )
-  // container
+    mock[AzureBatchService[IO]] // TODO (LM)
+
+  private def setUpMockAzureApplicationInsightsService: AzureApplicationInsightsService[IO] = {
+    val container = mock[AzureApplicationInsightsService[IO]]
+    val applicationInsightsComponent = mock[ApplicationInsightsComponent]
+    when {
+      container.getApplicationInsights(any[String].asInstanceOf[ApplicationInsightsName], any)(any)
+    } thenReturn IO.pure(applicationInsightsComponent)
+    container
+  }
 
   private def setUpMockKubeAPI: CoreV1Api = {
     val coreV1Api = mock[CoreV1Api]
@@ -370,4 +371,5 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn IO.pure(true)
     wds
   }
+
 }

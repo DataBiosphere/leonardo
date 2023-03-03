@@ -58,6 +58,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
                            azureBatchService: AzureBatchService[F],
                            azureContainerService: AzureContainerService[F],
+                           azureApplicationInsightsService: AzureApplicationInsightsService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
                            cromwellDao: CromwellDAO[F],
@@ -170,11 +171,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
       _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
+
       // get the batch account key
       batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
                                                         params.cloudContext
       )
       batchAccountKey = batchAccount.getKeys().primary
+
+
+      applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
+        params.landingZoneResources.applicationInsightsName,
+        params.cloudContext
+      )
 
       // Deploy app chart
       _ <- app.appType match {
@@ -201,6 +209,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   storageContainer,
                   BatchAccountKey(batchAccountKey)
+                  applicationInsightsComponent.connectionString()
                 ),
                 createNamespace = true
               )
@@ -395,6 +404,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      petManagedIdentity: Identity,
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey
+                                                     applicationInsightsConnectionString: String
   ): Values =
     Values(
       List(
@@ -408,6 +418,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
         raw"config.subscriptionId=${cloudContext.subscriptionId}",
         raw"config.region=${landingZoneResources.region}",
+        raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
+        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",

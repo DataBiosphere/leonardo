@@ -7,6 +7,7 @@ import cats.mtl.Ask
 import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
+  ApplicationInsightsName,
   AzureCloudContext,
   BatchAccountName,
   ContainerName,
@@ -158,7 +159,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
         SubnetworkName("akssub"),
         SubnetworkName("postgressub"),
         SubnetworkName("computesub"),
-        com.azure.core.management.Region.US_WEST
+        com.azure.core.management.Region.US_WEST,
+        ApplicationInsightsName("lzappinsights")
       )
     )
 

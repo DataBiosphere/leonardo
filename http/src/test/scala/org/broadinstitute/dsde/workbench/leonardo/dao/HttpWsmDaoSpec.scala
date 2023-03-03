@@ -4,7 +4,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, BatchAccountName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, BatchAccountName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
@@ -72,7 +72,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
           buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
           buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
           buildMockLandingZoneResource("microsoft.dbforpostgresql/servers", "lzpostgres"),
-          buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics")
+          buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics"),
+          buildMockLandingZoneResource("Microsoft.Insights/components", "lzappinsights")
         )
       ),
       LandingZoneResourcesByPurpose(
@@ -139,7 +140,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       SubnetworkName("akssub"),
       SubnetworkName("postgressub"),
       SubnetworkName("computesub"),
-      com.azure.core.management.Region.US_EAST
+      com.azure.core.management.Region.US_EAST,
+      ApplicationInsightsName("lzappinsights")
     )
 
     val landingZoneResources = res.toOption.get

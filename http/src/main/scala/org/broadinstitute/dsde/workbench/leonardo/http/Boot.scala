@@ -18,6 +18,7 @@ import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure.{
+  AzureApplicationInsightsService,
   AzureBatchService,
   AzureContainerService,
   AzureRelayService,
@@ -76,7 +77,7 @@ import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
 
-import java.net.InetSocketAddress
+import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -412,7 +413,12 @@ object Boot extends IOApp {
       azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
       )
+
       azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
+         ConfigReader.appConfig.azure.appRegistration
+      )
+
+      azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
       )
       // Set up identity providers
@@ -639,6 +645,7 @@ object Boot extends IOApp {
         helmClient,
         azureBatchService,
         azureContainerService,
+        azureApplicationInsightsService,
         azureRelay,
         samDao,
         cromwellDao,
@@ -750,7 +757,16 @@ object Boot extends IOApp {
     metricsPrefix: Option[String],
     withRetry: Boolean
   ): Resource[F, org.http4s.client.Client[F]] = {
-    val retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
+    // Retry all SocketExceptions to deal with pooled HTTP connections getting closed.
+    // See https://broadworkbench.atlassian.net/browse/IA-4069.
+    val retryPolicy = RetryPolicy[F](
+      RetryPolicy.exponentialBackoff(30 seconds, 5),
+      (req, result) =>
+        result match {
+          case Left(e) if e.isInstanceOf[SocketException] => true
+          case _                                          => RetryPolicy.defaultRetriable(req, result)
+        }
+    )
 
     for {
       httpClient <- client
@@ -763,6 +779,7 @@ object Boot extends IOApp {
         .withConnectTimeout(30 seconds)
         .withRequestTimeout(60 seconds)
         .withMaxTotalConnections(100)
+        .withMaxIdleDuration(30 seconds)
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient

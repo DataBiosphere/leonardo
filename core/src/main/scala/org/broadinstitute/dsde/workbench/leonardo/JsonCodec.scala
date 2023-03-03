@@ -5,7 +5,13 @@ import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, BatchAccountName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  AzureCloudContext,
+  BatchAccountName,
+  RelayNamespace
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
@@ -89,6 +95,7 @@ object JsonCodec {
   implicit val diskLinkEncoder: Encoder[DiskLink] = Encoder.encodeString.contramap(_.asString)
   implicit val formattedByEncoder: Encoder[FormattedBy] = Encoder.encodeString.contramap(_.asString)
   implicit val toolEncoder: Encoder[Tool] = Encoder.encodeString.contramap(_.asString)
+  implicit val runtimeConfigTypeEncoder: Encoder[RuntimeConfigType] = Encoder.encodeString.contramap(_.asString)
 
   implicit val cloudContextEncoder: Encoder[CloudContext] = Encoder.forProduct2(
     "cloudProvider",
@@ -105,7 +112,7 @@ object JsonCodec {
     "numOfCpus"
   )(x => AppMachineType.unapply(x).get)
 
-  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct11(
+  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct12(
     "numberOfWorkers",
     "masterMachineType",
     "masterDiskSize",
@@ -117,7 +124,8 @@ object JsonCodec {
     "cloudService",
     "region",
     "componentGatewayEnabled",
-    "workerPrivateAccess"
+    "workerPrivateAccess",
+    "configType"
   )(x =>
     (x.numberOfWorkers,
      x.machineType,
@@ -129,25 +137,31 @@ object JsonCodec {
      x.cloudService,
      x.region,
      x.componentGatewayEnabled,
-     x.workerPrivateAccess
+     x.workerPrivateAccess,
+     x.configType
     )
   )
-  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct6(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct7(
     "machineType",
     "diskSize",
     "cloudService",
     "bootDiskSize",
     "zone",
-    "gpuConfig"
-  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
+    "gpuConfig",
+    "configType"
+  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig, x.configType))
 
   implicit val azureRegionEncoder: Encoder[Region] = Encoder.encodeString.contramap(_.toString)
-  implicit val azureRuntimeConfigEncoder: Encoder[RuntimeConfig.AzureConfig] = Encoder.forProduct4(
+
+  implicit val applicationInsightsNameEncoder: Encoder[ApplicationInsightsName] =
+    Encoder.encodeString.contramap(_.value)
+  implicit val azureRuntimeConfigEncoder: Encoder[RuntimeConfig.AzureConfig] = Encoder.forProduct5(
     "cloudService",
     "machineType",
     "persistentDiskId",
-    "region"
-  )(x => (x.cloudService, x.machineType, x.persistentDiskId, x.region))
+    "region",
+    "configType"
+  )(x => (x.cloudService, x.machineType, x.persistentDiskId, x.region, x.configType))
 
   implicit val azureMachineTypeDecoder: Decoder[VirtualMachineSizeTypes] = Decoder.decodeString.emap { s =>
     val machineSizeOpt: Option[VirtualMachineSizeTypes] =
@@ -191,14 +205,15 @@ object JsonCodec {
     "homeDirectory",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct6(
+  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct7(
     "machineType",
     "persistentDiskId",
     "cloudService",
     "bootDiskSize",
     "zone",
-    "gpuConfig"
-  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
+    "gpuConfig",
+    "configType"
+  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig, x.configType))
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {
@@ -487,6 +502,8 @@ object JsonCodec {
         else none[Region]
       regionOpt.toRight(s"Invalid azure region ${s}")
     }
+  implicit val applicationInsightsNameDecoder: Decoder[ApplicationInsightsName] =
+    Decoder.decodeString.map(ApplicationInsightsName)
 
   implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
     "gpuType",
@@ -726,7 +743,7 @@ object JsonCodec {
   )(x => (x.publisher, x.offer, x.sku, x.version))
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct13(
+    Decoder.forProduct14(
       "landingZoneId",
       "clusterName",
       "batchAccountName",
@@ -739,12 +756,13 @@ object JsonCodec {
       "aksSubnetName",
       "postgresSubnetName",
       "computeSubnetName",
-      "region"
+      "region",
+      "applicationInsightsName"
     )(
       LandingZoneResources.apply
     )
 
-  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct13(
+  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct14(
     "landingZoneId",
     "clusterName",
     "batchAccountName",
@@ -757,7 +775,8 @@ object JsonCodec {
     "aksSubnetName",
     "postgresSubnetName",
     "computeSubnetName",
-    "region"
+    "region",
+    "applicationInsightsName"
   )(x =>
     (x.landingZoneId,
      x.clusterName,
@@ -771,7 +790,8 @@ object JsonCodec {
      x.aksSubnetName,
      x.postgresSubnetName,
      x.computeSubnetName,
-     x.region
+     x.region,
+     x.applicationInsightsName
     )
   )
 }

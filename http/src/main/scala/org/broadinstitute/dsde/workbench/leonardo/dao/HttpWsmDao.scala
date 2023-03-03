@@ -4,7 +4,8 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, BatchAccountName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, BatchAccountName, RelayNamespace}
+
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
@@ -201,6 +202,11 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                               SHARED_RESOURCE,
                                                               false
       )
+      applicationInsightsName <- getLandingZoneResourceName(groupedLzResources,
+                                                            "Microsoft.Insights/components",
+                                                            SHARED_RESOURCE,
+                                                            false
+      )
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
                                                          "DeployedSubnet",
@@ -228,7 +234,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       SubnetworkName(aksSubnetName),
       SubnetworkName(postgresSubnetName),
       SubnetworkName(computeSubnetName),
-      region
+      region,
+      ApplicationInsightsName(applicationInsightsName)
     )
 
   private def getLandingZoneResourceName(
