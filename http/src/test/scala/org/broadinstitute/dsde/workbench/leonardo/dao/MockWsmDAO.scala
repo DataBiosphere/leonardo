@@ -8,6 +8,7 @@ import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
   AzureCloudContext,
+  BatchAccountName,
   ContainerName,
   ManagedResourceGroupName,
   RelayNamespace,
@@ -145,7 +146,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   ): IO[LandingZoneResources] =
     IO.pure(
       LandingZoneResources(
-        UUID("lzid")
+        UUID.randomUUID(),
         AKSClusterName("lzcluster"),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),

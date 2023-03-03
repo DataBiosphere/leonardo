@@ -58,6 +58,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
+    setUpMockAzureBatchService,
     setUpMockAzureContainerService,
     FakeAzureRelayService,
     mockSamDAO,
@@ -80,6 +81,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   )
 
   val lzResources = LandingZoneResources(
+    UUID.randomUUID(),
     AKSClusterName("cluster"),
     BatchAccountName("batch"),
     RelayNamespace("relay"),
@@ -123,7 +125,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Uri.unsafeFromString("https://relay.com/app"),
       setUpMockIdentity,
-      storageContainer
+      storageContainer,
+      BatchAccountKey("key")
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -278,6 +281,25 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     )
     container
   }
+
+  private def setUpMockAzureBatchService: AzureBatchService[IO] =
+    mock[AzureBatchService[IO]]
+  // val cluster = mock[KubernetesCluster]
+//    when {
+//      cluster.nodeResourceGroup()
+//    } thenReturn "node-rg"
+//    when {
+//      container.getCluster(any[String].asInstanceOf[AKSClusterName], any)(any)
+//    } thenReturn IO.pure(cluster)
+//    when {
+//      container.getClusterCredentials(any[String].asInstanceOf[AKSClusterName], any)(any)
+//    } thenReturn IO.pure(
+//      AKSCredentials(AKSServer("server"),
+//        AKSToken("token"),
+//        AKSCertificate(Base64.getEncoder.encodeToString("cert".getBytes()))
+//      )
+//    )
+  // container
 
   private def setUpMockKubeAPI: CoreV1Api = {
     val coreV1Api = mock[CoreV1Api]
