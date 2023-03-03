@@ -4,9 +4,9 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.{
   BillingProjectFixtureSpec,
-  // ClusterStatus,
-  // Leonardo,
-  // LeonardoApiClient,
+// ClusterStatus,
+// Leonardo,
+// LeonardoApiClient,
   LeonardoTestUtils
 }
 // import org.scalatest.time.{Minutes, Seconds, Span}
@@ -19,7 +19,7 @@ class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestEx
   implicit val rat = ronAuthToken.unsafeRunSync()
   implicit val ra = ronAuthorization.unsafeRunSync()
 
-/* TODO [IA-4111] fix and reenable this test. It was timing out and stalling automation runs.
+  /* TODO [IA-4111] fix and reenable this test. It was timing out and stalling automation runs.
 
   "autopause should work" in { billingProject =>
     val runtimeName = randomClusterName
@@ -38,5 +38,5 @@ class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestEx
       }
     }
   }
-  */
+   */
 }
