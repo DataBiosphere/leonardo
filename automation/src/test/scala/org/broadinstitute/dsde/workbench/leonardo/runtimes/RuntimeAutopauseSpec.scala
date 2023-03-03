@@ -10,11 +10,10 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoTestUtils
 }
 import org.scalatest.time.{Minutes, Seconds, Span}
-import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-
+import org.scalatest.ParallelTestExecution
 import scala.concurrent.duration._
 
-@DoNotDiscover
+// Was part of LeonardoSuite, but was timing out. Removed to see if non-parallel runs will succeed...
 class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
   implicit val rat = ronAuthToken.unsafeRunSync()

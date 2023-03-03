@@ -245,15 +245,14 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 
 final class LeonardoSuite
     extends Suites(
-      // new RuntimeCreationDiskSpec,
-      // new LabSpec,
-      new RuntimeAutopauseSpec
-      // new RuntimePatchSpec,
-      // new RuntimeStatusTransitionsSpec,
-      // new NotebookGCECustomizationSpec,
-      // new NotebookGCEDataSyncingSpec,
-      // new RuntimeDataprocSpec,
-      // new RuntimeGceSpec
+      new RuntimeCreationDiskSpec,
+      new LabSpec,
+      new RuntimePatchSpec,
+      new RuntimeStatusTransitionsSpec,
+      new NotebookGCECustomizationSpec,
+      new NotebookGCEDataSyncingSpec,
+      new RuntimeDataprocSpec,
+      new RuntimeGceSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
