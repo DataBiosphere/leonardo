@@ -43,7 +43,7 @@ object SamResource {
     def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
     def resourceType(r: AppSamResourceId): SamResourceType = r.resourceType
     def policyNames(r: AppSamResourceId): Set[SamPolicyName] = r.resourceType match {
-      case SamResourceType.SharedApp => Set(SamPolicyName.Owner, SamPolicyName.Other("user"))
+      case SamResourceType.SharedApp => Set(SamPolicyName.Owner, SamPolicyName.User)
       case _                         => Set(SamPolicyName.Creator, SamPolicyName.Manager)
     }
   }

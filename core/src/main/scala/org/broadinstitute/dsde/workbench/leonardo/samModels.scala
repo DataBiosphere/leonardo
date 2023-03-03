@@ -267,6 +267,9 @@ object SamPolicyName {
   final case object Manager extends SamPolicyName {
     override def toString = "manager"
   }
+  final case object User extends SamPolicyName {
+    override def toString = "user"
+  }
   final case class Other(asString: String) extends SamPolicyName {
     override def toString = asString
   }
