@@ -69,6 +69,7 @@ import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
+  ApplicationInsightsName,
   AzureCloudContext,
   ManagedResourceGroupName,
   RelayNamespace,
@@ -561,7 +562,8 @@ object CommonTestData {
     SubnetworkName(""),
     SubnetworkName(""),
     SubnetworkName(""),
-    azureRegion
+    azureRegion,
+    ApplicationInsightsName("lzappinsights")
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
