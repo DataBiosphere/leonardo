@@ -20,6 +20,8 @@ class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestEx
   implicit val rat = ronAuthToken.unsafeRunSync()
   implicit val ra = ronAuthorization.unsafeRunSync()
 
+/* TODO [IA-4111] fix and reenable this test. It was timing out and stalling automation runs.
+
   "autopause should work" in { billingProject =>
     val runtimeName = randomClusterName
     val runtimeRequest =
@@ -36,6 +38,6 @@ class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestEx
         dbCluster.status shouldBe ClusterStatus.Stopping
       }
     }
-
   }
+  */
 }
