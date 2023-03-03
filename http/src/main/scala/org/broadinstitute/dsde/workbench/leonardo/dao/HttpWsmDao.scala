@@ -4,7 +4,12 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, BatchAccountName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  BatchAccountName,
+  RelayNamespace
+}
 
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig

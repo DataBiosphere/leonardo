@@ -415,7 +415,7 @@ object Boot extends IOApp {
       )
 
       azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
-         ConfigReader.appConfig.azure.appRegistration
+        ConfigReader.appConfig.azure.appRegistration
       )
 
       azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig(
