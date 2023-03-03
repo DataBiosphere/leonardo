@@ -54,7 +54,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "microsoft-dsvm",
               "ubuntu-2004",
               "2004-gen2",
-              "22.04.27"
+              "23.01.06"
             ),
             CustomScriptExtensionConfig(
               "vm-custom-script-extension",
