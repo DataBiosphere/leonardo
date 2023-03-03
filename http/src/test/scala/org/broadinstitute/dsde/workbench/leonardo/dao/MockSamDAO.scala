@@ -278,7 +278,7 @@ class MockSamDAO extends SamDAO[IO] {
               IO {
                 appCreators = appCreators |+| Map(
                   authHeader -> Set((r, SamPolicyName.Owner)),
-                  workspaceOwnerAuthHeader -> Set((r, SamPolicyName.Other("user")))
+                  workspaceOwnerAuthHeader -> Set((r, SamPolicyName.User))
                 )
               }.void
         }
