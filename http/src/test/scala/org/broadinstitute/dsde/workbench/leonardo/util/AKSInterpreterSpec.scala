@@ -135,9 +135,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
-      "persistence.leoAppInstanceName=app," +
+      "general.leoAppInstanceName=app," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
-      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"general.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +

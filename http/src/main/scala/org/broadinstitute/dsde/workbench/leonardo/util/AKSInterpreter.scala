@@ -404,9 +404,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
         raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
         raw"persistence.blobContainer=${storageContainer.name.value}",
-        raw"persistence.leoAppInstanceName=${appName.value}",
+        raw"general.leoAppInstanceName=${appName.value}",
         raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
-        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
+        raw"general.workspaceManager.workspaceId=${workspaceId.value}",
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
