@@ -133,7 +133,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     res.isRight shouldBe true
 
     val expectedLandingZoneResources = LandingZoneResources(
-      UUID.randomUUID(),
+      UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
       AKSClusterName("lzcluster"),
       BatchAccountName("lzbatch"),
       RelayNamespace("lznamespace"),

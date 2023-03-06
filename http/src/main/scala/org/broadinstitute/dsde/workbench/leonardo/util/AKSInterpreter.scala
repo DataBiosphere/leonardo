@@ -408,7 +408,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
         raw"config.batchAccountKey=${batchAccountKey.value}",
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
@@ -416,7 +415,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
         raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
         raw"config.region=${landingZoneResources.region}",
-        raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
         // relay configs
