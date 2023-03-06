@@ -389,7 +389,7 @@ final case class App(id: AppId,
         case CloudContext.Gcp(project) =>
           Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
         case CloudContext.Azure(_) =>
-          cluster.asyncFields.map(_.loadBalancerIp.asString).map(base => s"${base}${appName.value}${leafPath}")
+          cluster.asyncFields.map(_.loadBalancerIp.asString).map(base => s"${base}")
         case _ =>
           None
       }
