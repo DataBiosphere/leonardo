@@ -137,6 +137,7 @@ object Dependencies {
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
+  val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.10.0"
 
   val coreDependencies = List(
     workbenchOauth2,
@@ -215,8 +216,9 @@ object Dependencies {
     scalaTest,
     scalaTestSelenium,
     scalaTestMockito,
-    http4sBlazeServer % Test//,
-    //    wsmClient
+    http4sBlazeServer % Test,
+    okHttp % Test
+//    wsmClient
   )
 
   val pact4sDependencies = Seq(
