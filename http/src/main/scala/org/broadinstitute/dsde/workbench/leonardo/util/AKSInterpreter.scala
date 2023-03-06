@@ -239,7 +239,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
 
       // If we've got here, update the App status to Running.
-      // TODO: Aaron
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
@@ -367,7 +366,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
         raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
-        raw"relaylistener.targetHost=http://coa-${release.asString}-wds-svc:8080/wds",
+        raw"relaylistener.targetHost=http://coa-${release.asString}-wds-svc:8080",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         raw"relaylistener.samResourceType=kubernetes-app",
