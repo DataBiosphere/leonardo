@@ -54,7 +54,21 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 object Config {
-  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
+  /** Loads all the configs for the Leo App. All values defined in `src/main/resources/leo.conf` will take precedence over any other configs. In this way, we
+   * can still use configs rendered by `firecloud-develop` that render to `config/leonardo.conf` if we want. To do so, you must render `config/leonardo.conf` and then do
+   * not populate ENV variables for `src/main/resources/leo.conf`.
+   *
+   * The ENV variables that you need to populate can be found in variable substitutions.
+   */
+  val leoConfig = ConfigFactory.parseResourcesAnySyntax("leo").resolve()
+
+  val backupConfig = ConfigFactory
+    .parseResources("leonardo.conf")
+    .withFallback(ConfigFactory.load())
+    .resolve()
+
+  val config = leoConfig
+    .withFallback(backupConfig)
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
   implicit private val groupNameReader: ValueReader[GroupName] = stringValueReader.map(GroupName)
