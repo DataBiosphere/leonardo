@@ -12,16 +12,11 @@ import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GKEModels, KubernetesClusterNotFoundException}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeCustomAppService, makeKubeCluster, makeNodepool, makeService}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  kubernetesClusterQuery,
-  nodepoolQuery,
-  KubernetesServiceDbQueries,
-  TestComponent
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent, kubernetesClusterQuery, nodepoolQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -29,9 +24,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
+
 import java.nio.file.Files
 import java.util.Base64
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -299,6 +294,48 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """ingress.tls[0].hosts[0]=1455694897.""" +
       """jupyter.firecloud.org,""" +
       """db.password=replace-me"""
+  }
+
+  it should "build Custom App override values string" in {
+    val savedCluster1 = makeKubeCluster(1)
+    val customService = makeCustomAppService();
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
+    val envVariables = Map("WORKSPACE_BUCKET" -> "gs://test-bucket")
+    val res = gkeInterp.buildCustomChartOverrideValuesString(
+      appName = AppName("app1"),
+      release = Release("app1-custom-rls"),
+      nodepoolName = NodepoolName("pool1"),
+      serviceName = "custom-service",
+      savedCluster1,
+      namespaceName = NamespaceName("ns"),
+      customService,
+      extraArgs = List("/usr/bin", "extra"),
+      disk = savedDisk1,
+      ksaName = ServiceAccountName("app1-cromwell-ksa"),
+      customEnvironmentVariables = envVariables
+    )
+
+    res.mkString(",") shouldBe
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
+        """persistence.size=250G,""" +
+        """persistence.gcePersistentDisk=disk1,""" +
+        """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service/cromwell,""" +
+        """config.gcsProject=dsp-leo-test1,""" +
+        """config.gcsBucket=gs://test-bucket/cromwell-execution,""" +
+        """config.serviceAccount.name=app1-cromwell-ksa,""" +
+        """config.serviceAccount.annotations.gcpServiceAccount=pet123-abc@terra-test-abc.iam.gserviceaccount.com,""" +
+        """ingress.enabled=true,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
+        """ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,""" +
+        """ingress.hosts[0].host=1455694897.jupyter.firecloud.org,""" +
+        """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service(/|$)(.*),""" +
+        """ingress.tls[0].secretName=tls-secret,""" +
+        """ingress.tls[0].hosts[0]=1455694897.""" +
+        """jupyter.firecloud.org,""" +
+        """db.password=replace-me"""
   }
 
   it should "check if a pod is done" in {
