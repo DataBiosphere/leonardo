@@ -710,7 +710,7 @@ paths:
     patch:
       summary: Update the date accessed of a runtime.
       description: >
-        This API is used in conjunction with v2 runtime's autopause functionality. Since Azure runtimes are not proxied to Leonardo, the relay must send a 'keep-alive' 
+        This API is used in conjunction with v2 runtime's autopause functionality. Since Azure runtimes are not proxied to Leonardo, the relay must send a 'keep-alive'
         message of sorts. If no requests are received after a period of time, the runtime will be stopped.
         Each request to this API does not result in the runtime's date accessed being updated. An async process is responsible for batching them and executing updates.
       operationId: updateDateAccessed
@@ -817,7 +817,7 @@ paths:
           schema:
             type: boolean
             default: false
-        
+
       requestBody:
         $ref: "#/components/requestBodies/CreateAzureRuntimeRequest"
       responses:
@@ -3764,6 +3764,8 @@ components:
           $ref: "#/components/schemas/AuditInfo"
         appType:
           $ref: '#/components/schemas/AppType'
+        accessScope:
+          $ref: '#components/schemas/AppAccessScope'
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
@@ -3803,6 +3805,8 @@ components:
           $ref: '#/components/schemas/AppType'
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
+        accessScope:
+          $ref: '#components/schemas/AppAccessScope'
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]

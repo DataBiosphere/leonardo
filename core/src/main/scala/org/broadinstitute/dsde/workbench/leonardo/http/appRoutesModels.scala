@@ -42,6 +42,7 @@ final case class GetAppResponse(appName: AppName,
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo,
                                 appType: AppType,
+                                accessScope: Option[AppAccessScope],
                                 labels: LabelMap
 )
 
@@ -56,6 +57,7 @@ final case class ListAppResponse(cloudProvider: CloudProvider,
                                  appType: AppType,
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo,
+                                 accessScope: Option[AppAccessScope],
                                  labels: LabelMap
 )
 
@@ -81,6 +83,7 @@ object ListAppResponse {
           a.appType,
           a.appResources.disk.map(_.name),
           a.auditInfo,
+          a.appAccessScope,
           a.labels.filter(l => labelsToReturn.contains(l._1))
         )
       }
@@ -104,6 +107,7 @@ object GetAppResponse {
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,
       appResult.app.appType,
+      appResult.app.appAccessScope,
       appResult.app.labels
     )
 }
