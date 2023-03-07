@@ -8,7 +8,13 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateAppRequest,
+  GetAppResponse,
+  GetAppResult,
+  ListAppResponse,
+  PersistentDiskRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
@@ -217,7 +223,7 @@ object KubernetesTestData {
     )
   }
 
-  def makeCustomAppService(): CustomAppService = {
+  def makeCustomAppService(): CustomAppService =
     CustomAppService(
       ContainerImage.fromImageUrl("us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.10").get,
       8001,
@@ -232,5 +238,4 @@ object KubernetesTestData {
         "USER" -> "rstudio"
       )
     )
-  }
 }

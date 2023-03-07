@@ -1244,17 +1244,18 @@ class GKEInterpreter[F[_]](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
-      chartValues = buildCustomChartOverrideValuesString(appName,
-                                                         release,
-                                                         nodepoolName,
-                                                         serviceName,
-                                                         dbCluster,
-                                                         namespaceName,
-                                                         serviceConfig,
-                                                         extraArgs,
-                                                         disk,
-                                                         serviceConfig.environment ++ customEnvironmentVariables,
-                                                         ksaName
+      chartValues = buildCustomChartOverrideValuesString(
+        appName,
+        release,
+        nodepoolName,
+        serviceName,
+        dbCluster,
+        namespaceName,
+        serviceConfig,
+        extraArgs,
+        disk,
+        ksaName,
+        serviceConfig.environment ++ customEnvironmentVariables
       )
 
       _ <- logger.info(ctx.loggingCtx)(
