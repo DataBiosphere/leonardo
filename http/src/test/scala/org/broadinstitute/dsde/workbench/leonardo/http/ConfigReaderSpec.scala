@@ -92,7 +92,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartName("aad-pod-identity/aad-pod-identity"),
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
-        )
+        ),
+        List(AppType.Cromwell.toString)
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
