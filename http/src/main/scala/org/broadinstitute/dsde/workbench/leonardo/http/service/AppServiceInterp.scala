@@ -479,9 +479,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- req.accessScope match {
         case Some(AppAccessScope.WorkspaceShared) =>
           F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType.toString))(
-            BadRequestException(s"App with type ${req.appType} cannot be launched with shared access scope",
-                                Some(ctx.traceId)
-            )
+            SharedAppNotAllowedException(req.appType, ctx.traceId)
           )
         case _ => F.unit
       }
@@ -1307,5 +1305,12 @@ case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: A
     extends LeoException(
       s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
       StatusCodes.BadRequest,
+      traceId = Some(traceId)
+    )
+
+case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"App with type ${appType.toString} cannot be launched with shared access scope. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict,
       traceId = Some(traceId)
     )
