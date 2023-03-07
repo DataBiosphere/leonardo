@@ -329,7 +329,7 @@ object Config {
         case "combined" => LeoExecutionModeConfig.Combined
         case "backLeo"  => LeoExecutionModeConfig.BackLeoOnly
         case "frontLeo" => LeoExecutionModeConfig.FrontLeoOnly
-        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: ${x}")
+        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: '$x'")
       }
   }
 

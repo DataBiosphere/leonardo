@@ -195,6 +195,8 @@ object Boot extends IOApp {
         appDependencies.dateAccessedUpdaterQueue
       )
 
+      println(s"@@ referer valid hosts ${refererConfig.validHosts}")
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -542,6 +544,10 @@ object Boot extends IOApp {
       operationFutureCache <- Resource.make(
         F.delay(CaffeineCache[F, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache))
       )(_.close)
+
+      _ = println(f"ENDPOOOOINT ${ConfigReader.appConfig.oidc.authorityEndpoint.renderString}")
+      _ = println(s"@@SAM ENDPOINT ${samConfig.server}")
+      _ = println(s"@@SAM ENDPOINT2 ${httpSamDaoConfig.samUri}")
 
       oidcConfig <- Resource.eval(
         OpenIDConnectConfiguration[F](

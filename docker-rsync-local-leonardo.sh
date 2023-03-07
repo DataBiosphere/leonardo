@@ -82,8 +82,10 @@ start_server () {
     -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
     -p 25050:5050 \
     --network=fc-leonardo \
+    --env-file="env/local.env" \
+    --env-file="rendered/secrets.env" \
     -e HOSTNAME=$HOSTNAME \
-    -e JAVA_OPTS='-Dconfig.file=/app/config/leonardo.conf -DXmx4G -DXms4G -DXss2M -Dsun.net.spi.nameservice.provider.1=default -Dsun.net.spi.nameservice.provider.2=dns,Jupyter -Djna.library.path=/helm-go-lib-build' \
+    -e JAVA_OPTS='-DXmx4G -DXms4G -DXss2M -Dsun.net.spi.nameservice.provider.1=default -Dsun.net.spi.nameservice.provider.2=dns,Jupyter -Djna.library.path=/helm-go-lib-build' \
     hseeberger/scala-sbt:17.0.2_1.6.2_3.1.1 \
     sbt http/run
 
@@ -98,6 +100,8 @@ start_server () {
     docker cp /etc/localtime leonardo-sbt:/etc/localtime
     docker cp leonardo-helm-lib:/build /tmp
     docker cp /tmp/build/ leonardo-sbt:/helm-go-lib-build
+#    docker cp env/local.env leonardo-sbt:/etc/local.env
+#    dokcer cp rendered/secrets.env leonardo-sbt:/etc/secrets.env
 
 
     echo "Creating proxy..."

@@ -42,7 +42,12 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.map(s => ManagedAppTenantId(s))
   implicit val uriConfigReader: ConfigReader[Uri] =
     ConfigReader.stringConfigReader.emap(s =>
-      Either.catchNonFatal(Uri.unsafeFromString(s)).leftMap(ExceptionThrown.apply)
+      Either
+        .catchNonFatal(Uri.unsafeFromString(s))
+        .leftMap(e => {
+          println(f"tried to parse: '$s'")
+          ExceptionThrown.apply(e)
+        })
     )
   implicit val serviceNameReader: ConfigReader[ServiceName] =
     ConfigReader.stringConfigReader.map(s => ServiceName(s))
