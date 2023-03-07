@@ -23,7 +23,8 @@ final case class AzureConfig(
   wsm: HttpWsmDaoConfig,
   appRegistration: AzureAppRegistrationConfig,
   coaAppConfig: CoaAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  allowedSharedApps: List[String]
 )
 
 final case class OidcAuthConfig(

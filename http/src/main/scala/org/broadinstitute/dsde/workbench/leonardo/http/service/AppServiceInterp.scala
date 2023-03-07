@@ -475,6 +475,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
+      // Validate shared access scope apps against an allow-list. No-op for private apps.
+      _ <- req.accessScope match {
+        case Some(AppAccessScope.WorkspaceShared) =>
+          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType.toString))(
+            BadRequestException(s"App with type ${req.appType} cannot be launched with shared access scope",
+                                Some(ctx.traceId)
+            )
+          )
+        case _ => F.unit
+      }
+
       // Resolve the workspace in WSM to get the cloud context
       userToken = org.http4s.headers.Authorization(
         org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)

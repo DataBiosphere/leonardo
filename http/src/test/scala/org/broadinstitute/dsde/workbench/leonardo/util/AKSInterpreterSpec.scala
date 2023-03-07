@@ -131,7 +131,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       workspaceId,
       lzResources,
       Uri.unsafeFromString("https://relay.com/app"),
-      setUpMockIdentity,
+      Some(setUpMockIdentity),
       storageContainer,
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString"
