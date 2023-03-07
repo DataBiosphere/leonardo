@@ -239,7 +239,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
       policies = Map[SamPolicyName, SamPolicyData](
-        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(sr.ownerRoleName(resource)))
       )
       parent = SerializableSamResource(SamResourceType.Project, ProjectSamResourceId(googleProject))
       _ <- httpClient
@@ -279,7 +279,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
       policies = Map[SamPolicyName, SamPolicyData](
-        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(sr.ownerRoleName(resource)))
       )
       parent = SerializableSamResource(SamResourceType.Workspace, WorkspaceResourceSamResourceId(workspaceId))
       _ <- httpClient
