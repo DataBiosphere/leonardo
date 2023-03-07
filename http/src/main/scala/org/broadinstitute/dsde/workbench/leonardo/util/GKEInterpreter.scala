@@ -454,7 +454,6 @@ class GKEInterpreter[F[_]](
             app.descriptorPath,
             app.extraArgs,
             ksaName,
-            gsa,
             app.customEnvironmentVariables
           )
       }
@@ -1200,7 +1199,6 @@ class GKEInterpreter[F[_]](
                                      descriptorOpt: Option[Uri],
                                      extraArgs: List[String],
                                      ksaName: ServiceAccountName,
-                                     gsa: WorkbenchEmail,
                                      customEnvironmentVariables: Map[String, String]
   )(implicit
     ev: Ask[F, AppContext]
@@ -1246,16 +1244,18 @@ class GKEInterpreter[F[_]](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
-      chartValues = buildCustomChartOverrideValuesString(appName,
-                                                         release,
-                                                         nodepoolName,
-                                                         serviceName,
-                                                         dbCluster,
-                                                         namespaceName,
-                                                         serviceConfig,
-                                                         extraArgs,
-                                                         disk,
-                                                         serviceConfig.environment ++ customEnvironmentVariables
+      chartValues = buildCustomChartOverrideValuesString(
+        appName,
+        release,
+        nodepoolName,
+        serviceName,
+        dbCluster,
+        namespaceName,
+        serviceConfig,
+        extraArgs,
+        disk,
+        ksaName,
+        serviceConfig.environment ++ customEnvironmentVariables
       )
 
       _ <- logger.info(ctx.loggingCtx)(
@@ -1601,7 +1601,6 @@ class GKEInterpreter[F[_]](
                                                          extraArgs: List[String],
                                                          disk: PersistentDisk,
                                                          ksaName: ServiceAccountName,
-                                                         gsa: WorkbenchEmail,
                                                          customEnvironmentVariables: Map[String, String]
   ): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
@@ -1660,8 +1659,7 @@ class GKEInterpreter[F[_]](
       raw"""persistence.mountPath=${service.pdMountPath}""",
       raw"""persistence.accessMode=${service.pdAccessMode}""",
       // Service Account
-      raw"""config.serviceAccount.name=${ksaName.value}""",
-      raw"""config.serviceAccount.annotations.gcpServiceAccount=${gsa.value}"""
+      raw"""serviceAccount.name=${ksaName.value}"""
     ) ++ command ++ args ++ configs ++ ingress).mkString(",")
   }
 
