@@ -453,8 +453,8 @@ class GKEInterpreter[F[_]](
             nfsDisk,
             app.descriptorPath,
             app.extraArgs,
-            app.customEnvironmentVariables,
-            ksaName
+            ksaName,
+            app.customEnvironmentVariables
           )
       }
 
@@ -1198,8 +1198,8 @@ class GKEInterpreter[F[_]](
                                      disk: PersistentDisk,
                                      descriptorOpt: Option[Uri],
                                      extraArgs: List[String],
-                                     customEnvironmentVariables: Map[String, String],
-                                     ksaName: ServiceAccountName
+                                     ksaName: ServiceAccountName,
+                                     customEnvironmentVariables: Map[String, String]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
