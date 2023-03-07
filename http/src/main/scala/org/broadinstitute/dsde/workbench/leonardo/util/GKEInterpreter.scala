@@ -1652,7 +1652,7 @@ class GKEInterpreter[F[_]](
       raw"""persistence.size=${disk.size.gb.toString}G""",
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       raw"""persistence.mountPath=${service.pdMountPath}""",
-      raw"""persistence.accessMode=${service.pdAccessMode}"""
+      raw"""persistence.accessMode=${service.pdAccessMode}""",
       raw"""config.serviceAccount.name=${ksaName.value}""",
       raw"""config.serviceAccount.annotations.gcpServiceAccount=${gsa.value}"""
     ) ++ command ++ args ++ configs ++ ingress).mkString(",")
