@@ -56,6 +56,7 @@ import scala.jdk.CollectionConverters._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
+                           azureBatchService: AzureBatchService[F],
                            azureContainerService: AzureContainerService[F],
                            azureApplicationInsightsService: AzureApplicationInsightsService[F],
                            azureRelayService: AzureRelayService[F],
@@ -170,10 +171,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Assign the pet managed identity to the VM scale set backing the cluster node pool
       _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
 
+      // get the batch account key
+      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
+                                                        params.cloudContext
+      )
+      batchAccountKey = batchAccount.getKeys().primary
+
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
       )
+
       // Deploy app chart
       _ <- app.appType match {
         case AppType.Cromwell =>
@@ -183,6 +191,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               params.storageContainer,
               AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
             )
+
             _ <- helmClient
               .installChart(
                 app.release,
@@ -197,6 +206,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   relayPath,
                   petMi,
                   storageContainer,
+                  BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString()
                 ),
                 createNamespace = true
@@ -391,17 +401,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      relayPath: Uri,
                                                      petManagedIdentity: Identity,
                                                      storageContainer: StorageContainerResponse,
+                                                     batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String
   ): Values =
     Values(
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
+        raw"config.batchAccountKey=${batchAccountKey.value}",
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
-        raw"config.workflowExecutionIdentity=${petManagedIdentity.id()}",
+        raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
+        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
+        raw"config.region=${landingZoneResources.region}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
         // relay configs

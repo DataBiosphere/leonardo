@@ -4,6 +4,7 @@ package util
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
+import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys} //BatchAccount //
 import com.azure.resourcemanager.compute.ComputeManager
 import com.azure.resourcemanager.compute.fluent.{ComputeManagementClient, VirtualMachineScaleSetsClient}
 import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, VirtualMachineScaleSets}
@@ -57,10 +58,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockWdsDAO = setUpMockWdsDAO
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
+  val mockAzureBatchService = setUpMockAzureBatchService
 
   val aksInterp = new AKSInterpreter[IO](
     config,
     MockHelm,
+    mockAzureBatchService,
     mockAzureContainerService,
     mockAzureApplicationInsightsService,
     FakeAzureRelayService,
@@ -84,6 +87,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   )
 
   val lzResources = LandingZoneResources(
+    UUID.fromString("5c12f64b-f4ac-4be1-ae4a-4cace5de807d"),
     AKSClusterName("cluster"),
     BatchAccountName("batch"),
     RelayNamespace("relay"),
@@ -129,14 +133,18 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Uri.unsafeFromString("https://relay.com/app"),
       setUpMockIdentity,
       storageContainer,
+      BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
+      "config.batchAccountKey=batchKey," +
       "config.batchAccountName=batch," +
       "config.batchNodesSubnetId=subnet1," +
       s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
-      "config.workflowExecutionIdentity=identity-id," +
+      "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
@@ -283,6 +291,21 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                      AKSCertificate(Base64.getEncoder.encodeToString("cert".getBytes()))
       )
     )
+    container
+  }
+
+  private def setUpMockAzureBatchService: AzureBatchService[IO] = {
+    val container = mock[AzureBatchService[IO]]
+    val batchAccountKeys = mock[BatchAccountKeys]
+    val batchAccount = mock[BatchAccount]
+    when {
+      container.getBatchAccount(any[String].asInstanceOf[BatchAccountName],
+                                any[String].asInstanceOf[AzureCloudContext]
+      )(any)
+    } thenReturn IO.pure(batchAccount)
+    when {
+      batchAccount.getKeys()
+    } thenReturn batchAccountKeys
     container
   }
 

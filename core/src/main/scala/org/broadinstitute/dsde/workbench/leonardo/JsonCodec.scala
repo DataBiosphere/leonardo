@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
+  BatchAccountName,
   RelayNamespace
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
@@ -742,7 +743,8 @@ object JsonCodec {
   )(x => (x.publisher, x.offer, x.sku, x.version))
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct13(
+    Decoder.forProduct14(
+      "landingZoneId",
       "clusterName",
       "batchAccountName",
       "relayNamespace",
@@ -760,7 +762,8 @@ object JsonCodec {
       LandingZoneResources.apply
     )
 
-  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct13(
+  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct14(
+    "landingZoneId",
     "clusterName",
     "batchAccountName",
     "relayNamespace",
@@ -775,7 +778,8 @@ object JsonCodec {
     "region",
     "applicationInsightsName"
   )(x =>
-    (x.clusterName,
+    (x.landingZoneId,
+     x.clusterName,
      x.batchAccountName,
      x.relayNamespace,
      x.storageAccountName,

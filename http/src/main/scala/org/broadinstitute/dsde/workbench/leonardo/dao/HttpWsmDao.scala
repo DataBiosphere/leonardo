@@ -4,7 +4,13 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  BatchAccountName,
+  RelayNamespace
+}
+
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
@@ -219,7 +225,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                       false
       )
       postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
+
     } yield LandingZoneResources(
+      landingZoneId,
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
       RelayNamespace(relayNamespace),

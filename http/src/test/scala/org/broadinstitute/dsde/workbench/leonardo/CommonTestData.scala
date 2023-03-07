@@ -71,6 +71,7 @@ import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
+  BatchAccountName,
   ManagedResourceGroupName,
   RelayNamespace,
   SubscriptionId,
@@ -551,6 +552,7 @@ object CommonTestData {
   )
 
   val landingZoneResources = LandingZoneResources(
+    UUID.randomUUID(),
     AKSClusterName(""),
     BatchAccountName(""),
     RelayNamespace(""),

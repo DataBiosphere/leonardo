@@ -19,6 +19,7 @@ import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure.{
   AzureApplicationInsightsService,
+  AzureBatchService,
   AzureContainerService,
   AzureRelayService,
   AzureVmService
@@ -412,6 +413,11 @@ object Boot extends IOApp {
       azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
       )
+
+      azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
+        ConfigReader.appConfig.azure.appRegistration
+      )
+
       azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
       )
@@ -637,6 +643,7 @@ object Boot extends IOApp {
           ConfigReader.appConfig.drs
         ),
         helmClient,
+        azureBatchService,
         azureContainerService,
         azureApplicationInsightsService,
         azureRelay,
