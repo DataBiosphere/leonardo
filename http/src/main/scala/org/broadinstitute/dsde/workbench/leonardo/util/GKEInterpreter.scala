@@ -453,7 +453,8 @@ class GKEInterpreter[F[_]](
             nfsDisk,
             app.descriptorPath,
             app.extraArgs,
-            app.customEnvironmentVariables
+            app.customEnvironmentVariables,
+            ksaName
           )
       }
 
@@ -1197,7 +1198,8 @@ class GKEInterpreter[F[_]](
                                      disk: PersistentDisk,
                                      descriptorOpt: Option[Uri],
                                      extraArgs: List[String],
-                                     customEnvironmentVariables: Map[String, String]
+                                     customEnvironmentVariables: Map[String, String],
+                                     ksaName: ServiceAccountName
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -1251,7 +1253,8 @@ class GKEInterpreter[F[_]](
                                                          serviceConfig,
                                                          extraArgs,
                                                          disk,
-                                                         serviceConfig.environment ++ customEnvironmentVariables
+                                                         serviceConfig.environment ++ customEnvironmentVariables,
+                                                         ksaName
       )
 
       _ <- logger.info(ctx.loggingCtx)(
@@ -1596,6 +1599,7 @@ class GKEInterpreter[F[_]](
                                                          service: CustomAppService,
                                                          extraArgs: List[String],
                                                          disk: PersistentDisk,
+                                                         ksaName: ServiceAccountName,
                                                          customEnvironmentVariables: Map[String, String]
   ): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
@@ -1652,7 +1656,8 @@ class GKEInterpreter[F[_]](
       raw"""persistence.size=${disk.size.gb.toString}G""",
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       raw"""persistence.mountPath=${service.pdMountPath}""",
-      raw"""persistence.accessMode=${service.pdAccessMode}"""
+      raw"""persistence.accessMode=${service.pdAccessMode}""",
+      raw"""serviceAccount.name=${ksaName.value}"""
     ) ++ command ++ args ++ configs ++ ingress).mkString(",")
   }
 
