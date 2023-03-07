@@ -179,6 +179,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           } yield Some(petMi)
       }
 
+      // Get the batch account key
+      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
+                                                        params.cloudContext
+      )
+      batchAccountKey = batchAccount.getKeys().primary
+
       // Resolve Application Insights resource in Azure to pass to the helm chart.
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
