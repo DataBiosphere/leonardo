@@ -74,19 +74,19 @@ echo "Y"|sudo apt install --no-install-recommends r-base
 
 #Update kernel list
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
-
-echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkrkernel
-
-echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel  
-
-echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python 
-
+/anaconda/bin/jupyter kernelspec remove sparkkernel -y
+echo "remove sparkkernel"
+/anaconda/bin/jupyter kernelspec remove sparkrkernel -y
+echo "remove sparkrkernel"
+/anaconda/bin/jupyter kernelspec remove pysparkkernel -y
+echo "remove psysparkkernel"
+/anaconda/bin/jupyter kernelspec remove spark-3-python -y
+echo "remove spark-3-python"
 #echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
 
-echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
+/anaconda/envs/py38_default/bin/pip3 install ipykernel -y
 
-echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install 
+/anaconda/envs/py38_default/bin/python3 -m ipykernel install -y
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
