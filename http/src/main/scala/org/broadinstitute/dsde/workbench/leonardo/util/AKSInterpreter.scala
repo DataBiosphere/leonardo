@@ -388,7 +388,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk.isDone
 
-  // Update me!
+  // Implement me with polling URLs
   private[util] def pollHailAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] = F.pure(true)
@@ -477,7 +477,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).mkString(",")
     )
 
-  // Update me!
+  // Implement me with override chart values
   private[util] def buildHailChartOverrideValues: Values = Values("")
 
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,

@@ -31,7 +31,7 @@ ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.210
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.210
-# Update me!
+# Update me with the chart version
 ENV HAIL_CHART_VERSION 0.0.1
 
 RUN mkdir /leonardo
@@ -51,7 +51,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
-    # Update me!
+    # Update me with the helm repo
     # helm repo add hail-helm https://url
     helm repo update
 
@@ -66,7 +66,7 @@ RUN cd /leonardo && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
-    # Update me!
+    # Update me with the chart name
     #helm pull hail-helm/hail --version $HAIL_CHART_VERSION --untar && \
     helm repo update && \
     cd /
