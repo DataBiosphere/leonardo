@@ -63,7 +63,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: RuntimeConfig.AzureConfig => F.pure(x)
         case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
-      createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
+      createVmJobId = WsmJobId(s"create-vm-${runtime.id.toString.take(10)}")
       _ <- createRuntime(
         CreateAzureRuntimeParams(
           msg.workspaceId,
@@ -510,7 +510,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       auth <- samDAO.getLeoAuthToken
 
-      deleteJobId = WsmJobId(s"delete-vm-${ctx.traceId.asString.take(10)}")
       _ <- msg.wsmResourceId.fold(
         logger
           .info(ctx.loggingCtx)(
@@ -523,7 +522,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               wsmResourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(deleteJobId)
+                WsmJobControl(WsmJobId(s"delete-vm-${wsmResourceId.toString.take(10)}"))
               )
             ),
             auth
@@ -553,7 +552,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               stagingBucketResourceId.resourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(WsmJobId(s"del-staging-${ctx.traceId.asString.take(10)}"))
+                WsmJobControl(WsmJobId(s"del-staging-${stagingBucketResourceId.resourceId.toString.take(10)}"))
               )
             ),
             auth
@@ -590,9 +589,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       )
 
-      getDeleteJobResultOpt = wsmDao.getDeleteVmJobResult(
-        GetJobResultRequest(msg.workspaceId, deleteJobId),
-        auth
+      getDeleteJobResultOpt = msg.wsmResourceId.flatTraverse(wsmResourceId =>
+        wsmDao.getDeleteVmJobResult(
+          GetJobResultRequest(msg.workspaceId, WsmJobId(s"delete-vm-${wsmResourceId.toString.take(10)}")),
+          auth
+        )
       )
 
       taskToRun = for {
@@ -619,7 +620,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   msg.workspaceId,
                   disk.resourceId,
                   DeleteControlledAzureResourceRequest(
-                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                    WsmJobControl(WsmJobId(s"delete-disk-${disk.resourceId.value.toString.take(10)}"))
                   )
                 ),
                 auth
@@ -750,7 +751,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   e.workspaceId,
                   disk.resourceId,
                   DeleteControlledAzureResourceRequest(
-                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                    WsmJobControl(WsmJobId(s"delete-disk-${disk.resourceId.value.toString.take(10)}"))
                   )
                 ),
                 auth
@@ -771,7 +772,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             e.workspaceId,
             network.resourceId,
             DeleteControlledAzureResourceRequest(
-              WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
+              WsmJobControl(WsmJobId(s"delete-networks-${network.resourceId.value.toString.take(10)}"))
             )
           ),
           auth
