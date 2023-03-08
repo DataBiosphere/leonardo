@@ -523,12 +523,16 @@ object Boot extends IOApp {
         F.delay(CaffeineCache[F, String, (UserInfo, Instant)](underlyingGoogleTokenCache))
       )(_.close)
 
-      underlyingSamResourceCache = buildCache[SamResourceCacheKey, scalacache.Entry[Option[String]]](
+      underlyingSamResourceCache = buildCache[SamResourceCacheKey,
+                                              scalacache.Entry[(Option[String], Option[AppAccessScope])]
+      ](
         proxyConfig.internalIdCacheMaxSize,
         proxyConfig.internalIdCacheExpiryTime
       )
       samResourceCache <- Resource.make(
-        F.delay(CaffeineCache[F, SamResourceCacheKey, Option[String]](underlyingSamResourceCache))
+        F.delay(
+          CaffeineCache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])](underlyingSamResourceCache)
+        )
       )(s => s.close)
 
       underlyingOperationFutureCache = buildCache[Long, scalacache.Entry[OperationFuture[Operation, Operation]]](
@@ -844,7 +848,7 @@ final case class AppDependencies[F[_]](
   proxyResolver: ProxyResolver[F],
   recordCacheMetrics: List[Stream[F, Unit]],
   googleTokenCache: scalacache.Cache[F, String, (UserInfo, Instant)],
-  samResourceCache: scalacache.Cache[F, SamResourceCacheKey, Option[String]],
+  samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   gkeAlg: GKEAlgebra[F],
   dataprocInterp: DataprocInterpreter[F],

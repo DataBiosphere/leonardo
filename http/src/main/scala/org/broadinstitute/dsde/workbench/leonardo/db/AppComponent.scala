@@ -24,6 +24,7 @@ final case class AppRecord(id: AppId,
                            nodepoolId: NodepoolLeoId,
                            appType: AppType,
                            appName: AppName,
+                           appAccessScope: Option[AppAccessScope],
                            workspaceId: Option[WorkspaceId],
                            status: AppStatus,
                            chart: Chart,
@@ -48,6 +49,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def nodepoolId = column[NodepoolLeoId]("nodepoolId")
   def appType = column[AppType]("appType", O.Length(254))
   def appName = column[AppName]("appName", O.Length(254))
+  def appAccessScope = column[Option[AppAccessScope]]("appAccessScope", O.Length(254))
   def workspaceId = column[Option[WorkspaceId]]("workspaceId", O.Length(254))
   def status = column[AppStatus]("status", O.Length(254))
   def chart = column[Chart]("chart", O.Length(254))
@@ -71,6 +73,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       nodepoolId,
       appType,
       appName,
+      appAccessScope,
       workspaceId,
       status,
       chart,
@@ -103,11 +106,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.nodepoolId,
       app.appType,
       app.appName,
+      app.appAccessScope,
       app.workspaceId,
       app.status,
       app.chart,
       app.release,
-      app.samResourceId,
+      AppSamResourceId(app.samResourceId.resourceId, app.appAccessScope),
       app.googleServiceAccount,
       AuditInfo(
         app.creator,
@@ -184,6 +188,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.nodepoolId,
         saveApp.app.appType,
         saveApp.app.appName,
+        saveApp.app.appAccessScope,
         saveApp.app.workspaceId,
         saveApp.app.status,
         saveApp.app.chart,

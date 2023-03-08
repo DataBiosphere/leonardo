@@ -23,7 +23,9 @@ object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
+  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289", None)
+  val sharedAppSamId =
+    AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b290", Some(AppAccessScope.WorkspaceShared))
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
@@ -66,6 +68,7 @@ object KubernetesTestData {
     Some(kubernetesRuntimeConfig),
     AppType.Galaxy,
     None,
+    None,
     Map.empty,
     Map.empty,
     None,
@@ -98,6 +101,7 @@ object KubernetesTestData {
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
+      None,
       diskConfig = diskConfig,
       labels = Map.empty,
       customEnvironmentVariables = customEnvVars,
@@ -184,20 +188,26 @@ object KubernetesTestData {
               customEnvironmentVariables: Map[String, String] = Map.empty,
               status: AppStatus = AppStatus.Unspecified,
               appType: AppType = galaxyApp,
-              workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
+              workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID()),
+              appAccessScope: AppAccessScope = AppAccessScope.UserPrivate
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
+    val samId = appAccessScope match {
+      case AppAccessScope.WorkspaceShared => sharedAppSamId
+      case _                              => appSamId
+    }
     App(
       AppId(-1),
       nodepoolId,
       appType,
       name,
+      None,
       Some(workspaceId),
       status,
       galaxyChart,
       Release(galaxyReleasePrefix + index),
-      appSamId,
+      samId,
       serviceAccountEmail,
       auditInfo,
       Map.empty,

@@ -103,7 +103,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](AppAlreadyExistsException(cloudContext, appName, c.app.status, ctx.traceId))
       )
 
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
+      // Shared app SAM resource is not enabled for V1 endpoint
+      _ <- F.raiseWhen(req.accessScope != None)(
+        BadRequestException("accessScope is not a V1 parameter", Some(ctx.traceId))
+      )
+
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
@@ -470,6 +475,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
+      // Validate shared access scope apps against an allow-list. No-op for private apps.
+      _ <- req.accessScope match {
+        case Some(AppAccessScope.WorkspaceShared) =>
+          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType.toString))(
+            SharedAppNotAllowedException(req.appType, ctx.traceId)
+          )
+        case _ => F.unit
+      }
+
       // Resolve the workspace in WSM to get the cloud context
       userToken = org.http4s.headers.Authorization(
         org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
@@ -521,9 +535,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
       }
 
-      // Create a new Sam resource for the app
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
-      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent.
+      // Create a new Sam resource for the app (either shared or not)
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
+      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent google project.
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
       _ <- authProvider
         .notifyResourceCreatedV2(samResourceId, originatingUserEmail, cloudContext, workspaceId, userInfo)
@@ -1089,6 +1103,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         nodepoolId,
         req.appType,
         appName,
+        req.accessScope,
         workspaceId,
         AppStatus.Precreating,
         chart,
@@ -1290,5 +1305,12 @@ case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: A
     extends LeoException(
       s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
       StatusCodes.BadRequest,
+      traceId = Some(traceId)
+    )
+
+case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"App with type ${appType.toString} cannot be launched with shared access scope. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict,
       traceId = Some(traceId)
     )

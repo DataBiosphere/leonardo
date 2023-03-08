@@ -100,6 +100,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
+
       ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppCreationException(
@@ -107,7 +108,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           Some(ctx.traceId)
         )
       )
-      petEmail = app.googleServiceAccount
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
@@ -163,20 +163,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Resolve pet managed identity in Azure
-      msi <- buildMsiManager(params.cloudContext)
-      petMi <- F.delay(
-        msi.identities().getById(petEmail.value)
-      )
+      // Only do this for user-private apps; do not assign any identity for shared apps.
+      // In the future we may use a shared identity instead.
+      petMi <- app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp => F.pure(None)
+        case _ =>
+          for {
+            msi <- buildMsiManager(params.cloudContext)
+            petMi <- F.delay(
+              msi.identities().getById(app.googleServiceAccount.value)
+            )
 
-      // Assign the pet managed identity to the VM scale set backing the cluster node pool
-      _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
+            // Assign the pet managed identity to the VM scale set backing the cluster node pool
+            _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
+          } yield Some(petMi)
+      }
 
-      // get the batch account key
+      // Get the batch account key
       batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
                                                         params.cloudContext
       )
       batchAccountKey = batchAccount.getKeys().primary
 
+      // Resolve Application Insights resource in Azure to pass to the helm chart.
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
@@ -385,7 +394,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceType=kubernetes-app",
+        raw"relaylistener.samResourceType=${samResourceId.resourceType.asString}",
         raw"relaylistener.samAction=connect",
 
         // general configs
@@ -399,7 +408,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      workspaceId: WorkspaceId,
                                                      landingZoneResources: LandingZoneResources,
                                                      relayPath: Uri,
-                                                     petManagedIdentity: Identity,
+                                                     petManagedIdentity: Option[Identity],
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String
@@ -430,9 +439,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
-        raw"identity.name=${petManagedIdentity.name()}",
-        raw"identity.resourceId=${petManagedIdentity.id()}",
-        raw"identity.clientId=${petManagedIdentity.clientId()}",
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
 
         // Sam configs
         raw"sam.url=${config.samConfig.server}",
