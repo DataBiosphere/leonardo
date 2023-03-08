@@ -1,3 +1,6 @@
+#!/bin/bash
+# Execute from root dir of leonardo repo to generate local secrets
+
 ENV=${1:-dev}
 VAULT_TOKEN=${2:-$(cat "$HOME"/.vault-token)}
 
@@ -12,7 +15,6 @@ fi
 
 touch "${SECRET_ENV_VARS_LOCATION}"
 
-# Secret scratch pad to establish variable names, needs testing
 cat >"${SECRET_ENV_VARS_LOCATION}" <<EOF
 GALAXY_POSTGRES_PASSWORD="$(vault read -field=password ${LEO_VAULT_PATH}/postgres)"
 DB_USER="$(vault read -field=db_user ${LEO_VAULT_PATH}/secrets)"
@@ -29,6 +31,7 @@ LEO_MANAGED_APP_CLIENT_SECRET="$(vault read -field=client-secret secret/dsde/ter
 LEO_MANAGED_APP_TENANT_ID="$(vault read -field=tenant-id secret/dsde/terra/azure/dev/leonardo/managed-app-publisher)"
 EOF
 
+# We need to remove quotes from the rendered file, because quoted env files do not play well with dockers `--env-file` arg.
 sed -i.bak 's/\"//g' "${SECRET_ENV_VARS_LOCATION}"
 rm "${SECRET_ENV_VARS_LOCATION}.bak"
 
