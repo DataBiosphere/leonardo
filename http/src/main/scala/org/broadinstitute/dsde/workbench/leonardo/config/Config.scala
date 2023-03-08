@@ -54,21 +54,27 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 object Config {
-  /** Loads all the configs for the Leo App. All values defined in `src/main/resources/leo.conf` will take precedence over any other configs. In this way, we
-   * can still use configs rendered by `firecloud-develop` that render to `config/leonardo.conf` if we want. To do so, you must render `config/leonardo.conf` and then do
-   * not populate ENV variables for `src/main/resources/leo.conf`.
-   *
-   * The ENV variables that you need to populate can be found in variable substitutions.
-   */
-  val leoConfig = ConfigFactory.parseResourcesAnySyntax("leo").resolve()
 
-  val backupConfig = ConfigFactory
+  /** Loads all the configs for the Leo App. All values defined in `src/main/resources/leo.conf` will take precedence over any other configs. In this way, we
+   * can still use configs rendered by `firecloud-develop` that render to `config/leonardo.conf` if we want.
+   *     If you want to use leo.conf you must populate the appropriate ENV vars (done in terra-helmfile)
+   *     leonardo.conf is what firecloud-develop renders, and it will be used if the ENV vars are not populated for leo.conf
+   */
+  // Config that lives in leo repo in /src/main/resources
+  val leoConfig = ConfigFactory.parseResourcesAnySyntax("leo")
+
+  // Config that is generated to /config from firecloud-develop
+  val backupConfig1 = ConfigFactory
     .parseResources("leonardo.conf")
-    .withFallback(ConfigFactory.load())
-    .resolve()
+
+  // Load any other configs on the classpath following: https://github.com/lightbend/config#standard-behavior
+  // This is where things like `src/main/resources/reference.conf` will get loaded
+  val backupConfig2 = ConfigFactory.load()
 
   val config = leoConfig
-    .withFallback(backupConfig)
+    .withFallback(backupConfig1)
+    .withFallback(backupConfig2)
+    .resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
   implicit private val groupNameReader: ValueReader[GroupName] = stringValueReader.map(GroupName)
