@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateAppRequest,
@@ -231,4 +232,20 @@ object KubernetesTestData {
       ServiceConfig(name, serviceKind)
     )
   }
+
+  def makeCustomAppService(): CustomAppService =
+    CustomAppService(
+      ContainerImage.fromImageUrl("us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.10").get,
+      8001,
+      "/",
+      List("/bin/sh", "-c"),
+      List("sed -i 's/^www-address.*$//' $RSTUDIO_HOME/rserver.conf && /init"),
+      "/data",
+      "ReadWriteOnce",
+      Map(
+        "WORKSPACE_NAME" -> "my-ws",
+        "WORKSPACE_NAMESPACE" -> "my-proj",
+        "USER" -> "rstudio"
+      )
+    )
 }
