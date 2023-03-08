@@ -87,6 +87,17 @@ final case class CoaAppConfig(chartName: ChartName,
     .toSet
 }
 
+final case class HailAppConfig(chartName: ChartName,
+                               chartVersion: ChartVersion,
+                               releaseNameSuffix: ReleaseNameSuffix,
+                               namespaceNameSuffix: NamespaceNameSuffix,
+                               ksaName: KsaName,
+                               services: List[ServiceConfig]
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
+}
+
 sealed trait CoaService
 object CoaService {
   final case object Cbas extends CoaService

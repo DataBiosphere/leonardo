@@ -124,6 +124,10 @@ object FormattedBy extends Enum[FormattedBy] {
   final case object Cromwell extends FormattedBy {
     override def asString: String = "CROMWELL"
   }
+
+  final case object Hail extends FormattedBy {
+    override def asString: String = "HAIL"
+  }
 }
 
 final case class PvcId(asString: String) extends AnyVal

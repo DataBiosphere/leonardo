@@ -223,11 +223,25 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               .run(authContext)
           } yield ()
 
+        case AppType.Hail =>
+          helmClient
+            .installChart(
+              app.release,
+              app.chart.name,
+              app.chart.version,
+              buildHailChartOverrideValues,
+              createNamespace = true
+            )
+            .run(authContext)
+
         case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
 
       // Poll app status
-      appOk <- pollCromwellAppCreation(app.auditInfo.creator, relayPath)
+      appOk <- app.appType match {
+        case AppType.Cromwell => pollCromwellAppCreation(app.auditInfo.creator, relayPath)
+        case AppType.Hail     => pollHailAppCreation(app.auditInfo.creator, relayPath)
+      }
       _ <-
         if (appOk)
           F.unit
@@ -374,6 +388,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk.isDone
 
+  // Update me!
+  private[util] def pollHailAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] = F.pure(true)
+
   private[util] def buildSetupChartOverrideValues(release: Release,
                                                   samResourceId: AppSamResourceId,
                                                   ksaName: ServiceAccountName,
@@ -457,6 +476,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
       ).mkString(",")
     )
+
+  // Update me!
+  private[util] def buildHailChartOverrideValues: Values = Values("")
 
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,
