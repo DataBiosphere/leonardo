@@ -241,6 +241,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       appOk <- app.appType match {
         case AppType.Cromwell => pollCromwellAppCreation(app.auditInfo.creator, relayPath)
         case AppType.Hail     => pollHailAppCreation(app.auditInfo.creator, relayPath)
+        case _                => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
       _ <-
         if (appOk)
@@ -389,9 +390,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield cromwellOk.isDone
 
   // Implement me with polling URLs
-  private[util] def pollHailAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Boolean] = F.pure(true)
+  private[util] def pollHailAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri): F[Boolean] = F.pure(true)
 
   private[util] def buildSetupChartOverrideValues(release: Release,
                                                   samResourceId: AppSamResourceId,

@@ -871,7 +871,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
               )
-            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
+            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) | (Some(FormattedBy.Hail), _) =>
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(diskResult.disk.formattedBy.get,
                                           s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
