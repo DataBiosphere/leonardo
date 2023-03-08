@@ -159,6 +159,10 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.jobs.maxLimits.cpu=4,""" +
       """galaxy.jobs.maxRequests.memory=1,""" +
       """galaxy.jobs.maxRequests.cpu=1,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.mem=1,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=6,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.cores=4,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=1,""" +
       """galaxy.serviceAccount.create=false,""" +
       """galaxy.serviceAccount.name=app1-galaxy-ksa,""" +
       """rbac.serviceAccount=app1-galaxy-ksa,persistence.nfs.name=ns-nfs-disk,""" +
@@ -240,6 +244,10 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.jobs.maxLimits.cpu=4,""" +
       """galaxy.jobs.maxRequests.memory=1,""" +
       """galaxy.jobs.maxRequests.cpu=1,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.mem=1,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=6,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.cores=4,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=1,""" +
       """galaxy.serviceAccount.create=false,""" +
       """galaxy.serviceAccount.name=app1-galaxy-ksa,""" +
       """rbac.serviceAccount=app1-galaxy-ksa,""" +
