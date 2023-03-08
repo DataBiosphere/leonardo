@@ -101,11 +101,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         List.empty,
         HailAppConfig(
           ChartName("/leonardo/hail"),
-          ChartVersion("0.0.1"),
-          ReleaseNameSuffix("gail-rls"),
+          ChartVersion("the-chart-version"),
+          ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),
-          List.empty
+          List(
+            ServiceConfig(ServiceName("hail"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
+          )
         )
       ),
       OidcAuthConfig(
