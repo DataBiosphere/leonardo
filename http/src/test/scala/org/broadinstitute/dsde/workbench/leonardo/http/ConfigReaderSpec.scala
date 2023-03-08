@@ -93,7 +93,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List(AppType.Cromwell.toString)
+        List.empty
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
