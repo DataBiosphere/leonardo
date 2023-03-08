@@ -138,4 +138,4 @@ jq --null-input \
 # This next commands iterate through the available kernels, and uses jq to include the env variables from the previous step
 /anaconda/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
-#/anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
+jq -s add /anaconda/envs/azureml_py38/share/jupyter/kernels/python3/kernel.json wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"
