@@ -59,8 +59,6 @@ SERVER_APP_ALLOW_ORIGIN="*"
 HCVAR='\$hc'
 SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${HCVAR}/${RELAY_CONNECTION_NAME}"
 
-export NATHAN_VAR="MyVar"
-
 #Relay listener configuration
 RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${RELAY_CONNECTION_POLICY_KEY};EntityPath=${RELAY_CONNECTION_NAME}"
 
