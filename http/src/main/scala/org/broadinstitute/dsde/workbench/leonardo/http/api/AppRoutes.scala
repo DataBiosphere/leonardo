@@ -103,6 +103,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                 }
             }
           }
+        }
       }
     }
   }
