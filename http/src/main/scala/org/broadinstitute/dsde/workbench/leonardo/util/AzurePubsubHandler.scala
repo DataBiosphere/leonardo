@@ -149,12 +149,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.workspaceName,
           wsStorageContainerUrl
         )
-        val cmdToExecute =
-          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
 //        val cmdToExecute =
-//          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
-//              .map(s => s"'$s'")
-//              .mkString(" ")}"
+//          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
+        val cmdToExecute =
+          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
+              .map(s => s"'$s'")
+              .mkString(" ")}"
         logger.info("+++NATHAN UNIQUE KEY+++")
         logger.info(cmdToExecute)
         logger.info(
