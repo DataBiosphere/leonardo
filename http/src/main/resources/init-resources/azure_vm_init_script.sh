@@ -128,14 +128,14 @@ $WELDER_WELDER_DOCKER_IMAGE
 
 # This next command creates a json file which contains the "env" variables to be added to the kernel.json files.
 jq --null-input \
---arg workspace_id $WORKSPACE_ID \
---arg workspace_storage_container_id $WORKSPACE_STORAGE_CONTAINER_ID \
---arg workspace_name $WORKSPACE_NAME \
---arg workspace_storage_container_url $WORKSPACE_STORAGE_CONTAINER_URL \
+--arg workspace_id "${WORKSPACE_ID}" \
+--arg workspace_storage_container_id "${WORKSPACE_STORAGE_CONTAINER_ID}" \
+--arg workspace_name "${WORKSPACE_NAME}" \
+--arg workspace_storage_container_url "${WORKSPACE_STORAGE_CONTAINER_URL}" \
 '{ "env": { "WORKSPACE_ID": $workspace_id, "WORKSPACE_STORAGE_CONTAINER_ID": $workspace_storage_container_id, "WORKSPACE_NAME": $workspace_name, "WORKSPACE_STORAGE_CONTAINER_URL": $workspace_storage_container_url }}' \
 > wsenv.json
 
 # This next commands iterate through the available kernels, and uses jq to include the env variables from the previous step
 /anaconda/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
-#jq -s add /anaconda/envs/azureml_py38/share/jupyter/kernels/python3/kernel.json wsenv.json > tmpkernel.json && mv tmpkernel.json /anaconda/envs/azureml_py38/share/jupyter/kernels/python3/kernel.json
+jq -s add /anaconda/envs/azureml_py38/share/jupyter/kernels/python3/kernel.json wsenv.json > tmpkernel.json && mv tmpkernel.json /anaconda/envs/azureml_py38/share/jupyter/kernels/python3/kernel.json
