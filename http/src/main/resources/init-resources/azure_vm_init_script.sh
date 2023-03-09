@@ -70,7 +70,7 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 
 # Update rbase
 
-echo "Y"| sudo apt install --no-install-recommends r-base
+echo "Y"|sudo apt install --no-install-recommends r-base
 
 #Update kernel list
 
