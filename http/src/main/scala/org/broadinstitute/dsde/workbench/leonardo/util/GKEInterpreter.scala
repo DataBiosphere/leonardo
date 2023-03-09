@@ -1569,9 +1569,9 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
       raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
       raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.mem=${maxRequestMemory}""",
-      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=${maxRequestMemory}""",
+      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=${maxLimitMemory}""",
       raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.cores=${maxRequestCpu}""",
-      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=${maxRequestCpu}""",
+      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=${maxLimitCpu}""",
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",
