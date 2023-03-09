@@ -19,39 +19,53 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 // Typeclass representing a Sam resource and associated policies
 sealed trait SamResource[R] {
-  def resourceType: SamResourceType
+  def resourceType(r: R): SamResourceType
   def resourceIdAsString(r: R): String
-  def policyNames: Set[SamPolicyName]
+  def policyNames(r: R): Set[SamPolicyName]
+  def ownerRoleName(r: R): SamRole
 }
 object SamResource {
   class ProjectSamResource extends SamResource[ProjectSamResourceId] {
-    val resourceType = SamResourceType.Project
-    val policyNames = Set(SamPolicyName.Owner)
+    def resourceType(r: ProjectSamResourceId) = SamResourceType.Project
+    def policyNames(r: ProjectSamResourceId) = Set(SamPolicyName.Owner)
+    def ownerRoleName(r: ProjectSamResourceId) = SamRole.Owner
     def resourceIdAsString(r: ProjectSamResourceId): String = r.googleProject.value
   }
   class RuntimeSamResource extends SamResource[RuntimeSamResourceId] {
-    val resourceType = SamResourceType.Runtime
-    val policyNames = Set(SamPolicyName.Creator)
+    def resourceType(r: RuntimeSamResourceId) = SamResourceType.Runtime
+    def policyNames(r: RuntimeSamResourceId) = Set(SamPolicyName.Creator)
+    def ownerRoleName(r: RuntimeSamResourceId) = SamRole.Creator
     def resourceIdAsString(r: RuntimeSamResourceId): String = r.resourceId
   }
   class PersistentDiskSamResource extends SamResource[PersistentDiskSamResourceId] {
-    val resourceType = SamResourceType.PersistentDisk
-    val policyNames = Set(SamPolicyName.Creator)
+    def resourceType(r: PersistentDiskSamResourceId) = SamResourceType.PersistentDisk
+    def policyNames(r: PersistentDiskSamResourceId) = Set(SamPolicyName.Creator)
+    def ownerRoleName(r: PersistentDiskSamResourceId) = SamRole.Creator
     def resourceIdAsString(r: PersistentDiskSamResourceId): String = r.resourceId
   }
   class AppSamResource extends SamResource[AppSamResourceId] {
-    val resourceType = SamResourceType.App
-    val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Manager)
     def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
+    def resourceType(r: AppSamResourceId): SamResourceType = r.resourceType
+    def policyNames(r: AppSamResourceId): Set[SamPolicyName] = r.resourceType match {
+      case SamResourceType.SharedApp => Set(SamPolicyName.Owner, SamPolicyName.User)
+      case _                         => Set(SamPolicyName.Creator, SamPolicyName.Manager)
+    }
+    def ownerRoleName(r: AppSamResourceId) = r.resourceType match {
+      case SamResourceType.SharedApp => SamRole.Owner
+      case _                         => SamRole.Creator
+    }
   }
   class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {
-    val resourceType = SamResourceType.Workspace
-    val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Owner) // TODO: is this policy name correct?
+    def resourceType(r: WorkspaceResourceSamResourceId) = SamResourceType.Workspace
+    def policyNames(r: WorkspaceResourceSamResourceId) =
+      Set(SamPolicyName.Owner)
+    def ownerRoleName(r: WorkspaceResourceSamResourceId) = SamRole.Owner
     def resourceIdAsString(r: WorkspaceResourceSamResourceId): String = r.resourceId
   }
   class WsmResource extends SamResource[WsmResourceSamResourceId] {
-    val resourceType = SamResourceType.WsmResource
-    val policyNames = Set(SamPolicyName.Writer)
+    def resourceType(r: WsmResourceSamResourceId) = SamResourceType.WsmResource
+    def policyNames(r: WsmResourceSamResourceId) = Set(SamPolicyName.Writer)
+    def ownerRoleName(r: WsmResourceSamResourceId) = SamRole.Owner
     def resourceIdAsString(r: WsmResourceSamResourceId): String = r.resourceId
   }
 

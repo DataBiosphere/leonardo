@@ -9,5 +9,4 @@ class MockAppDAO(isUp: Boolean = true) extends AppDAO[IO] {
   override def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): IO[Boolean] =
     IO.pure(isUp)
 }
-
 object MockAppDAO extends MockAppDAO(isUp = true)

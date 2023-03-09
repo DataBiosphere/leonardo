@@ -13,7 +13,7 @@ import org.http4s.{Method, Request, Uri}
 class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], client: Client[F]) extends AppDAO[F] {
 
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean] =
-    Proxy.getAppTargetHost[F](kubernetesDnsCache, googleProject, appName) flatMap {
+    Proxy.getAppTargetHost[F](kubernetesDnsCache, CloudContext.Gcp(googleProject), appName) flatMap {
       case HostReady(targetHost, _, _) => // Update once we support Relay for apps
         client
           .successful(
