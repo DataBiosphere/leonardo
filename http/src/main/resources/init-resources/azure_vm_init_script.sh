@@ -70,23 +70,23 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 
 # Update rbase
 
-echo "Y"|sudo apt install --no-install-recommends r-base
+sudo apt install --no-install-recommends r-base -y
 
 #Update kernel list
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
+/anaconda/bin/jupyter kernelspec remove sparkkernel -y
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkrkernel
+/anaconda/bin/jupyter kernelspec remove sparkrkernel -y
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel
+/anaconda/bin/jupyter kernelspec remove pysparkkernel -y
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
+/anaconda/bin/jupyter kernelspec remove spark-3-python -y
 
-#echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
+#/anaconda/bin/jupyter kernelspec remove julia-1.6 -y
 
-echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
+/anaconda/envs/py38_default/bin/pip3 install ipykernel -y
 
-echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
+/anaconda/envs/py38_default/bin/python3 -m ipykernel install -y
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
