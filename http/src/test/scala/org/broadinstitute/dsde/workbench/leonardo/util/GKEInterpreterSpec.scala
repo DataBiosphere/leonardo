@@ -123,7 +123,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       NamespaceName("ns"),
       savedDisk1,
       DiskName("disk1-gxy-postres-disk"),
-      AppMachineType(6, 4),
+      AppMachineType(16, 6),
       None
     )
 
@@ -207,7 +207,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         NamespaceName("ns"),
         savedDisk1,
         DiskName("disk1-gxy-postres"),
-        AppMachineType(6, 4),
+        AppMachineType(16, 6),
         Some(
           GalaxyRestore(PvcId("galaxy-pvc-id"), AppId(123))
         )
