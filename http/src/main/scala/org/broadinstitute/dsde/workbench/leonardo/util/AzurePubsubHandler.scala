@@ -155,9 +155,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
               .map(s => s"'$s'")
               .mkString(" ")}"
-        logger.info("+++NATHAN UNIQUE KEY+++")
-        logger.info(cmdToExecute)
-        logger.info(
+        logger.info(ctx.loggingCtx)("+++NATHAN UNIQUE KEY+++")
+        logger.info(ctx.loggingCtx)(cmdToExecute)
+        logger.info(ctx.loggingCtx)(
           arguments
             .map(s => s"'$s'")
             .mkString(" ")
