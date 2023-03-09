@@ -522,7 +522,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               wsmResourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(WsmJobId(s"delete-vm-${wsmResourceId.toString.take(10)}"))
+                WsmJobControl(WsmJobId(s"delete-vm-${wsmResourceId.value.toString.take(10)}"))
               )
             ),
             auth
@@ -552,7 +552,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               stagingBucketResourceId.resourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(WsmJobId(s"del-staging-${stagingBucketResourceId.resourceId.toString.take(10)}"))
+                WsmJobControl(WsmJobId(s"del-staging-${stagingBucketResourceId.resourceId.value.toString.take(10)}"))
               )
             ),
             auth
@@ -591,7 +591,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       getDeleteJobResultOpt = msg.wsmResourceId.flatTraverse(wsmResourceId =>
         wsmDao.getDeleteVmJobResult(
-          GetJobResultRequest(msg.workspaceId, WsmJobId(s"delete-vm-${wsmResourceId.toString.take(10)}")),
+          GetJobResultRequest(msg.workspaceId, WsmJobId(s"delete-vm-${wsmResourceId.value.toString.take(10)}")),
           auth
         )
       )
