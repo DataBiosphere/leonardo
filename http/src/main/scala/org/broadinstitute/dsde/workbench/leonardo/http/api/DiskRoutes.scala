@@ -20,73 +20,53 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(implicit
+class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives, enabledUserDirectives: EnabledUserDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
 ) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo) {
-          implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
-          pathPrefix("google" / "v1" / "disks") {
-            pathEndOrSingleSlash {
-              parameterMap { params =>
-                get {
-                  complete(
-                    listDisksHandler(
-                      userInfo,
-                      None,
-                      params
-                    )
-                  )
-                }
-              }
-            } ~
-              pathPrefix(googleProjectSegment) { googleProject =>
-                // TODO: use cloudContextSegment directly once cloudContext is used in all handlers
-                val cloudContext = CloudContext.Gcp(googleProject)
-
-                pathEndOrSingleSlash {
-                  parameterMap { params =>
-                    get {
-                      complete(
-                        listDisksHandler(
-                          userInfo,
-                          Some(cloudContext),
-                          params
-                        )
+        enabledUserDirectives.requireEnabledUser(userInfo) {
+          CookieSupport.setTokenCookie(userInfo) {
+            implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
+            pathPrefix("google" / "v1" / "disks") {
+              pathEndOrSingleSlash {
+                parameterMap { params =>
+                  get {
+                    complete(
+                      listDisksHandler(
+                        userInfo,
+                        None,
+                        params
                       )
-                    }
+                    )
                   }
-                } ~
-                  pathPrefix(Segment) { diskNameString =>
-                    RouteValidation.validateNameDirective(diskNameString, DiskName.apply) { diskName =>
-                      pathEndOrSingleSlash {
-                        post {
-                          entity(as[CreateDiskRequest]) { req =>
-                            complete(
-                              createDiskHandler(
-                                userInfo,
-                                googleProject,
-                                diskName,
-                                req
-                              )
-                            )
-                          }
-                        } ~
-                          get {
-                            complete(
-                              getDiskHandler(
-                                userInfo,
-                                cloudContext,
-                                diskName
-                              )
-                            )
-                          } ~
-                          patch {
-                            entity(as[UpdateDiskRequest]) { req =>
+                }
+              } ~
+                pathPrefix(googleProjectSegment) { googleProject =>
+                  // TODO: use cloudContextSegment directly once cloudContext is used in all handlers
+                  val cloudContext = CloudContext.Gcp(googleProject)
+
+                  pathEndOrSingleSlash {
+                    parameterMap { params =>
+                      get {
+                        complete(
+                          listDisksHandler(
+                            userInfo,
+                            Some(cloudContext),
+                            params
+                          )
+                        )
+                      }
+                    }
+                  } ~
+                    pathPrefix(Segment) { diskNameString =>
+                      RouteValidation.validateNameDirective(diskNameString, DiskName.apply) { diskName =>
+                        pathEndOrSingleSlash {
+                          post {
+                            entity(as[CreateDiskRequest]) { req =>
                               complete(
-                                updateDiskHandler(
+                                createDiskHandler(
                                   userInfo,
                                   googleProject,
                                   diskName,
@@ -95,19 +75,41 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                               )
                             }
                           } ~
-                          delete {
-                            complete(
-                              deleteDiskHandler(
-                                userInfo,
-                                googleProject,
-                                diskName
+                            get {
+                              complete(
+                                getDiskHandler(
+                                  userInfo,
+                                  cloudContext,
+                                  diskName
+                                )
                               )
-                            )
-                          }
+                            } ~
+                            patch {
+                              entity(as[UpdateDiskRequest]) { req =>
+                                complete(
+                                  updateDiskHandler(
+                                    userInfo,
+                                    googleProject,
+                                    diskName,
+                                    req
+                                  )
+                                )
+                              }
+                            } ~
+                            delete {
+                              complete(
+                                deleteDiskHandler(
+                                  userInfo,
+                                  googleProject,
+                                  diskName
+                                )
+                              )
+                            }
+                        }
                       }
                     }
-                  }
-              }
+                }
+            }
           }
         }
       }

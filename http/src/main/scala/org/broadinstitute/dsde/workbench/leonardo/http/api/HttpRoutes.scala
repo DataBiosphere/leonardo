@@ -35,17 +35,18 @@ class HttpRoutes(
   kubernetesService: AppService[IO],
   azureService: RuntimeV2Service[IO],
   userInfoDirectives: UserInfoDirectives,
+  enabledUserDirectives: EnabledUserDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
   refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
   private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
-  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
-  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
-  private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
-  private val appV2Routes = new AppV2Routes(kubernetesService, userInfoDirectives)
-  private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
+  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives, enabledUserDirectives)
+  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives, enabledUserDirectives)
+  private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives, enabledUserDirectives)
+  private val appV2Routes = new AppV2Routes(kubernetesService, userInfoDirectives, enabledUserDirectives)
+  private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives, enabledUserDirectives)
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private val logRequestResult: Directive0 = {

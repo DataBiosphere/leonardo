@@ -55,6 +55,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{
   BuildTimeVersion,
+  EnabledUserDirectives,
   HttpRoutes,
   LivenessRoutes,
   StandardUserInfoDirectives
@@ -204,6 +205,7 @@ object Boot extends IOApp {
         leoKubernetesService,
         azureService,
         StandardUserInfoDirectives,
+        EnabledUserDirectives,
         contentSecurityPolicy,
         refererConfig
       )

@@ -19,51 +19,53 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Uri
 
-class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
+class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives, enabledUserDirectives: EnabledUserDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
 ) {
 
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo) {
-          pathPrefix("apps" / "v2" / workspaceIdSegment) { workspaceId =>
-            pathEndOrSingleSlash {
-              parameterMap { params =>
-                get {
-                  complete(
-                    listAppV2Handler(userInfo, workspaceId, params)
-                  )
-                }
-              }
-            } ~ pathPrefix(Segment) { appNameString =>
-              RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
-                post {
-                  entity(as[CreateAppRequest]) { req =>
-                    complete(
-                      createAppV2Handler(userInfo, workspaceId, appName, req)
-                    )
-                  }
-                } ~
+        enabledUserDirectives.requireEnabledUser(userInfo) {
+          CookieSupport.setTokenCookie(userInfo) {
+            pathPrefix("apps" / "v2" / workspaceIdSegment) { workspaceId =>
+              pathEndOrSingleSlash {
+                parameterMap { params =>
                   get {
                     complete(
-                      getAppV2Handler(userInfo, workspaceId, appName)
+                      listAppV2Handler(userInfo, workspaceId, params)
                     )
-                  } ~
-                  delete {
-                    parameterMap { params =>
+                  }
+                }
+              } ~ pathPrefix(Segment) { appNameString =>
+                RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
+                  post {
+                    entity(as[CreateAppRequest]) { req =>
                       complete(
-                        deleteAppV2Handler(userInfo, workspaceId, appName, params)
+                        createAppV2Handler(userInfo, workspaceId, appName, req)
                       )
                     }
+                  } ~
+                    get {
+                      complete(
+                        getAppV2Handler(userInfo, workspaceId, appName)
+                      )
+                    } ~
+                    delete {
+                      parameterMap { params =>
+                        complete(
+                          deleteAppV2Handler(userInfo, workspaceId, appName, params)
+                        )
+                      }
+                    }
+                }
+              } ~ pathPrefix("deleteAll") {
+                post {
+                  parameterMap { params =>
+                    complete(
+                      deleteAllAppsForWorkspaceHandler(userInfo, workspaceId, params)
+                    )
                   }
-              }
-            } ~ pathPrefix("deleteAll") {
-              post {
-                parameterMap { params =>
-                  complete(
-                    deleteAllAppsForWorkspaceHandler(userInfo, workspaceId, params)
-                  )
                 }
               }
             }

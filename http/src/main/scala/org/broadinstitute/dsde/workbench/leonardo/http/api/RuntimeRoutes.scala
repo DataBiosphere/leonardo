@@ -29,7 +29,8 @@ import scala.concurrent.duration._
 
 class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
                     runtimeService: RuntimeService[IO],
-                    userInfoDirectives: UserInfoDirectives
+                    userInfoDirectives: UserInfoDirectives,
+                    enabledUserDirectives: EnabledUserDirectives
 )(implicit
   metrics: OpenTelemetryMetrics[IO],
   logger: StructuredLogger[IO]
@@ -41,107 +42,109 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo) {
-          pathPrefix("google" / "v1" / "runtimes") {
-            pathEndOrSingleSlash {
-              parameterMap { params =>
-                get {
-                  complete(
-                    listRuntimesHandler(
-                      userInfo,
-                      None,
-                      params
-                    )
-                  )
-                }
-              }
-            } ~
-              pathPrefix(googleProjectSegment) { googleProject =>
-                val cloudContext = CloudContext.Gcp(googleProject)
-                pathEndOrSingleSlash {
-                  parameterMap { params =>
-                    get {
-                      complete(
-                        listRuntimesHandler(
-                          userInfo,
-                          Some(cloudContext),
-                          params
-                        )
+        enabledUserDirectives.requireEnabledUser(userInfo) {
+          CookieSupport.setTokenCookie(userInfo) {
+            pathPrefix("google" / "v1" / "runtimes") {
+              pathEndOrSingleSlash {
+                parameterMap { params =>
+                  get {
+                    complete(
+                      listRuntimesHandler(
+                        userInfo,
+                        None,
+                        params
                       )
-                    }
+                    )
                   }
-                } ~
-                  pathPrefix(Segment) { runtimeNameString =>
-                    RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
-                      pathEndOrSingleSlash {
-                        post {
-                          entity(as[CreateRuntimeRequest]) { req =>
+                }
+              } ~
+                pathPrefix(googleProjectSegment) { googleProject =>
+                  val cloudContext = CloudContext.Gcp(googleProject)
+                  pathEndOrSingleSlash {
+                    parameterMap { params =>
+                      get {
+                        complete(
+                          listRuntimesHandler(
+                            userInfo,
+                            Some(cloudContext),
+                            params
+                          )
+                        )
+                      }
+                    }
+                  } ~
+                    pathPrefix(Segment) { runtimeNameString =>
+                      RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
+                        pathEndOrSingleSlash {
+                          post {
+                            entity(as[CreateRuntimeRequest]) { req =>
+                              complete(
+                                createRuntimeHandler(
+                                  userInfo,
+                                  cloudContext,
+                                  runtimeName,
+                                  req
+                                )
+                              )
+                            }
+                          } ~ get {
                             complete(
-                              createRuntimeHandler(
+                              getRuntimeHandler(
                                 userInfo,
                                 cloudContext,
-                                runtimeName,
-                                req
-                              )
-                            )
-                          }
-                        } ~ get {
-                          complete(
-                            getRuntimeHandler(
-                              userInfo,
-                              cloudContext,
-                              runtimeName
-                            )
-                          )
-                        } ~ patch {
-                          entity(as[UpdateRuntimeRequest]) { req =>
-                            complete(
-                              updateRuntimeHandler(
-                                userInfo,
-                                googleProject,
-                                runtimeName,
-                                req
-                              )
-                            )
-                          }
-                        } ~ delete {
-                          parameterMap { params =>
-                            complete(
-                              deleteRuntimeHandler(
-                                userInfo,
-                                googleProject,
-                                runtimeName,
-                                params
-                              )
-                            )
-                          }
-                        }
-                      } ~
-                        path("stop") {
-                          post {
-                            complete(
-                              stopRuntimeHandler(
-                                userInfo,
-                                googleProject,
                                 runtimeName
                               )
                             )
+                          } ~ patch {
+                            entity(as[UpdateRuntimeRequest]) { req =>
+                              complete(
+                                updateRuntimeHandler(
+                                  userInfo,
+                                  googleProject,
+                                  runtimeName,
+                                  req
+                                )
+                              )
+                            }
+                          } ~ delete {
+                            parameterMap { params =>
+                              complete(
+                                deleteRuntimeHandler(
+                                  userInfo,
+                                  googleProject,
+                                  runtimeName,
+                                  params
+                                )
+                              )
+                            }
                           }
                         } ~
-                        path("start") {
-                          post {
-                            complete(
-                              startRuntimeHandler(
-                                userInfo,
-                                googleProject,
-                                runtimeName
+                          path("stop") {
+                            post {
+                              complete(
+                                stopRuntimeHandler(
+                                  userInfo,
+                                  googleProject,
+                                  runtimeName
+                                )
                               )
-                            )
+                            }
+                          } ~
+                          path("start") {
+                            post {
+                              complete(
+                                startRuntimeHandler(
+                                  userInfo,
+                                  googleProject,
+                                  runtimeName
+                                )
+                              )
+                            }
                           }
-                        }
+                      }
                     }
-                  }
-              }
+                }
+            }
           }
         }
       }

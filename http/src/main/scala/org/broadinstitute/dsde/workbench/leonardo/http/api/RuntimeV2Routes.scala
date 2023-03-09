@@ -21,7 +21,8 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       runtimeV2Service: RuntimeV2Service[IO],
-                      userInfoDirectives: UserInfoDirectives
+                      userInfoDirectives: UserInfoDirectives,
+                      enabledUserDirectives: EnabledUserDirectives
 )(implicit
   metrics: OpenTelemetryMetrics[IO]
 ) {
@@ -32,60 +33,50 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo) {
-          pathPrefix("v2" / "runtimes") {
-            pathEndOrSingleSlash {
-              parameterMap { params =>
-                get {
-                  complete(
-                    listRuntimesHandler(
-                      userInfo,
-                      None,
-                      None,
-                      params
+        enabledUserDirectives.requireEnabledUser(userInfo) {
+          CookieSupport.setTokenCookie(userInfo) {
+            pathPrefix("v2" / "runtimes") {
+              pathEndOrSingleSlash {
+                parameterMap { params =>
+                  get {
+                    complete(
+                      listRuntimesHandler(
+                        userInfo,
+                        None,
+                        None,
+                        params
+                      )
                     )
-                  )
+                  }
                 }
-              }
-            } ~
-              pathPrefix(workspaceIdSegment) { workspaceId =>
-                pathEndOrSingleSlash {
-                  parameterMap { params =>
-                    get {
-                      complete(
-                        listRuntimesHandler(
-                          userInfo,
-                          Some(workspaceId),
-                          None,
-                          params
-                        )
-                      )
-                    }
-                  }
-                } ~ pathPrefix("deleteAll") {
-                  post {
+              } ~
+                pathPrefix(workspaceIdSegment) { workspaceId =>
+                  pathEndOrSingleSlash {
                     parameterMap { params =>
-                      complete(
-                        deleteAllRuntimesForWorkspaceHandler(userInfo, workspaceId, params)
-                      )
-                    }
-                  }
-                } ~ pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
-                  path("stop") {
-                    post {
-                      complete(
-                        stopRuntimeHandler(
-                          userInfo,
-                          workspaceId,
-                          runtimeName
+                      get {
+                        complete(
+                          listRuntimesHandler(
+                            userInfo,
+                            Some(workspaceId),
+                            None,
+                            params
+                          )
                         )
-                      )
+                      }
                     }
-                  } ~
-                    path("start") {
+                  } ~ pathPrefix("deleteAll") {
+                    post {
+                      parameterMap { params =>
+                        complete(
+                          deleteAllRuntimesForWorkspaceHandler(userInfo, workspaceId, params)
+                        )
+                      }
+                    }
+                  } ~ pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
+                    path("stop") {
                       post {
                         complete(
-                          startRuntimeHandler(
+                          stopRuntimeHandler(
                             userInfo,
                             workspaceId,
                             runtimeName
@@ -93,64 +84,76 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                         )
                       }
                     } ~
-                    path("updateDateAccessed") {
-                      patch {
-                        complete(
-                          updateDateAccessedHandler(
-                            userInfo,
-                            workspaceId,
-                            runtimeName
-                          )
-                        )
-                      }
-                    }
-                } ~
-                  pathPrefix("azure") {
-                    pathEndOrSingleSlash {
-                      parameterMap { params =>
-                        get {
+                      path("start") {
+                        post {
                           complete(
-                            listRuntimesHandler(
+                            startRuntimeHandler(
                               userInfo,
-                              Some(workspaceId),
-                              Some(CloudProvider.Azure),
-                              params
+                              workspaceId,
+                              runtimeName
+                            )
+                          )
+                        }
+                      } ~
+                      path("updateDateAccessed") {
+                        patch {
+                          complete(
+                            updateDateAccessedHandler(
+                              userInfo,
+                              workspaceId,
+                              runtimeName
                             )
                           )
                         }
                       }
-                    } ~
-                      pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
-                        pathEndOrSingleSlash {
-                          post {
-                            parameterMap { params =>
-                              entity(as[CreateAzureRuntimeRequest]) { req =>
+                  } ~
+                    pathPrefix("azure") {
+                      pathEndOrSingleSlash {
+                        parameterMap { params =>
+                          get {
+                            complete(
+                              listRuntimesHandler(
+                                userInfo,
+                                Some(workspaceId),
+                                Some(CloudProvider.Azure),
+                                params
+                              )
+                            )
+                          }
+                        }
+                      } ~
+                        pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
+                          pathEndOrSingleSlash {
+                            post {
+                              parameterMap { params =>
+                                entity(as[CreateAzureRuntimeRequest]) { req =>
+                                  complete(
+                                    createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req, params)
+                                  )
+                                }
+                              }
+                            } ~ get {
+                              complete(
+                                getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
+                              )
+                            } ~ patch {
+                              entity(as[UpdateAzureRuntimeRequest]) { req =>
                                 complete(
-                                  createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req, params)
+                                  updateAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
+                                )
+                              }
+                            } ~ delete {
+                              parameterMap { params =>
+                                complete(
+                                  deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName, params)
                                 )
                               }
                             }
-                          } ~ get {
-                            complete(
-                              getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
-                            )
-                          } ~ patch {
-                            entity(as[UpdateAzureRuntimeRequest]) { req =>
-                              complete(
-                                updateAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
-                              )
-                            }
-                          } ~ delete {
-                            parameterMap { params =>
-                              complete(
-                                deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName, params)
-                              )
-                            }
                           }
                         }
-                      }
-                  }
-              }
+                    }
+                }
+            }
           }
         }
       }

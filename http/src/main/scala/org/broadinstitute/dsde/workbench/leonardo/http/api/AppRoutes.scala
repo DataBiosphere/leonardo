@@ -20,88 +20,89 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Uri
 
-class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
+class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives, enabledUserDirectives: EnabledUserDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
 ) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo) {
-          pathPrefix("google" / "v1" / "apps") {
-            pathEndOrSingleSlash {
-              parameterMap { params =>
-                get {
-                  complete(
-                    listAppHandler(userInfo, None, params)
-                  )
-                }
-              }
-            } ~
-              pathPrefix(googleProjectSegment) { googleProject =>
-                pathEndOrSingleSlash {
-                  parameterMap { params =>
-                    get {
-                      complete(
-                        listAppHandler(
-                          userInfo,
-                          Some(googleProject),
-                          params
-                        )
-                      )
-                    }
+        enabledUserDirectives.requireEnabledUser(userInfo) {
+          CookieSupport.setTokenCookie(userInfo) {
+            pathPrefix("google" / "v1" / "apps") {
+              pathEndOrSingleSlash {
+                parameterMap { params =>
+                  get {
+                    complete(
+                      listAppHandler(userInfo, None, params)
+                    )
                   }
-                } ~
-                  pathPrefix(Segment) { appNameString =>
-                    RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
-                      pathEndOrSingleSlash {
-                        post {
-                          entity(as[CreateAppRequest]) { req =>
-                            complete(
-                              createAppHandler(userInfo, googleProject, appName, req)
-                            )
-                          }
-                        } ~
-                          get {
-                            complete(
-                              getAppHandler(
-                                userInfo,
-                                googleProject,
-                                appName
-                              )
-                            )
-                          } ~
-                          delete {
-                            parameterMap { params =>
+                }
+              } ~
+                pathPrefix(googleProjectSegment) { googleProject =>
+                  pathEndOrSingleSlash {
+                    parameterMap { params =>
+                      get {
+                        complete(
+                          listAppHandler(
+                            userInfo,
+                            Some(googleProject),
+                            params
+                          )
+                        )
+                      }
+                    }
+                  } ~
+                    pathPrefix(Segment) { appNameString =>
+                      RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
+                        pathEndOrSingleSlash {
+                          post {
+                            entity(as[CreateAppRequest]) { req =>
                               complete(
-                                deleteAppHandler(
+                                createAppHandler(userInfo, googleProject, appName, req)
+                              )
+                            }
+                          } ~
+                            get {
+                              complete(
+                                getAppHandler(
                                   userInfo,
                                   googleProject,
-                                  appName,
-                                  params
+                                  appName
                                 )
                               )
+                            } ~
+                            delete {
+                              parameterMap { params =>
+                                complete(
+                                  deleteAppHandler(
+                                    userInfo,
+                                    googleProject,
+                                    appName,
+                                    params
+                                  )
+                                )
+                              }
                             }
-                          }
-                      } ~
-                        path("stop") {
-                          post {
-                            complete {
-                              stopAppHandler(userInfo, googleProject, appName)
-                            }
-                          }
                         } ~
-                        path("start") {
-                          post {
-                            complete {
-                              startAppHandler(userInfo, googleProject, appName)
+                          path("stop") {
+                            post {
+                              complete {
+                                stopAppHandler(userInfo, googleProject, appName)
+                              }
+                            }
+                          } ~
+                          path("start") {
+                            post {
+                              complete {
+                                startAppHandler(userInfo, googleProject, appName)
+                              }
                             }
                           }
-                        }
+                      }
                     }
-                  }
-              }
+                }
+            }
           }
-        }
       }
     }
   }
