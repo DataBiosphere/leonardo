@@ -147,7 +147,7 @@ CUSTOM_IMAGE=us.gcr.io/broad-dsp-gcr-public/rt-custom-scientific-kernel
 # TODO hack alert: chmod 777 is not ideal, figure out better way to fix docker mount permissions
 cat > /etc/kernel_bootstrap.sh <<'endmsg'
 #!/usr/bin/env bash
-chmod -R 777 /home/jupyter/.local/share/jupyter/runtime
+chmod -R 700 /home/jupyter/.local/share/jupyter/runtime
 exec "$@"
 endmsg
 chmod a+rx /etc/kernel_bootstrap.sh
