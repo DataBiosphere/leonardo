@@ -175,12 +175,12 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |  "azureVm" : {
          |    "name" : "runtime",
          |    "region" : "eastus",
-         |    "vmSize": "Standard_A2",
+         |    "vmSize": "Standard_DS2_v2",
          |    "vmImage": {
          |      "publisher": "microsoft-dsvm",
          |      "offer": "ubuntu-2004",
          |      "sku": "2004-gen2",
-         |      "version": "22.04.27"
+         |      "version": "latest"
          |    },
          |    "customScriptExtension": {
          |      "name": "vm-custom-script-extension",
