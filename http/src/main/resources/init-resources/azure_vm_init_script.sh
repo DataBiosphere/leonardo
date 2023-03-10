@@ -144,15 +144,6 @@ jq --null-input \
 # TODO: don't hardcode; allow passing in custom images dynamically
 CUSTOM_IMAGE=us.gcr.io/broad-dsp-gcr-public/rt-custom-scientific-kernel
 
-# TODO hack alert: chmod 777 is not ideal, figure out better way to fix docker mount permissions
-# This doesn't work
-cat > /etc/kernel_bootstrap.sh <<'endmsg'
-#!/usr/bin/env bash
-chmod -R 700 /home/jupyter/.local/share/jupyter/runtime
-exec "$@"
-endmsg
-chmod a+rx /etc/kernel_bootstrap.sh
-
 # Install custom kernel
 CUSTOM_KERNEL_DIR=/etc/custom_kernels
 mkdir $CUSTOM_KERNEL_DIR
@@ -165,7 +156,7 @@ do
   # Copy kernel.json from inside the image, prepend `docker run ...` to the startup command
 
   docker run $CUSTOM_IMAGE 2>/dev/null cat $k/kernel.json \
-  | jq --arg custom_image $CUSTOM_IMAGE '.argv |= ["/etc/kernel_bootstrap.sh", "docker", "run", "--network=host", "-v", "{connection_file}:/connection-spec", $custom_image] + .' \
+  | jq --arg custom_image $CUSTOM_IMAGE '.argv |= ["docker", "run", "--user=1001:1001", "--network=host", "-v", "{connection_file}:/connection-spec", $custom_image] + .' \
   | jq --arg old {connection_file} --arg vol /connection-spec '(.argv[] | select(. == $old)) |= $vol' \
   > $KERNEL_DIR/kernel.json
   # Install the kernelspec on the DSVM
