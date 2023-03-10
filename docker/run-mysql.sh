@@ -17,6 +17,7 @@ start() {
                -e MYSQL_DATABASE=leotestdb \
                -d \
                -p 3311:3306 \
+               --platform 'linux/amd64' \
                mysql/mysql-server:$MYSQL_VERSION
 
     # validate mysql
@@ -24,6 +25,7 @@ start() {
     docker run --rm \
                --link $CONTAINER:mysql \
                -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh \
+               --platform 'linux/amd64' \
                mysql:$MYSQL_VERSION \
                /working/sql_validate.sh $TARGET
 

@@ -1141,9 +1141,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
       authProvider.filterUserVisible(apps, userInfo)
     }
+
     res = samVisibleAppsOpt match {
       case None =>
-        authProvider.checkUserEnabled(userInfo)
         Vector.empty
       case Some(samVisibleApps) =>
         val samVisibleAppsSet = samVisibleApps.toSet
@@ -1168,6 +1168,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
           .toVector
     }
+    // If no visible clusters, check if user should be able to use this endpoint at all
+    _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
   } yield res
 
 }

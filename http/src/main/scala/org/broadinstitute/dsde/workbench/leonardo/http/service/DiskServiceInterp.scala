@@ -205,9 +205,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       }
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))
       res = samVisibleDisksOpt match {
-        case None =>
-          authProvider.checkUserEnabled(userInfo)
-          Vector.empty
+        case None => Vector.empty
         case Some(samVisibleDisks) =>
           val samVisibleDisksSet = samVisibleDisks.toSet
           // Making the assumption that users will always be able to access disks that they create
@@ -232,6 +230,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
             )
             .toVector
       }
+      // If no visible disks, check if user should be able to use this endpoint at all
+      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield res
 
   override def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit

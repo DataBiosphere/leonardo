@@ -257,9 +257,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
       res = samVisibleRuntimesOpt match {
-        case None =>
-          authProvider.checkUserEnabled(userInfo)
-          Vector.empty
+        case None => Vector.empty
         case Some(samVisibleRuntimes) =>
           val samVisibleRuntimesSet = samVisibleRuntimes.toSet
           // Making the assumption that users will always be able to access runtimes that they create
@@ -271,6 +269,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
             .toVector
       }
+      // If no visible runtimes, check if user should be able to use this endpoint at all
+      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield res
 
   override def deleteRuntime(req: DeleteRuntimeRequest)(implicit
