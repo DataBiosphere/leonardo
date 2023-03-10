@@ -86,7 +86,7 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
 
 echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
 
-echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
+echo "Y"| sudo /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
