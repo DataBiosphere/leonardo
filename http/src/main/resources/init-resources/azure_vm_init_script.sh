@@ -141,20 +141,23 @@ jq --null-input \
 /anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 
-# TODO: template this properly
+# TODO: don't hardcode; allow passing in custom images dynamically
 CUSTOM_DOCKER=us.gcr.io/broad-dsp-gcr-public/rt-custom-scientific-kernel
 
 # Install custom kernel
 CUSTOM_KERNEL_DIR=/etc/custom_kernels
 mkdir $CUSTOM_KERNEL_DIR
+# Inspect list of kernels in the custom image
 for k in `docker run $CUSTOM_IMAGE 2>/dev/null jupyter kernelspec list | awk 'NR>1 {print $2}'`
 do
   echo "Found custom kernel $k"
   KERNEL_DIR=$CUSTOM_KERNEL_DIR/$(basename $k)
   mkdir $KERNEL_DIR
+  # Copy kernel.json from inside the image, prepend `docker run ...` to the startup command
   docker run $CUSTOM_IMAGE 2>/dev/null cat $k/kernel.json \
   | jq --arg custom_docker $CUSTOM_DOCKER '.argv |= ["docker", "run", "--network=host", "-v", "{connection_file}:/connection-spec", $custom_docker] + .' \
   | jq --arg old {connection_file} --arg vol /connection-spec '(.argv[] | select(. == $old)) |= $vol' \
   > $KERNEL_DIR/kernel.json
+  # Install the kernelspec on the DSVM
   /anaconda/bin/jupyter kernelspec install $KERNEL_DIR
 done
