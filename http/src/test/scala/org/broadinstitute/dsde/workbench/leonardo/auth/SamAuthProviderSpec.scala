@@ -499,6 +499,13 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List.empty
   }
 
+  it should "tell if user is enabled" in {
+    // positive tests
+    samAuthProvider
+      .isUserEnabled(userInfo)
+      .unsafeRunSync() shouldBe true
+  }
+
   private def setUpMockSam(): SamDAO[IO] = {
     mockSam = new MockSamDAO
     // set up mock sam with a project, runtime, disk, and app

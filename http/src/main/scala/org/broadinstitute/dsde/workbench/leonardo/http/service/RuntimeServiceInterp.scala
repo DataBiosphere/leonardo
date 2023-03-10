@@ -255,6 +255,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             userInfo
           )
       }
+      _ = if (samVisibleRuntimesOpt.isEmpty) authProvider.isUserEnabled(userInfo)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
       res = samVisibleRuntimesOpt match {
         case None => Vector.empty

@@ -108,6 +108,9 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     case _                         => IO(petOrUserInfo.userEmail)
   }
 
+  override def isUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+    checkWhitelist(petOrUserInfo)
+
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
   override def notifyResourceCreatedV2[R](samResource: R,

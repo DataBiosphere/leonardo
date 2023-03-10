@@ -1141,7 +1141,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
       authProvider.filterUserVisible(apps, userInfo)
     }
-
+    _ = if (samVisibleAppsOpt.isEmpty) authProvider.isUserEnabled(userInfo)
     res = samVisibleAppsOpt match {
       case None => Vector.empty
       case Some(samVisibleApps) =>

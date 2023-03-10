@@ -203,6 +203,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
       }
+      _ = if (samVisibleDisksOpt.isEmpty) authProvider.isUserEnabled(userInfo)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))
       res = samVisibleDisksOpt match {
         case None => Vector.empty
