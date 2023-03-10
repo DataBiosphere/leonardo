@@ -142,7 +142,7 @@ jq --null-input \
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 
 # TODO: don't hardcode; allow passing in custom images dynamically
-$CUSTOM_IMAGE=us.gcr.io/broad-dsp-gcr-public/rt-custom-scientific-kernel
+CUSTOM_IMAGE=us.gcr.io/broad-dsp-gcr-public/rt-custom-scientific-kernel
 
 # Install custom kernel
 CUSTOM_KERNEL_DIR=/etc/custom_kernels
