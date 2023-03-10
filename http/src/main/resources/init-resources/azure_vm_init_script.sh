@@ -155,7 +155,7 @@ do
   mkdir $KERNEL_DIR
   # Copy kernel.json from inside the image, prepend `docker run ...` to the startup command
   docker run $CUSTOM_IMAGE 2>/dev/null cat $k/kernel.json \
-  | jq --arg custom_image $CUSTOM_IMAGE '.argv |= ["docker", "run", "--network=host", "-v", "{connection_file}:/connection-spec", $custom_image] + .' \
+  | jq --arg custom_image $CUSTOM_IMAGE '.argv |= ["chmod", "777", "{connection_file}", "&&", "docker", "run", "--network=host", "-v", "{connection_file}:/connection-spec", $custom_image] + .' \
   | jq --arg old {connection_file} --arg vol /connection-spec '(.argv[] | select(. == $old)) |= $vol' \
   > $KERNEL_DIR/kernel.json
   # Install the kernelspec on the DSVM
