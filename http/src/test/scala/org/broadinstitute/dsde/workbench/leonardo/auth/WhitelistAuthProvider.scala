@@ -114,11 +114,14 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     traceId: TraceId <- ev.ask
     _ <- checkWhitelist(petOrUserInfo).map {
       case true => IO.unit
-      case false => IO.raiseError(AuthProviderException(
-        traceId,
-        s"[WhitelistAuthProvider.checkUserEnabled] User ${petOrUserInfo.userEmail.value} is disabled",
-        StatusCodes.Unauthorized
-      ))
+      case false =>
+        IO.raiseError(
+          AuthProviderException(
+            traceId,
+            s"[WhitelistAuthProvider.checkUserEnabled] User ${petOrUserInfo.userEmail.value} is disabled",
+            StatusCodes.Unauthorized
+          )
+        )
     }
   } yield ()
 
