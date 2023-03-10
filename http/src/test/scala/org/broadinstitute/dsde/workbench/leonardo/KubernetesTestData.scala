@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateAppRequest,
@@ -23,7 +24,9 @@ object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
+  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289", None)
+  val sharedAppSamId =
+    AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b290", Some(AppAccessScope.WorkspaceShared))
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
@@ -50,7 +53,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.209")
+  val coaChartVersion = ChartVersion("0.2.210")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -65,6 +68,7 @@ object KubernetesTestData {
   val createAppRequest = CreateAppRequest(
     Some(kubernetesRuntimeConfig),
     AppType.Galaxy,
+    None,
     None,
     Map.empty,
     Map.empty,
@@ -98,6 +102,7 @@ object KubernetesTestData {
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
+      None,
       diskConfig = diskConfig,
       labels = Map.empty,
       customEnvironmentVariables = customEnvVars,
@@ -184,20 +189,26 @@ object KubernetesTestData {
               customEnvironmentVariables: Map[String, String] = Map.empty,
               status: AppStatus = AppStatus.Unspecified,
               appType: AppType = galaxyApp,
-              workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
+              workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID()),
+              appAccessScope: AppAccessScope = AppAccessScope.UserPrivate
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
+    val samId = appAccessScope match {
+      case AppAccessScope.WorkspaceShared => sharedAppSamId
+      case _                              => appSamId
+    }
     App(
       AppId(-1),
       nodepoolId,
       appType,
       name,
+      None,
       Some(workspaceId),
       status,
       galaxyChart,
       Release(galaxyReleasePrefix + index),
-      appSamId,
+      samId,
       serviceAccountEmail,
       auditInfo,
       Map.empty,
@@ -221,4 +232,20 @@ object KubernetesTestData {
       ServiceConfig(name, serviceKind)
     )
   }
+
+  def makeCustomAppService(): CustomAppService =
+    CustomAppService(
+      ContainerImage.fromImageUrl("us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.10").get,
+      8001,
+      "/",
+      List("/bin/sh", "-c"),
+      List("sed -i 's/^www-address.*$//' $RSTUDIO_HOME/rserver.conf && /init"),
+      "/data",
+      "ReadWriteOnce",
+      Map(
+        "WORKSPACE_NAME" -> "my-ws",
+        "WORKSPACE_NAMESPACE" -> "my-proj",
+        "USER" -> "rstudio"
+      )
+    )
 }

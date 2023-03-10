@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
+  BatchAccountName,
   RelayNamespace
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
@@ -95,6 +96,7 @@ object JsonCodec {
   implicit val formattedByEncoder: Encoder[FormattedBy] = Encoder.encodeString.contramap(_.asString)
   implicit val toolEncoder: Encoder[Tool] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeConfigTypeEncoder: Encoder[RuntimeConfigType] = Encoder.encodeString.contramap(_.asString)
+  implicit val appAccessScopeEncoder: Encoder[AppAccessScope] = Encoder.encodeString.contramap(_.toString)
 
   implicit val cloudContextEncoder: Encoder[CloudContext] = Encoder.forProduct2(
     "cloudProvider",
@@ -276,7 +278,7 @@ object JsonCodec {
       case _                                   => status.toString
     }
   )
-  implicit val kubeSamIdEncoder: Encoder[AppSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
+  implicit val appSamIdEncoder: Encoder[AppSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val namespaceEncoder: Encoder[NamespaceName] = Encoder.encodeString.contramap(_.value)
   implicit val appNameEncoder: Encoder[AppName] = Encoder.encodeString.contramap(_.value)
   implicit val appStatusEncoder: Encoder[AppStatus] = Encoder.encodeString.contramap { x =>
@@ -649,7 +651,10 @@ object JsonCodec {
   implicit val kubeClusterStatusDecoder: Decoder[KubernetesClusterStatus] = Decoder.decodeString.emap(s =>
     KubernetesClusterStatus.stringToObject.get(s).toRight(s"Invalid cluster status ${s}")
   )
-  implicit val appSamIdDecoder: Decoder[AppSamResourceId] = Decoder.decodeString.map(AppSamResourceId)
+  implicit val appAccessScopeDecoder: Decoder[AppAccessScope] =
+    Decoder.decodeString.emap(s => AppAccessScope.stringToObject.get(s).toRight(s"Invalid app accessScope ${s}"))
+  implicit val appSamIdDecoder: Decoder[AppSamResourceId] = Decoder.decodeString.map(s => AppSamResourceId(s, None))
+
   implicit val namespaceNameDecoder: Decoder[NamespaceName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NamespaceName).leftMap(_.getMessage))
   implicit val namespaceIdDecoder: Decoder[NamespaceId] = Decoder.decodeLong.map(NamespaceId)
@@ -742,7 +747,8 @@ object JsonCodec {
   )(x => (x.publisher, x.offer, x.sku, x.version))
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct13(
+    Decoder.forProduct14(
+      "landingZoneId",
       "clusterName",
       "batchAccountName",
       "relayNamespace",
@@ -760,7 +766,8 @@ object JsonCodec {
       LandingZoneResources.apply
     )
 
-  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct13(
+  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct14(
+    "landingZoneId",
     "clusterName",
     "batchAccountName",
     "relayNamespace",
@@ -775,7 +782,8 @@ object JsonCodec {
     "region",
     "applicationInsightsName"
   )(x =>
-    (x.clusterName,
+    (x.landingZoneId,
+     x.clusterName,
      x.batchAccountName,
      x.relayNamespace,
      x.storageAccountName,

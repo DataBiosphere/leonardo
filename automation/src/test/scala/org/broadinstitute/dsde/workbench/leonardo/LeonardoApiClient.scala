@@ -114,6 +114,7 @@ object LeonardoApiClient {
     None,
     AppType.Galaxy,
     None,
+    None,
     Map.empty,
     Map.empty,
     None,

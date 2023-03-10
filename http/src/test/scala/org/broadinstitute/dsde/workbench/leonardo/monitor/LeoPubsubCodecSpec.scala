@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
+  BatchAccountName,
   ContainerName,
   ManagedResourceGroupName,
   RelayNamespace,
@@ -152,6 +153,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   val landingZoneResources = LandingZoneResources(
+    UUID.randomUUID(),
     AKSClusterName("cluster-name"),
     BatchAccountName("batch-account"),
     RelayNamespace("relay-ns"),

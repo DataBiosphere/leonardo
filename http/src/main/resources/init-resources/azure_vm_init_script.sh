@@ -78,15 +78,15 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkrkernel
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel  
+echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel
 
-echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python 
+echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
 
 #echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
 
 echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
 
-echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install 
+echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
@@ -95,7 +95,7 @@ sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.9/site-packages 
 sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.9/site-packages/jupyter_delocalize.py"
 sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
 
-# Store Jupyter Server parameters for reboot processls
+# Store Jupyter Server parameters for reboot processes
 sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log' >/dev/null 2>&1&") | crontab -
 
 #Run docker container with Relay Listener
@@ -128,12 +128,15 @@ $WELDER_WELDER_DOCKER_IMAGE
 
 # This next command creates a json file which contains the "env" variables to be added to the kernel.json files.
 jq --null-input \
---arg workspace_id $WORKSPACE_ID \
---arg workspace_storage_container_id $WORKSPACE_STORAGE_CONTAINER_ID \
---arg workspace_name $WORKSPACE_NAME \
---arg workspace_storage_container_url $WORKSPACE_STORAGE_CONTAINER_URL \
+--arg workspace_id "${WORKSPACE_ID}" \
+--arg workspace_storage_container_id "${WORKSPACE_STORAGE_CONTAINER_ID}" \
+--arg workspace_name "${WORKSPACE_NAME}" \
+--arg workspace_storage_container_url "${WORKSPACE_STORAGE_CONTAINER_URL}" \
 '{ "env": { "WORKSPACE_ID": $workspace_id, "WORKSPACE_STORAGE_CONTAINER_ID": $workspace_storage_container_id, "WORKSPACE_NAME": $workspace_name, "WORKSPACE_STORAGE_CONTAINER_URL": $workspace_storage_container_url }}' \
 > wsenv.json
 
-# This next command iterates through the available kernels, and uses jq to include the env variables from the previous step
+# This next commands iterate through the available kernels, and uses jq to include the env variables from the previous step
 /anaconda/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
+/anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
+/anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
+/anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done

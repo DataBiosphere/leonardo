@@ -69,7 +69,7 @@ object AKSManualTest {
   val uamiName = ManagedIdentityName("uami-name")
 
   val appName = AppName("coa-app")
-  val appSamResourceId = AppSamResourceId("sam-id")
+  val appSamResourceId = AppSamResourceId("sam-id", None)
 
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]
@@ -136,6 +136,7 @@ object AKSManualTest {
   /** Creates an AKSInterpreter */
   def getAksInterp(implicit dbRef: DbReference[IO]): Resource[IO, AKSInterpreter[IO]] = for {
     containerService <- AzureContainerService.fromAzureAppRegistrationConfig[IO](appRegConfig)
+    batchService <- AzureBatchService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     relayService <- AzureRelayService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     helmConcurrency <- Resource.eval(Semaphore[IO](20L))
@@ -154,6 +155,7 @@ object AKSManualTest {
   } yield new AKSInterpreter(
     config,
     helmClient,
+    batchService,
     containerService,
     azureApplicationInsightsService,
     relayService,

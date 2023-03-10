@@ -142,7 +142,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           // For GCP just test if the app is available through the Leo proxy.
           // For Azure impersonate the user and call the app's status endpoint via Azure Relay.
           isUp <- cloudContext match {
-            case CloudContext.Gcp(project) => appDAO.isProxyAvailable(project, app.appName, serviceName)
+            case CloudContext.Gcp(project) =>
+              appDAO.isProxyAvailable(project, app.appName, serviceName)
             case CloudContext.Azure(_) =>
               for {
                 tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
