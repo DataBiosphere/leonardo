@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.syntax.all._
@@ -7,6 +8,7 @@ import cats.mtl.Ask
 import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.dao.AuthProviderException
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, WorkspaceId}
@@ -108,8 +110,17 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     case _                         => IO(petOrUserInfo.userEmail)
   }
 
-  override def isUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
-    checkWhitelist(petOrUserInfo)
+  override def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Unit] = for {
+    traceId: TraceId <- ev.ask
+    _ <- checkWhitelist(petOrUserInfo).map {
+      case true => IO.unit
+      case false => IO.raiseError(AuthProviderException(
+        traceId,
+        s"[WhitelistAuthProvider.checkUserEnabled] User ${petOrUserInfo.userEmail.value} is disabled",
+        StatusCodes.Unauthorized
+      ))
+    }
+  } yield ()
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 

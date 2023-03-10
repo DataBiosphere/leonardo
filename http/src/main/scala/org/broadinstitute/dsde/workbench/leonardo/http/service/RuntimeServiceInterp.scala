@@ -255,10 +255,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             userInfo
           )
       }
-      _ = if (samVisibleRuntimesOpt.isEmpty) authProvider.isUserEnabled(userInfo)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
       res = samVisibleRuntimesOpt match {
-        case None => Vector.empty
+        case None =>
+          authProvider.checkUserEnabled(userInfo)
+          Vector.empty
         case Some(samVisibleRuntimes) =>
           val samVisibleRuntimesSet = samVisibleRuntimes.toSet
           // Making the assumption that users will always be able to access runtimes that they create

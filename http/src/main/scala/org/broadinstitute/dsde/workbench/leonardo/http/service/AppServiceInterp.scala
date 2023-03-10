@@ -1141,9 +1141,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
       authProvider.filterUserVisible(apps, userInfo)
     }
-    _ = if (samVisibleAppsOpt.isEmpty) authProvider.isUserEnabled(userInfo)
     res = samVisibleAppsOpt match {
-      case None => Vector.empty
+      case None =>
+        authProvider.checkUserEnabled(userInfo)
+        Vector.empty
       case Some(samVisibleApps) =>
         val samVisibleAppsSet = samVisibleApps.toSet
         // we construct this list of clusters by first filtering apps the user doesn't have permissions to see

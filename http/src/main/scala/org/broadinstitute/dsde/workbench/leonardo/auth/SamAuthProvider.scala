@@ -251,7 +251,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           F.raiseError(
             AuthProviderException(
               traceId,
-              s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled.",
+              s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled",
               StatusCodes.Forbidden
             )
           )
@@ -261,7 +261,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
    * Confirm the Sam user is enabled (accepted terms of service etc).
    * Raises an AuthProviderException if user does not exist or is disabled.
    */
-  override def isUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean] =
+  override def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       samUserInfoOpt <- samDao.getSamUserInfo(petOrUserInfo.accessToken.token)
@@ -269,7 +269,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         samUserInfoOpt,
         AuthProviderException(
           traceId,
-          s"[SamAuthProvider.isUserEnabled] Subject info not found for ${petOrUserInfo.userEmail.value}",
+          s"[SamAuthProvider.checkUserEnabled] Subject info not found for ${petOrUserInfo.userEmail.value}",
           StatusCodes.Unauthorized
         )
       )
@@ -279,11 +279,11 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           F.raiseError(
             AuthProviderException(
               traceId,
-              s"[SamAuthProvider.isUserEnabled] User ${samUserInfo.userEmail.value} is disabled.",
+              s"[SamAuthProvider.checkUserEnabled] User ${samUserInfo.userEmail.value} is disabled",
               StatusCodes.Forbidden
             )
           )
-    } yield samUserInfo.enabled
+    } yield ()
 
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =

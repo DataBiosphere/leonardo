@@ -221,7 +221,7 @@ trait LeoAuthProvider[F[_]] {
   // Get user info from Sam. If petOrUserInfo is a pet SA, Sam will return it's associated user account info
   def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail]
 
-  def isUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean]
+  def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Unit]
 
   def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean]
 }

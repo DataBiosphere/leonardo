@@ -203,10 +203,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
       }
-      _ = if (samVisibleDisksOpt.isEmpty) authProvider.isUserEnabled(userInfo)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))
       res = samVisibleDisksOpt match {
-        case None => Vector.empty
+        case None =>
+          authProvider.checkUserEnabled(userInfo)
+          Vector.empty
         case Some(samVisibleDisks) =>
           val samVisibleDisksSet = samVisibleDisks.toSet
           // Making the assumption that users will always be able to access disks that they create
