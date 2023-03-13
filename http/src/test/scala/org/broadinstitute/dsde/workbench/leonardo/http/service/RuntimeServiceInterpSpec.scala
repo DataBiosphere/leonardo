@@ -183,7 +183,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
 
@@ -240,7 +240,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("project1"))
     val runtimeName = RuntimeName("clusterName2")
     val request = emptyCreateRuntimeReq.copy(
@@ -275,7 +275,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName2")
     val rstudioImage = ContainerImage("some-rstudio-image", ContainerRegistry.GCR)
@@ -306,7 +306,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
@@ -385,7 +385,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
@@ -455,7 +455,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("cloudContext"))
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
@@ -530,7 +530,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
@@ -589,7 +589,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val persistentDisk = PersistentDiskRequest(
       diskName,
       Some(DiskSize(500)),
@@ -680,7 +680,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       _ <- runtimeService
@@ -703,7 +703,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val gpuConfig = Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
     val req = emptyCreateRuntimeReq.copy(
@@ -754,7 +754,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -780,7 +780,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -798,7 +798,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -816,7 +816,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -837,7 +837,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     // Make runtimes belonging to different users than the calling user
     val res = for {
@@ -853,7 +853,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- IO(runtime2.save())
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
     } yield
-    // Since the calling user is whitelisted in the auth provider, it should return
+    // Since the calling user is allowlisted in the auth provider, it should return
     // the runtimes belonging to other users.
     listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
@@ -995,7 +995,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
@@ -1027,7 +1027,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
@@ -1071,7 +1071,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val operationFuture = new FakeComputeOperationFuture {
       override def get(): Operation = {
         val exception = new java.util.concurrent.ExecutionException(
@@ -1119,7 +1119,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
@@ -1149,7 +1149,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
@@ -1179,7 +1179,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
@@ -1209,7 +1209,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     val res = for {
       // remove some existing items in the queue just to be safe
@@ -1257,7 +1257,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     it should s"Process upsert labels correctly for $upsertLabels" in isolatedDbTest {
       val res = for {
@@ -1301,7 +1301,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
 
     it should s"Process reqlabels correctly for $deleteLabelSet" in isolatedDbTest {
       val res = for {
@@ -1330,7 +1330,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                               WorkbenchUserId("userId"),
                               WorkbenchEmail("user1@example.com"),
                               0
-      ) // this email is white listed
+      ) // this email is allowlisted
       it should s"fail to update a runtime in $status status" in isolatedDbTest {
         val res = for {
           samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
