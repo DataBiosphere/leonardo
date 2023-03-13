@@ -33,7 +33,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
   Welder
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{AllowlistAuthProvider, MockPetClusterServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   AccessScope,
@@ -469,7 +469,7 @@ object CommonTestData {
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider
-  val allowListAuthProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider)
+  val allowListAuthProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider)
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),
