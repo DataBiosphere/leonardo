@@ -1167,7 +1167,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
           .toVector
     }
-    // If no visible clusters, check if user should be able to use this endpoint at all
+    // We authenticate actions on resources. If there are no visible clusters,
+    // we need to check if user should be able to see the empty list.
     _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
   } yield res
 

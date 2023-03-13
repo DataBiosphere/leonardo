@@ -530,7 +530,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           // samVisibleRuntimesWithoutWorkspaceId: runtimes user is not creator, but user can view the runtime according to Sam
           runtimesUserIsCreator ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
         }
-      // If no visible runtimes, check if user should be able to use this endpoint at all
+      // We authenticate actions on resources. If there are no visible runtimes,
+      // we need to check if user should be able to see the empty list.
       _ <- if (filteredRuntimes.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield filteredRuntimes.toVector
 

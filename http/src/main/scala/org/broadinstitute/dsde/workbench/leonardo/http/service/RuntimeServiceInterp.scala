@@ -269,7 +269,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
             .toVector
       }
-      // If no visible runtimes, check if user should be able to use this endpoint at all
+      // We authenticate actions on resources. If there are no visible runtimes,
+      // we need to check if user should be able to see the empty list.
       _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield res
 
