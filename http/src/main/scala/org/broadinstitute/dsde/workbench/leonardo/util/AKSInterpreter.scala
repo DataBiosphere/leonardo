@@ -222,7 +222,35 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               )
               .run(authContext)
           } yield ()
+        case AppType.Wds =>
+          for { // TODO 2 this code is duplicated from cromwell
+            // Storage container is required for Wds app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Wds app", Some(ctx.traceId))
+            )
 
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name, // TODO 1: find where chart is coming from
+                app.chart.version,
+                buildCromwellChartOverrideValues( // TODO 3 overrides?
+                  app.release,
+                  params.appName,
+                  params.cloudContext,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  relayPath,
+                  petMi,
+                  storageContainer,
+                  BatchAccountKey(batchAccountKey),
+                  applicationInsightsComponent.connectionString()
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
         case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
 

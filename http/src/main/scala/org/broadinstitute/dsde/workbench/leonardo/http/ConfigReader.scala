@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig, WdsAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
@@ -23,6 +23,7 @@ final case class AzureConfig(
   wsm: HttpWsmDaoConfig,
   appRegistration: AzureAppRegistrationConfig,
   coaAppConfig: CoaAppConfig,
+  wdsAppConfig: WdsAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
   allowedSharedApps: List[String]
 )

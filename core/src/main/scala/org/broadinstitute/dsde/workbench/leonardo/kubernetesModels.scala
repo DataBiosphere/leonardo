@@ -317,6 +317,11 @@ object AppType {
   case object Cromwell extends AppType {
     override def toString: String = "CROMWELL"
   }
+
+  case object Wds extends AppType {
+    override def toString: String = "WDS"
+  }
+
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }

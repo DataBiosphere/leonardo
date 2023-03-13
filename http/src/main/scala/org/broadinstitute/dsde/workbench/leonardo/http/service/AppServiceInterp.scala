@@ -1034,6 +1034,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
         case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
         case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (Wds, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.wdsAppConfig)
         case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
       }
 
