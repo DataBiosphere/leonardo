@@ -33,7 +33,11 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   )
 
   val disabledUserInfo =
-    UserInfo(OAuth2BearerToken(s"TokenFor${MockSamDAO.disabledUserEmail}"), WorkbenchUserId("disabled-user"), MockSamDAO.disabledUserEmail, 0)
+    UserInfo(OAuth2BearerToken(s"TokenFor${MockSamDAO.disabledUserEmail}"),
+             WorkbenchUserId("disabled-user"),
+             MockSamDAO.disabledUserEmail,
+             0
+    )
   val userInfo =
     UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
   val projectOwnerUserInfo =
@@ -505,7 +509,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     noException shouldBe thrownBy(samAuthProvider.checkUserEnabled(userInfo).unsafeRunSync())
 
     // negative test
-    an [AuthProviderException] shouldBe thrownBy(samAuthProvider.checkUserEnabled(disabledUserInfo).unsafeRunSync())
+    an[AuthProviderException] shouldBe thrownBy(samAuthProvider.checkUserEnabled(disabledUserInfo).unsafeRunSync())
   }
 
   private def setUpMockSam(): SamDAO[IO] = {

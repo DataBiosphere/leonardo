@@ -390,7 +390,9 @@ class MockSamDAO extends SamDAO[IO] {
 
   override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
     if (token == OAuth2BearerToken(s"TokenFor${MockSamDAO.disabledUserEmail}").token)
-      IO.pure(Some(SamUserInfo(UserSubjectId("test-disabled"), WorkbenchEmail("test-disabled@gmail.com"), enabled = false)))
+      IO.pure(
+        Some(SamUserInfo(UserSubjectId("test-disabled"), WorkbenchEmail("test-disabled@gmail.com"), enabled = false))
+      )
     else
       IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
 

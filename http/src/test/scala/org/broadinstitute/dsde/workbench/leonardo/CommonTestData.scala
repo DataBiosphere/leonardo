@@ -33,7 +33,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
   Welder
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, AllowlistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{AllowlistAuthProvider, MockPetClusterServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   AccessScope,
