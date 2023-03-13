@@ -1143,8 +1143,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     }
 
     res = samVisibleAppsOpt match {
-      case None =>
-        Vector.empty
+      case None => Vector.empty
       case Some(samVisibleApps) =>
         val samVisibleAppsSet = samVisibleApps.toSet
         // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
