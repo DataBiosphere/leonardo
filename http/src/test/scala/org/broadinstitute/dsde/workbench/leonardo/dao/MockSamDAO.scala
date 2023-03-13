@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -388,7 +389,10 @@ class MockSamDAO extends SamDAO[IO] {
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
 
   override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
-    IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
+    if (token == OAuth2BearerToken(s"TokenFor${MockSamDAO.disabledUserEmail}").token)
+      IO.pure(Some(SamUserInfo(UserSubjectId("test-disabled"), WorkbenchEmail("test-disabled@gmail.com"), enabled = false)))
+    else
+      IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
 
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
@@ -423,6 +427,7 @@ class MockSamDAO extends SamDAO[IO] {
 object MockSamDAO {
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val petMI = WorkbenchEmail("/subscriptions/foo/resourceGroups/bar/userAssignedManagedIdentities/pet-1234")
+  val disabledUserEmail = WorkbenchEmail("disabled-user@test.org")
   val projectOwnerEmail = WorkbenchEmail("project-owner@test.org")
   val workspaceOwnerEmail = WorkbenchEmail("workspace-owner@test.org")
   val appManagerActions = Set(AppAction.GetAppStatus, AppAction.DeleteApp)
