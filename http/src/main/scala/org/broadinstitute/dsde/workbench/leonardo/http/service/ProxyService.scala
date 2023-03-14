@@ -113,9 +113,7 @@ class ProxyService(
       case Left(_: JWTDecodeException) =>
         for {
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
-          _ <-
-            if (checkUserEnabled) authProvider.checkUserEnabled(userInfo) >> IO.unit
-            else IO.unit
+          _ <- IO.whenA(checkUserEnabled)(authProvider.checkUserEnabled(userInfo))
         } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
       case Left(e) =>
         IO.raiseError(e)

@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.AuthProviderException
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
@@ -31,7 +32,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
@@ -467,21 +468,21 @@ class ProxyRoutesSpec
   }
 
   it should "reject setCookie if user is not registered" in {
-    val samDao = new MockSamDAO {
-      override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
-        IO.pure(None)
+    val authProvider = new BaseMockAuthProvider {
+      override def checkUserEnabled(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+        IO.raiseError(AuthProviderException(TraceId("trace"), "fail!", StatusCodes.Unauthorized))
     }
     val proxyService =
       new MockProxyService(
         proxyConfig,
         MockJupyterDAO,
-        allowListAuthProvider,
+        authProvider,
         runtimeDnsCache,
         kubernetesDnsCache,
         googleTokenCache,
         samResourceCache,
         MockGoogleOAuth2Service,
-        samDAO = Some(samDao)
+        samDAO = None
       )
     val httpRoutes = new HttpRoutes(
       openIdConnectionConfiguration,

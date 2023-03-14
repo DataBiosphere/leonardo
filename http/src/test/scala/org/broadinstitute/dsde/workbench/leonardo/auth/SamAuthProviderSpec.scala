@@ -2,9 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package auth
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
+import cats.mtl.Ask
 import cats.syntax.all._
 import com.github.benmanes.caffeine.cache.Caffeine
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -12,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchUserId}
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 import scalacache.Cache
@@ -510,6 +512,18 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     // negative test
     an[AuthProviderException] shouldBe thrownBy(samAuthProvider.checkUserEnabled(disabledUserInfo).unsafeRunSync())
+  }
+
+  it should "fail if user request fails" in {
+    val badMockSamDao = new MockSamDAO {
+      override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
+        IO.raiseError(AuthProviderException(TraceId("xxx"), "test", StatusCodes.Unauthorized))
+    }
+    val badSamAuthProvider =
+      new SamAuthProvider(badMockSamDao, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+
+    // negative test
+    an[AuthProviderException] shouldBe thrownBy(badSamAuthProvider.checkUserEnabled(userInfo).unsafeRunSync())
   }
 
   private def setUpMockSam(): SamDAO[IO] = {
