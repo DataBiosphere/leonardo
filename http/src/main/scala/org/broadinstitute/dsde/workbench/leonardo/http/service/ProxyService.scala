@@ -114,7 +114,7 @@ class ProxyService(
         for {
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
           _ <-
-            if (checkUserEnabled) authProvider.checkUserEnabled(userInfo)
+            if (checkUserEnabled) authProvider.checkUserEnabled(userInfo) >> IO.unit
             else IO.unit
         } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
       case Left(e) =>
