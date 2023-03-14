@@ -85,6 +85,7 @@ start_server () {
     --env-file="env/local.env" \
     --env-file="rendered/secrets.env" \
     -e HOSTNAME=$HOSTNAME \
+    -e SBT_OPTS='-Xmx4G -Xms4G -Xss2M -XX:+UseG1GC' \
     -e JAVA_OPTS='-DXmx4G -DXms4G -DXss2M -Dsun.net.spi.nameservice.provider.1=default -Dsun.net.spi.nameservice.provider.2=dns,Jupyter -Djna.library.path=/helm-go-lib-build' \
     hseeberger/scala-sbt:17.0.2_1.6.2_3.1.1 \
     sbt http/run
@@ -100,9 +101,6 @@ start_server () {
     docker cp /etc/localtime leonardo-sbt:/etc/localtime
     docker cp leonardo-helm-lib:/build /tmp
     docker cp /tmp/build/ leonardo-sbt:/helm-go-lib-build
-#    docker cp env/local.env leonardo-sbt:/etc/local.env
-#    dokcer cp rendered/secrets.env leonardo-sbt:/etc/secrets.env
-
 
     echo "Creating proxy..."
     docker create --name leonardo-proxy \
