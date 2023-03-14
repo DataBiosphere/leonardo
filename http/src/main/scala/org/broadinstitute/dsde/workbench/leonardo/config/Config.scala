@@ -64,16 +64,17 @@ object Config {
   val leoConfig = ConfigFactory.parseResourcesAnySyntax("leo")
 
   // Config that is generated to /config from firecloud-develop
-  val backupConfig1 = ConfigFactory
+  val firecloudDevelopConfig = ConfigFactory
     .parseResources("leonardo.conf")
 
   // Load any other configs on the classpath following: https://github.com/lightbend/config#standard-behavior
   // This is where things like `src/main/resources/reference.conf` will get loaded
-  val backupConfig2 = ConfigFactory.load()
+  val referenceConfig = ConfigFactory.load()
 
+  // leoConfig has precedence here
   val config = leoConfig
-    .withFallback(backupConfig1)
-    .withFallback(backupConfig2)
+    .withFallback(firecloudDevelopConfig)
+    .withFallback(referenceConfig)
     .resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
