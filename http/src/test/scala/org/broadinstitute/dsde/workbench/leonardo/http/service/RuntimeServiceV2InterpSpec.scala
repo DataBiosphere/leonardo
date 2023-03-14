@@ -77,7 +77,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
     val relayNamespace = RelayNamespace("relay-ns")
@@ -343,7 +343,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -558,7 +558,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -596,7 +596,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -654,7 +654,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -690,7 +690,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is white listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -749,7 +749,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -790,7 +790,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName_1 = RuntimeName("clusterName1")
     val runtimeName_2 = RuntimeName("clusterName2")
     val runtimeName_3 = RuntimeName("clusterName3")
@@ -905,7 +905,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName_1 = RuntimeName("clusterName1")
     val runtimeName_2 = RuntimeName("clusterName2")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -968,7 +968,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -990,7 +990,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val workspace = Some(workspaceId)
 
     val res = for {
@@ -1009,7 +1009,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val workspace = Some(workspaceId)
 
     val workspace2 = Some(WorkspaceId(UUID.randomUUID()))
@@ -1054,7 +1054,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -1075,7 +1075,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
 
     // Make runtimes belonging to different users than the calling user
     val res = for {
@@ -1091,7 +1091,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- IO(runtime2.save())
       listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map.empty)
     } yield
-    // Since the calling user is allow listed in the auth provider, it should return
+    // Since the calling user is allowlisted in the auth provider, it should return
     // the runtimes belonging to other users.
     listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
@@ -1262,7 +1262,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
                             0
-    ) // this email is allow listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -1301,7 +1301,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                             WorkbenchUserId("bad1"),
                             WorkbenchEmail("bad1@example.com"),
                             0
-    ) // this email is not allow listed
+    ) // this email is not allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 

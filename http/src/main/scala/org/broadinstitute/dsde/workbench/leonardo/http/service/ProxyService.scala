@@ -115,6 +115,11 @@ class ProxyService(
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
           _ <-
             if (checkUserEnabled) for {
+              // TODO [IA-4131] this code seems to assume a non-enabled user will return an error or an empty response. However,
+              // HttpSamDAO::getSamUserInfo calls /register/user/v2/self/info which
+              // (per https://sam.dsde-dev.broadinstitute.org/#/Users/getUserStatusInfo)
+              // returns a JSON body with Boolean property `enabled`.
+              // See also SamAuthProvider::lookupOriginatingUserEmail which looks for `enabled` on the response.
               samUserInfo <- samDAO.getSamUserInfo(token)
               _ <- IO.fromOption(samUserInfo)(AuthenticationError(Some(userInfo.userEmail)))
             } yield ()

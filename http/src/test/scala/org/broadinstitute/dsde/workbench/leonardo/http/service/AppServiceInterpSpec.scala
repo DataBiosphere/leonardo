@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, G
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription}
@@ -1054,7 +1054,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       listResponse <- appServiceInterp.listApp(userInfo, None, Map.empty)
     } yield
-    // Since the calling user is whitelisted in the auth provider, it should return
+    // Since the calling user is allowlisted in the auth provider, it should return
     // the apps belonging to other users.
     listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
 
@@ -1224,7 +1224,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
-    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1262,7 +1262,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1301,7 +1301,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1385,7 +1385,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1429,7 +1429,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new WhitelistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }

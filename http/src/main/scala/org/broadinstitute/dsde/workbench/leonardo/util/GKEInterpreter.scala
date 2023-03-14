@@ -1507,8 +1507,8 @@ class GKEInterpreter[F[_]](
     // Machine type info
     val maxLimitMemory = machineType.memorySizeInGb
     val maxLimitCpu = machineType.numOfCpus
-    val maxRequestMemory = maxLimitMemory - 5
-    val maxRequestCpu = maxLimitCpu - 3
+    val maxRequestMemory = maxLimitMemory - 15
+    val maxRequestCpu = maxLimitCpu - 5
 
     // Custom EV configs
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
@@ -1568,6 +1568,10 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
       raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
       raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
+      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.mem=${maxRequestMemory}""",
+      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=${maxLimitMemory}""",
+      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.cores=${maxRequestCpu}""",
+      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=${maxLimitCpu}""",
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",
