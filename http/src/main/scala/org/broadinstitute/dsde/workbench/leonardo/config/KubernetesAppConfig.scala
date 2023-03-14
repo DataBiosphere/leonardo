@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
+import org.broadinstitute.dsde.workbench.leonardo.config.HailService.{HailBatch, HailBatchDriver}
 import org.broadinstitute.dsde.workbench.leonardo.{
   Chart,
   DbPassword,
@@ -87,6 +88,15 @@ final case class CoaAppConfig(chartName: ChartName,
     .toSet
 }
 
+sealed trait CoaService
+object CoaService {
+  final case object Cbas extends CoaService
+  final case object CbasUI extends CoaService
+  final case object Wds extends CoaService
+  final case object Cromwell extends CoaService
+  final case object Tes extends CoaService
+}
+
 final case class HailAppConfig(chartName: ChartName,
                                chartVersion: ChartVersion,
                                releaseNameSuffix: ReleaseNameSuffix,
@@ -96,13 +106,17 @@ final case class HailAppConfig(chartName: ChartName,
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
+  def hailServices: Set[HailService] = services
+    .map(_.name)
+    .collect {
+      case ServiceName("batch")        => HailBatch
+      case ServiceName("batch-driver") => HailBatchDriver
+    }
+    .toSet
 }
 
-sealed trait CoaService
-object CoaService {
-  final case object Cbas extends CoaService
-  final case object CbasUI extends CoaService
-  final case object Wds extends CoaService
-  final case object Cromwell extends CoaService
-  final case object Tes extends CoaService
+sealed trait HailService
+object HailService {
+  final case object HailBatch extends HailService
+  final case object HailBatchDriver extends HailService
 }

@@ -106,7 +106,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),
           List(
-            ServiceConfig(ServiceName("hail"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
+            ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
           )
         )
       ),

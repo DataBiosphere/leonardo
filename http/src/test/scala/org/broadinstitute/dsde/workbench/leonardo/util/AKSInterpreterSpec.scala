@@ -43,6 +43,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val config = AKSInterpreterConfig(
     ConfigReader.appConfig.terraAppSetupChart,
     ConfigReader.appConfig.azure.coaAppConfig,
+    ConfigReader.appConfig.azure.hailAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
@@ -56,6 +57,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockHailBatchDAO = setUpMockHailBatchDAO
+  val mockHailBatchDriverDAO = setUpMockHailBatchDriverDAO
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
@@ -71,7 +74,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCromwellDAO,
     mockCbasDAO,
     mockCbasUiDAO,
-    mockWdsDAO
+    mockWdsDAO,
+    mockHailBatchDAO,
+    mockHailBatchDriverDAO,
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -444,4 +449,19 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     wds
   }
 
+  private def setUpMockHailBatchDAO: HailBatchDAO[IO] = {
+    val batch = mock[HailBatchDAO[IO]]
+    when {
+      batch.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    batch
+  }
+
+  private def setUpMockHailBatchDriverDAO: HailBatchDriverDAO[IO] = {
+    val batchDriver = mock[HailBatchDriverDAO[IO]]
+    when {
+      batchDriver.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    batchDriver
+  }
 }

@@ -32,7 +32,7 @@ ENV NGINX_VERSION 4.3.0
 ENV CROMWELL_CHART_VERSION 0.2.210
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.210
 # Update me with the chart version
-ENV HAIL_CHART_VERSION 0.0.1
+ENV HAIL_CHART_VERSION 0.1.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -51,8 +51,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
-    # Update me with the helm repo
-    # helm repo add hail-helm https://url
+    helm repo add hail-helm oci://us-docker.pkg.dev/hail-vdc/terra-dev-public
     helm repo update
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
@@ -66,8 +65,7 @@ RUN cd /leonardo && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
-    # Update me with the chart name
-    #helm pull hail-helm/hail --version $HAIL_CHART_VERSION --untar && \
+    helm pull hail-helm/hail-batch-terra-azure --version $HAIL_CHART_VERSION --untar && \
     helm repo update && \
     cd /
 
