@@ -123,7 +123,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       NamespaceName("ns"),
       savedDisk1,
       DiskName("disk1-gxy-postres-disk"),
-      AppMachineType(16, 6),
+      AppMachineType(21, 7),
       None
     )
 
@@ -155,14 +155,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.tusd.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """galaxy.tusd.ingress.tls[0].secretName=tls-secret,""" +
       """galaxy.rabbitmq.persistence.storageClassName=nfs-app1-galaxy-rls,""" +
-      """galaxy.jobs.maxLimits.memory=16,""" +
-      """galaxy.jobs.maxLimits.cpu=6,""" +
+      """galaxy.jobs.maxLimits.memory=21,""" +
+      """galaxy.jobs.maxLimits.cpu=7,""" +
       """galaxy.jobs.maxRequests.memory=1,""" +
       """galaxy.jobs.maxRequests.cpu=1,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.mem=1,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=16,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.cores=1,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=6,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=21,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=7,""" +
       """galaxy.serviceAccount.create=false,""" +
       """galaxy.serviceAccount.name=app1-galaxy-ksa,""" +
       """rbac.serviceAccount=app1-galaxy-ksa,persistence.nfs.name=ns-nfs-disk,""" +
@@ -207,7 +205,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         NamespaceName("ns"),
         savedDisk1,
         DiskName("disk1-gxy-postres"),
-        AppMachineType(16, 6),
+        AppMachineType(21, 7),
         Some(
           GalaxyRestore(PvcId("galaxy-pvc-id"), AppId(123))
         )
@@ -240,14 +238,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """galaxy.tusd.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """galaxy.tusd.ingress.tls[0].secretName=tls-secret,""" +
       """galaxy.rabbitmq.persistence.storageClassName=nfs-app1-galaxy-rls,""" +
-      """galaxy.jobs.maxLimits.memory=16,""" +
-      """galaxy.jobs.maxLimits.cpu=6,""" +
+      """galaxy.jobs.maxLimits.memory=21,""" +
+      """galaxy.jobs.maxLimits.cpu=7,""" +
       """galaxy.jobs.maxRequests.memory=1,""" +
       """galaxy.jobs.maxRequests.cpu=1,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.mem=1,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=16,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.cores=1,""" +
-      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=6,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=21,""" +
+      """galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=7,""" +
       """galaxy.serviceAccount.create=false,""" +
       """galaxy.serviceAccount.name=app1-galaxy-ksa,""" +
       """rbac.serviceAccount=app1-galaxy-ksa,""" +
