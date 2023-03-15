@@ -501,8 +501,8 @@ class ProxyRoutesSpec
       .get(tokenCookie.value)
       .map(_.isDefined)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe false
-    // login request with Authorization header should succeed and return a Set-Cookie header
-    Get(s"/proxy/$googleProject/$clusterName/setCookie")
+    // login request with Authorization header should fail with Unauthorized
+    Get(s"/proxy/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
       .addHeader(Origin("http://example.com"))
       .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {

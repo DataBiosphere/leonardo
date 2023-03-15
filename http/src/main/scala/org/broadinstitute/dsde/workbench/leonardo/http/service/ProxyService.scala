@@ -114,6 +114,7 @@ class ProxyService(
         for {
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
           _ <- IO.whenA(checkUserEnabled)(authProvider.checkUserEnabled(userInfo))
+          _ = println(s"inside getUserInfo - after checkUserEnabled (which is ${checkUserEnabled}")
         } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
       case Left(e) =>
         IO.raiseError(e)
@@ -129,6 +130,7 @@ class ProxyService(
       ctx <- ev.ask[TraceId]
       now <- IO.realTimeInstant
 
+      _ = println(s"inside getCachedUserInfoFromToken - checkUserEnabled is ${checkUserEnabled}")
       cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token, now, checkUserEnabled)).handleErrorWith {
         case e: AuthenticationError =>
           loggerIO.error(Map("traceId" -> ctx.asString), e)(s"${e.message} due to ${e.extraMessage}") >> IO
@@ -144,6 +146,7 @@ class ProxyService(
           else
             IO.raiseError(AccessTokenExpiredException)
       }
+      _ = println(s"inside getCachedUserInfoFromToken - past all possible errors - userInfo is good :(")
     } yield res
 
   private[leonardo] def getSamResourceFromDb(
