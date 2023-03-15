@@ -108,19 +108,19 @@ class ProxyService(
 
   private[leonardo] def getUserInfo(token: String, now: Instant, checkUserEnabled: Boolean)(implicit
     ev: Ask[IO, TraceId]
-  ): IO[(UserInfo, Instant)] =
-    decodeB2cToken(token, now) match {
-      case Left(_: JWTDecodeException) =>
-        for {
-          userInfo <- googleOauth2Service.getUserInfoFromToken(token)
-          _ <- IO.whenA(checkUserEnabled)(authProvider.checkUserEnabled(userInfo))
-          _ <- loggerIO.info(s"inside getUserInfo - after checkUserEnabled (which is ${checkUserEnabled}")
-        } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
+  ): IO[(UserInfo, Instant)] = for {
+    _ <- loggerIO.info(s"inside getUserInfo - before checkUserEnabled (which is ${checkUserEnabled}")
+    userInfo <- googleOauth2Service.getUserInfoFromToken(token)
+    _ <- IO.whenA(checkUserEnabled)(authProvider.checkUserEnabled(userInfo))
+    _ <- loggerIO.info(s"inside getUserInfo - after checkUserEnabled (which is ${checkUserEnabled}")
+    decodedToken <- decodeB2cToken(token, now) match {
+      case Left(_: JWTDecodeException) => (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
       case Left(e) =>
         IO.raiseError(e)
       case Right(value) =>
         IO.pure(value)
     }
+  } yield decodedToken
 
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String, checkUserEnabled: Boolean)(implicit
@@ -146,7 +146,7 @@ class ProxyService(
           else
             IO.raiseError(AccessTokenExpiredException)
       }
-      _ = loggerIO.info(s"inside getCachedUserInfoFromToken - past all possible errors - userInfo is good :(")
+      _ <- loggerIO.info(s"inside getCachedUserInfoFromToken - past all possible errors - userInfo is good :(")
     } yield res
 
   private[leonardo] def getSamResourceFromDb(
