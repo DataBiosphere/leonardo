@@ -54,7 +54,28 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 object Config {
-  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
+
+  /** Loads all the configs for the Leo App. All values defined in `src/main/resources/leo.conf` will take precedence over any other configs. In this way, we
+   * can still use configs rendered by `firecloud-develop` that render to `config/leonardo.conf` if we want.
+   *     If you want to use leo.conf you must populate the appropriate ENV vars (done in terra-helmfile)
+   *     leonardo.conf is what firecloud-develop renders, and it will be used if the ENV vars are not populated for leo.conf
+   */
+  // Config that lives in leo repo in /src/main/resources
+  val leoConfig = ConfigFactory.parseResourcesAnySyntax("leo")
+
+  // Config that is generated to /config from firecloud-develop
+  val firecloudDevelopConfig = ConfigFactory
+    .parseResources("leonardo.conf")
+
+  // Load any other configs on the classpath following: https://github.com/lightbend/config#standard-behavior
+  // This is where things like `src/main/resources/reference.conf` will get loaded
+  val referenceConfig = ConfigFactory.load()
+
+  // leoConfig has precedence here
+  val config = leoConfig
+    .withFallback(firecloudDevelopConfig)
+    .withFallback(referenceConfig)
+    .resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
   implicit private val groupNameReader: ValueReader[GroupName] = stringValueReader.map(GroupName)
@@ -315,7 +336,7 @@ object Config {
         case "combined" => LeoExecutionModeConfig.Combined
         case "backLeo"  => LeoExecutionModeConfig.BackLeoOnly
         case "frontLeo" => LeoExecutionModeConfig.FrontLeoOnly
-        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: ${x}")
+        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: '$x'")
       }
   }
 
