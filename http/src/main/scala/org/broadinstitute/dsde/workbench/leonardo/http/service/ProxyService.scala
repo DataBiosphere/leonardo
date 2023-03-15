@@ -114,7 +114,7 @@ class ProxyService(
     _ <- IO.whenA(checkUserEnabled)(authProvider.checkUserEnabled(userInfo))
     _ <- loggerIO.info(s"inside getUserInfo - after checkUserEnabled (which is ${checkUserEnabled}")
     decodedToken <- decodeB2cToken(token, now) match {
-      case Left(_: JWTDecodeException) => (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
+      case Left(_: JWTDecodeException) => IO.pure(userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
       case Left(e) =>
         IO.raiseError(e)
       case Right(value) =>
