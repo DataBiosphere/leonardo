@@ -276,6 +276,10 @@ fi
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`)
+  if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    sed -i 's/jupyter/rstudio/g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
+    sed -i 's#${NOTEBOOKS_DIR}#/home/rstudio#g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
+  fi
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
 fi
 

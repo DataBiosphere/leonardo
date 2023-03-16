@@ -13,12 +13,3 @@ services:
     devices:
       - "/dev/nvidia-uvm:/dev/nvidia-uvm"
       - "/dev/nvidiactl:/dev/nvidiactl"
-  rstudio:
-    volumes:
-      - "/mnt/disks/work:/home/rstudio"
-      - "/var/lib/nvidia/lib64:/usr/local/nvidia/lib64"
-      - "/var/lib/nvidia/bin:/usr/local/nvidia/bin"
-    devices:
-      - "/dev/nvidia-uvm:/dev/nvidia-uvm"
-      - "/dev/nvidiactl:/dev/nvidiactl"
-      - "/dev/nvidia0:/dev/nvidia0"
