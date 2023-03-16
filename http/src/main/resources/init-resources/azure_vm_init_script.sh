@@ -148,18 +148,22 @@ CUSTOM_IMAGE=rubydata/datascience-notebook:24c07e436ac4
 # Install custom kernel
 CUSTOM_KERNEL_DIR=/etc/custom_kernels
 mkdir $CUSTOM_KERNEL_DIR
+# Start tmp container
+docker run -d --name=tmp $CUSTOM_IMAGE tail -f /dev/null
+
 # Inspect list of kernels in the custom image
-for k in `docker run $CUSTOM_IMAGE 2>/dev/null jupyter kernelspec list | awk 'NR>1 {print $2}'`
+for k in `docker exec tmp jupyter kernelspec list | awk 'NR>1 {print $2}'`
 do
   echo "Found custom kernel $k"
-  KERNEL_DIR=$CUSTOM_KERNEL_DIR/$(basename $k)
-  mkdir $KERNEL_DIR
   # Copy kernel.json from inside the image, prepend `docker run ...` to the startup command
-
-  docker run $CUSTOM_IMAGE 2>/dev/null cat $k/kernel.json \
+  docker cp tmp:$k $CUSTOM_KERNEL_DIR
+  docker exec tmp cat $k/kernel.json \
   | jq --arg custom_image $CUSTOM_IMAGE '.argv |= ["docker", "run", "--user=1001:1001", "--network=host", "-v", "{connection_file}:/connection-spec", $custom_image] + .' \
   | jq --arg old {connection_file} --arg vol /connection-spec '(.argv[] | select(. == $old)) |= $vol' \
-  > $KERNEL_DIR/kernel.json
+  > $CUSTOM_KERNEL_DIR/$(basename $k)/kernel.json
+  # Kill tmp container
+  docker kill tmp
+  docker rm tmp
   # Install the kernelspec on the DSVM
   /anaconda/bin/jupyter kernelspec install $KERNEL_DIR
 done
