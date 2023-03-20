@@ -2971,8 +2971,9 @@ components:
           type: string
           description: The user-supplied name for the runtime
         auditInfo:
-          type: object
-          $ref: "#/components/schemas/AuditInfo"
+          allOf:
+          - $ref: "#/components/schemas/AuditInfo"
+          - type: object
         googleProject:
           type: string
           description: Deprecated. The Google Project used to create the runtime
@@ -3711,7 +3712,7 @@ components:
         appType:
           $ref: '#/components/schemas/AppType'
         accessScope:
-          $ref: '#components/schemas/AppAccessScope'
+          $ref: '#/components/schemas/AppAccessScope'
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:
@@ -3765,7 +3766,7 @@ components:
         appType:
           $ref: '#/components/schemas/AppType'
         accessScope:
-          $ref: '#components/schemas/AppAccessScope'
+          $ref: '#/components/schemas/AppAccessScope'
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
@@ -3806,7 +3807,7 @@ components:
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         accessScope:
-          $ref: '#components/schemas/AppAccessScope'
+          $ref: '#/components/schemas/AppAccessScope'
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
