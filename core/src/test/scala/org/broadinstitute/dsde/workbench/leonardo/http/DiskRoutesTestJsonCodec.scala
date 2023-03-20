@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail

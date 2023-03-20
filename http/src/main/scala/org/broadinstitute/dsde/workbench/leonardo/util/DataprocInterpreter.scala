@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
   DataprocRole,
   DataprocRoleZonePreemptibility,
-  DiskName,
+  DiskName => GoogleDiskName,
   GoogleComputeService,
   GoogleDataprocService,
   GoogleDiskService,
@@ -552,7 +552,7 @@ class DataprocInterpreter[F[_]: Parallel](
         googleDiskService
           .resizeDisk(p.masterDataprocInstance.key.project,
                       p.masterDataprocInstance.key.zone,
-                      DiskName(p.masterDataprocInstance.key.name.value),
+                      GoogleDiskName(p.masterDataprocInstance.key.name.toString),
                       p.diskSize.gb
           )
       }

@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Name
 import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
   streamUntilDoneOrTimeout,
-  DiskName,
+  DiskName => GoogleDiskName,
   Event,
   GoogleDiskService,
   GoogleSubscriber,
@@ -303,7 +303,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           now <- nowInstant
           diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
           disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
-          deleteDiskOp <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
+          deleteDiskOp <- googleDiskService.deleteDisk(googleProject, disk.zone, GoogleDiskName(disk.name.asString))
           _ <- deleteDiskOp.traverse(x => F.blocking(x.get()))
           _ <- persistentDiskQuery.delete(id, now).transaction.void >> authProvider
             .notifyResourceDeleted(
@@ -644,7 +644,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     val create = {
       val diskBuilder = Disk
         .newBuilder()
-        .setName(msg.name.value)
+        .setName(msg.name.asString)
         .setSizeGb(msg.size.gb)
         .setZone(msg.zone.value)
         .setType(msg.diskType.googleString(msg.googleProject, msg.zone))
@@ -702,7 +702,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       for {
         ctx <- ev.ask
         _ <- logger.error(ctx.loggingCtx, e)(
-          s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}"
+          s"Failed to create disk ${msg.name} in Google project ${msg.googleProject.value}"
         )
         _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction[F]
       } yield ()
@@ -767,7 +767,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
         new RuntimeException("non google project cloud context is not supported yet")
       )
-      opFutureOpt <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
+      opFutureOpt <- googleDiskService.deleteDisk(googleProject, disk.zone, GoogleDiskName(disk.name.asString))
       _ <- opFutureOpt match {
         case None => F.unit
         case Some(v) =>
@@ -849,7 +849,11 @@ class LeoPubsubMessageSubscriber[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
         AzureUnimplementedException("Azure disk is not supported yet")
       )
-      opFuture <- googleDiskService.resizeDisk(googleProject, disk.zone, disk.name, msg.newSize.gb)
+      opFuture <- googleDiskService.resizeDisk(googleProject,
+                                               disk.zone,
+                                               GoogleDiskName(disk.name.asString),
+                                               msg.newSize.gb
+      )
 
       task = for {
         operation <- F.blocking(opFuture.get())
@@ -1094,7 +1098,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             .getDisk(
               msg.project,
               zone,
-              d.name
+              GoogleDiskName(d.name.asString)
             )
             .map(_.map(_.getLastDetachTimestamp))
         }
@@ -1120,7 +1124,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               .getDisk(
                 msg.project,
                 zone,
-                d.name
+                GoogleDiskName(d.name.asString)
               )
           }
           for {
@@ -1369,7 +1373,10 @@ class LeoPubsubMessageSubscriber[F[_]](
                         case Some(value) =>
                           if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
                             persistentDiskOpt.traverse_(d =>
-                              googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                              googleDiskService.deleteDisk(googleProject,
+                                                           rc.zone,
+                                                           GoogleDiskName(d.name.asString)
+                              ) >> persistentDiskQuery
                                 .updateStatus(d.id, DiskStatus.Deleted, now)
                                 .transaction
                             )
@@ -1447,7 +1454,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           for {
             operation <- F.blocking(operation.get())
             _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
-              new Exception(s"fail to delete disk ${project.value}/${diskName.value} due to ${operation}")
+              new Exception(s"fail to delete disk ${project.value}/${diskName} due to ${operation}")
             )
           } yield operation.some
         case None =>
@@ -1464,7 +1471,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               for {
                 operation <- F.blocking(optFuture.get())
                 _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
-                  new Exception(s"fail to delete disk ${project.value}/${diskName.value} due to ${operation}")
+                  new Exception(s"fail to delete disk ${project.value}/${diskName} due to ${operation}")
                 )
               } yield operation
             )

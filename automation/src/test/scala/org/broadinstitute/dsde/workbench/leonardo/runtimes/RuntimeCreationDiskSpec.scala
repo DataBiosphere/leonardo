@@ -5,8 +5,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
@@ -145,7 +144,7 @@ class RuntimeCreationDiskSpec
   }
 
   "create runtime and attach a persistent disk" in { googleProject =>
-    val diskName = genDiskName.sample.get
+    val diskName = randomDiskName
     val diskSize = genDiskSize.sample.get
     val runtimeName = randomClusterName
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
@@ -198,8 +197,8 @@ class RuntimeCreationDiskSpec
       randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val runtimeWithCloneName = randomeName.copy(asString = randomeName.asString + "pd-spec-clone")
-    val diskName = genDiskName.sample.get
-    val diskCloneName = DiskName(diskName.value + "-clone")
+    val diskName = randomDiskName
+    val diskCloneName = DiskName(diskName + "-clone")
     val diskSize = DiskSize(110)
     val newDiskSize = DiskSize(150)
 

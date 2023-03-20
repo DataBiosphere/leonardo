@@ -369,7 +369,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                       params.useExistingDisk
             )
           )
-          common = getCommonFields(ControlledResourceName(disk.name.value),
+          common = getCommonFields(ControlledResourceName(disk.name.asString),
                                    config.runtimeDefaults.diskControlledResourceDesc,
                                    params.runtime.auditInfo.creator,
                                    None
@@ -378,8 +378,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             params.workspaceId,
             common,
             CreateDiskRequestData(
-              // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
-              AzureDiskName(disk.name.value),
+              disk.name,
               disk.size,
               params.runtimeConfig.region
             )

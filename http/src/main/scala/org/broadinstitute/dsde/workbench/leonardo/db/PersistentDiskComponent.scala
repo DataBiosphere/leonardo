@@ -3,7 +3,7 @@ package db
 
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -33,7 +33,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       formattedBy: Option[FormattedBy],
                                       appRestore: Option[AppRestore],
                                       sourceDisk: Option[DiskLink],
-                                      wsmResourceId: Option[WsmControlledResourceId]
+                                      wsmResourceId: Option[WsmControlledResourceId],
+                                      workspaceId: Option[WorkspaceId]
 )
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
@@ -41,7 +42,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def cloudContext = column[CloudContextDb]("cloudContext", O.Length(255))
   def cloudProvider = column[CloudProvider]("cloudProvider", O.Length(50))
   def zone = column[ZoneName]("zone", O.Length(255))
-  def name = column[DiskName]("name", O.Length(255))
+  def name = column[DiskName]("name", O.Length(255)) // TODO (LM) what is happening here?!
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(255))
   def samResourceId = column[PersistentDiskSamResourceId]("samResourceId", O.Length(255))
   def status = column[DiskStatus]("status", O.Length(255))
@@ -57,6 +58,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
   def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
   def wsmResourceId = column[Option[WsmControlledResourceId]]("wsmResourceId")
+  def workspaceId = column[Option[WorkspaceId]]("workspaceId")
 
   override def * =
     (id,
@@ -76,7 +78,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      formattedBy,
      (galaxyPvcId, lastUsedBy),
      sourceDisk,
-     wsmResourceId
+     wsmResourceId,
+     workspaceId
     ) <> ({
       case (id,
             (cloudProvider, cloudContextDb),
@@ -95,7 +98,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             formattedBy,
             (galaxyPvcId, lastUsedBy),
             sourceDisk,
-            wsmResourceId
+            wsmResourceId,
+            workspaceId
           ) =>
         PersistentDiskRecord(
           id,
@@ -128,7 +132,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
           sourceDisk,
-          wsmResourceId
+          wsmResourceId,
+          workspaceId
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -158,7 +163,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
         },
         record.sourceDisk,
-        record.wsmResourceId
+        record.wsmResourceId,
+        record.workspaceId
       )
     })
 }
@@ -174,12 +180,11 @@ object persistentDiskQuery {
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
 
-  private[db] def findByNameQuery(cloudContext: CloudContext, name: DiskName) =
+  private[db] def findActiveByNameWorkspaceQuery(workspaceId: WorkspaceId, name: DiskName) =
     tableQuery
-      .filter(
-        _.cloudContext === cloudContext.asCloudContextDb
-      )
+      .filterOpt(Some(workspaceId))(_.workspaceId === _)
       .filter(_.name === name)
+      .filter(_.destroyedDate === dummyDate)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
@@ -225,6 +230,11 @@ object persistentDiskQuery {
     ec: ExecutionContext
   ): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(cloudContext, name)).result.map(aggregateLabels).map(_.headOption)
+
+  def getActiveByNameWorkspace(workspaceId: WorkspaceId, name: DiskName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[PersistentDisk]] =
+    joinLabelQuery(findActiveByNameWorkspaceQuery(workspaceId, name)).result.map(aggregateLabels).map(_.headOption)
 
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
@@ -290,7 +300,8 @@ object persistentDiskQuery {
       disk.formattedBy,
       disk.appRestore,
       disk.sourceDisk,
-      disk.wsmResourceId
+      disk.wsmResourceId,
+      disk.workspaceId
     )
 
   private[db] def aggregateLabels(
@@ -329,6 +340,7 @@ object persistentDiskQuery {
       rec.appRestore,
       labels,
       rec.sourceDisk,
-      rec.wsmResourceId
+      rec.wsmResourceId,
+      rec.workspaceId
     )
 }

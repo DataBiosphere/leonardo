@@ -2,14 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
@@ -42,18 +40,11 @@ object DiskServiceDbQueries {
           .filter(_.cloudProvider === p.cloudProvider)
       )
 
-    val diskQueryFilteredByWorkspace = workspaceOpt match {
-      case Some(workspace) =>
-        // pre-filter by workspace
-        val runtimes =
-          clusterQuery.filter(_.workspaceId === workspace).join(runtimeConfigs).on(_.runtimeConfigId === _.id)
-        for {
-          disks <- diskQueryFilteredByProject
-            .join(runtimes)
-            .on(_.id === _._2.persistentDiskId)
-        } yield disks._1
-      case None => diskQueryFilteredByProject
-    }
+    val diskQueryFilteredByWorkspace =
+      workspaceOpt.fold(diskQueryFilteredByProject)(workspaceId =>
+        diskQueryFilteredByProject
+          .filter(_.workspaceId === workspaceId)
+      )
 
     val diskQueryJoinedWithLabel = persistentDiskQuery.joinLabelQuery(diskQueryFilteredByWorkspace)
 
@@ -85,10 +76,28 @@ object DiskServiceDbQueries {
     }
   }
 
-  def getGetPersistentDiskResponse(cloudContext: CloudContext, diskName: DiskName, traceId: TraceId)(implicit
+//  private def test(name: DiskName, cloudContextOpt: Option[CloudContext], workspaceIdOpt: Option[WorkspaceId]):
+//  DBIO[Query] = {
+//      (cloudContextOpt, workspaceIdOpt) match {
+//      case (Some (cloudContext), None) => persistentDiskQuery.findActiveByNameQuery (cloudContext, name)
+//      case (None, Some (workspaceId)) => persistentDiskQuery.findActiveByNameWorkspaceQuery (workspaceId, name)
+//      case _ => DBIO.failed()
+//    }
+//  }
+
+  def getGetPersistentDiskResponse(diskName: DiskName,
+                                   traceId: TraceId,
+                                   cloudContextOpt: Option[CloudContext] = None,
+                                   workspaceIdOpt: Option[WorkspaceId] = None
+  )(implicit
     executionContext: ExecutionContext
   ): DBIO[GetPersistentDiskResponse] = {
-    val diskQuery = persistentDiskQuery.findActiveByNameQuery(cloudContext, diskName)
+    val diskQuery = (cloudContextOpt, workspaceIdOpt) match {
+      case (Some(cloudContext), None) => persistentDiskQuery.findActiveByNameQuery(cloudContext, diskName)
+      case (None, Some(workspaceId))  => persistentDiskQuery.findActiveByNameWorkspaceQuery(workspaceId, diskName)
+      // case _ => DBIO.failed()
+    }
+    // val diskQuery = persistentDiskQuery.findActiveByNameQuery(cloudContext, diskName)
     val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
 
     diskQueryJoinedWithLabels.result.flatMap { x =>
@@ -97,7 +106,7 @@ object DiskServiceDbQueries {
         Map(diskRec -> labelMap)
       }.headOption
       diskWithLabel.fold[DBIO[GetPersistentDiskResponse]](
-        DBIO.failed(DiskNotFoundException(cloudContext, diskName, traceId))
+        DBIO.failed(DiskNotFoundException(diskName, traceId, cloudContextOpt, workspaceIdOpt))
       ) { d =>
         val diskRec = d._1
         val labelMap = d._2

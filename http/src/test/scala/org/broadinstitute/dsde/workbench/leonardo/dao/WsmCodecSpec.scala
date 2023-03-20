@@ -4,7 +4,7 @@ package dao
 import java.util.UUID
 import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.leonardo.{
-  AzureDiskName,
+  DiskName,
   CidrIP,
   DiskSize,
   RuntimeName,
@@ -100,7 +100,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       workspaceId,
       testCommonControlledResourceFields,
       CreateDiskRequestData(
-        AzureDiskName("disk"),
+        DiskName("disk"),
         DiskSize(50),
         Region.US_EAST
       )

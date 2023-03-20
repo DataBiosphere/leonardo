@@ -173,6 +173,14 @@ object Boot extends IOApp {
         googleDependencies.googleProjectDAO
       )
 
+      val diskV2Service = new DiskV2ServiceInterp[IO](
+        ConfigReader.appConfig.persistentDisk,
+        appDependencies.authProvider,
+        appDependencies.wsmDAO,
+        appDependencies.samDAO,
+        appDependencies.publisherQueue
+      )
+
       val leoKubernetesService: LeoAppServiceInterp[IO] =
         new LeoAppServiceInterp(
           appServiceConfig,
@@ -201,6 +209,7 @@ object Boot extends IOApp {
         proxyService,
         runtimeService,
         diskService,
+        diskV2Service,
         leoKubernetesService,
         azureService,
         StandardUserInfoDirectives,

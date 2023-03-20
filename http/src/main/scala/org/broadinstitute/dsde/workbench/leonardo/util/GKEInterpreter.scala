@@ -25,13 +25,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
   streamUntilDoneOrTimeout,
   tracedRetryF,
-  DiskName,
   GoogleDiskService,
   GoogleResourceService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
@@ -1475,7 +1475,7 @@ class GKEInterpreter[F[_]](
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
+      raw"""persistence.gcePersistentDisk=${disk.name}""",
       raw"""env.swaggerBasePath=$proxyPath/cromwell""",
       // cromwellConfig
       raw"""config.gcsProject=${cluster.cloudContext.asString}""",
@@ -1576,11 +1576,11 @@ class GKEInterpreter[F[_]](
       raw"""rbac.serviceAccount=${ksa.value}""",
       // Persistence configs
       raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
-      raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
+      raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name}""",
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
       raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword.value}""",
-      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName.value}""",
+      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
       raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
@@ -1657,7 +1657,7 @@ class GKEInterpreter[F[_]](
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
+      raw"""persistence.gcePersistentDisk=${disk.name}""",
       raw"""persistence.mountPath=${service.pdMountPath}""",
       raw"""persistence.accessMode=${service.pdAccessMode}""",
       raw"""serviceAccount.name=${ksaName.value}"""

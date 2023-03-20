@@ -1230,6 +1230,86 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  "/api/v2/disks/{workspaceId}/azure/{name}":
+    get:
+      summary: Get details of an Azure persistent disk
+      description: >
+        Returns information about an existing persistent disk managed by Leo.
+        Poll this to find out your disk status.
+      operationId: getAzureDisk
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: diskName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Persistent disk found, here are the details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetPersistentDiskResponse"
+        "403":
+          description: User does not have permission to perform action on disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+    delete:
+      summary: Deletes an existing persistent disk instance in the given workspce
+      description: Deletes a persistent disk
+      operationId: deleteAzureDisk
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: diskName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Persistent disk deletion request accepted
+        "403":
+          description: User does not have permission to perform action on persistent disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Kubernetes App API ##
   "/api/google/v1/apps":
     get:

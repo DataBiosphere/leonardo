@@ -142,7 +142,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       azureRuntimeConfig.machineType.value shouldBe VirtualMachineSizeTypes.STANDARD_A1.toString
       azureRuntimeConfig.region shouldBe azureRegion
-      disk.name.value shouldBe defaultCreateAzureRuntimeReq.azureDiskConfig.name.value
+      disk.name shouldBe defaultCreateAzureRuntimeReq.azureDiskConfig.name
 
       val expectedRuntimeImage = Set(
         RuntimeImage(
@@ -232,7 +232,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           Map.empty,
           CreateAzureDiskRequest(
             Map.empty,
-            AzureDiskName("diskName2"),
+            DiskName("diskName2"),
             Some(DiskSize(100)),
             None
           ),
@@ -818,7 +818,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           workspaceId,
           false,
           defaultCreateAzureRuntimeReq.copy(
-            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = DiskName("diskName2"))
           )
         )
 
@@ -829,7 +829,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           workspaceId,
           false,
           defaultCreateAzureRuntimeReq.copy(
-            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName3"))
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = DiskName("diskName3"))
           )
         )
 
@@ -932,7 +932,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           workspaceId,
           false,
           defaultCreateAzureRuntimeReq.copy(
-            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = DiskName("diskName2"))
           )
         )
 
@@ -1147,7 +1147,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         workspaceId,
         false,
         req.copy(labels = Map("a" -> "b", "foo" -> "bar"),
-                 azureDiskConfig = req.azureDiskConfig.copy(name = AzureDiskName("disk2"))
+                 azureDiskConfig = req.azureDiskConfig.copy(name = DiskName("disk2"))
         )
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

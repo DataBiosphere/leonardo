@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGooglePublisher,
   FakeGoogleResourceService
 }
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -962,7 +962,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     listAllApps.map(_.labels) should contain(Map("key1" -> "val1", "key2" -> "val2"))
     listAllApps.map(_.appName) should contain(appName2)
     listAllApps.map(_.appName) should contain(appName3)
-    listAllApps.map(_.diskName).sortBy(_.get.value) shouldBe Vector(Some(diskName), Some(diskName), Some(diskName2))
+    listAllApps.map(_.diskName).sortBy(_.get) shouldBe Vector(Some(diskName), Some(diskName), Some(diskName2))
       .sortBy(_.get.value)
 
     val listProject1Apps =

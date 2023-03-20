@@ -9,7 +9,7 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
@@ -183,10 +183,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     convertToDisk(
                       userInfo,
                       cloudContext,
-                      DiskName(req.azureDiskConfig.name.value),
+                      req.azureDiskConfig.name,
                       config.azureConfig.diskConfig,
                       req,
                       landingZoneResources.region,
+                      workspaceId,
                       ctx.now
                     )
                   )
@@ -541,12 +542,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
                                      region: com.azure.core.management.Region,
+                                     workspaceId: WorkspaceId,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabelMap: LabelMap =
       Map(
-        "diskName" -> diskName.value,
+        "diskName" -> diskName.asString,
         "cloudContext" -> cloudContext.asString,
         "creator" -> userInfo.userEmail.value
       )
@@ -578,15 +580,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       None,
       labels,
       None,
-      None
+      None,
+      Some(workspaceId)
     )
   }
 
-  private def checkPermission(creator: WorkbenchEmail,
-                              userInfo: UserInfo,
-                              wsmResourceSamResourceId: WsmResourceSamResourceId
-  )(implicit
-    ev: Ask[F, AppContext]
+  def checkPermission(creator: WorkbenchEmail, userInfo: UserInfo, wsmResourceSamResourceId: WsmResourceSamResourceId)(
+    implicit ev: Ask[F, AppContext]
   ) = if (creator == userInfo.userEmail) F.pure(true)
   else {
     for {
@@ -712,7 +712,7 @@ final case class AzureRuntimeHasInvalidRuntimeConfig(cloudContext: CloudContext,
 case class MultiplePersistentDisksException(workspaceId: WorkspaceId, numDisks: Int, disks: List[PersistentDisk])
     extends LeoException(
       s"Workspace: ${workspaceId.value} contains ${numDisks} persistent disks, must have only 1. Current PDs: ${disks
-          .map(disks => s"(${disks.name.value},${disks.id.value})")}. Runtime cannot be created with an existing disk ",
+          .map(disks => s"(${disks.name},${disks.id.value})")}. Runtime cannot be created with an existing disk ",
       StatusCodes.PreconditionFailed,
       traceId = None
     )

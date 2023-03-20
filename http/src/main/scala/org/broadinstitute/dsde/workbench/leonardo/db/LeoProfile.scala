@@ -5,7 +5,6 @@ import java.time.Instant
 import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
   Location,
   MachineTypeName,
   NetworkName,
@@ -149,7 +148,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val zoneNameMappedColumnType: BaseColumnType[ZoneName] =
       MappedColumnType.base[ZoneName, String](_.value, ZoneName.apply)
     implicit val diskNameMappedColumnType: BaseColumnType[DiskName] =
-      MappedColumnType.base[DiskName, String](_.value, DiskName.apply)
+      MappedColumnType.base[DiskName, String](_.asString, DiskName.apply)
     implicit val diskSamResourceMappedColumnType: BaseColumnType[PersistentDiskSamResourceId] =
       MappedColumnType.base[PersistentDiskSamResourceId, String](_.resourceId, PersistentDiskSamResourceId.apply)
     implicit val diskStatusMappedColumnType: BaseColumnType[DiskStatus] =

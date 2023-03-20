@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
   DeviceName,
-  DiskName,
   GoogleComputeService,
   MachineTypeName,
   ZoneName

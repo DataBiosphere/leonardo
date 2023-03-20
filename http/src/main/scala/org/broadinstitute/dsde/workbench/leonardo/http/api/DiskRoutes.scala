@@ -11,7 +11,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
@@ -206,9 +206,8 @@ object DiskRoutes {
     } yield UpdateDiskRequest(l.getOrElse(Map.empty), us)
   }
 
-  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct13(
+  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
     "id",
-    "googleProject",
     "cloudContext",
     "zone",
     "name",
@@ -223,10 +222,9 @@ object DiskRoutes {
   )(x =>
     (
       x.id,
-      x.cloudContext.asString,
       x.cloudContext,
       x.zone,
-      x.name,
+      x.name.asString,
       x.serviceAccount,
       x.status,
       x.auditInfo,
@@ -238,9 +236,8 @@ object DiskRoutes {
     )
   )
 
-  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct11(
+  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct10(
     "id",
-    "googleProject",
     "cloudContext",
     "zone",
     "name",
@@ -253,7 +250,6 @@ object DiskRoutes {
   )(x =>
     (
       x.id,
-      x.cloudContext.asString,
       x.cloudContext,
       x.zone,
       x.name,

@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiS
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
-  DiskName,
   KubernetesName,
   Location,
   MachineTypeName,
@@ -82,7 +81,7 @@ object JsonCodec {
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
   implicit val regionNameEncoder: Encoder[RegionName] = Encoder.encodeString.contramap(_.value)
-  implicit val diskNameEncoder: Encoder[DiskName] = Encoder.encodeString.contramap(_.value)
+  implicit val diskNameEncoder: Encoder[DiskName] = Encoder.encodeString.contramap(_.asString)
   implicit val diskSamResourceIdEncoder: Encoder[PersistentDiskSamResourceId] =
     Encoder.encodeString.contramap(_.resourceId)
   implicit val diskSizeEncoder: Encoder[DiskSize] = Encoder.encodeInt.contramap(_.gb)
@@ -182,7 +181,6 @@ object JsonCodec {
     "sku",
     "version"
   )((x, y, z, v) => AzureImage(x, y, z, v))
-  implicit val azureDiskNameDecoder: Decoder[AzureDiskName] = Decoder.decodeString.map(AzureDiskName)
 
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
@@ -484,7 +482,7 @@ object JsonCodec {
 
   implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName(_))
   implicit val regionDecoder: Decoder[RegionName] = Decoder.decodeString.map(RegionName(_))
-  implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
+  implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.map(DiskName)
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
   implicit val diskLinkDecoder: Decoder[DiskLink] = Decoder.decodeString.map(DiskLink)
   implicit val formattedByDecoder: Decoder[FormattedBy] =
@@ -733,7 +731,6 @@ object JsonCodec {
     )
 
   implicit val azureMachineTypeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)
-  implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
   implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
   implicit val postgresNameEncoder: Encoder[PostgresName] = Encoder.encodeString.contramap(_.value)

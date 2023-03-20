@@ -9,6 +9,7 @@ import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench
 import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
+  DiskName,
   GoogleComputeService,
   GoogleDiskService,
   MachineTypeName,
@@ -170,7 +171,7 @@ class GceInterpreter[F[_]](
               .setInitializeParams(
                 AttachedDiskInitializeParams
                   .newBuilder()
-                  .setDiskName(persistentDisk.name.value)
+                  .setDiskName(persistentDisk.name.asString)
                   .setDiskSizeGb(persistentDisk.size.gb)
                   .putAllLabels(Map("leonardo" -> "true").asJava)
                   .setDiskType(
@@ -492,8 +493,8 @@ class GceInterpreter[F[_]](
       .traverse_ { p =>
         for {
           ctx <- ev.ask
-          _ <- googleDiskService
-            .resizeDisk(p.googleProject, p.zone, p.diskName, p.diskSize.gb)
+          _ <- googleDiskService // necessary to have a generalizable diskName
+            .resizeDisk(p.googleProject, p.zone, DiskName(p.diskName.asString), p.diskSize.gb)
             .void
             .recoverWith {
               case e: com.google.api.gax.rpc.InvalidArgumentException =>

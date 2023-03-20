@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Disk
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName => GoogleDiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{
   KubernetesNetwork,
   KubernetesOperationId,
@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppId,
   AppMachineType,
   AppName,
+  DiskName,
   KubernetesClusterLeoId,
   NodepoolLeoId
 }
@@ -56,11 +57,13 @@ trait GKEAlgebra[F[_]] {
 object GKEAlgebra {
   import scala.jdk.CollectionConverters._
 
-  private[leonardo] def getOldStyleGalaxyPostgresDiskName(namespaceName: NamespaceName, suffix: String): DiskName =
-    DiskName(s"${namespaceName.value}-${suffix}")
+  private[leonardo] def getOldStyleGalaxyPostgresDiskName(namespaceName: NamespaceName,
+                                                          suffix: String
+  ): GoogleDiskName =
+    GoogleDiskName(s"${namespaceName}-${suffix}")
 
-  private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName, suffix: String): DiskName =
-    DiskName(s"${dataDiskName.value}-${suffix}")
+  private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName, suffix: String): GoogleDiskName =
+    GoogleDiskName(s"${dataDiskName}-${suffix}")
 
   private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName,
                                                 dataDiskName: DiskName,

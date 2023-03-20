@@ -7,7 +7,6 @@ import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import com.google.cloud.Identity
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{
   GcsBlobName,
   GoogleStorageService,
@@ -45,7 +44,7 @@ class RuntimeGceSpec
 
   "should create a GCE instance in a non-default zone" in { project =>
     val runtimeName = randomClusterName
-    val diskName = genDiskName.sample.get
+    val diskName = randomDiskName()
     val targetZone = ZoneName(
       "europe-west1-b"
     )
@@ -83,7 +82,7 @@ class RuntimeGceSpec
   // Not enable this in automation test because we can get `ZONE_RESOURCE_POOL_EXHAUSTED` easily
   "should be able to create a VM with GPU enabled" ignore { project =>
     val runtimeName = randomClusterName
-    val diskName = genDiskName.sample.get
+    val diskName = randomDiskName
 
     val toolImage = ContainerImage.fromImageUrl(
       "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:qi-gpu"

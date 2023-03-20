@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import enumeratum.{Enum, EnumEntry}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -21,10 +21,13 @@ final case class PersistentDisk(id: DiskId,
                                 appRestore: Option[AppRestore],
                                 labels: LabelMap,
                                 sourceDisk: Option[DiskLink],
-                                wsmResourceId: Option[WsmControlledResourceId]
+                                wsmResourceId: Option[WsmControlledResourceId],
+                                workspaceId: Option[WorkspaceId]
 ) {
-  def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
+  def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name}"
 }
+
+final case class DiskName(asString: String) extends AnyVal
 
 final case class DiskId(value: Long) extends AnyVal
 
@@ -36,7 +39,7 @@ case class DefaultDiskLabels(diskName: DiskName,
 ) {
   def toMap: LabelMap =
     Map(
-      "diskName" -> diskName.value,
+      "diskName" -> diskName.asString,
       "googleProject" -> cloudContext.asString, // TODO: remove googleProject in the future.
       "cloudContext" -> cloudContext.asString,
       "creator" -> creator.value,

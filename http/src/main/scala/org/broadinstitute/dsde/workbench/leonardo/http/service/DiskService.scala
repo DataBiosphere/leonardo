@@ -2,8 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 package service
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, DiskName}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 

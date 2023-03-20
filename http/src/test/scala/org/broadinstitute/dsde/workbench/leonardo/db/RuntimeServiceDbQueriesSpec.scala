@@ -5,7 +5,7 @@ package db
 import java.time.Instant
 import java.util.UUID
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.{

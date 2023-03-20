@@ -10,7 +10,7 @@ import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.azure.ContainerName
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
@@ -162,6 +162,10 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   }
   final case object DeleteAzureRuntime extends LeoPubsubMessageType {
     val asString = "deleteAzureRuntime"
+  }
+
+  final case object DeleteAzureDisk extends LeoPubsubMessageType {
+    val asString = "deleteAzureDisk"
   }
   final case object CreateAppV2 extends LeoPubsubMessageType {
     val asString = "createAppV2"
@@ -369,6 +373,13 @@ object LeoPubsubMessage {
                                              traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureRuntime
+  }
+  final case class DeleteAzureDiskMessage(diskId: DiskId,
+                                          workspaceId: WorkspaceId,
+                                          wsmResourceId: WsmControlledResourceId,
+                                          traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureDisk
   }
 }
 
