@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
+  DeleteAzureDiskMessage,
   DeleteAzureRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
@@ -785,6 +786,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }.void
     } yield ()
 
+  override def deleteDisk(msg: DeleteAzureDiskMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      auth <- samDAO.getLeoAuthToken
+      diskResourceOpt <- controlledResourceQuery
+        .getWsmRecordFromResourceId(msg.wsmResourceId, WsmResourceType.AzureDisk)
+        .transaction
+      _ <- logger
+        .info(ctx.loggingCtx)(
+          s"No disk resource found for delete azure disk msg $msg. No-op for wsmDao.deleteDisk."
+        )
+        .whenA(diskResourceOpt.isEmpty)
+      _ <- diskResourceOpt.traverse { disk =>
+        wsmDao.deleteDisk(
+          DeleteWsmResourceRequest(
+            msg.workspaceId,
+            disk.resourceId,
+            DeleteControlledAzureResourceRequest(
+              WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+            )
+          ),
+          auth
+        )
+      }.void
+
+        _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Deleted, ctx.now))
+        _ <- logger.info(ctx.loggingCtx)(s"runtime disk ${msg.diskId} is deleted successfully")
+    } yield ()
   override def createAndPollApp(appId: AppId,
                                 appName: AppName,
                                 workspaceId: WorkspaceId,

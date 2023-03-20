@@ -122,8 +122,9 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
-        case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
-        case msg: DeleteAppV2Message => handleDeleteAppV2Message(msg)
+        case msg: DeleteAzureDiskMessage => handleDeleteAzureDiskMessage(msg)
+        case msg: CreateAppV2Message     => handleCreateAppV2Message(msg)
+        case msg: DeleteAppV2Message     => handleDeleteAppV2Message(msg)
       }
     } yield resp
 
@@ -1587,5 +1588,16 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           )
       }
+    } yield ()
+
+  private[monitor] def handleDeleteAzureDiskMessage(
+    msg: DeleteAzureDiskMessage
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      task = azurePubsubHandler.deleteDisk(msg)
+      _ <- asyncTasks.offer(
+        Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2")
+      )
     } yield ()
 }
