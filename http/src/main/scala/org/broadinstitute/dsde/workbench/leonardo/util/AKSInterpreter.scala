@@ -139,6 +139,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPath = Uri.unsafeFromString(relayEndpoint) / params.appName.value
 
       // Deploy setup chart
+      appChartPrefix = "coa" // override prefix for the app that the relay listener will point to
+
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
@@ -149,7 +151,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         ksaName,
                                         params.landingZoneResources.relayNamespace,
                                         hcName,
-                                        relayPrimaryKey
+                                        relayPrimaryKey,
+            appChartPrefix, app.appType
           ),
           true
         )
@@ -157,7 +160,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(params.appName.value)
-      primaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+      _ <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                                   hcName,
                                                                   params.cloudContext
       )
@@ -179,12 +182,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           } yield Some(petMi)
       }
 
-      // Get the batch account key
-      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-                                                        params.cloudContext
-      )
-      batchAccountKey = batchAccount.getKeys().primary
-
       // Resolve Application Insights resource in Azure to pass to the helm chart.
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
@@ -195,6 +192,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- app.appType match {
         case AppType.Cromwell =>
           for {
+            // Get the batch account key
+            batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
+              params.cloudContext
+            )
+            batchAccountKey = batchAccount.getKeys().primary
+
             // Storage container is required for Cromwell app
             storageContainer <- F.fromOption(
               params.storageContainer,
@@ -216,36 +219,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
-                  applicationInsightsComponent.connectionString()
+                  applicationInsightsComponent.connectionString(),
+                  appChartPrefix
                 ),
                 createNamespace = true
               )
               .run(authContext)
           } yield ()
         case AppType.Wds =>
-          for { // TODO 2 this code is duplicated from cromwell
-            // Storage container is required for Wds app
-            storageContainer <- F.fromOption(
-              params.storageContainer,
-              AppCreationException("Storage container required for Wds app", Some(ctx.traceId))
-            )
-
+          for {
             _ <- helmClient
               .installChart(
                 app.release,
-                app.chart.name, // TODO 1: find where chart is coming from
+                app.chart.name,
                 app.chart.version,
-                buildCromwellChartOverrideValues( // TODO 3 overrides?
+                buildWdsChartOverrideValues(
                   app.release,
                   params.appName,
                   params.cloudContext,
                   params.workspaceId,
                   params.landingZoneResources,
-                  relayPath,
                   petMi,
-                  storageContainer,
-                  BatchAccountKey(batchAccountKey),
-                  applicationInsightsComponent.connectionString()
+                  applicationInsightsComponent.connectionString(),
+                  appChartPrefix
                 ),
                 createNamespace = true
               )
@@ -407,8 +403,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   ksaName: ServiceAccountName,
                                                   relayNamespace: RelayNamespace,
                                                   relayHcName: RelayHybridConnectionName,
-                                                  relayPrimaryKey: PrimaryKey
-  ): Values =
+                                                  relayPrimaryKey: PrimaryKey,
+                                                  appChartPrefix: String,
+                                                  appType: AppType
+  ): Values = {
+    val relayTargetHost = appType match {
+      case AppType.Cromwell => s"http://$appChartPrefix-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.Wds => s"http://$appChartPrefix-${release.asString}-wds-svc:8080"
+    }
+
     Values(
       List(
         raw"cloud=azure",
@@ -419,7 +422,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
         raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
-        raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
+        raw"relaylistener.targetHost=$relayTargetHost",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
         raw"relaylistener.samResourceType=${samResourceId.resourceType.asString}",
@@ -429,6 +432,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")
     )
+  }
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      appName: AppName,
@@ -439,7 +443,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      petManagedIdentity: Option[Identity],
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
-                                                     applicationInsightsConnectionString: String
+                                                     applicationInsightsConnectionString: String,
+                                                     appChartPrefix: String,
   ): Values =
     Values(
       List(
@@ -481,7 +486,44 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
-        raw"fullnameOverride=coa-${release.asString}",
+        raw"fullnameOverride=$appChartPrefix-${release.asString}",
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+      ).mkString(",")
+    )
+
+  private[util] def buildWdsChartOverrideValues(release: Release,
+                                                     appName: AppName,
+                                                     cloudContext: AzureCloudContext,
+                                                     workspaceId: WorkspaceId,
+                                                     landingZoneResources: LandingZoneResources,
+                                                     petManagedIdentity: Option[Identity],
+                                                     applicationInsightsConnectionString: String,
+                                                appChartPrefix: String
+                                                    ): Values =
+    Values(
+      List(
+        // azure resources configs
+        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
+        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+
+        // Azure subscription configs currently unused
+        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
+        raw"config.region=${landingZoneResources.region}",
+
+        // persistence configs
+        raw"general.leoAppInstanceName=${appName.value}",
+        raw"general.workspaceManager.workspaceId=${workspaceId.value}",,
+
+        // identity configs
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
+
+        // general configs
+        raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
       ).mkString(",")
     )
