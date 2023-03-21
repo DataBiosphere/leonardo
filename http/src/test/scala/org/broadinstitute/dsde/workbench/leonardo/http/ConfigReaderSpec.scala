@@ -4,8 +4,17 @@ package http
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig, WdsAppConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeDefaults, CustomScriptExtensionConfig, VMCredential}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  CoaAppConfig,
+  HttpWsmDaoConfig,
+  PersistentDiskConfig,
+  WdsAppConfig
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AzureRuntimeDefaults,
+  CustomScriptExtensionConfig,
+  VMCredential
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp._
@@ -88,7 +97,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
           List(
-            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false
         ),

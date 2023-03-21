@@ -181,17 +181,17 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
-        "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
-        "config.subscriptionId=sub," +
-        s"config.region=${azureRegion}," +
-        "general.leoAppInstanceName=app," +
-        s"general.workspaceManager.workspaceId=${workspaceId.value}," +
-        "identity.name=identity-name," +
-        "identity.resourceId=identity-id," +
-        "identity.clientId=identity-client-id," +
-        "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
-        "fullnameOverride=coa-rel-1," +
-        "instrumentationEnabled=false"
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "general.leoAppInstanceName=app," +
+      s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "fullnameOverride=coa-rel-1," +
+      "instrumentationEnabled=false"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {

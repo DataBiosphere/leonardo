@@ -10,7 +10,12 @@ import com.azure.core.management.AzureEnvironment
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
+import com.azure.resourcemanager.compute.models.{
+  ResourceIdentityType,
+  VirtualMachineIdentityUserAssignedIdentities,
+  VirtualMachineScaleSetIdentity,
+  VirtualMachineScaleSetUpdate
+}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import io.kubernetes.client.openapi.ApiClient
@@ -23,10 +28,22 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNam
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
-import org.broadinstitute.dsde.workbench.google2.{autoClosableResourceF, recoverF, streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
+import org.broadinstitute.dsde.workbench.google2.{
+  autoClosableResourceF,
+  recoverF,
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  tracedRetryF
+}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig, WdsAppConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AppMonitorConfig,
+  CoaAppConfig,
+  HttpWsmDaoConfig,
+  SamConfig,
+  WdsAppConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -141,7 +158,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         params.landingZoneResources.relayNamespace,
                                         hcName,
                                         relayPrimaryKey,
-            appChartPrefix, app.appType
+                                        appChartPrefix,
+                                        app.appType
           ),
           true
         )
@@ -150,8 +168,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(params.appName.value)
       _ <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                                  hcName,
-                                                                  params.cloudContext
+                                                         hcName,
+                                                         params.cloudContext
       )
 
       // Resolve pet managed identity in Azure
@@ -183,7 +201,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           for {
             // Get the batch account key
             batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-              params.cloudContext
+                                                              params.cloudContext
             )
             batchAccountKey = batchAccount.getKeys().primary
 
@@ -397,8 +415,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell => s"http://$appChartPrefix-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.Wds => s"http://$appChartPrefix-${release.asString}-wds-svc:8080"
-      case AppType.Galaxy | AppType.Custom => F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
+      case AppType.Wds      => s"http://$appChartPrefix-${release.asString}-wds-svc:8080"
+      case AppType.Galaxy | AppType.Custom =>
+        F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
     }
 
     Values(
@@ -433,7 +452,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
-                                                     appChartPrefix: String,
+                                                     appChartPrefix: String
   ): Values =
     Values(
       List(
@@ -480,14 +499,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     )
 
   private[util] def buildWdsChartOverrideValues(release: Release,
-                                                     appName: AppName,
-                                                     cloudContext: AzureCloudContext,
-                                                     workspaceId: WorkspaceId,
-                                                     landingZoneResources: LandingZoneResources,
-                                                     petManagedIdentity: Option[Identity],
-                                                     applicationInsightsConnectionString: String,
+                                                appName: AppName,
+                                                cloudContext: AzureCloudContext,
+                                                workspaceId: WorkspaceId,
+                                                landingZoneResources: LandingZoneResources,
+                                                petManagedIdentity: Option[Identity],
+                                                applicationInsightsConnectionString: String,
                                                 appChartPrefix: String
-                                                    ): Values =
+  ): Values =
     Values(
       List(
         // azure resources configs
