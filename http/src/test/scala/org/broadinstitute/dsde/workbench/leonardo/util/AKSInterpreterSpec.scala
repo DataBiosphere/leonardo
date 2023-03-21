@@ -43,6 +43,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val config = AKSInterpreterConfig(
     ConfigReader.appConfig.terraAppSetupChart,
     ConfigReader.appConfig.azure.coaAppConfig,
+    ConfigReader.appConfig.azure.wdsAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
