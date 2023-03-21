@@ -110,9 +110,9 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     val allContainers = for {
       r <- allRuntimes
       // Only care about Jupyter, RStudio, or Azure image types.
-      // Assume every runtime has 1 of these.
-      c <- r.images
-      if Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio, RuntimeImageType.Azure).contains(c.imageType)
+      // Assume every runtime has exactly 1 of these.
+      imageTypes = Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio, RuntimeImageType.Azure)
+      c <- r.images.filter(i => imageTypes.contains(i.imageType)).headOption
     } yield Map(
       RuntimeStatusMetric(r.cloudContext.cloudProvider,
                           c,
@@ -207,19 +207,16 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     val allContainers = for {
       // Only care about Running runtimes for health checks
       r <- allRuntimes if r.status == RuntimeStatus.Running
-      c <- r.images
-    } yield (r, c)
+      (i, c) <- r.images.flatMap(i =>
+        RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(i.imageType).map(c => (i, c))
+      )
+    } yield (r, i, c)
 
     allContainers
-      .parTraverseN(parallelism) { case (runtime, image) =>
+      .parTraverseN(parallelism) { case (runtime, image, container) =>
         for {
           ctx <- ev.ask
-          isUp <- RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType
-            .get(image.imageType)
-            .traverse { container =>
-              container.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
-            }
-            .map(_.getOrElse(false))
+          isUp <- container.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
           // In addition to collecting aggregate metrics, log a warning for any runtime that is down.
           _ <-
             if (isUp) F.unit
@@ -227,7 +224,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
               logger.error(ctx.loggingCtx)(
                 s"Runtime is DOWN with " +
                   s"name={${runtime.runtimeName.asString}}, " +
-                  s"type={${image.imageType.toString}}, " +
+                  s"type={${container.imageType.toString}}, " +
                   s"cloudContext={${runtime.cloudContext.asStringWithProvider}}, " +
                   s"workspace={${runtime.workspaceId}}"
               )

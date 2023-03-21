@@ -776,7 +776,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   private def unmarshalRuntimeForMetrics(
     runtimeRecords: Seq[(ClusterRecord, ClusterImageRecord, Option[LabelRecord])]
   ): Seq[RuntimeMetrics] = {
-    val clusterContainerMap: Map[RuntimeMetrics, (Chain[RuntimeImage], Map[String, Chain[String]])] =
+    val runtimeMap: Map[RuntimeMetrics, (Chain[RuntimeImage], Map[String, Chain[String]])] =
       runtimeRecords.toList.foldMap { case (clusterRec, runtimeImageRec, labelRecordOpt) =>
         val images = Chain(clusterImageQuery.unmarshalClusterImage(runtimeImageRec))
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
@@ -791,8 +791,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         )
       }
 
-    clusterContainerMap.toSeq.map { case (runtimeContainers, (images, labels)) =>
-      runtimeContainers.copy(images = images.toList.toSet, labels = labels.view.mapValues(_.toList.toSet.head).toMap)
+    runtimeMap.toSeq.map { case (runtime, (images, labels)) =>
+      runtime.copy(images = images.toList.toSet, labels = labels.view.mapValues(_.toList.toSet.head).toMap)
     }
   }
 
