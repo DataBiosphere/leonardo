@@ -230,6 +230,9 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
             )
             .toVector
       }
+      // We authenticate actions on resources. If there are no visible disks,
+      // we need to check if user should be able to see the empty list.
+      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield res
 
   override def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit

@@ -269,6 +269,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
             .toVector
       }
+      // We authenticate actions on resources. If there are no visible runtimes,
+      // we need to check if user should be able to see the empty list.
+      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield res
 
   override def deleteRuntime(req: DeleteRuntimeRequest)(implicit

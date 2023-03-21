@@ -63,7 +63,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: RuntimeConfig.AzureConfig => F.pure(x)
         case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
-      createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
+      createVmJobId = WsmJobId(s"create-vm-${runtime.id.toString.take(10)}")
       _ <- createRuntime(
         CreateAzureRuntimeParams(
           msg.workspaceId,
@@ -514,7 +514,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       auth <- samDAO.getLeoAuthToken
 
-      deleteJobId = WsmJobId(s"delete-vm-${ctx.traceId.asString.take(10)}")
       _ <- msg.wsmResourceId.fold(
         logger
           .info(ctx.loggingCtx)(
@@ -527,7 +526,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               wsmResourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(deleteJobId)
+                WsmJobControl(getWsmJobId("delete-vm", wsmResourceId))
               )
             ),
             auth
@@ -557,7 +556,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               stagingBucketResourceId.resourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(WsmJobId(s"del-staging-${ctx.traceId.asString.take(10)}"))
+                WsmJobControl(getWsmJobId("del-staging", stagingBucketResourceId.resourceId))
               )
             ),
             auth
@@ -594,9 +593,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       )
 
-      getDeleteJobResultOpt = wsmDao.getDeleteVmJobResult(
-        GetJobResultRequest(msg.workspaceId, deleteJobId),
-        auth
+      getDeleteJobResultOpt = msg.wsmResourceId.flatTraverse(wsmResourceId =>
+        wsmDao.getDeleteVmJobResult(
+          GetJobResultRequest(msg.workspaceId, getWsmJobId("delete-vm", wsmResourceId)),
+          auth
+        )
       )
 
       taskToRun = for {
@@ -623,7 +624,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   msg.workspaceId,
                   disk.resourceId,
                   DeleteControlledAzureResourceRequest(
-                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                    WsmJobControl(getWsmJobId("delete-disk", disk.resourceId))
                   )
                 ),
                 auth
@@ -670,7 +671,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             // We still want deletion to succeed in this case.
             for {
               _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-              _ <- logger.info(ctx.loggingCtx)(s"runtime ${msg.runtimeId} is deleted successfully")
+              _ <- logger.info(ctx.loggingCtx)(
+                s"runtime ${msg.runtimeId} with name ${runtime.runtimeName} is deleted successfully"
+              )
               _ <- deleteDiskAction
             } yield ()
         }
@@ -754,7 +757,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   e.workspaceId,
                   disk.resourceId,
                   DeleteControlledAzureResourceRequest(
-                    WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                    WsmJobControl(getWsmJobId("delete-disk", disk.resourceId))
                   )
                 ),
                 auth
@@ -775,7 +778,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             e.workspaceId,
             network.resourceId,
             DeleteControlledAzureResourceRequest(
-              WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
+              WsmJobControl(getWsmJobId("delete-networks", network.resourceId))
             )
           ),
           auth
@@ -844,4 +847,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       }
     } yield ()
+
+  def getWsmJobId(jobName: String, resourceId: WsmControlledResourceId): WsmJobId = WsmJobId(
+    s"${jobName}-${resourceId.value.toString.take(10)}"
+  )
 }

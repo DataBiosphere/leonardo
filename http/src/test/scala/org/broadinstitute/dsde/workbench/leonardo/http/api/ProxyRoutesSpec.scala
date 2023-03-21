@@ -174,7 +174,7 @@ class ProxyRoutesSpec
     }
   }
 
-  it should "404 when using a non-white-listed user in a runtime proxy request" in {
+  it should "404 when using a non-allowlisted user in a runtime proxy request" in {
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Cookie(unauthorizedTokenCookie))
       .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {

@@ -17,7 +17,6 @@ import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
-
 import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
@@ -33,6 +32,12 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     customAppCreationAllowedGroup = GroupName("custom_app_users")
   )
 
+  val disabledUserInfo =
+    UserInfo(OAuth2BearerToken(s"TokenFor${MockSamDAO.disabledUserEmail}"),
+             WorkbenchUserId("disabled-user"),
+             MockSamDAO.disabledUserEmail,
+             0
+    )
   val userInfo =
     UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
   val projectOwnerUserInfo =
@@ -497,6 +502,14 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
+  }
+
+  it should "tell if user is enabled" in {
+    // positive test
+    noException shouldBe thrownBy(samAuthProvider.checkUserEnabled(userInfo).unsafeRunSync())
+
+    // negative test
+    an[AuthProviderException] shouldBe thrownBy(samAuthProvider.checkUserEnabled(disabledUserInfo).unsafeRunSync())
   }
 
   private def setUpMockSam(): SamDAO[IO] = {

@@ -251,11 +251,39 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           F.raiseError(
             AuthProviderException(
               traceId,
-              s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled.",
+              s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled",
               StatusCodes.Forbidden
             )
           )
     } yield samUserInfo.userEmail
+
+  /**
+   * Confirm the Sam user is enabled (accepted terms of service etc).
+   * Raises an AuthProviderException if user does not exist or is disabled.
+   */
+  override def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Unit] =
+    for {
+      traceId <- ev.ask
+      samUserInfoOpt <- samDao.getSamUserInfo(petOrUserInfo.accessToken.token)
+      samUserInfo <- F.fromOption(
+        samUserInfoOpt,
+        AuthProviderException(
+          traceId,
+          s"[SamAuthProvider.checkUserEnabled] Subject info not found for ${petOrUserInfo.userEmail.value}",
+          StatusCodes.Unauthorized
+        )
+      )
+      _ <-
+        if (samUserInfo.enabled) F.unit
+        else
+          F.raiseError(
+            AuthProviderException(
+              traceId,
+              s"[SamAuthProvider.checkUserEnabled] User ${samUserInfo.userEmail.value} is disabled",
+              StatusCodes.Forbidden
+            )
+          )
+    } yield ()
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isGroupMembersOrAdmin(config.customAppCreationAllowedGroup, userEmail)
