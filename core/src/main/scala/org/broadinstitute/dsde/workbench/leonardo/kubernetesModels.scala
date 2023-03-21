@@ -334,6 +334,7 @@ object AppType {
       case Galaxy   => FormattedBy.Galaxy
       case Cromwell => FormattedBy.Cromwell
       case Custom   => FormattedBy.Custom
+      case Wds      => FormattedBy.Cromwell
     }
 }
 
