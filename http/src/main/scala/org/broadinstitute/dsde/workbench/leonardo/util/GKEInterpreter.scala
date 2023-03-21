@@ -456,6 +456,8 @@ class GKEInterpreter[F[_]](
             ksaName,
             app.customEnvironmentVariables
           )
+        case AppType.Wds =>
+          F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
       }
 
       _ <- logger.info(ctx.loggingCtx)(
@@ -503,6 +505,8 @@ class GKEInterpreter[F[_]](
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
         case AppType.Custom   => F.unit
+        case AppType.Wds =>
+          F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
       }
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
@@ -878,6 +882,8 @@ class GKEInterpreter[F[_]](
               config.monitorConfig.startApp.interval
             ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
           } yield last.isDone
+        case AppType.Wds =>
+          F.raiseError(AppCreationException(s"App type ${dbApp.app.appType} not supported on GCP"))
       }
 
       _ <-

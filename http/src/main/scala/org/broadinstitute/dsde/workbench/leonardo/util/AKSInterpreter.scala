@@ -10,12 +10,7 @@ import com.azure.core.management.AzureEnvironment
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{
-  ResourceIdentityType,
-  VirtualMachineIdentityUserAssignedIdentities,
-  VirtualMachineScaleSetIdentity,
-  VirtualMachineScaleSetUpdate
-}
+import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import io.kubernetes.client.openapi.ApiClient
@@ -28,16 +23,10 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNam
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
-import org.broadinstitute.dsde.workbench.google2.{
-  autoClosableResourceF,
-  recoverF,
-  streamFUntilDone,
-  streamUntilDoneOrTimeout,
-  tracedRetryF
-}
+import org.broadinstitute.dsde.workbench.google2.{autoClosableResourceF, recoverF, streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig, WdsAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -409,6 +398,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     val relayTargetHost = appType match {
       case AppType.Cromwell => s"http://$appChartPrefix-${release.asString}-reverse-proxy-service:8000/"
       case AppType.Wds => s"http://$appChartPrefix-${release.asString}-wds-svc:8080"
+      case AppType.Galaxy | AppType.Custom => F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
     }
 
     Values(
@@ -510,7 +500,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // persistence configs
         raw"general.leoAppInstanceName=${appName.value}",
-        raw"general.workspaceManager.workspaceId=${workspaceId.value}",,
+        raw"general.workspaceManager.workspaceId=${workspaceId.value}",
 
         // identity configs
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
@@ -522,7 +512,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
       ).mkString(",")
     )
 
@@ -772,6 +762,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 final case class AKSInterpreterConfig(
   terraAppSetupChartConfig: TerraAppSetupChartConfig,
   coaAppConfig: CoaAppConfig,
+  wdsAppConfig: WdsAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
