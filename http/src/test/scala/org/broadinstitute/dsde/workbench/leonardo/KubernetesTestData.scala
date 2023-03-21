@@ -43,7 +43,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("/leonardo/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("2.5.0")
+  val galaxyChartVersion = ChartVersion("2.5.1")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -53,7 +53,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.212")
+  val coaChartVersion = ChartVersion("0.2.213")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
