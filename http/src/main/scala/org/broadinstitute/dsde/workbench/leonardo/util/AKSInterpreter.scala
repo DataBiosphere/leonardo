@@ -250,8 +250,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
 
-      // Poll app status
-      appOk <- pollCromwellAppCreation(app.auditInfo.creator, relayPath)
+      appOk <- pollAppCreation(app.auditInfo.creator, relayPath)
       _ <-
         if (appOk)
           F.unit
@@ -369,7 +368,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield ()
   }
 
-  private[util] def pollCromwellAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+  private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
@@ -391,12 +390,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
         .toList
         .sequence
-      cromwellOk <- streamFUntilDone(
+      appOk <- streamFUntilDone(
         op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
         delay = config.appMonitorConfig.createApp.interval
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
-    } yield cromwellOk.isDone
+    } yield appOk.isDone
 
   private[util] def buildSetupChartOverrideValues(release: Release,
                                                   samResourceId: AppSamResourceId,
@@ -482,7 +481,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // Enabled services configs
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
         raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
-        raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}",
         raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs

@@ -134,7 +134,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       storageContainer,
       BatchAccountKey("batchKey"),
-      "applicationInsightsConnectionString"
+      "applicationInsightsConnectionString",
+      "coa"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -160,10 +161,36 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "cbas.enabled=true," +
       "cbasUI.enabled=true," +
-      "wds.enabled=true," +
       "cromwell.enabled=true," +
       "fullnameOverride=coa-rel-1," +
       "instrumentationEnabled=false"
+  }
+
+  it should "build wds override values" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildWdsChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources,
+      Some(setUpMockIdentity),
+      "applicationInsightsConnectionString",
+      "coa"
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+        "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+        "config.subscriptionId=sub," +
+        s"config.region=${azureRegion}," +
+        "general.leoAppInstanceName=app," +
+        s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+        "identity.name=identity-name," +
+        "identity.resourceId=identity-id," +
+        "identity.clientId=identity-client-id," +
+        "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+        "fullnameOverride=coa-rel-1," +
+        "instrumentationEnabled=false"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
