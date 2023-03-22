@@ -31,7 +31,7 @@ ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.213
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.213
-ENV WDS_CHART_VERSION 0.1.0
+ENV WDS_CHART_VERSION 0.3.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -53,6 +53,10 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
     helm repo update
 
+# TODO temp  change for integration testing
+COPY ./wds-0.3.0.tgz /leonardo
+RUN tar -xzf /leonardo/<your-wds-chart-here>.tgz -C /leonardo
+
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
@@ -64,9 +68,9 @@ RUN cd /leonardo && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
-    helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
     helm repo update && \
     cd /
+ # TODO put back up 2 lines: helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \
