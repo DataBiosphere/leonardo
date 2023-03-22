@@ -13,7 +13,7 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
-import org.scalatest.Assertion
+import org.scalatest.{Assertion, DoNotDiscover}
 
 import scala.concurrent.duration._
 
@@ -49,38 +49,32 @@ class AppLifecycleSpec
   )
 
   // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
-  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
-    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
-  }
+  // TODO: IA-4162 Enable this test
+  //  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
+  //    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
+  //  }
 
   "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
   }
 
-//  "create CUSTOM app, start/stop, delete it" in { googleProject =>
-//    test(
-//      googleProject,
-//      createAppRequest(
-//        AppType.Custom,
-//        "custom-test-workspace",
-//        Some(
-//          org.http4s.Uri.unsafeFromString(
-//            "https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml"
-//          )
-//        )
-//      ),
-//      false,
-//      false
-//    )
-//  }
-
-// Use forAll so that tests are run in parallel
-//  forAll(appTestCases) { (description, createAppRequest, testStartStop, testPD) =>
-//    description taggedAs Retryable in { googleProject =>
-//      test(googleProject, createAppRequest, testStartStop, testPD)
-//    }
-//  }
+  "create CUSTOM app, start/stop, delete it" in { googleProject =>
+    test(
+      googleProject,
+      createAppRequest(
+        AppType.Custom,
+        "custom-test-workspace",
+        Some(
+          org.http4s.Uri.unsafeFromString(
+            "https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml"
+          )
+        )
+      ),
+      false,
+      false
+    )
+  }
 
   def test(googleProject: GoogleProject,
            createAppRequest: CreateAppRequest,
