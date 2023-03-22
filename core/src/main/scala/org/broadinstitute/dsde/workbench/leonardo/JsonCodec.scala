@@ -182,7 +182,8 @@ object JsonCodec {
     "sku",
     "version"
   )((x, y, z, v) => AzureImage(x, y, z, v))
-  implicit val azureDiskNameDecoder: Decoder[AzureDiskName] = Decoder.decodeString.map(AzureDiskName)
+
+  implicit val azureDiskNameDecoder: Decoder[AzureDiskName] = Decoder.decodeString.map(AzureDiskName) // TODO (LM)
 
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",

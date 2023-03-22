@@ -13,6 +13,7 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
   GoogleComputeService,
   GoogleResourceService,
   KubernetesName,
@@ -905,7 +906,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     // create a LabelMap of default labels
     val defaultLabelMap: LabelMap =
       Map(
-        "diskName" -> diskName.asString,
+        "diskName" -> diskName.value,
         "cloudContext" -> cloudContext.asString,
         "creator" -> userInfo.userEmail.value
       )

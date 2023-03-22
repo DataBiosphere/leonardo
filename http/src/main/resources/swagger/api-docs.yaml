@@ -1230,13 +1230,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-  "/api/v2/disks/{workspaceId}/azure/{name}":
+  "/api/v2/disks/{workspaceId}/{id}":
     get:
-      summary: Get details of an Azure persistent disk
+      summary: Get details of a persistent disk
       description: >
         Returns information about an existing persistent disk managed by Leo.
         Poll this to find out your disk status.
-      operationId: getAzureDisk
+      operationId: getDiskV2
       tags:
         - disks
       parameters:
@@ -1247,11 +1247,11 @@ paths:
           schema:
             type: string
         - in: path
-          name: name
-          description: diskName
+          name: id
+          description: diskId
           required: true
           schema:
-            type: string
+            type: integer
       responses:
         "200":
           description: Persistent disk found, here are the details
@@ -1276,7 +1276,7 @@ paths:
     delete:
       summary: Deletes an existing persistent disk instance in the given workspce
       description: Deletes a persistent disk
-      operationId: deleteAzureDisk
+      operationId: deleteDiskV2
       tags:
         - disks
       parameters:
@@ -1287,11 +1287,11 @@ paths:
           schema:
             type: string
         - in: path
-          name: name
-          description: diskName
+          name: id
+          description: diskId
           required: true
           schema:
-            type: string
+            type: integer
       responses:
         "202":
           description: Persistent disk deletion request accepted
@@ -3117,10 +3117,10 @@ components:
       description: ""
       required:
         - id
-        - googleProject
+        - cloudContext
         - zone
         - name
-        - googleId
+        - serviceAccount
         - samResourceId
         - status
         - auditInfo
@@ -3128,22 +3128,22 @@ components:
         - diskType
         - blockSize
         - labels
+        - formattedBy
       properties:
         id:
           type: integer
-          description: Internal Leonardo ID of the persistent disk
-        googleProject:
-          type: string
-          description: The google project used to create the persistent disk
+          description: The user-supplied ID of the persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
         zone:
           type: string
-          description: The google zone in which the persistent disk was created
+          description: The zone in which the persistent disk was created
         name:
           type: string
-          description: The user-supplied name of the persistent disk
-        googleId:
+          description: The name of the persistent disk
+        serviceAccount:
           type: string
-          description: Google's UUID for the persistent disk
+          description: The account used to create the disk
         samResourceId:
           type: string
           description: Internal resource ID of the persistent disk

@@ -562,7 +562,8 @@ final case class RuntimeErrorDetails(longMessage: String,
 )
 final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(cloudContext: CloudContext, runtimeName: RuntimeName) {
-  override def toString: String = s"${cloudContext.asString}/${runtimeName.asString}"
+  override def toString: String = s"${cloudContext.asString}/${runtimeName
+  }"
 }
 final case class RuntimeAndRuntimeConfig(runtime: Runtime, runtimeConfig: RuntimeConfig)
 final case class IpRange(value: String) extends AnyVal

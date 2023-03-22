@@ -7,8 +7,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
-  DeleteAzureDiskMessage,
-  DeleteAzureRuntimeMessage
+  DeleteAzureRuntimeMessage,
+  DeleteDiskV2Message
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
@@ -38,7 +38,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def deleteAndPollDisk(msg: DeleteAzureDiskMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def deleteAndPollDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def createAndPollApp(appId: AppId,
                        appName: AppName,

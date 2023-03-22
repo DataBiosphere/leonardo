@@ -29,18 +29,16 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
           pathPrefix("v2" / "disks") {
             pathPrefix(workspaceIdSegment) { workspaceId =>
               pathEndOrSingleSlash {
-                pathPrefix("azure") {
-                  pathPrefix(diskNameSegmentWithValidation) { diskName =>
-                    pathEndOrSingleSlash {
-                      get {
-                        complete(
-                          getAzureDiskHandler(userInfo, workspaceId, diskName)
-                        )
-                      } ~ delete {
-                        complete(
-                          deleteAzureDiskHandler(userInfo, workspaceId, diskName)
-                        )
-                      }
+                pathPrefix(diskIdSegment) { diskId =>
+                  pathEndOrSingleSlash {
+                    get {
+                      complete(
+                        getDiskV2Handler(userInfo, workspaceId, diskId)
+                      )
+                    } ~ delete {
+                      complete(
+                        deleteDiskV2Handler(userInfo, workspaceId, diskId)
+                      )
                     }
                   }
                 }
@@ -52,22 +50,22 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
     }
   }
 
-  private[api] def getAzureDiskHandler(userInfo: UserInfo, workspaceId: WorkspaceId, diskName: DiskName)(implicit
+  private[api] def getDiskV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = diskV2Service.getDisk(userInfo, workspaceId, diskName)
+      apiCall = diskV2Service.getDisk(userInfo, workspaceId, diskId)
       _ <- metrics.incrementCounter("getDiskV2")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getDiskV2").use(_ => apiCall))
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
 
-  private[api] def deleteAzureDiskHandler(userInfo: UserInfo, workspaceId: WorkspaceId, diskName: DiskName)(implicit
+  private[api] def deleteDiskV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = diskV2Service.deleteDisk(userInfo, workspaceId, diskName)
+      apiCall = diskV2Service.deleteDisk(userInfo, workspaceId, diskId)
       _ <- metrics.incrementCounter("deleteDiskV2")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteDiskV2").use(_ => apiCall))
     } yield StatusCodes.Accepted: ToResponseMarshallable
@@ -92,7 +90,7 @@ object DiskV2Routes {
       x.id,
       x.cloudContext,
       x.zone,
-      x.name.asString,
+      x.name,
       x.serviceAccount,
       x.status,
       x.auditInfo,

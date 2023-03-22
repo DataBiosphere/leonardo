@@ -3,7 +3,7 @@ package db
 
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
-import org.broadinstitute.dsde.workbench.google2.ZoneName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -42,7 +42,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def cloudContext = column[CloudContextDb]("cloudContext", O.Length(255))
   def cloudProvider = column[CloudProvider]("cloudProvider", O.Length(50))
   def zone = column[ZoneName]("zone", O.Length(255))
-  def name = column[DiskName]("name", O.Length(255)) // TODO (LM) what is happening here?!
+  def name = column[DiskName]("name", O.Length(255))
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(255))
   def samResourceId = column[PersistentDiskSamResourceId]("samResourceId", O.Length(255))
   def status = column[DiskStatus]("status", O.Length(255))
@@ -180,10 +180,10 @@ object persistentDiskQuery {
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
 
-  private[db] def findActiveByNameWorkspaceQuery(workspaceId: WorkspaceId, name: DiskName) =
+  private[db] def findActiveByIdWorkspaceQuery(workspaceId: WorkspaceId, id: DiskId) =
     tableQuery
       .filterOpt(Some(workspaceId))(_.workspaceId === _)
-      .filter(_.name === name)
+      .filter(_.id === id)
       .filter(_.destroyedDate === dummyDate)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
@@ -231,10 +231,10 @@ object persistentDiskQuery {
   ): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(cloudContext, name)).result.map(aggregateLabels).map(_.headOption)
 
-  def getActiveByNameWorkspace(workspaceId: WorkspaceId, name: DiskName)(implicit
+  def getActiveByIdWorkspace(workspaceId: WorkspaceId, id: DiskId)(implicit
     ec: ExecutionContext
   ): DBIO[Option[PersistentDisk]] =
-    joinLabelQuery(findActiveByNameWorkspaceQuery(workspaceId, name)).result.map(aggregateLabels).map(_.headOption)
+    joinLabelQuery(findActiveByIdWorkspaceQuery(workspaceId, id)).result.map(aggregateLabels).map(_.headOption)
 
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
