@@ -490,8 +490,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // Enabled services configs
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
         raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
-        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
         raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}", // TODO remove after WDS chart migration
+        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",

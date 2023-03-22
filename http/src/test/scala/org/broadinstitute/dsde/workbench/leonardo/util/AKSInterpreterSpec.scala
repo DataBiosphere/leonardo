@@ -162,6 +162,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "cbas.enabled=true," +
       "cbasUI.enabled=true," +
+      "wds.enabled=true," +
       "cromwell.enabled=true," +
       "fullnameOverride=coa-rel-1," +
       "instrumentationEnabled=false"
