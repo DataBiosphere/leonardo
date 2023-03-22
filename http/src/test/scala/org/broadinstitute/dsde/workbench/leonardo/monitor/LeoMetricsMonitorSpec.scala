@@ -358,7 +358,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def setUpMockWdsDAO: WdsDAO[IO] = {
     val wds = mock[WdsDAO[IO]]
     when {
-      wds.getStatus(any, any)(any)
+      wds.getStatus(any, any, any)(any)
     } thenReturn IO.pure(true)
     wds
   }

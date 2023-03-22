@@ -7,7 +7,6 @@ import cats.syntax.all._
 import io.circe._
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppType}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
@@ -40,11 +39,9 @@ class HttpWdsDAO[F[_]](httpClient: Client[F])(implicit
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter("wds/status")
-      wdsStatusUri = appType match {
+      wdsStatusUri: Uri = appType match {
         case AppType.Wds      => baseUri / "status"
-        case AppType.Cromwell => baseUri / "wds" / "status" // TODO cromwell check remove after WDS chart migration
-        case AppType.Galaxy | AppType.Custom =>
-          F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
+        case _ => baseUri / "wds" / "status" // TODO cromwell check remove after WDS chart migration
       }
       res <- httpClient.expectOr[WdsStatusCheckResponse](
         Request[F](
