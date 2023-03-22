@@ -41,7 +41,7 @@ class HttpWdsDAO[F[_]](httpClient: Client[F])(implicit
     for {
       _ <- metrics.incrementCounter("wds/status")
       wdsStatusUri = appType match {
-        case AppType.Wds =>  baseUri / "status"
+        case AppType.Wds      => baseUri / "status"
         case AppType.Cromwell => baseUri / "wds" / "status" // TODO cromwell check remove after WDS chart migration
         case AppType.Galaxy | AppType.Custom =>
           F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
