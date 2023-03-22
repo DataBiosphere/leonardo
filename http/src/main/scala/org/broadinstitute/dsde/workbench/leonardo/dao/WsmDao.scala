@@ -208,7 +208,7 @@ final case class CreateDiskRequest(workspaceId: WorkspaceId,
                                    diskData: CreateDiskRequestData
 )
 
-final case class CreateDiskRequestData(name: DiskName, size: DiskSize, region: com.azure.core.management.Region)
+final case class CreateDiskRequestData(name: AzureDiskName, size: DiskSize, region: com.azure.core.management.Region)
 
 final case class CreateDiskResponse(resourceId: WsmControlledResourceId)
 
@@ -509,7 +509,7 @@ object WsmEncoders {
     Encoder.forProduct2("common", "azureIp")(x => (x.common, x.ipData))
 
   implicit val diskRequestDataEncoder: Encoder[CreateDiskRequestData] =
-    Encoder.forProduct3("name", "size", "region")(x => (x.name.asString, x.size.gb, x.region.toString))
+    Encoder.forProduct3("name", "size", "region")(x => (x.name.value, x.size.gb, x.region.toString))
   implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] =
     Encoder.forProduct2("common", "azureDisk")(x => (x.common, x.diskData))
 

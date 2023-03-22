@@ -5,6 +5,7 @@ package db
 import cats.effect.IO
 
 import java.time.Instant
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.DiskType.SSD
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, TestComponent}

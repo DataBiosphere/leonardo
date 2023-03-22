@@ -5,18 +5,9 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
-  ApplicationInsightsName,
-  AzureCloudContext,
-  BatchAccountName,
-  ContainerName,
-  ManagedResourceGroupName,
-  RelayNamespace,
-  SubscriptionId,
-  TenantId
-}
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, AzureCloudContext, BatchAccountName, ContainerName, ManagedResourceGroupName, RelayNamespace, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -251,8 +242,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     ev: Ask[IO, AppContext]
   ): IO[Option[RelayNamespace]] = IO.pure(Some(RelayNamespace("fake-relay-ns")))
 
-  override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-    ev: Ask[IO, AppContext]
+  override def getDeleteJobResult(request: GetJobResultRequest, authorization: Authorization, resourceType: WsmResourceType)(implicit
+                                                                                                                             ev: Ask[IO, AppContext]
   ): IO[Option[GetDeleteJobResult]] = IO.pure(
     Some(
       GetDeleteJobResult(

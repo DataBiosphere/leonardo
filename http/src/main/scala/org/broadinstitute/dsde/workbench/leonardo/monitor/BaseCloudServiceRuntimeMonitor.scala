@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
   DataprocRole,
-  DiskName => GoogleDiskName,
   GcsBlobName,
   GoogleDiskService,
   GoogleStorageService
@@ -172,10 +171,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                   case Some(value) =>
                     if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
                       persistentDiskOpt.traverse_(d =>
-                        googleDisk.deleteDisk(googleProject,
-                                              rc.zone,
-                                              GoogleDiskName(d.name.asString)
-                        ) >> persistentDiskQuery
+                        googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
                           .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
                           .transaction
                       )

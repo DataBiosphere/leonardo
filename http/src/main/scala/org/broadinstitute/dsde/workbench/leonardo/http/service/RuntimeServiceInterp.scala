@@ -14,6 +14,7 @@ import com.google.cloud.BaseServiceException
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
   GcsBlobName,
   GoogleComputeService,
   GoogleStorageService,
@@ -1202,7 +1203,7 @@ final case class DiskNotSupportedException(traceId: TraceId)
 
 final case class DiskAlreadyAttachedException(cloudContext: CloudContext, name: DiskName, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${cloudContext.asStringWithProvider}/${name} is already attached to another runtime",
+      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already attached to another runtime",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
@@ -1212,7 +1213,7 @@ final case class DiskAlreadyFormattedByOtherApp(cloudContext: CloudContext,
                                                 traceId: TraceId,
                                                 formattedBy: FormattedBy
 ) extends LeoException(
-      s"Persistent disk ${cloudContext.asStringWithProvider}/${name} is already formatted by ${formattedBy.asString}",
+      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already formatted by ${formattedBy.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

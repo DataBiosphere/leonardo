@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => _, _}
 import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
   Event,
   GKEModels,
   GoogleDiskService,

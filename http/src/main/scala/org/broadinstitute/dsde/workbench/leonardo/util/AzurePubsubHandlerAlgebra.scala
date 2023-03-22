@@ -38,7 +38,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def deleteDisk(msg: DeleteAzureDiskMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def deleteAndPollDisk(msg: DeleteAzureDiskMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def createAndPollApp(appId: AppId,
                        appName: AppName,
@@ -103,6 +103,7 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           welderImageHash: String,
                                           createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
+                                          deleteDiskPollConfig: PollMonitorConfig,
                                           runtimeDefaults: AzureRuntimeDefaults
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"

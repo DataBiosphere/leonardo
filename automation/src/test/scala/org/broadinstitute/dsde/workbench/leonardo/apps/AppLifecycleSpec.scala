@@ -3,7 +3,7 @@ package apps
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, ListAppResponse, PersistentDiskRequest}
@@ -36,7 +36,7 @@ class AppLifecycleSpec
   ): CreateAppRequest = defaultCreateAppRequest.copy(
     diskConfig = Some(
       PersistentDiskRequest(
-        randomDiskName,
+        Generators.genDiskName.sample.get,
         Some(DiskSize(300)),
         None,
         Map.empty

@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
@@ -11,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AuditInfo,
   CloudContext,
   CloudProvider,
-  DiskName,
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,

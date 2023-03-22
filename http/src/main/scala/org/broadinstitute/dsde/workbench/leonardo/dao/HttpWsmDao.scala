@@ -342,9 +342,16 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+  override def getDeleteJobResult(request: GetJobResultRequest,
+                                  authorization: Authorization,
+                                  resourceType: WsmResourceType
+  )(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[GetDeleteJobResult]] =
+  ): F[Option[GetDeleteJobResult]] = {
+    val resourceTypePath = resourceType match {
+      case WsmResourceType.AzureDisk => "disks"
+      case WsmResourceType.AzureVm => "vm"
+    }
     for {
       ctx <- ev.ask
       res <- httpClient.expectOptionOr[GetDeleteJobResult](
@@ -354,13 +361,14 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
             .withPath(
               Uri.Path
                 .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/delete-result/${request.jobId.value}"
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/${resourceTypePath}/delete-result/${request.jobId.value}"
                 )
             ),
           headers = headers(authorization, ctx.traceId, false)
         )
       )(onError)
     } yield res
+  }
 
   def getRelayNamespace(workspaceId: WorkspaceId,
                         region: com.azure.core.management.Region,

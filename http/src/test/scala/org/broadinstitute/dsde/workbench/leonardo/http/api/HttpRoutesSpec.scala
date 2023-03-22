@@ -11,7 +11,7 @@ import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
@@ -498,7 +498,7 @@ class HttpRoutesSpec
       defaultCreateAzureRuntimeReq
         .copy(
           labels = Map(s"label$i" -> s"value$i"),
-          azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = DiskName(s"azureDisk-$i"))
+          azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName(s"azureDisk-$i"))
         )
 
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-1",

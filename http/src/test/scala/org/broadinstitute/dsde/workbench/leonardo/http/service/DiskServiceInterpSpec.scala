@@ -12,7 +12,7 @@ import com.google.cloud.compute.v1.Disk
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.mock.MockGoogleDiskService
-import org.broadinstitute.dsde.workbench.google2.{GoogleDiskService, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
@@ -227,7 +227,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .createDisk(
           userInfo,
           googleProject,
-          DiskName(diskName + "-clone"),
+          DiskName(diskName.value + "-clone"),
           emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(googleProject, diskName)))
         )
         .attempt
@@ -256,7 +256,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .createDisk(
           userInfo,
           googleProject,
-          DiskName(diskName + "-clone"),
+          DiskName(diskName.value + "-clone"),
           emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(sourceGoogleProject, diskName)))
         )
         .attempt
@@ -338,7 +338,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .createDisk(
           userInfoCloner,
           googleProject,
-          DiskName(diskName + "-clone"),
+          DiskName(diskName.value + "-clone"),
           emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(googleProject, diskName)))
         )
         .attempt

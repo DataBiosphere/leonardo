@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
   streamUntilDoneOrTimeout,
+  DiskName,
   MachineTypeName,
   ZoneName
 }
@@ -126,7 +127,7 @@ object LeonardoApiClient {
     Map.empty,
     CreateAzureDiskRequest(
       Map.empty,
-      DiskName(UUID.randomUUID().toString.substring(0, 8)),
+      AzureDiskName(UUID.randomUUID().toString.substring(0, 8)),
       None,
       None
     ),
@@ -363,13 +364,13 @@ object LeonardoApiClient {
             method = Method.POST,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
             entity = createDiskRequest
           )
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
-            onError(s"Failed to create disk ${googleProject.value}/${diskName}")(resp)
+            onError(s"Failed to create disk ${googleProject.value}/${diskName.value}")(resp)
               .flatMap(IO.raiseError)
           } else
             IO.unit
@@ -390,13 +391,13 @@ object LeonardoApiClient {
             method = Method.PATCH,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
             entity = req
           )
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
-            onError(s"Failed to patch disk ${googleProject.value}/${diskName}")(resp)
+            onError(s"Failed to patch disk ${googleProject.value}/${diskName.value}")(resp)
               .flatMap(IO.raiseError)
           } else
             IO.unit
@@ -427,7 +428,7 @@ object LeonardoApiClient {
             method = Method.GET,
             headers = Headers(authHeader, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName}"))
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
           )
         )
         .use { resp =>
@@ -479,12 +480,12 @@ object LeonardoApiClient {
             method = Method.DELETE,
             headers = Headers(authHeader, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName}"))
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
           )
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
-            onError(s"Failed to delete disk ${googleProject.value}/${diskName}")(resp)
+            onError(s"Failed to delete disk ${googleProject.value}/${diskName.value}")(resp)
               .flatMap(IO.raiseError)
           } else
             IO.unit
@@ -501,7 +502,7 @@ object LeonardoApiClient {
       res <- IO.sleep(3 seconds) >> streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
       _ <-
         if (res.isDone) IO.unit
-        else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName}"))
+        else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
     } yield ()
 
   private def onError(message: String)(response: Response[IO]): IO[Throwable] =

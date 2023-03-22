@@ -366,7 +366,7 @@ class AzurePubsubHandlerSpec
       mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(None)
     when {
-      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
+      mockWsmDao.getDeleteVobResult(any[GetJobResultRequest], any[Authorization], WsmResourceType.AzureVm)(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(
       Some(
         GetDeleteJobResult(
@@ -450,7 +450,7 @@ class AzurePubsubHandlerSpec
       mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(None)
     when {
-      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
+      mockWsmDao.getDeleteJobResult(any[GetJobResultRequest], any[Authorization], any[WsmResourceType])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(
       Some(
         GetDeleteJobResult(
@@ -696,7 +696,7 @@ class AzurePubsubHandlerSpec
     val exceptionMsg = "test exception"
     val queue = QueueFactory.asyncTaskQueue()
     val wsm = new MockWsmDAO {
-      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+      override def getDeleteJobResult(request: GetJobResultRequest, authorization: Authorization, resourceType: WsmResourceType)(implicit
         ev: Ask[IO, AppContext]
       ): IO[Option[GetDeleteJobResult]] = IO.raiseError(new Exception("test exception"))
     }
@@ -749,7 +749,7 @@ class AzurePubsubHandlerSpec
     val exceptionMsg = "WSM delete VM job was not completed within 20 attempts with 1 second delay"
     val queue = QueueFactory.asyncTaskQueue()
     val wsm = new MockWsmDAO {
-      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+      override def getDeleteJobResult(request: GetJobResultRequest, authorization: Authorization, resourceType: WsmResourceType)(implicit
         ev: Ask[IO, AppContext]
       ): IO[Option[GetDeleteJobResult]] =
         IO.pure(

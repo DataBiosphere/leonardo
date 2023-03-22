@@ -14,6 +14,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
+  DiskName,
   MachineTypeName,
   NetworkName,
   OperationName,
@@ -543,7 +544,7 @@ object CommonTestData {
     Map.empty,
     CreateAzureDiskRequest(
       Map.empty,
-      DiskName("diskName1"),
+      AzureDiskName("diskName1"),
       Some(DiskSize(100)),
       None
     ),
