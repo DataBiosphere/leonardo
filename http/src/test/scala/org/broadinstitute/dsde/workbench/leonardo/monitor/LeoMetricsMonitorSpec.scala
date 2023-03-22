@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppName,
   AppStatus,
   AppType,
+  Chart,
   CloudContext,
   CloudProvider,
   IpRange,
@@ -34,7 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesServiceKindName,
   LeonardoTestSuite,
   NetworkFields,
-  RuntimeContainerServiceType,
+  RuntimeImage,
   RuntimeImageType,
   RuntimeMetrics,
   RuntimeName,
@@ -51,6 +52,7 @@ import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration._
 
@@ -93,23 +95,29 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     test.size shouldBe 5
     // Cromwell on Azure
     test.get(
-      AppStatusMetric(CloudProvider.Azure, AppType.Cromwell, AppStatus.Running, RuntimeUI.Terra, Some(azureContext))
+      AppStatusMetric(CloudProvider.Azure,
+                      AppType.Cromwell,
+                      AppStatus.Running,
+                      RuntimeUI.Terra,
+                      Some(azureContext),
+                      cromwellOnAzureChart
+      )
     ) shouldBe Some(1)
     // Cromwell on GCP on Terra
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.Terra, None)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.Terra, None, cromwellChart)
     ) shouldBe Some(1)
     // Galaxy on GCP
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Galaxy, AppStatus.Running, RuntimeUI.Terra, None)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Galaxy, AppStatus.Running, RuntimeUI.Terra, None, galaxyChart)
     ) shouldBe Some(1)
     // Custom app on GCP
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Custom, AppStatus.Running, RuntimeUI.Terra, None)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Custom, AppStatus.Running, RuntimeUI.Terra, None, customChart)
     ) shouldBe Some(1)
     // Cromwell on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.AoU, None)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.AoU, None, cromwellChart)
     ) shouldBe Some(1)
   }
 
@@ -119,24 +127,19 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     test.size shouldBe 4
     // Jupyter on GCP on Terra
     test.get(
-      RuntimeStatusMetric(CloudProvider.Gcp, RuntimeImageType.Jupyter, RuntimeStatus.Running, RuntimeUI.Terra, None)
+      RuntimeStatusMetric(CloudProvider.Gcp, jupyterImage, RuntimeStatus.Running, RuntimeUI.Terra, None)
     ) shouldBe Some(1)
     // RStudio on GCP on Terra
     test.get(
-      RuntimeStatusMetric(CloudProvider.Gcp, RuntimeImageType.RStudio, RuntimeStatus.Running, RuntimeUI.Terra, None)
+      RuntimeStatusMetric(CloudProvider.Gcp, rstudioImage, RuntimeStatus.Running, RuntimeUI.Terra, None)
     ) shouldBe Some(1)
     // Jupyter on Azure
     test.get(
-      RuntimeStatusMetric(CloudProvider.Azure,
-                          RuntimeImageType.Jupyter,
-                          RuntimeStatus.Running,
-                          RuntimeUI.Terra,
-                          Some(azureContext)
-      )
+      RuntimeStatusMetric(CloudProvider.Azure, azureImage, RuntimeStatus.Running, RuntimeUI.Terra, Some(azureContext))
     ) shouldBe Some(1)
     // Jupyter on GCP on AoU
     test.get(
-      RuntimeStatusMetric(CloudProvider.Gcp, RuntimeImageType.Jupyter, RuntimeStatus.Running, RuntimeUI.AoU, None)
+      RuntimeStatusMetric(CloudProvider.Gcp, jupyterImage, RuntimeStatus.Running, RuntimeUI.AoU, None)
     ) shouldBe Some(1)
   }
 
@@ -152,7 +155,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         ServiceName(s),
                         RuntimeUI.Terra,
                         Some(azureContext),
-                        s != "cbas"
+                        s != "cbas",
+                        cromwellOnAzureChart
         )
       ) shouldBe Some(1)
       test.get(
@@ -161,15 +165,30 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         ServiceName(s),
                         RuntimeUI.Terra,
                         Some(azureContext),
-                        s == "cbas"
+                        s == "cbas",
+                        cromwellOnAzureChart
         )
       ) shouldBe Some(0)
     }
     test.get(
-      AppHealthMetric(CloudProvider.Gcp, AppType.Galaxy, ServiceName("galaxy"), RuntimeUI.Terra, None, true)
+      AppHealthMetric(CloudProvider.Gcp,
+                      AppType.Galaxy,
+                      ServiceName("galaxy"),
+                      RuntimeUI.Terra,
+                      None,
+                      true,
+                      galaxyChart
+      )
     ) shouldBe Some(1)
     test.get(
-      AppHealthMetric(CloudProvider.Gcp, AppType.Galaxy, ServiceName("galaxy"), RuntimeUI.Terra, None, false)
+      AppHealthMetric(CloudProvider.Gcp,
+                      AppType.Galaxy,
+                      ServiceName("galaxy"),
+                      RuntimeUI.Terra,
+                      None,
+                      false,
+                      galaxyChart
+      )
     ) shouldBe Some(0)
   }
 
@@ -178,41 +197,21 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     // An up and a down for jupyter, rstudio, welder * 2
     test.size shouldBe 8
     // Jupyter Azure
-    List("Jupyter", "Welder").foreach { s =>
+    List(azureImage, welderImage).foreach { i =>
       test.get(
-        RuntimeHealthMetric(CloudProvider.Azure,
-                            RuntimeImageType.stringToRuntimeImageType(s),
-                            RuntimeUI.Terra,
-                            Some(azureContext),
-                            true
-        )
+        RuntimeHealthMetric(CloudProvider.Azure, i, RuntimeUI.Terra, Some(azureContext), true)
       ) shouldBe Some(1)
       test.get(
-        RuntimeHealthMetric(CloudProvider.Azure,
-                            RuntimeImageType.stringToRuntimeImageType(s),
-                            RuntimeUI.Terra,
-                            Some(azureContext),
-                            false
-        )
+        RuntimeHealthMetric(CloudProvider.Azure, i, RuntimeUI.Terra, Some(azureContext), false)
       ) shouldBe Some(0)
     }
     // RStudio GCP
-    List("RStudio", "Welder").foreach { s =>
+    List(rstudioImage, welderImage).foreach { i =>
       test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp,
-                            RuntimeImageType.stringToRuntimeImageType(s),
-                            RuntimeUI.Terra,
-                            None,
-                            s != "RStudio"
-        )
+        RuntimeHealthMetric(CloudProvider.Gcp, i, RuntimeUI.Terra, None, i != rstudioImage)
       ) shouldBe Some(1)
       test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp,
-                            RuntimeImageType.stringToRuntimeImageType(s),
-                            RuntimeUI.Terra,
-                            None,
-                            s == "RStudio"
-        )
+        RuntimeHealthMetric(CloudProvider.Gcp, i, RuntimeUI.Terra, None, i == rstudioImage)
       ) shouldBe Some(0)
     }
   }
@@ -236,17 +235,45 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     test.size shouldBe 10
     List("wds", "cromwell", "cbas", "cbas-ui").foreach { s =>
       test.get(
-        AppHealthMetric(CloudProvider.Azure, AppType.Cromwell, ServiceName(s), RuntimeUI.Terra, None, s != "cbas")
+        AppHealthMetric(CloudProvider.Azure,
+                        AppType.Cromwell,
+                        ServiceName(s),
+                        RuntimeUI.Terra,
+                        None,
+                        s != "cbas",
+                        cromwellOnAzureChart
+        )
       ) shouldBe Some(1)
       test.get(
-        AppHealthMetric(CloudProvider.Azure, AppType.Cromwell, ServiceName(s), RuntimeUI.Terra, None, s == "cbas")
+        AppHealthMetric(CloudProvider.Azure,
+                        AppType.Cromwell,
+                        ServiceName(s),
+                        RuntimeUI.Terra,
+                        None,
+                        s == "cbas",
+                        cromwellOnAzureChart
+        )
       ) shouldBe Some(0)
     }
     test.get(
-      AppHealthMetric(CloudProvider.Gcp, AppType.Galaxy, ServiceName("galaxy"), RuntimeUI.Terra, None, true)
+      AppHealthMetric(CloudProvider.Gcp,
+                      AppType.Galaxy,
+                      ServiceName("galaxy"),
+                      RuntimeUI.Terra,
+                      None,
+                      true,
+                      galaxyChart
+      )
     ) shouldBe Some(1)
     test.get(
-      AppHealthMetric(CloudProvider.Gcp, AppType.Galaxy, ServiceName("galaxy"), RuntimeUI.Terra, None, false)
+      AppHealthMetric(CloudProvider.Gcp,
+                      AppType.Galaxy,
+                      ServiceName("galaxy"),
+                      RuntimeUI.Terra,
+                      None,
+                      false,
+                      galaxyChart
+      )
     ) shouldBe Some(0)
   }
 
@@ -254,6 +281,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   private def genApp(isAzure: Boolean,
                      appType: AppType,
+                     chart: Chart,
                      isAou: Boolean,
                      isCromwell: Boolean,
                      isGalaxy: Boolean
@@ -270,6 +298,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val nodepool = makeNodepool(1, clusterWithAsyncFields.id)
     val app = makeApp(1, nodepool.id).copy(
       appType = appType,
+      chart = chart,
       status = AppStatus.Running,
       labels = if (isAou) Map(Config.uiConfig.allOfUsLabel -> "true") else Map(Config.uiConfig.terraLabel -> "true")
     )
@@ -283,11 +312,21 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     KubernetesService(ServiceId(-1), ServiceConfig(ServiceName(name), KubernetesServiceKindName("ClusterIP")))
 
   private def cromwellAppAzure: KubernetesCluster =
-    genApp(true, AppType.Cromwell, false, true, false).copy(cloudContext = CloudContext.Azure(azureContext))
-  private def cromwellAppGcp: KubernetesCluster = genApp(false, AppType.Cromwell, false, true, false)
-  private def galaxyAppGcp: KubernetesCluster = genApp(false, AppType.Galaxy, false, false, true)
-  private def customAppGcp: KubernetesCluster = genApp(false, AppType.Custom, false, false, false)
-  private def cromwellAppGcpAou: KubernetesCluster = genApp(false, AppType.Cromwell, true, true, false)
+    genApp(true, AppType.Cromwell, cromwellOnAzureChart, false, true, false)
+      .copy(cloudContext = CloudContext.Azure(azureContext))
+  private def cromwellAppGcp: KubernetesCluster =
+    genApp(false, AppType.Cromwell, cromwellChart, false, true, false)
+  private def galaxyAppGcp: KubernetesCluster =
+    genApp(false, AppType.Galaxy, galaxyChart, false, false, true)
+  private def customAppGcp: KubernetesCluster =
+    genApp(false, AppType.Custom, customChart, false, false, false)
+  private def cromwellAppGcpAou: KubernetesCluster =
+    genApp(false, AppType.Cromwell, cromwellChart, true, true, false)
+
+  private def cromwellChart = Chart.fromString("cromwell-0.0.1").get
+  private def cromwellOnAzureChart = Chart.fromString("cromwell-on-azure-0.0.1").get
+  private def galaxyChart = Chart.fromString("galaxy-0.0.1").get
+  private def customChart = Chart.fromString("custom-0.0.1").get
 
   private def allApps = List(cromwellAppAzure, cromwellAppGcp, galaxyAppGcp, customAppGcp, cromwellAppGcpAou)
 
@@ -305,8 +344,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       RuntimeName("runtime"),
       RuntimeStatus.Running,
       Some(WorkspaceId(UUID.randomUUID())),
-      if (isJupyter) Set(RuntimeContainerServiceType.JupyterService, RuntimeContainerServiceType.WelderService)
-      else Set(RuntimeContainerServiceType.RStudioService, RuntimeContainerServiceType.WelderService),
+      Set(if (isJupyter) if (isGcp) jupyterImage else azureImage else rstudioImage, welderImage),
       if (isAou) Map(Config.uiConfig.allOfUsLabel -> "true") else Map(Config.uiConfig.terraLabel -> "true")
     )
 
@@ -314,6 +352,11 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def rstudioGcp: RuntimeMetrics = genRuntime(false, false, true)
   private def jupyterAzure: RuntimeMetrics = genRuntime(true, false, false)
   private def jupyterGcpAou: RuntimeMetrics = genRuntime(true, true, true)
+
+  private val jupyterImage = RuntimeImage(RuntimeImageType.Jupyter, "jupyter:0.0.1", None, Instant.now)
+  private val rstudioImage = RuntimeImage(RuntimeImageType.RStudio, "rstudio:0.0.1", None, Instant.now)
+  private val welderImage = RuntimeImage(RuntimeImageType.Welder, "welder:0.0.1", None, Instant.now)
+  private val azureImage = RuntimeImage(RuntimeImageType.Azure, "azure:0.0.1", None, Instant.now)
 
   private def allRuntimes = List(jupyterGcp, rstudioGcp, jupyterAzure, jupyterGcpAou)
 
