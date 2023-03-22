@@ -257,7 +257,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
 
-      appOk <- pollAppCreation(app.auditInfo.creator, relayPath)
+      appOk <- pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
       _ <-
         if (appOk)
           F.unit
@@ -375,7 +375,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield ()
   }
 
-  private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+  private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri, appType: AppType)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
@@ -391,7 +391,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           case CbasUI =>
             cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           case Wds =>
-            wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+            wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
           case Cromwell =>
             cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         }
@@ -491,6 +491,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
         raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
         raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
+        raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}", // TODO remove after WDS chart migration
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",

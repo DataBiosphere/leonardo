@@ -82,6 +82,7 @@ final case class CoaAppConfig(chartName: ChartName,
       case ServiceName("cbas")     => Cbas
       case ServiceName("cbas-ui")  => CbasUI
       case ServiceName("cromwell") => Cromwell
+      case ServiceName("wds")      => Wds
     }
     .toSet
 }
