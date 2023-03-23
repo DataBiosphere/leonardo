@@ -939,7 +939,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       labels,
       None,
       None,
-      None // TODO (LM) put workspaceId here
+      None
     )
   }
 

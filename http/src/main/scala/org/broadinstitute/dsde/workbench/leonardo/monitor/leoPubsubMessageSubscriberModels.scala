@@ -586,13 +586,13 @@ object LeoPubsubCodec {
                         "cloudContext",
                         "diskId",
                         "landingZoneResourcesOpt",
-                        "tradeId"
+                        "traceId"
     )(
       DeleteAppV2Message.apply
     )
 
   implicit val deleteDiskV2Decoder: Decoder[DeleteDiskV2Message] =
-    Decoder.forProduct5("diskId", "workspaceId", "cloudContext", "wsmResourceId", "tradeId")(
+    Decoder.forProduct5("diskId", "workspaceId", "cloudContext", "wsmResourceId", "traceId")(
       DeleteDiskV2Message.apply
     )
 

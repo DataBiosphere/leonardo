@@ -80,7 +80,7 @@ object DiskServiceDbQueries {
     }
   }
 
-  def getGetPersistentDiskResponse(diskName: DiskName, traceId: TraceId, cloudContext: CloudContext)(implicit
+  def getGetPersistentDiskResponse(cloudContext: CloudContext, diskName: DiskName, traceId: TraceId)(implicit
     executionContext: ExecutionContext
   ): DBIO[GetPersistentDiskResponse] = {
     val diskQuery = persistentDiskQuery.findActiveByNameQuery(cloudContext, diskName)

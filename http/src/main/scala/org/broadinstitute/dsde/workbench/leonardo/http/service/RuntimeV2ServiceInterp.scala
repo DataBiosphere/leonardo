@@ -187,6 +187,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       config.azureConfig.diskConfig,
                       req,
                       landingZoneResources.region,
+                      workspaceId,
                       ctx.now
                     )
                   )
@@ -541,6 +542,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
                                      region: com.azure.core.management.Region,
+                                     workspaceId: WorkspaceId,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
@@ -579,7 +581,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       labels,
       None,
       None,
-      None // TODO (LM)
+      Some(workspaceId)
     )
   }
 

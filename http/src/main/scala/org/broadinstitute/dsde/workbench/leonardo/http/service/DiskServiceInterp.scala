@@ -173,7 +173,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[GetPersistentDiskResponse] =
     for {
       ctx <- as.ask
-      resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(diskName, ctx.traceId, cloudContext).transaction
+      resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(cloudContext, diskName, ctx.traceId).transaction
       hasPermission <- authProvider.hasPermissionWithProjectFallback[PersistentDiskSamResourceId, PersistentDiskAction](
         resp.samResource,
         PersistentDiskAction.ReadPersistentDisk,
@@ -385,7 +385,7 @@ object DiskServiceInterp {
       labels,
       sourceDisk.map(_.diskLink),
       None,
-      None // TODO (LM)
+      None
     )
   }
 }
