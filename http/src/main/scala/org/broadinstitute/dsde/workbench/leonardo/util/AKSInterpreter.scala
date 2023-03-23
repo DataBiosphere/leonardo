@@ -386,9 +386,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       services = appType match {
         case AppType.Wds => config.wdsAppConfig.coaServices
-        case _ => config.coaAppConfig.coaServices
+        case _           => config.coaAppConfig.coaServices
       }
-      op = services.collect {
+      op = services
+        .collect {
           case Cbas =>
             cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           case CbasUI =>
