@@ -593,11 +593,19 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       )
 
+<<<<<<< HEAD
       getDeleteJobResultOpt = msg.wsmResourceId.flatTraverse(wsmResourceId =>
         wsmDao.getDeleteJobResult(
           GetJobResultRequest(msg.workspaceId, getWsmJobId("delete-vm", wsmResourceId),  WsmResourceType.AzureVm),
           auth
         )
+=======
+      getDeleteJobResultOpt = wsmDao.getDeleteJobResult(
+        GetJobResultRequest(msg.workspaceId, deleteJobId),
+        auth,
+        WsmResourceType.AzureVm
+      )
+>>>>>>> 87f5a9fcd (diskv2 rather than azuredisk)
 
       taskToRun = for {
         // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk, and networks
@@ -609,9 +617,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
         deleteDiskAction = msg.diskIdToDelete.traverse { diskId =>
           for {
-            diskResourceOpt <- controlledResourceQuery
-              .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
-              .transaction
             _ <- deleteDisk(Left(runtime.id), msg.workspaceId, auth)
             _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
             _ <- logger.info(ctx.loggingCtx)(s"runtime disk ${diskId} is deleted successfully")
@@ -750,7 +755,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }.void
     } yield ()
 
-  private def deleteDisk(id: Either[Long, WsmControlledResourceId], // can be either runtimeId or diskResourceId
+  private def deleteDisk(id: Either[Long,
+                                    WsmControlledResourceId
+                         ], // can be either runtimeId or diskResourceId in order to get WSMcontrolled resource
                          workspaceId: WorkspaceId,
                          auth: Authorization
   )(implicit
@@ -797,44 +804,69 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       auth <- samDAO.getLeoAuthToken
       _ <- deleteDisk(Right(msg.wsmResourceId), msg.workspaceId, auth)
 
-      deleteJobId = WsmJobId(s"delete-vm-${msg.wsmResourceId.toString.take(10)}")
-//      getDeleteJobResultOpt <- wsmDao.getDeleteJobResult(GetJobResultRequest(msg.workspaceId, deleteJobId),
-//                                                         auth,
-//                                                         WsmResourceType.AzureDisk
-//      )
+      deleteJobId = WsmJobId(s"delete-disk-${msg.wsmResourceId.toString.take(10)}")
+      getDeleteJobResultOpt = wsmDao.getDeleteJobResult(GetJobResultRequest(msg.workspaceId, deleteJobId),
+                                                        auth,
+                                                        WsmResourceType.AzureDisk
+      )
 
-//      taskToRun = for {
-//        resp <- streamFUntilDone(
-//          getDeleteJobResultOpt,
-//          config.deleteDiskPollConfig.maxAttempts, // TODO (LM)
-//          config.deleteDiskPollConfig.interval
-//        ).compile.lastOrError
-//
-//        _ <- resp.jobReport.status match {
-//          case WsmJobStatus.Failed =>
-//            F.raiseError[Unit](
-//              AzureDiskDeletionError(
-//                msg.diskId,
-//                msg.workspaceId,
-//                s"Wsm createVm job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
-//              )
-//            )
-//          case WsmJobStatus.Running =>
-//            F.raiseError[Unit](
-//              DiskDeletionError(
-//                msg.diskId,
-//                msg.workspaceId,
-//                s"Wsm createVm job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
-//              )
-//            )
-//          case WsmJobStatus.Succeeded =>
-//            for {
-//              _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Deleted, ctx.now))
-//              _ <- logger.info(ctx.loggingCtx)(s"Azure disk ${msg.diskId} is deleted successfully")
-//            } yield ()
-//        }
+      taskToRun = for {
+        respOpt <- streamFUntilDone(
+          getDeleteJobResultOpt,
+          config.deleteVmPollConfig.maxAttempts,
+          config.deleteVmPollConfig.interval
+        ).compile.lastOrError
+
+        _ <- respOpt match {
+          case Some(resp) =>
+            resp.jobReport.status match {
+              case WsmJobStatus.Failed =>
+                F.raiseError[Unit](
+                  DiskDeletionError(
+                    msg.diskId,
+                    msg.workspaceId,
+                    s"Wsm deleteDisk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                  )
+                )
+              case WsmJobStatus.Running =>
+                F.raiseError[Unit](
+                  DiskDeletionError(
+                    msg.diskId,
+                    msg.workspaceId,
+                    s"Wsm deleteDisk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                  )
+                )
+              case WsmJobStatus.Succeeded =>
+                for {
+                  _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Deleted, ctx.now))
+                  _ <- logger.info(ctx.loggingCtx)(s"Azure disk ${msg.diskId} is deleted successfully")
+                } yield ()
+            }
+        }
+      } yield ()
+
+      _ <- asyncTasks.offer(
+        Task(
+          ctx.traceId,
+          taskToRun,
+          Some { e =>
+            handleDiskDeletionError(
+              DiskDeletionError(msg.diskId, msg.workspaceId, s"Fail to delete disk due to ${e.getMessage}")
+            )
+          },
+          ctx.now,
+          "deleteDisk"
+        )
+      )
     } yield ()
   }
+  def handleDiskDeletionError(e: DiskDeletionError)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    _ <- logger.error(ctx.loggingCtx, e)(s"Failed to delete disk ${e.diskId}")
+    _ <- persistentDiskQuery.updateStatus(e.diskId, DiskStatus.Error, ctx.now).transaction
+  } yield ()
 
   override def createAndPollApp(appId: AppId,
                                 appName: AppName,

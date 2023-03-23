@@ -1075,7 +1075,7 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class DiskDeletionError(diskId: Long, workspaceId: WorkspaceId, errorMsg: String)
+  final case class DiskDeletionError(diskId: DiskId, workspaceId: WorkspaceId, errorMsg: String)
       extends PubsubHandleMessageError {
     override def getMessage: String =
       s"\n\tdisk ${diskId} in workspace ${workspaceId}, \n\tmsg: ${errorMsg})"

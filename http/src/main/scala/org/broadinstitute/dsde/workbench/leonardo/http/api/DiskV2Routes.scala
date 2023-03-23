@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
+import java.util.UUID
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
@@ -16,8 +17,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskV2Service
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import java.util.UUID
-
 class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
 ) {
@@ -26,21 +25,17 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo) {
           implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
-          pathPrefix("v2" / "disks") {
-            pathPrefix(workspaceIdSegment) { workspaceId =>
+          pathPrefix("v2" / "disks" / workspaceIdSegment) { workspaceId =>
+            pathPrefix(diskIdSegment) { diskId =>
               pathEndOrSingleSlash {
-                pathPrefix(diskIdSegment) { diskId =>
-                  pathEndOrSingleSlash {
-                    get {
-                      complete(
-                        getDiskV2Handler(userInfo, workspaceId, diskId)
-                      )
-                    } ~ delete {
-                      complete(
-                        deleteDiskV2Handler(userInfo, workspaceId, diskId)
-                      )
-                    }
-                  }
+                get {
+                  complete(
+                    getDiskV2Handler(userInfo, workspaceId, diskId)
+                  )
+                } ~ delete {
+                  complete(
+                    deleteDiskV2Handler(userInfo, workspaceId, diskId)
+                  )
                 }
               }
             }
@@ -57,8 +52,11 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
       ctx <- ev.ask[AppContext]
       apiCall = diskV2Service.getDisk(userInfo, workspaceId, diskId)
       _ <- metrics.incrementCounter("getDiskV2")
-      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getDiskV2").use(_ => apiCall))
-    } yield StatusCodes.OK -> resp: ToResponseMarshallable
+      resp <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "getDiskV2")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.OK -> resp
 
   private[api] def deleteDiskV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
     ev: Ask[IO, AppContext]
@@ -68,16 +66,17 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
       apiCall = diskV2Service.deleteDisk(userInfo, workspaceId, diskId)
       _ <- metrics.incrementCounter("deleteDiskV2")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteDiskV2").use(_ => apiCall))
-    } yield StatusCodes.Accepted: ToResponseMarshallable
+    } yield StatusCodes.Accepted
 }
 
 object DiskV2Routes {
-  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
+  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct13(
     "id",
     "cloudContext",
     "zone",
     "name",
     "serviceAccount",
+    "samResource",
     "status",
     "auditInfo",
     "size",
@@ -85,20 +84,5 @@ object DiskV2Routes {
     "blockSize",
     "labels",
     "formattedBy"
-  )(x =>
-    (
-      x.id,
-      x.cloudContext,
-      x.zone,
-      x.name,
-      x.serviceAccount,
-      x.status,
-      x.auditInfo,
-      x.size,
-      x.diskType,
-      x.blockSize,
-      x.labels,
-      x.formattedBy
-    )
-  )
+  )(x => GetPersistentDiskResponse.unapply(x).get)
 }

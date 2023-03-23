@@ -122,8 +122,9 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
-        case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
-        case msg: DeleteAppV2Message => handleDeleteAppV2Message(msg)
+        case msg: CreateAppV2Message  => handleCreateAppV2Message(msg)
+        case msg: DeleteAppV2Message  => handleDeleteAppV2Message(msg)
+        case msg: DeleteDiskV2Message => handleDeleteDiskV2Message(msg)
       }
     } yield resp
 
@@ -1577,6 +1578,31 @@ class LeoPubsubMessageSubscriber[F[_]](
               None,
               None,
               None
+            )
+          )
+      }
+    } yield ()
+
+  private[monitor] def handleDeleteDiskV2Message(
+    msg: DeleteDiskV2Message
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- msg.cloudContext match {
+        case CloudContext.Azure(_) =>
+          azurePubsubHandler.deleteAndPollDisk(msg).adaptError { case e =>
+            PubsubHandleMessageError.DiskDeletionError(
+              msg.diskId,
+              msg.workspaceId,
+              e.getMessage
+            )
+          }
+        case CloudContext.Gcp(_) =>
+          // TODO: support deleting GCP disks
+          F.raiseError(
+            DiskDeletionError(msg.diskId,
+                              msg.workspaceId,
+                              s"Error deleting GCP disk: DeleteDiskV2 not yet supported for GCP"
             )
           )
       }

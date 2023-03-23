@@ -7,23 +7,9 @@ import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
-  azureImageEncoder,
-  azureMachineTypeEncoder,
-  azureRegionDecoder,
-  azureRegionEncoder,
-  googleProjectDecoder,
-  relayNamespaceDecoder,
-  runtimeNameEncoder,
-  storageContainerNameDecoder,
-  storageContainerNameEncoder,
-  workspaceIdDecoder,
-  wsmControlledResourceIdDecoder,
-  wsmControlledResourceIdEncoder,
-  wsmJobIdDecoder,
-  wsmJobIdEncoder
-}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{azureImageEncoder, azureMachineTypeEncoder, azureRegionDecoder, azureRegionEncoder, googleProjectDecoder, relayNamespaceDecoder, runtimeNameEncoder, storageContainerNameDecoder, storageContainerNameEncoder, workspaceIdDecoder, wsmControlledResourceIdDecoder, wsmControlledResourceIdEncoder, wsmJobIdDecoder, wsmJobIdEncoder}
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
+import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -73,7 +59,7 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
 
-  def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+  def getDeleteJobResult(request: GetJobResultRequest, authorization: Authorization, resourceType: WsmResourceType)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[GetDeleteJobResult]]
 

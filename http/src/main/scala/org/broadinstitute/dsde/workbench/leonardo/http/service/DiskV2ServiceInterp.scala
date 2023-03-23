@@ -9,8 +9,8 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  WorkspaceResourceSamResourceId,
-  WsmResourceSamResourceId
+  PersistentDiskSamResourceId,
+  WorkspaceResourceSamResourceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -34,21 +34,6 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ec: ExecutionContext
 ) extends DiskV2Service[F] {
 
-  private def checkSamPermission(wsmResourceSamResourceId: WsmResourceSamResourceId,
-                                 userInfo: UserInfo,
-                                 wsmResourceAction: WsmResourceAction
-  )(implicit
-    ctx: Ask[F, AppContext]
-  ): F[(Boolean, WsmControlledResourceId)] =
-    for {
-      // TODO: generalize for google
-      res <- authProvider.hasPermission(
-        wsmResourceSamResourceId,
-        wsmResourceAction,
-        userInfo
-      )
-    } yield (res, wsmResourceSamResourceId.controlledResourceId)
-
   override def getDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
     as: Ask[F, AppContext]
   ): F[GetPersistentDiskResponse] =
@@ -62,11 +47,11 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       hasPermission <-
         if (diskResp.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else {
-          checkSamPermission(
-            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(diskResp.samResource.resourceId))),
-            userInfo,
-            WsmResourceAction.Read
-          ).map(_._1)
+          authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
+            diskResp.samResource,
+            PersistentDiskAction.ReadPersistentDisk,
+            userInfo
+          )
         }
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure disk permission")))
@@ -78,7 +63,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
     } yield diskResp
 
-  override def deleteDisk(userInfo: UserInfo, workspaceId: WorkspaceId, cloudContext: CloudContext, diskId: DiskId)(implicit
+  override def deleteDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -92,7 +77,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
       _ <- F
         .raiseUnless(disk.status.isDeletable)(
-          DiskCannotBeDeletedException(diskId, disk.status, cloudContext, ctx.traceId)
+          DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
         )
       hasPermission <-
         if (disk.auditInfo.creator == userInfo.userEmail)
@@ -101,7 +86,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           authProvider
             .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
 
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure disk permission")))
       _ <- F
         .raiseError[Unit](DiskNotFoundByIdWorkspaceException(diskId, workspaceId, ctx.traceId))
         .whenA(!hasPermission)
@@ -121,7 +106,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 }
 
 case class DiskNotFoundByIdWorkspaceException(diskId: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
-    extends LeoException(s"Persistent disk ${diskId.value} not found in workspace ${workspaceId}",
+    extends LeoException(s"Persistent disk ${diskId.value} not found in workspace $workspaceId",
                          StatusCodes.NotFound,
                          traceId = Some(traceId)
     )

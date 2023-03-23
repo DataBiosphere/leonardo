@@ -57,6 +57,7 @@ object DiskStatus extends Enum[DiskStatus] {
   final case object Ready extends DiskStatus
   final case object Deleting extends DiskStatus
   final case object Deleted extends DiskStatus
+  final case object Error extends DiskStatus
 
   val activeStatuses: Set[DiskStatus] =
     Set(Creating, Restoring, Ready)
