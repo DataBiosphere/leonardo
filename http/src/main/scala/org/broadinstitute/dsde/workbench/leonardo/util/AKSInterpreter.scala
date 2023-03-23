@@ -234,10 +234,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         case AppType.Hail =>
           for {
-            // Storage container is required for Cromwell app
+            // Storage container is required for Hail app
             storageContainer <- F.fromOption(
               params.storageContainer,
-              AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
+              AppCreationException("Storage container required for Hail app", Some(ctx.traceId))
             )
             _ <- helmClient
               .installChart(
@@ -412,7 +412,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk.isDone
 
-  // Implement me with polling URLs
   private[util] def pollHailAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
@@ -520,7 +519,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).mkString(",")
     )
 
-  // Implement me with override chart values
   private[util] def buildHailChartOverrideValues(workspaceId: WorkspaceId,
                                                  landingZoneResources: LandingZoneResources,
                                                  petManagedIdentity: Option[Identity],

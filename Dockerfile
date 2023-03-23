@@ -31,7 +31,6 @@ ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.213
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.213
-# Update me with the chart version
 ENV HAIL_CHART_VERSION 0.1.0
 
 RUN mkdir /leonardo
@@ -41,7 +40,7 @@ COPY --from=helm-go-lib-builder /helm-go-lib-build/helm-scala-sdk/helm-go-lib /l
 # Install the Helm3 CLI client using a provided script because installing it via the RHEL package managing didn't work
 RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 && \
     chmod 700 get_helm.sh && \
-    ./get_helm.sh --version v3.2.4 && \
+    ./get_helm.sh --version v3.11.2 && \
     rm get_helm.sh
 
 # Add the repos containing nginx and galaxy charts
@@ -51,7 +50,6 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
-    helm repo add hail-helm oci://us-docker.pkg.dev/hail-vdc/terra-dev-public
     helm repo update
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
@@ -65,7 +63,7 @@ RUN cd /leonardo && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
-    helm pull hail-helm/hail-batch-terra-azure --version $HAIL_CHART_VERSION --untar && \
+    helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_CHART_VERSION --untar && \
     helm repo update && \
     cd /
 
