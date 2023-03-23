@@ -47,9 +47,7 @@ class AppLifecycleSpec
     customEnvironmentVariables = Map("WORKSPACE_NAME" -> workspaceName),
     descriptorPath = descriptorPath
   )
-
   // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
-  // TODO: IA-4162 Enable this test
   //  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
   //    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
   //  }
@@ -59,7 +57,7 @@ class AppLifecycleSpec
       test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
   }
 
-  "create CUSTOM app, start/stop, delete it" in { googleProject =>
+  "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
     test(
       googleProject,
       createAppRequest(
