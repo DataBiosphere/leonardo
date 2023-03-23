@@ -304,6 +304,62 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "create and poll a wds app, then successfully delete it" in isolatedDbTest {
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.Wds,
+        appResources = AppResources(
+          namespace = Namespace(
+            NamespaceId(-1),
+            NamespaceName("ns-1")
+          ),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        ),
+        appAccessScope = Some(AppAccessScope.WorkspaceShared)
+      )
+      saveApp <- IO(app.save())
+      appId = saveApp.id
+      appName = saveApp.appName
+
+      params = CreateAKSAppParams(appId,
+                                  appName,
+                                  workspaceId,
+                                  cloudContext,
+                                  landingZoneResources,
+                                  Some(storageContainer)
+      )
+      _ <- aksInterp.createAndPollApp(params)
+
+      app <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), appName)
+        .transaction
+    } yield {
+      app shouldBe defined
+      app.get.app.status shouldBe AppStatus.Running
+      app.get.app.appAccessScope shouldBe Some(AppAccessScope.WorkspaceShared)
+      app.get.app.samResourceId.resourceType shouldBe SamResourceType.SharedApp
+      app.get.cluster.asyncFields shouldBe defined
+      app
+    }
+
+    val dbApp = res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    dbApp shouldBe defined
+    val app = dbApp.get.app
+
+    val deletion = for {
+      _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, landingZoneResources, cloudContext))
+      app <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
+        .transaction
+    } yield app shouldBe None
+
+    deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   private def setUpMockIdentity: Identity = {
     val identity = mock[Identity]
     when {
