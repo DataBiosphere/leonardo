@@ -871,7 +871,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
               )
-            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
+            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) | (Some(FormattedBy.Hail), _) =>
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(diskResult.disk.formattedBy.get,
                                           s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
@@ -1034,6 +1034,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
         case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
         case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (Hail, CloudProvider.Azure)     => Right(ConfigReader.appConfig.azure.hailAppConfig)
         case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
       }
 

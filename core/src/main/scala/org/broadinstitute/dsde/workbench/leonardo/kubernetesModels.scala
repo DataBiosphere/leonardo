@@ -320,6 +320,9 @@ object AppType {
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
+  case object Hail extends AppType {
+    override def toString: String = "HAIL"
+  }
 
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
@@ -329,6 +332,7 @@ object AppType {
       case Galaxy   => FormattedBy.Galaxy
       case Cromwell => FormattedBy.Cromwell
       case Custom   => FormattedBy.Custom
+      case Hail     => FormattedBy.Hail
     }
 }
 

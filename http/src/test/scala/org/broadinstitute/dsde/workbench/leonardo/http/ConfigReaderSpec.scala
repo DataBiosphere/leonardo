@@ -4,7 +4,12 @@ package http
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  CoaAppConfig,
+  HailAppConfig,
+  HttpWsmDaoConfig,
+  PersistentDiskConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AzureRuntimeDefaults,
   CustomScriptExtensionConfig,
@@ -93,7 +98,17 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List.empty
+        List.empty,
+        HailAppConfig(
+          ChartName("/leonardo/hail"),
+          ChartVersion("the-chart-version"),
+          ReleaseNameSuffix("hail-rls"),
+          NamespaceNameSuffix("hail-ns"),
+          KsaName("hail-ksa"),
+          List(
+            ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
+          )
+        )
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

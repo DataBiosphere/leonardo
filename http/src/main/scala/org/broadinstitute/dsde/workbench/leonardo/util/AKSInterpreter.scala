@@ -37,7 +37,14 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.HailService.{HailBatch, HailBatchDriver}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AppMonitorConfig,
+  CoaAppConfig,
+  HailAppConfig,
+  HttpWsmDaoConfig,
+  SamConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -64,7 +71,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            cromwellDao: CromwellDAO[F],
                            cbasDao: CbasDAO[F],
                            cbasUiDao: CbasUiDAO[F],
-                           wdsDao: WdsDAO[F]
+                           wdsDao: WdsDAO[F],
+                           hailBatchDao: HailBatchDAO[F],
+                           hailBatchDriverDao: HailBatchDriverDAO[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -223,11 +232,40 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               .run(authContext)
           } yield ()
 
+        case AppType.Hail =>
+          for {
+            // Storage container is required for Cromwell app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
+            )
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildHailChartOverrideValues(
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  petMi,
+                  storageContainer,
+                  relayEndpoint.dropRight(1), // domain
+                  params.appName.value
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
+
         case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
 
       // Poll app status
-      appOk <- pollCromwellAppCreation(app.auditInfo.creator, relayPath)
+      appOk <- app.appType match {
+        case AppType.Cromwell => pollCromwellAppCreation(app.auditInfo.creator, relayPath)
+        case AppType.Hail     => pollHailAppCreation(app.auditInfo.creator, relayPath)
+        case _                => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
+      }
       _ <-
         if (appOk)
           F.unit
@@ -374,6 +412,30 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk.isDone
 
+  // Implement me with polling URLs
+  private[util] def pollHailAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] =
+    for {
+      ctx <- ev.ask
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+      token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+
+      op = config.hailAppConfig.hailServices
+        .collect {
+          case HailBatch       => hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          case HailBatchDriver => hailBatchDriverDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        }
+        .toList
+        .sequence
+      hailOk <- streamFUntilDone(
+        op,
+        maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
+        delay = config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+    } yield hailOk.isDone
+
   private[util] def buildSetupChartOverrideValues(release: Release,
                                                   samResourceId: AppSamResourceId,
                                                   ksaName: ServiceAccountName,
@@ -455,6 +517,32 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // general configs
         raw"fullnameOverride=coa-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+      ).mkString(",")
+    )
+
+  // Implement me with override chart values
+  private[util] def buildHailChartOverrideValues(workspaceId: WorkspaceId,
+                                                 landingZoneResources: LandingZoneResources,
+                                                 petManagedIdentity: Option[Identity],
+                                                 storageContainer: StorageContainerResponse,
+                                                 relayDomain: String,
+                                                 appName: String
+  ): Values =
+    Values(
+      List(
+        raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
+        raw"persistence.blobContainer=${storageContainer.name.value}",
+        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
+        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
+        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
+        // TODO storageContainerUrl
+
+        // identity configs
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"relay.domain=${relayDomain}",
+        raw"relay.subpath=/${appName}"
       ).mkString(",")
     )
 
@@ -704,6 +792,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 final case class AKSInterpreterConfig(
   terraAppSetupChartConfig: TerraAppSetupChartConfig,
   coaAppConfig: CoaAppConfig,
+  hailAppConfig: HailAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
