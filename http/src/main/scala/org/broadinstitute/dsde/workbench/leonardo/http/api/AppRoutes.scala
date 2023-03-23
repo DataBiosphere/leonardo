@@ -229,8 +229,7 @@ object AppRoutes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct13(
-      "cloudProvider",
+    Encoder.forProduct12(
       "workspaceId",
       "cloudContext",
       "kubernetesRuntimeConfig",
@@ -244,8 +243,7 @@ object AppRoutes {
       "accessScope",
       "labels"
     )(x =>
-      (x.cloudProvider,
-       x.workspaceId,
+      (x.workspaceId,
        x.cloudContext,
        x.kubernetesRuntimeConfig,
        x.errors,

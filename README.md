@@ -20,6 +20,35 @@ It is recommended to consume these APIs and functionality via the [Terra UI](htt
 
 We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
 
+## Java client library
+for sbt:
+
+```libraryDependencies += "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "0.1-<git hash>"```
+
+where ```<git hash>``` is the first 7 characters of the commit hash of the HEAD of develop
+
+Example Scala Usage:
+```
+import org.broadinstitute.dsde.workbench.client.leonardo.api.RuntimesApi
+import org.broadinstitute.dsde.workbench.client.leonardo.ApiClient
+import org.broadinstitute.dsde.workbench.client.leonardo.model.GetRuntimeResponse
+
+class LeonardoClient(leonardoBasePath: String) {
+  private def leonardoApi(accessToken: String): RuntimesApi = {
+    val apiClient = new ApiClient()
+    apiClient.setAccessToken(accessToken)
+    apiClient.setBasePath(leonardoBasePath)
+    new RuntimesApi(apiClient)
+  }
+
+  def getAzureRuntimeDetails(token: String, workspaceId: String, runtimeName: String): GetRuntimeResponse = {
+    val leonardoApi = leonardoApi(token)
+    leonardoApi.getAzureRuntime(workspaceId, runtimeName)
+  }
+}
+
+```
+
 ## Building and running Leonardo
 Clone the repo.
 ```
