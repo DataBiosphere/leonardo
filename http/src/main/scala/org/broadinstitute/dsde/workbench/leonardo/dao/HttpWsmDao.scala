@@ -350,7 +350,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   ): F[Option[GetDeleteJobResult]] = {
     val resourceTypePath = resourceType match {
       case WsmResourceType.AzureDisk => "disks"
-      case WsmResourceType.AzureVm => "vm"
+      case WsmResourceType.AzureVm   => "vm"
+      case _ => F.raiseError(new Exception(s"Only disks and VMs job results supported, not (${resourceType})"))
+
     }
     for {
       ctx <- ev.ask

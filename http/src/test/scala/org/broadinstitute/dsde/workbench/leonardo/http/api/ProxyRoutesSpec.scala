@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{dataDe
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AccessTokenExpiredException,
   MockDiskServiceInterp,
+  MockDiskV2ServiceInterp,
   MockProxyService,
   ProxyService,
   TestProxy
@@ -489,6 +490,7 @@ class ProxyRoutesSpec
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       userInfoDirectives,
@@ -593,6 +595,7 @@ class ProxyRoutesSpec
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       userInfoDirectives,

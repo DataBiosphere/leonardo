@@ -842,6 +842,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   _ <- logger.info(ctx.loggingCtx)(s"Azure disk ${msg.diskId} is deleted successfully")
                 } yield ()
             }
+          case None =>
+            F.raiseError[Unit](
+              DiskDeletionError(
+                msg.diskId,
+                msg.workspaceId,
+                s"Wsm deleteDisk job failed for diskId ${msg.diskId}"
+              )
+            )
         }
       } yield ()
 

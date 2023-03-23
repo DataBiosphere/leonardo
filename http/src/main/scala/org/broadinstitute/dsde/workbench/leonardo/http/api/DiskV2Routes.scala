@@ -9,6 +9,7 @@ import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
 import cats.mtl.Ask
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Encoder
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
@@ -56,7 +57,7 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
         spanResource[IO](span, "getDiskV2")
           .use(_ => apiCall)
       )
-    } yield StatusCodes.OK -> resp
+    } yield StatusCodes.OK -> resp: ToResponseMarshallable
 
   private[api] def deleteDiskV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
     ev: Ask[IO, AppContext]

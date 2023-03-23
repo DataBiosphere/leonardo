@@ -463,6 +463,7 @@ object CommonTestData {
       appRestore,
       Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3"),
       None,
+      None,
       None
     )
 
