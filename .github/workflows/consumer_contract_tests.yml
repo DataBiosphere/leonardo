@@ -69,6 +69,7 @@ jobs:
           echo "repo-owner=${{ github.repository_owner }}"
           echo "repo-name=${{ github.event.repository.name }}"
           echo "repo-branch=${{ steps.extract-branch.outputs.repo-branch }}"
+          echo "repo-version=${{ steps.extract-branch.outputs.repo-version }}"
 
   leo-consumer-contract-tests:
     runs-on: ubuntu-latest
