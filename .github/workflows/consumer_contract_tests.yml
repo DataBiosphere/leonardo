@@ -46,6 +46,10 @@ jobs:
         run: |
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            echo "${{ github.ref }}"
+            echo "$GITHUB_REF"
+            echo "${{ github.sha }}"
+            echo "$GITHUB_SHA"
             GITHUB_REF=${{ github.ref }}
             GITHUB_SHA=${{ github.sha }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
