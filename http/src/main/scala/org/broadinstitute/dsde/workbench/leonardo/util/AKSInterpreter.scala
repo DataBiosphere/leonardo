@@ -384,8 +384,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
-      op = config.coaAppConfig.coaServices
-        .collect {
+      services = appType match {
+        case AppType.Wds => config.wdsAppConfig.coaServices
+        case _ => config.coaAppConfig.coaServices
+      }
+      op = services.collect {
           case Cbas =>
             cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           case CbasUI =>
