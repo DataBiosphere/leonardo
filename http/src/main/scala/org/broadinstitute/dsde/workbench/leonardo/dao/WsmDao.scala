@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   wsmJobIdEncoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
-import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -74,8 +73,8 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
 
-  def getDeleteJobResult(request: GetJobResultRequest, authorization: Authorization, resourceType: WsmResourceType)(
-    implicit ev: Ask[F, AppContext]
+  def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[GetDeleteJobResult]]
 
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit

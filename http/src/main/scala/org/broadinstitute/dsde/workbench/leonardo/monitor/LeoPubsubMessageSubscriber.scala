@@ -1590,7 +1590,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(_) =>
-          azurePubsubHandler.deleteAndPollDisk(msg).adaptError { case e =>
+          azurePubsubHandler.deleteDisk(msg).adaptError { case e =>
             PubsubHandleMessageError.DiskDeletionError(
               msg.diskId,
               msg.workspaceId,

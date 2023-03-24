@@ -38,7 +38,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  def deleteAndPollDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def deleteDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def createAndPollApp(appId: AppId,
                        appName: AppName,

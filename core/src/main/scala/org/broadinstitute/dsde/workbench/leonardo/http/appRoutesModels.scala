@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   AuditInfo,
   CloudContext,
-  CloudProvider,
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,

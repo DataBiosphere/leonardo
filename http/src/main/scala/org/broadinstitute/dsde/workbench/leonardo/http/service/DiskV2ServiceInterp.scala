@@ -99,6 +99,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .raiseError[Unit](DiskNotFoundByIdWorkspaceException(diskId, workspaceId, ctx.traceId))
         .whenA(!hasPermission)
 
+      // check that runtime disk was attached to is deleted
+      previousRuntime <- clusterQuery.getLastClusterWithDiskId(diskId).transaction
+      _ <- previousRuntime.traverse(runtime =>
+        F.raiseError[Unit](DiskCannotBeDeletedAttachedException(diskId, workspaceId, ctx.traceId))
+          .whenA(runtime.status == RuntimeStatus.Deleted)
+      )
+
       _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction
 
       _ <- publisherQueue.offer(
@@ -117,4 +124,11 @@ case class DiskNotFoundByIdWorkspaceException(diskId: DiskId, workspaceId: Works
     extends LeoException(s"Persistent disk ${diskId.value} not found in workspace ${workspaceId.value}",
                          StatusCodes.NotFound,
                          traceId = Some(traceId)
+    )
+
+case class DiskCannotBeDeletedAttachedException(id: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
+    extends LeoException(
+      s"Persistent disk ${id.value} in workspace ${workspaceId.value} cannot be deleted. Disk is still attached to a runtime",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
