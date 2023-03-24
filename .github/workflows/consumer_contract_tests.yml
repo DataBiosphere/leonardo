@@ -30,6 +30,7 @@ on:
   pull_request:
     branches:
       - test-pull-request
+      - develop
     paths-ignore:
       - 'README.md'
   push:
