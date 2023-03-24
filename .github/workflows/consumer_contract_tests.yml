@@ -107,7 +107,7 @@ jobs:
           workflow: publish-contracts
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
+          token: ${{ secrets.GITHUB_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}" }'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
