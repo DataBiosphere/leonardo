@@ -29,7 +29,7 @@ name: Consumer contract tests
 on:
   pull_request:
     branches:
-      - develop
+      - test-pull-request
     paths-ignore:
       - 'README.md'
   push:
