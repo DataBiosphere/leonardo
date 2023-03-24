@@ -545,7 +545,7 @@ final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
                                 status: RuntimeStatus,
                                 workspaceId: Option[WorkspaceId],
-                                containers: Set[RuntimeContainerServiceType],
+                                images: Set[RuntimeImage],
                                 labels: LabelMap
 )
 

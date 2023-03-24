@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   AuditInfo,
   CloudContext,
-  CloudProvider,
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,
@@ -46,8 +45,7 @@ final case class GetAppResponse(appName: AppName,
                                 labels: LabelMap
 )
 
-final case class ListAppResponse(cloudProvider: CloudProvider,
-                                 workspaceId: Option[WorkspaceId],
+final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  cloudContext: CloudContext,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
@@ -68,7 +66,6 @@ object ListAppResponse {
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
-          c.cloudContext.cloudProvider,
           a.workspaceId,
           c.cloudContext,
           KubernetesRuntimeConfig(
