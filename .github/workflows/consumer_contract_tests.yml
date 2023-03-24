@@ -100,6 +100,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [init-github-context, leo-consumer-contract-tests]
     steps:
+      - name: GitHub ctx
+        run: |
+          echo ${{ toJSON(github) }}
+          
       - name: Dispatch to terra-github-workflows
         if: ${{ github.event.repository.fork == false }}
         uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
