@@ -103,7 +103,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       previousRuntime <- clusterQuery.getLastClusterWithDiskId(diskId).transaction
       _ <- previousRuntime.traverse(runtime =>
         F.raiseError[Unit](DiskCannotBeDeletedAttachedException(diskId, workspaceId, ctx.traceId))
-          .whenA(runtime.status == RuntimeStatus.Deleted)
+          .whenA(runtime.status != RuntimeStatus.Deleted)
       )
 
       _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction

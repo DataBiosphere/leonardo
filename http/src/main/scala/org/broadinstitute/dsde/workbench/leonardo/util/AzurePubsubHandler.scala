@@ -854,7 +854,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       auth <- samDAO.getLeoAuthToken
       _ <- deleteDiskResource(Right(msg.wsmResourceId), msg.workspaceId, auth)
 
-      _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Deleted, ctx.now))
+      _ <- dbRef.inTransaction(persistentDiskQuery.delete(msg.diskId, ctx.now))
       _ <- logger.info(ctx.loggingCtx)(s"Disk ${msg.diskId} is deleted successfully")
 
     } yield ()
