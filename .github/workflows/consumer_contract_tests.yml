@@ -40,8 +40,6 @@ on:
   merge_group:
     branches:
       - develop
-    paths-ignore:
-      - 'README.md'
 
 jobs:
   init-github-context:
@@ -59,7 +57,7 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             GITHUB_REF=${{ github.ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            FORK="${{ github.event.pull_request.body.fork }}"
+            FORK=${{ github.event.pull_request.head.fork }}
             echo "$FORK"
             GITHUB_REF=refs/heads/${{ github.head_ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
