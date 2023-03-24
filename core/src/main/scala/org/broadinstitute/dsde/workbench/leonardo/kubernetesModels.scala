@@ -320,8 +320,8 @@ object AppType {
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
-  case object Hail extends AppType {
-    override def toString: String = "HAIL"
+  case object HailBatch extends AppType {
+    override def toString: String = "HAIL_BATCH"
   }
 
   def values: Set[AppType] = sealerate.values[AppType]
@@ -329,10 +329,10 @@ object AppType {
 
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy   => FormattedBy.Galaxy
-      case Cromwell => FormattedBy.Cromwell
-      case Custom   => FormattedBy.Custom
-      case Hail     => FormattedBy.Hail
+      case Galaxy    => FormattedBy.Galaxy
+      case Cromwell  => FormattedBy.Cromwell
+      case Custom    => FormattedBy.Custom
+      case HailBatch => FormattedBy.HailBatch
     }
 }
 

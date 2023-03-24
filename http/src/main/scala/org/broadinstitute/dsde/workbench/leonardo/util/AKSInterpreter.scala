@@ -37,11 +37,10 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
-import org.broadinstitute.dsde.workbench.leonardo.config.HailService.{HailBatch, HailBatchDriver}
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   AppMonitorConfig,
   CoaAppConfig,
-  HailAppConfig,
+  HailBatchAppConfig,
   HttpWsmDaoConfig,
   SamConfig
 }
@@ -232,19 +231,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               .run(authContext)
           } yield ()
 
-        case AppType.Hail =>
+        case AppType.HailBatch =>
           for {
-            // Storage container is required for Hail app
+            // Storage container is required for HailBatch app
             storageContainer <- F.fromOption(
               params.storageContainer,
-              AppCreationException("Storage container required for Hail app", Some(ctx.traceId))
+              AppCreationException("Storage container required for Hail Batch app", Some(ctx.traceId))
             )
             _ <- helmClient
               .installChart(
                 app.release,
                 app.chart.name,
                 app.chart.version,
-                buildHailChartOverrideValues(
+                buildHailBatchChartOverrideValues(
                   params.workspaceId,
                   params.landingZoneResources,
                   petMi,
@@ -262,9 +261,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Poll app status
       appOk <- app.appType match {
-        case AppType.Cromwell => pollCromwellAppCreation(app.auditInfo.creator, relayPath)
-        case AppType.Hail     => pollHailAppCreation(app.auditInfo.creator, relayPath)
-        case _                => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
+        case AppType.Cromwell  => pollCromwellAppCreation(app.auditInfo.creator, relayPath)
+        case AppType.HailBatch => pollHailBatchAppCreation(app.auditInfo.creator, relayPath)
+        case _                 => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
       _ <-
         if (appOk)
@@ -412,7 +411,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield cromwellOk.isDone
 
-  private[util] def pollHailAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+  private[util] def pollHailBatchAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
@@ -421,13 +420,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
-      op = config.hailAppConfig.hailServices
-        .collect {
-          case HailBatch       => hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          case HailBatchDriver => hailBatchDriverDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-        }
-        .toList
-        .sequence
+      op = List(hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false),
+                hailBatchDriverDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+      ).sequence
       hailOk <- streamFUntilDone(
         op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
@@ -519,12 +514,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).mkString(",")
     )
 
-  private[util] def buildHailChartOverrideValues(workspaceId: WorkspaceId,
-                                                 landingZoneResources: LandingZoneResources,
-                                                 petManagedIdentity: Option[Identity],
-                                                 storageContainer: StorageContainerResponse,
-                                                 relayDomain: String,
-                                                 appName: String
+  private[util] def buildHailBatchChartOverrideValues(workspaceId: WorkspaceId,
+                                                      landingZoneResources: LandingZoneResources,
+                                                      petManagedIdentity: Option[Identity],
+                                                      storageContainer: StorageContainerResponse,
+                                                      relayDomain: String,
+                                                      appName: String
   ): Values =
     Values(
       List(
@@ -533,13 +528,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
         raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
-        // TODO storageContainerUrl
+        raw"persistence.workspaceManager.storageContainerUrl=https://${landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
 
         // identity configs
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-        raw"relay.domain=${relayDomain}",
+        raw"domain=${relayDomain}",
         raw"relay.subpath=/${appName}"
       ).mkString(",")
     )
@@ -790,7 +785,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 final case class AKSInterpreterConfig(
   terraAppSetupChartConfig: TerraAppSetupChartConfig,
   coaAppConfig: CoaAppConfig,
-  hailAppConfig: HailAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,

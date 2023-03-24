@@ -125,8 +125,8 @@ object FormattedBy extends Enum[FormattedBy] {
     override def asString: String = "CROMWELL"
   }
 
-  final case object Hail extends FormattedBy {
-    override def asString: String = "HAIL"
+  final case object HailBatch extends FormattedBy {
+    override def asString: String = "HAIL_BATCH"
   }
 }
 

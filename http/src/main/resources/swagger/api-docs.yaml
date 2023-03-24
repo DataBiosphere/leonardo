@@ -2734,7 +2734,7 @@ components:
         - CROMWELL
         - CUSTOM
         - GALAXY
-        - HAIL
+        - HAIL_BATCH
     AppStatus:
       type: string
       enum:

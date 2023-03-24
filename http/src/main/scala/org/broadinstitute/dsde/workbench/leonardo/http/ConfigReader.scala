@@ -4,7 +4,7 @@ package http
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   CoaAppConfig,
-  HailAppConfig,
+  HailBatchAppConfig,
   HttpWsmDaoConfig,
   PersistentDiskConfig
 }
@@ -30,7 +30,7 @@ final case class AzureConfig(
   coaAppConfig: CoaAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
   allowedSharedApps: List[String],
-  hailAppConfig: HailAppConfig
+  hailBatchAppConfig: HailBatchAppConfig
 )
 
 final case class OidcAuthConfig(

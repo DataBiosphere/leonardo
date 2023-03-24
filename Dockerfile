@@ -31,7 +31,7 @@ ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.213
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.213
-ENV HAIL_CHART_VERSION 0.1.0
+ENV HAIL_BATCH_CHART_VERSION 0.1.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -63,9 +63,12 @@ RUN cd /leonardo && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
-    helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_CHART_VERSION --untar && \
+    helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
     helm repo update && \
     cd /
+
+# TODO kind of a hack, remove when hail-batch removes this from their chart
+RUN rm /leonardo/hail-batch-terra-azure/templates/relay-listener.yaml
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \

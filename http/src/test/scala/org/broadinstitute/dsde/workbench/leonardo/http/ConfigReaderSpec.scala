@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   CoaAppConfig,
-  HailAppConfig,
+  HailBatchAppConfig,
   HttpWsmDaoConfig,
   PersistentDiskConfig
 }
@@ -99,9 +99,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Values("operationMode=managed")
         ),
         List.empty,
-        HailAppConfig(
+        HailBatchAppConfig(
           ChartName("/leonardo/hail"),
-          ChartVersion("the-chart-version"),
+          ChartVersion("0.1.0"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),
