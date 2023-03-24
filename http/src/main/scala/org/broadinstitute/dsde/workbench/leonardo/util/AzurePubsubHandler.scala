@@ -147,7 +147,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           stagingContainerName.value,
           stagingContainerResourceId.value.toString,
           params.workspaceName,
-          wsStorageContainerUrl
+          wsStorageContainerUrl,
+          "https://leonardo.dsde-dev.broadinstitute.org", // ServiceHost field needs the leonardo URL to hit when calling dateAccessed - how do we get this value?
+          params.runtime.runtimeName.asString,
         )
 
         val cmdToExecute =
