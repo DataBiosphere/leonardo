@@ -67,9 +67,6 @@ RUN cd /leonardo && \
     helm repo update && \
     cd /
 
-# TODO kind of a hack, remove when hail-batch removes this from their chart
-RUN rm /leonardo/hail-batch-terra-azure/templates/relay-listener.yaml
-
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \
     apt-get install jattach

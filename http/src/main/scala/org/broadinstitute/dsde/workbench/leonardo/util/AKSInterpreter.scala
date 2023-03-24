@@ -536,7 +536,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-        raw"domain=${relayDomain}",
+        raw"relay.domain=${relayDomain}",
         raw"relay.subpath=/${appName}"
       ).mkString(",")
     )
