@@ -27,10 +27,7 @@ name: Consumer contract tests
 # NOTE: The publish-contracts workflow will use the latest commit of the branch that triggers this workflow to publish the unique consumer contract version to Pact Broker.
 
 on:
-  pull_request_target:
-    types:
-      - opened
-      - reopened
+  pull_request:
     branches:
       - develop
     paths-ignore:
@@ -107,6 +104,7 @@ jobs:
     needs: [init-github-context, leo-consumer-contract-tests]
     steps:
       - name: Dispatch to terra-github-workflows
+        if: ${{ github.event.repository.fork == false }}
         uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
         with:
           workflow: publish-contracts
@@ -114,6 +112,3 @@ jobs:
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}" }'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
