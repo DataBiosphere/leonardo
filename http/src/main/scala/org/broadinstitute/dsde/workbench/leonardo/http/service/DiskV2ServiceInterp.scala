@@ -18,9 +18,9 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.DiskDeletionError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
-import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
@@ -43,7 +43,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .getGetPersistentDiskResponseV2(diskId, ctx.traceId, workspaceId = workspaceId)
         .transaction
 
-      // If user is creator of the runtime, they should definitely be able to see the runtime.
+      // If user is creator of the disk, they should definitely be able to see the disk.
       hasPermission <-
         if (diskResp.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else {
@@ -75,6 +75,14 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )(
         F.pure
       )
+      wsmResourceId <- F.fromOption(
+        disk.wsmResourceId,
+        DiskDeletionError(
+          disk.id,
+          workspaceId,
+          s"No associated resourceId found for Disk id:${disk.id.value}"
+        )
+      )
       _ <- F
         .raiseUnless(disk.status.isDeletable)(
           DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
@@ -98,7 +106,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           disk.id,
           workspaceId,
           disk.cloudContext,
-          WsmControlledResourceId(UUID.fromString(disk.samResource.resourceId)),
+          wsmResourceId,
           Some(ctx.traceId)
         )
       )
@@ -106,7 +114,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 }
 
 case class DiskNotFoundByIdWorkspaceException(diskId: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
-    extends LeoException(s"Persistent disk ${diskId.value} not found in workspace $workspaceId",
+    extends LeoException(s"Persistent disk ${diskId.value} not found in workspace ${workspaceId.value}",
                          StatusCodes.NotFound,
                          traceId = Some(traceId)
     )

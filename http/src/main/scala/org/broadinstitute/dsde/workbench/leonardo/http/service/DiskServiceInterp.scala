@@ -402,7 +402,7 @@ case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject,
 
 case class DiskCannotBeDeletedException(id: DiskId, status: DiskStatus, cloudContext: CloudContext, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${id.value} cannot be deleted in ${status} status. CloudContext: ${CloudContext}",
+      s"Persistent disk ${id.value} cannot be deleted in ${status} status. CloudContext: ${CloudContext.toString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

@@ -593,19 +593,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       )
 
-<<<<<<< HEAD
       getDeleteJobResultOpt = msg.wsmResourceId.flatTraverse(wsmResourceId =>
         wsmDao.getDeleteJobResult(
           GetJobResultRequest(msg.workspaceId, getWsmJobId("delete-vm", wsmResourceId),  WsmResourceType.AzureVm),
           auth
         )
-=======
-      getDeleteJobResultOpt = wsmDao.getDeleteJobResult(
-        GetJobResultRequest(msg.workspaceId, deleteJobId),
-        auth,
-        WsmResourceType.AzureVm
-      )
->>>>>>> 87f5a9fcd (diskv2 rather than azuredisk)
 
       taskToRun = for {
         // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk, and networks
@@ -775,24 +767,27 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .getWsmRecordFromResourceId(diskResourceId, WsmResourceType.AzureDisk)
             .transaction
       }
+      // TODO (LM)
+      _ <- logger
+        .info(ctx.loggingCtx)(
+          s"HERE! $id."
+        )
       _ <- logger
         .info(ctx.loggingCtx)(
           s"No disk resource found for delete azure disk $id. No-op for wsmDao.deleteDisk."
         )
         .whenA(diskResourceOpt.isEmpty)
       _ <- diskResourceOpt.traverse { disk =>
-        for {
-          _ <- wsmDao.deleteDisk(
-            DeleteWsmResourceRequest(
-              workspaceId,
-              disk.resourceId,
-              DeleteControlledAzureResourceRequest(
-                WsmJobControl(getWsmJobId("delete-disk", disk.resourceId))
-              )
-            ),
-            auth
-          )
-        } yield ()
+        wsmDao.deleteDisk(
+          DeleteWsmResourceRequest(
+            workspaceId,
+            disk.resourceId,
+            DeleteControlledAzureResourceRequest(
+              WsmJobControl(getWsmJobId("delete-disk", disk.resourceId))
+            )
+          ),
+          auth
+        )
       }.void
     } yield ()
 
@@ -813,8 +808,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       taskToRun = for {
         respOpt <- streamFUntilDone(
           getDeleteJobResultOpt,
-          config.deleteVmPollConfig.maxAttempts,
-          config.deleteVmPollConfig.interval
+          config.deleteDiskPollConfig.maxAttempts,
+          config.deleteDiskPollConfig.interval
         ).compile.lastOrError
 
         _ <- respOpt match {
@@ -833,7 +828,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   DiskDeletionError(
                     msg.diskId,
                     msg.workspaceId,
-                    s"Wsm deleteDisk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                    s"WSM delete VM job was not completed within ${config.deleteDiskPollConfig.maxAttempts} attempts with ${config.deleteDiskPollConfig.interval} delay"
                   )
                 )
               case WsmJobStatus.Succeeded =>
@@ -843,13 +838,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 } yield ()
             }
           case None =>
-            F.raiseError[Unit](
-              DiskDeletionError(
-                msg.diskId,
-                msg.workspaceId,
-                s"Wsm deleteDisk job failed for diskId ${msg.diskId}"
+            for {
+              _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Error, ctx.now).transaction
+              _ <- F.raiseError[Unit](
+                DiskDeletionError(
+                  msg.diskId,
+                  msg.workspaceId,
+                  s"Wsm deleteDisk job failed for diskId ${msg.diskId}, retry disk deletion"
+                )
               )
-            )
+            } yield ()
         }
       } yield ()
 

@@ -179,11 +179,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               // if not using existing disk, create a new one
               case false =>
                 for {
+                  samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
                   pd <- F.fromEither(
                     convertToDisk(
                       userInfo,
                       cloudContext,
                       DiskName(req.azureDiskConfig.name.value),
+                      samResource,
                       config.azureConfig.diskConfig,
                       req,
                       landingZoneResources.region,
@@ -191,6 +193,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       ctx.now
                     )
                   )
+                  _ <- authProvider
+                    .notifyResourceCreatedV2(samResource, userInfo.userEmail, cloudContext, workspaceId, userInfo)
+                    .handleErrorWith { t =>
+                      log.error(t)(
+                        s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${req.azureDiskConfig.name.value}"
+                      ) >> F.raiseError(t)
+                    }
                   disk <- persistentDiskQuery.save(pd).transaction
                 } yield disk.id
             }
@@ -539,6 +548,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   private[service] def convertToDisk(userInfo: UserInfo,
                                      cloudContext: CloudContext,
                                      diskName: DiskName,
+                                     samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
                                      region: com.azure.core.management.Region,
@@ -570,7 +580,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       diskName,
       userInfo.userEmail,
       // TODO: WSM will populate this, we can update in backleo if its needed for anything
-      PersistentDiskSamResourceId("fakeUUID"),
+      // PersistentDiskSamResourceId("fakeUUID"),
+      samResource,
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),
       req.azureDiskConfig.size.getOrElse(config.defaultDiskSizeGb),
