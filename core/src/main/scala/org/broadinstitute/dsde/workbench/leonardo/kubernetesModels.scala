@@ -329,6 +329,8 @@ object AppType {
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 
+  /** Host formatting for an App. Currently, for Azure there is only 1 configuration,
+   * and FormattedBy.Cromwell is expected. */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
       case Galaxy   => FormattedBy.Galaxy

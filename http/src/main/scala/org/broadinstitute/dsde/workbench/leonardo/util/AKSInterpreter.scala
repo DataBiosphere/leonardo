@@ -145,7 +145,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPath = Uri.unsafeFromString(relayEndpoint) / params.appName.value
 
       // Deploy setup chart
-      appChartPrefix = "coa" // override prefix for the app that the relay listener will point to
+      appChartPrefix = app.appType match {
+        case AppType.Wds => "wds"
+        case _ => "coa" // override prefix for the app that the relay listener will point to
+      }
 
       _ <- helmClient
         .installChart(

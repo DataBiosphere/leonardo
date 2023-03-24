@@ -51,23 +51,49 @@ class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite wi
     status shouldBe false
   }
 
-  "HttpWdsDAO.getStatus" should "return true if status is ok" in {
+  "HttpWdsDAO.getStatus" should "return true if status is ok for both cromwell and WDS appTypes" in {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, "token"))
 
-    val response =
+    val upResponse =
+      """
+        |{
+        |  "status": "DOWN"
+        |}
+      """.stripMargin
+
+    val downResponse =
       """
         |{
         |  "status": "UP"
         |}
       """.stripMargin
 
-    val okWds = Client.fromHttpApp[IO](
-      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+    val coaWds = Client.fromHttpApp[IO](
+      HttpApp { request =>
+        request.uri.renderString match {
+          case "/wds/status" => IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
+          case _ => IO.fromEither(parse(downResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
+        }
+      }
     )
 
-    val wdsDAO = new HttpWdsDAO(okWds)
-    val res = wdsDAO.getStatus(Uri.unsafeFromString("https://test.com/wds/status"), authHeader, AppType.Cromwell)
-    val status = res.unsafeRunSync()
-    status shouldBe true
+    val singleWds = Client.fromHttpApp[IO](
+      HttpApp { request =>
+        request.uri.renderString match {
+          case "/status" => IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
+          case _ => IO.fromEither(parse(downResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
+        }
+      }
+    )
+
+    val coaWdsDAO = new HttpWdsDAO(coaWds)
+    val coaRes = coaWdsDAO.getStatus(Uri.unsafeFromString("https://test.com/"), authHeader, AppType.Cromwell)
+    val cosStatus = coaRes.unsafeRunSync()
+    cosStatus shouldBe true
+
+    val singleWdsDAO = new HttpWdsDAO(singleWds)
+    val wdsRes = singleWdsDAO.getStatus(Uri.unsafeFromString("https://test.com/"), authHeader, AppType.Wds)
+    val wdsStatus = wdsRes.unsafeRunSync()
+    wdsStatus shouldBe true
   }
 }
