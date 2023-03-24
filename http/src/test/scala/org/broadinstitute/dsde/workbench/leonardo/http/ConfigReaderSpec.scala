@@ -63,6 +63,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
+                // TODO replace with new URI once change to init_script merged
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/4ff00726e7ec507f03e2d6049a7ff56aea7bbbfc/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
