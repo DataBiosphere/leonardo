@@ -27,9 +27,11 @@ name: Consumer contract tests
 # NOTE: The publish-contracts workflow will use the latest commit of the branch that triggers this workflow to publish the unique consumer contract version to Pact Broker.
 
 on:
-  pull_request:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
     branches:
-      - test-pull-request
       - develop
     paths-ignore:
       - 'README.md'
@@ -57,7 +59,10 @@ jobs:
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             GITHUB_REF=${{ github.ref }}
-          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          # elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          #  GITHUB_REF=refs/heads/${{ github.head_ref }}
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request_target" ]]; then
+            echo "${{ github.head_ref }}"
             GITHUB_REF=refs/heads/${{ github.head_ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
             GITHUB_REF=refs/heads/${{ github.head_ref }}
@@ -107,7 +112,7 @@ jobs:
           workflow: publish-contracts
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          token: ${{ secrets.GITHUB_TOKEN }} # github token for access to kick off a job in the private repo
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}" }'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
