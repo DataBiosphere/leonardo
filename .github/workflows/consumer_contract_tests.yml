@@ -48,6 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       repo-branch: ${{ steps.extract-branch.outputs.repo-branch }}
+      fork: ${{ steps.extract-branch.outputs.fork }}
 
     steps:
       - uses: actions/checkout@v3
