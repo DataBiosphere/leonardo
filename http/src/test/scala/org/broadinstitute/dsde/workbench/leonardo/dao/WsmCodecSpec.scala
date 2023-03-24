@@ -206,7 +206,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |  }
          |}
          |""".stripMargin.replaceAll("\\s", "")
-        // TODO replace ^ protectedSettings[_.value] with new URI once change to init_script merged
+    // TODO replace ^ protectedSettings[_.value] with new URI once change to init_script merged
   }
 
   it should "encode DeleteVmRequest" in {
