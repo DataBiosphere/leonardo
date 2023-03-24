@@ -56,10 +56,7 @@ jobs:
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             GITHUB_REF=${{ github.ref }}
-          # elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-          #  GITHUB_REF=refs/heads/${{ github.head_ref }}
-          elif [[ "$GITHUB_EVENT_NAME" == "pull_request_target" ]]; then
-            echo "${{ github.head_ref }}"
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             GITHUB_REF=refs/heads/${{ github.head_ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
             GITHUB_REF=refs/heads/${{ github.head_ref }}
