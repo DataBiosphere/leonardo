@@ -58,8 +58,6 @@ jobs:
             GITHUB_REF=${{ github.ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             FORK=${{ github.event.pull_request.head.repo.fork }}
-            
-            echo "$FORK"
             GITHUB_REF=refs/heads/${{ github.head_ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
             GITHUB_REF=refs/heads/${{ github.head_ref }}
@@ -104,19 +102,15 @@ jobs:
           cd pact4s
           NON_BREAKING_B64=$(cat target/pacts/leo-consumer-sam-provider.json | base64 -w 0)
           echo "pact-b64=${NON_BREAKING_B64}" >> $GITHUB_OUTPUT
-
+          
+  # Disable sensitive workflows from publishing contracts from untrusted source
   publish-contracts:
     runs-on: ubuntu-latest
+    if: ${{ needs.init-github-context.outputs.fork == 'false' }}
     needs: [init-github-context, leo-consumer-contract-tests]
     steps:
-      - name: Sanity check
-        if: ${{ needs.init-github-context.outputs.fork == 'true' }}
-        run: |
-          echo "PR was created from fork repo"
-          
       - name: Dispatch to terra-github-workflows
-        if: ${{ needs.init-github-context.outputs.fork == 'false' }}
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: publish-contracts
           repo: broadinstitute/terra-github-workflows
