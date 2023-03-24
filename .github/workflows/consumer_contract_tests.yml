@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@v3
       - id: extract-branch
         run: |
-          FORK="false"
+          FORK=false
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             GITHUB_REF=${{ github.ref }}
@@ -71,7 +71,7 @@ jobs:
       - name: Sanity check
         if: ${{ steps.extract-branch.outputs.fork == 'true' }}
         run: |
-          echo "PR was created from fork repo"
+          echo "PR was triggered by forked repo"
           
       - name: Echo repo and branch information
         run: |
