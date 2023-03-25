@@ -147,7 +147,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Deploy setup chart
       appChartPrefix = app.appType match {
         case AppType.Wds => "wds"
-        case _ => "coa" // override prefix for the app that the relay listener will point to
+        case _           => "coa" // override prefix for the app that the relay listener will point to
       }
 
       _ <- helmClient

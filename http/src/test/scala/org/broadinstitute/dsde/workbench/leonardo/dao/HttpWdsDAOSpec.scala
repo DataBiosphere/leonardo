@@ -71,7 +71,8 @@ class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite wi
     val coaWds = Client.fromHttpApp[IO](
       HttpApp { request =>
         request.uri.renderString match {
-          case "/wds/status" => IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
+          case "/wds/status" =>
+            IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
           case _ => IO.fromEither(parse(downResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
         }
       }
@@ -80,7 +81,8 @@ class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite wi
     val singleWds = Client.fromHttpApp[IO](
       HttpApp { request =>
         request.uri.renderString match {
-          case "/status" => IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
+          case "/status" =>
+            IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
           case _ => IO.fromEither(parse(downResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
         }
       }

@@ -248,8 +248,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-
-  for (appType <- List(AppType.Wds, AppType.Cromwell) ) {
+  for (appType <- List(AppType.Wds, AppType.Cromwell))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
       val res = for {
         cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -272,11 +271,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appName = saveApp.appName
 
         params = CreateAKSAppParams(appId,
-          appName,
-          workspaceId,
-          cloudContext,
-          landingZoneResources,
-          Some(storageContainer)
+                                    appName,
+                                    workspaceId,
+                                    cloudContext,
+                                    landingZoneResources,
+                                    Some(storageContainer)
         )
         _ <- aksInterp.createAndPollApp(params)
 
@@ -305,7 +304,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
-  }
 
   private def setUpMockIdentity: Identity = {
     val identity = mock[Identity]
