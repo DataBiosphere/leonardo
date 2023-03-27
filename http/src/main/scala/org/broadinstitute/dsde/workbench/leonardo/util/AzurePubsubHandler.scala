@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
@@ -32,6 +33,7 @@ import scala.concurrent.ExecutionContext
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
+  applicationConfig: ApplicationConfig,
   contentSecurityPolicyConfig: ContentSecurityPolicyConfig,
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
@@ -148,7 +150,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           stagingContainerResourceId.value.toString,
           params.workspaceName,
           wsStorageContainerUrl,
-          "https://leonardo.dsde-dev.broadinstitute.org", // ServiceHost field needs the leonardo URL to hit when calling dateAccessed - how do we get this value?
+          applicationConfig.getLeoUrl(),
           params.runtime.runtimeName.asString
         )
 

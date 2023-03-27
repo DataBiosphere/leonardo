@@ -49,6 +49,7 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
+import java.net.URL
 import java.nio.file.{Path, Paths}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -86,6 +87,7 @@ object Config {
       config.as[GoogleProject]("leoGoogleProject"),
       config.as[Path]("leoServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail"),
+      config.getString("leoUrlBase"),
       config.as[Long]("concurrency")
     )
   }
