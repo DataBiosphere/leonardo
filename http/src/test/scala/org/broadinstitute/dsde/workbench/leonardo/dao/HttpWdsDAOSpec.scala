@@ -57,21 +57,23 @@ class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite wi
     val upResponse =
       """
         |{
-        |  "status": "DOWN"
+        |  "status": "UP"
         |}
       """.stripMargin
 
     val downResponse =
       """
         |{
-        |  "status": "UP"
+        |  "status": "DOWN"
         |}
       """.stripMargin
 
+    val baseUri = "https://test.com"
     val coaWds = Client.fromHttpApp[IO](
       HttpApp { request =>
+        val statusEndpoint = s"$baseUri/wds/status"
         request.uri.renderString match {
-          case "/wds/status" =>
+          case `statusEndpoint` =>
             IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
           case _ => IO.fromEither(parse(downResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
         }
@@ -80,22 +82,39 @@ class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite wi
 
     val singleWds = Client.fromHttpApp[IO](
       HttpApp { request =>
+        val statusEndpoint = s"$baseUri/status"
         request.uri.renderString match {
-          case "/status" =>
+          case `statusEndpoint` =>
             IO.fromEither(parse(upResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
           case _ => IO.fromEither(parse(downResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r)))
         }
       }
     )
 
+    // First test the COA WDS
     val coaWdsDAO = new HttpWdsDAO(coaWds)
-    val coaRes = coaWdsDAO.getStatus(Uri.unsafeFromString("https://test.com/"), authHeader, AppType.Cromwell)
+
+    // Status succeeds when app type is cromwell
+    val coaRes = coaWdsDAO.getStatus(Uri.unsafeFromString(baseUri), authHeader, AppType.Cromwell)
     val cosStatus = coaRes.unsafeRunSync()
     cosStatus shouldBe true
 
+    // Status fails when we wrongly put apptype as WDS
+    val coaResBad = coaWdsDAO.getStatus(Uri.unsafeFromString(baseUri), authHeader, AppType.Wds)
+    val cosStatusBad = coaResBad.unsafeRunSync()
+    cosStatusBad shouldBe false
+
+    // Next test multi-app WDS
     val singleWdsDAO = new HttpWdsDAO(singleWds)
-    val wdsRes = singleWdsDAO.getStatus(Uri.unsafeFromString("https://test.com/"), authHeader, AppType.Wds)
+
+    // Status succeeds when app type is WDS
+    val wdsRes = singleWdsDAO.getStatus(Uri.unsafeFromString(baseUri), authHeader, AppType.Wds)
     val wdsStatus = wdsRes.unsafeRunSync()
     wdsStatus shouldBe true
+
+    // Status fails when we wrongly put appType as cromwell
+    val wdsResBad = singleWdsDAO.getStatus(Uri.unsafeFromString(baseUri), authHeader, AppType.Cromwell)
+    val wdsStatusBad = wdsResBad.unsafeRunSync()
+    wdsStatusBad shouldBe false
   }
 }
