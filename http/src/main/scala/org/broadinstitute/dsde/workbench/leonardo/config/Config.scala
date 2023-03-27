@@ -49,7 +49,6 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
-import java.net.URL
 import java.nio.file.{Path, Paths}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
