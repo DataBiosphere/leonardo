@@ -1026,7 +1026,13 @@ class AzurePubsubHandlerSpec
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
-      new ApplicationConfig("test", GoogleProject("test"), Paths.get("x.y"), WorkbenchEmail("z@x.y"), "leonardo.dsde-dev.broadinstitute.org", 0L),
+      new ApplicationConfig("test",
+                            GoogleProject("test"),
+                            Paths.get("x.y"),
+                            WorkbenchEmail("z@x.y"),
+                            "leonardo.dsde-dev.broadinstitute.org",
+                            0L
+      ),
       contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
