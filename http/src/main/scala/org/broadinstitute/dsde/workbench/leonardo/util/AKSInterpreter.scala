@@ -157,7 +157,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         ksaName,
                                         params.landingZoneResources.relayNamespace,
                                         hcName,
-                                        relayPrimaryKey
+                                        relayPrimaryKey,
+                                        params.workspaceId
           ),
           true
         )
@@ -435,7 +436,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   ksaName: ServiceAccountName,
                                                   relayNamespace: RelayNamespace,
                                                   relayHcName: RelayHybridConnectionName,
-                                                  relayPrimaryKey: PrimaryKey
+                                                  relayPrimaryKey: PrimaryKey,
+                                                  workspaceId: WorkspaceId
   ): Values =
     Values(
       List(
@@ -452,9 +454,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.targetHost=http://batch:8080/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceType=${samResourceId.resourceType.asString}",
+        // TODO tmp
+        raw"relaylistener.samResourceType=kubernetes-app-shared", // ${samResourceId.resourceType.asString}",
         raw"relaylistener.samAction=connect",
-
+        // TODO only for hail
+        raw"""relaylistener.removeEntityPathFromHttpUrl="false"""",
+        // TODO
+        raw"""relaylistener.workspaceId=${workspaceId.value.toString}""",
+        raw"""relaylistener.runtimeName=runtime-name""",
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")

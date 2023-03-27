@@ -23,7 +23,7 @@ EXPOSE 5050
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
-ENV TERRA_APP_SETUP_VERSION 0.0.8
+ENV TERRA_APP_SETUP_VERSION 0.0.9
 ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
 ENV GALAXY_VERSION 2.5.1
@@ -57,6 +57,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
 RUN cd /leonardo && \
+    helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
@@ -66,6 +67,9 @@ RUN cd /leonardo && \
     helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
     helm repo update && \
     cd /
+
+# TODO kind of a hack, remove when hail-batch removes this from their chart
+RUN rm /leonardo/hail-batch-terra-azure/templates/relay-listener.yaml
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \
