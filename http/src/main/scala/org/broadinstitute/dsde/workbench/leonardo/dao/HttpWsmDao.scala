@@ -363,7 +363,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     } yield res
 
   override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-                                                                                                ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext]
   ): F[GetDeleteJobResult] =
     for {
       ctx <- ev.ask

@@ -278,7 +278,6 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     )
   )
 
-  // TODO (LM)
   override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[GetDeleteJobResult] = IO.pure(

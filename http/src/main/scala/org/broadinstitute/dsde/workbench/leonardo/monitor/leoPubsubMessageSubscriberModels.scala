@@ -1093,12 +1093,16 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class DiskInvalidState(diskId: DiskId, projectName: String, disk: PersistentDisk)
-      extends PubsubHandleMessageError {
+  final case class AzureDiskResourceDeletionError(id: Either[Long, WsmControlledResourceId],
+                                                  workspaceId: WorkspaceId,
+                                                  errorMsg: String
+                                                 ) extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"${diskId}, ${projectName} | Unable to process disk because not in correct state. Disk details: ${disk}"
+      s"\n\tAssociated disk resource: ${id} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
+
     val isRetryable: Boolean = false
   }
+
 
   final case class AzureRuntimeCreationError(runtimeId: Long,
                                              workspaceId: WorkspaceId,

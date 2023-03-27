@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureDiskResourceDeletionError,
   AzureRuntimeCreationError,
   AzureRuntimeStartingError,
   AzureRuntimeStoppingError,
@@ -1011,6 +1012,95 @@ class AzurePubsubHandlerSpec
         None
       )
     )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "delete azure disk properly" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val mockWsmDao = mock[WsmDao[IO]]
+    when {
+      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(None)
+    when {
+      mockWsmDao.getDeleteDiskJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(
+      GetDeleteJobResult(
+        WsmJobReport(
+          WsmJobId("job1"),
+          "desc",
+          WsmJobStatus.Succeeded,
+          200,
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+          "resultUrl"
+        ),
+        None
+      )
+    )
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+
+    val res =
+      for {
+        disk <- makePersistentDisk(wsmResourceId = Some(wsmResourceId)).copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(2)
+          .copy(
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getDiskOpt <- persistentDiskQuery.getActiveByIdWorkspace(workspaceId, disk.id).transaction
+          getDisk = getDiskOpt.get
+        } yield {
+          verify(mockWsmDao, times(1)).deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(
+            any[Ask[IO, AppContext]]
+          )
+          getDisk.status shouldBe DiskStatus.Deleted
+        }
+
+        _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureDisk).transaction
+
+        msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, Some(wsmResourceId), None)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.deleteDisk(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a disk without a WSMresourceId" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDao = mock[WsmDao[IO]]
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+
+    val res =
+      for {
+        disk <- makePersistentDisk(wsmResourceId = Some(wsmResourceId)).copy(status = DiskStatus.Ready).save()
+
+        msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, Some(wsmResourceId), None)
+
+        err <- azureInterp.deleteDisk(msg).attempt
+
+      } yield err shouldBe Left(
+        AzureDiskResourceDeletionError(
+          Right(wsmResourceId),
+          workspaceId,
+          "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
+        )
+      )
+
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

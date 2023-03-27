@@ -824,17 +824,18 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .getWsmRecordFromResourceId(diskResourceId, WsmResourceType.AzureDisk)
             .transaction
       }
-      _ <- logger
-        .info(ctx.loggingCtx)(
-          s"No disk resource found for delete azure disk $id. No-op for wsmDao.deleteDisk."
+      diskResource <- F.fromOption(
+        diskResourceOpt,
+        AzureDiskResourceDeletionError(id,
+                                       workspaceId,
+                                       "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
         )
-        .whenA(diskResourceOpt.isEmpty)
-
-      jobId = getWsmJobId("delete-disk", diskResourceOpt.get.resourceId)
+      )
+      jobId = getWsmJobId("delete-disk", diskResource.resourceId)
 
       _ <- diskResourceOpt.traverse { disk =>
         for {
-          _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${disk.resourceId}")
+          _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${disk.resourceId.value}")
           _ <- wsmDao
             .deleteDisk(
               DeleteWsmResourceRequest(
