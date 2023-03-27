@@ -2046,7 +2046,7 @@ class LeoPubsubMessageSubscriberSpec
                             GoogleProject("test"),
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
-                            "leonardo.dsde-dev.broadinstitute.org",
+                            "https://leonardo.foo.org",
                             0L
       ),
       contentSecurityPolicy,

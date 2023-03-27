@@ -1030,7 +1030,7 @@ class AzurePubsubHandlerSpec
                             GoogleProject("test"),
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
-                            "leonardo.dsde-dev.broadinstitute.org",
+                            "https://leonardo.foo.broadinstitute.org",
                             0L
       ),
       contentSecurityPolicy,
