@@ -119,7 +119,7 @@ jobs:
 
   try-deploy:
     runs-on: ubuntu-latest
-    needs: [ publish-contracts ]
+    needs: [ init-github-context, publish-contracts ]
     steps:
       - name: Dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v3
