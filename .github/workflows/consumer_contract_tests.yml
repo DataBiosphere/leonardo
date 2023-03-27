@@ -96,7 +96,7 @@ jobs:
     needs: [init-github-context, leo-consumer-contract-tests]
     steps:
       - name: Dispatch to terra-github-workflows
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: publish-contracts
           repo: broadinstitute/terra-github-workflows
@@ -109,9 +109,22 @@ jobs:
     needs: [ init-github-context, publish-contracts ]
     steps:
       - name: Dispatch to terra-github-workflows
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: can-i-deploy.yaml
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/QA-2056
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
+          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.init-github-context.outputs.repo-version }}", "environment": "alpha" }'
+
+  try-deploy:
+    runs-on: ubuntu-latest
+    needs: [ publish-contracts ]
+    steps:
+      - name: Dispatch to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v3
+        with:
+          workflow: record-deployment.yaml
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/QA-2056
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
