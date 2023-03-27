@@ -385,7 +385,7 @@ object DiskServiceInterp {
       labels,
       sourceDisk.map(_.diskLink),
       None,
-      None
+      None // TODO: can't delete disks w/o workspaceId supplied
     )
   }
 }

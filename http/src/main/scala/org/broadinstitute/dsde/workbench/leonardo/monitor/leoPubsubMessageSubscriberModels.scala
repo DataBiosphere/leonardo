@@ -379,7 +379,7 @@ object LeoPubsubMessage {
   final case class DeleteDiskV2Message(diskId: DiskId,
                                        workspaceId: WorkspaceId,
                                        cloudContext: CloudContext,
-                                       wsmResourceId: WsmControlledResourceId,
+                                       wsmResourceId: Option[WsmControlledResourceId],
                                        traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteDiskV2
@@ -1079,6 +1079,16 @@ object PubsubHandleMessageError {
       extends PubsubHandleMessageError {
     override def getMessage: String =
       s"\n\tdisk ${diskId} in workspace ${workspaceId}, \n\tmsg: ${errorMsg})"
+
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureDiskDeletionError(wsmControlledResourceId: WsmControlledResourceId,
+                                          workspaceId: WorkspaceId,
+                                          errorMsg: String
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\tdisk resource: ${wsmControlledResourceId}, \n\tmsg: ${errorMsg})"
 
     val isRetryable: Boolean = false
   }

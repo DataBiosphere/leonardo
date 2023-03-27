@@ -1587,7 +1587,6 @@ class LeoPubsubMessageSubscriber[F[_]](
     msg: DeleteDiskV2Message
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(_) =>
           azurePubsubHandler.deleteDisk(msg).adaptError { case e =>
@@ -1598,13 +1597,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           }
         case CloudContext.Gcp(_) =>
-          // TODO: support deleting GCP disks
-          F.raiseError(
-            DiskDeletionError(msg.diskId,
-                              msg.workspaceId,
-                              s"Error deleting GCP disk: DeleteDiskV2 not yet supported for GCP"
-            )
-          )
+          deleteDisk(msg.diskId, false)
       }
     } yield ()
 }

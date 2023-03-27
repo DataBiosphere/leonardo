@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.DiskDeletionError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.concurrent.ExecutionContext
@@ -75,14 +74,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )(
         F.pure
       )
-      wsmResourceId <- F.fromOption(
-        disk.wsmResourceId,
-        DiskDeletionError(
-          disk.id,
-          workspaceId,
-          s"No associated resourceId found for Disk id:${disk.id.value}"
-        )
-      )
+
       _ <- F
         .raiseUnless(disk.status.isDeletable)(
           DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
@@ -113,7 +105,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           disk.id,
           workspaceId,
           disk.cloudContext,
-          wsmResourceId,
+          disk.wsmResourceId,
           Some(ctx.traceId)
         )
       )
