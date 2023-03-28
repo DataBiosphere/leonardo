@@ -408,15 +408,22 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
         )
       case RuntimeStatus.Deleting =>
         for {
+          now <- F.realTimeInstant
+          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
           wid <- F.fromOption(runtime.workspaceId,
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
           controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
+          leoAuth <- samDAO.getLeoAuthToken
+          workspaceDescOpt <- wsmDao.getWorkspace(wid, leoAuth)
+          workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
           runtimeId = runtime.id,
           None,
           workspaceId = wid,
           wsmResourceId = Some(controlledResourceOpt),
+          landingZoneResources,
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>

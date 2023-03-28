@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
-import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -86,11 +85,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val wsmDao = new MockWsmDAO {
-      override def getRelayNamespace(workspaceId: WorkspaceId, region: Region, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[Option[RelayNamespace]] =
-        IO.pure(Some(relayNamespace))
-
       override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
@@ -642,7 +636,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk.status shouldBe DiskStatus.Deleting
 
       val expectedMessage =
-        DeleteAzureRuntimeMessage(preDeleteCluster.id, Some(disk.id), workspaceId, None, Some(context.traceId))
+        DeleteAzureRuntimeMessage(preDeleteCluster.id,
+                                  Some(disk.id),
+                                  workspaceId,
+                                  None,
+                                  landingZoneResources,
+                                  Some(context.traceId)
+        )
       message shouldBe expectedMessage
     }
 
@@ -736,7 +736,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk.status shouldBe DiskStatus.Creating
 
       val expectedMessage =
-        DeleteAzureRuntimeMessage(preDeleteCluster.id, None, workspaceId, None, Some(context.traceId))
+        DeleteAzureRuntimeMessage(preDeleteCluster.id,
+                                  None,
+                                  workspaceId,
+                                  None,
+                                  landingZoneResources,
+                                  Some(context.traceId)
+        )
       message shouldBe expectedMessage
     }
 
@@ -891,8 +897,20 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk_3.status shouldBe DiskStatus.Deleting
 
       val expectedMessages = List(
-        DeleteAzureRuntimeMessage(preDeleteCluster_2.id, Some(disk_2.id), workspaceId, None, Some(context.traceId)),
-        DeleteAzureRuntimeMessage(preDeleteCluster_3.id, Some(disk_3.id), workspaceId, None, Some(context.traceId))
+        DeleteAzureRuntimeMessage(preDeleteCluster_2.id,
+                                  Some(disk_2.id),
+                                  workspaceId,
+                                  None,
+                                  landingZoneResources,
+                                  Some(context.traceId)
+        ),
+        DeleteAzureRuntimeMessage(preDeleteCluster_3.id,
+                                  Some(disk_3.id),
+                                  workspaceId,
+                                  None,
+                                  landingZoneResources,
+                                  Some(context.traceId)
+        )
       )
       delete_messages shouldBe expectedMessages
     }
