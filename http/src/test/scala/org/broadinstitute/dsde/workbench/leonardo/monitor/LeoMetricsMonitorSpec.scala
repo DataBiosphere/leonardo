@@ -127,19 +127,43 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     test.size shouldBe 4
     // Jupyter on GCP on Terra
     test.get(
-      RuntimeStatusMetric(CloudProvider.Gcp, jupyterImage, RuntimeStatus.Running, RuntimeUI.Terra, None)
+      RuntimeStatusMetric(CloudProvider.Gcp,
+                          jupyterImage.imageType,
+                          jupyterImage.imageUrl,
+                          RuntimeStatus.Running,
+                          RuntimeUI.Terra,
+                          None
+      )
     ) shouldBe Some(1)
     // RStudio on GCP on Terra
     test.get(
-      RuntimeStatusMetric(CloudProvider.Gcp, rstudioImage, RuntimeStatus.Running, RuntimeUI.Terra, None)
+      RuntimeStatusMetric(CloudProvider.Gcp,
+                          rstudioImage.imageType,
+                          rstudioImage.imageUrl,
+                          RuntimeStatus.Running,
+                          RuntimeUI.Terra,
+                          None
+      )
     ) shouldBe Some(1)
     // Jupyter on Azure
     test.get(
-      RuntimeStatusMetric(CloudProvider.Azure, azureImage, RuntimeStatus.Running, RuntimeUI.Terra, Some(azureContext))
+      RuntimeStatusMetric(CloudProvider.Azure,
+                          azureImage.imageType,
+                          azureImage.imageUrl,
+                          RuntimeStatus.Running,
+                          RuntimeUI.Terra,
+                          Some(azureContext)
+      )
     ) shouldBe Some(1)
     // Jupyter on GCP on AoU
     test.get(
-      RuntimeStatusMetric(CloudProvider.Gcp, jupyterImage, RuntimeStatus.Running, RuntimeUI.AoU, None)
+      RuntimeStatusMetric(CloudProvider.Gcp,
+                          jupyterImage.imageType,
+                          jupyterImage.imageUrl,
+                          RuntimeStatus.Running,
+                          RuntimeUI.AoU,
+                          None
+      )
     ) shouldBe Some(1)
   }
 
@@ -199,19 +223,19 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     // Jupyter Azure
     List(azureImage, welderImage).foreach { i =>
       test.get(
-        RuntimeHealthMetric(CloudProvider.Azure, i, RuntimeUI.Terra, Some(azureContext), true)
+        RuntimeHealthMetric(CloudProvider.Azure, i.imageType, i.imageUrl, RuntimeUI.Terra, Some(azureContext), true)
       ) shouldBe Some(1)
       test.get(
-        RuntimeHealthMetric(CloudProvider.Azure, i, RuntimeUI.Terra, Some(azureContext), false)
+        RuntimeHealthMetric(CloudProvider.Azure, i.imageType, i.imageUrl, RuntimeUI.Terra, Some(azureContext), false)
       ) shouldBe Some(0)
     }
     // RStudio GCP
     List(rstudioImage, welderImage).foreach { i =>
       test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp, i, RuntimeUI.Terra, None, i != rstudioImage)
+        RuntimeHealthMetric(CloudProvider.Gcp, i.imageType, i.imageUrl, RuntimeUI.Terra, None, i != rstudioImage)
       ) shouldBe Some(1)
       test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp, i, RuntimeUI.Terra, None, i == rstudioImage)
+        RuntimeHealthMetric(CloudProvider.Gcp, i.imageType, i.imageUrl, RuntimeUI.Terra, None, i == rstudioImage)
       ) shouldBe Some(0)
     }
   }
@@ -401,7 +425,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def setUpMockWdsDAO: WdsDAO[IO] = {
     val wds = mock[WdsDAO[IO]]
     when {
-      wds.getStatus(any, any)(any)
+      wds.getStatus(any, any, any)(any)
     } thenReturn IO.pure(true)
     wds
   }

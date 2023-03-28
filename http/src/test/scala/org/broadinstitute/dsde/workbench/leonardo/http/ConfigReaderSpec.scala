@@ -4,7 +4,12 @@ package http
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  CoaAppConfig,
+  HttpWsmDaoConfig,
+  PersistentDiskConfig,
+  WdsAppConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AzureRuntimeDefaults,
   CustomScriptExtensionConfig,
@@ -86,6 +91,17 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false
         ),
+        WdsAppConfig(
+          ChartName("/leonardo/wds"),
+          ChartVersion("0.3.0"),
+          ReleaseNameSuffix("wds-rls"),
+          NamespaceNameSuffix("wds-ns"),
+          KsaName("wds-ksa"),
+          List(
+            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          instrumentationEnabled = false
+        ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),
           Release("aad-pod-identity"),
@@ -93,7 +109,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List.empty
+        List("WDS")
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

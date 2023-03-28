@@ -639,6 +639,7 @@ object Boot extends IOApp {
         AKSInterpreterConfig(
           ConfigReader.appConfig.terraAppSetupChart,
           ConfigReader.appConfig.azure.coaAppConfig,
+          ConfigReader.appConfig.azure.wdsAppConfig,
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
           ConfigReader.appConfig.azure.appRegistration,
           samConfig,
