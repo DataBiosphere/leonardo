@@ -23,8 +23,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       testCommonControlledResourceFields,
       CreateDiskRequestData(
         AzureDiskName("disk"),
-        DiskSize(50),
-        Region.US_EAST
+        DiskSize(50)
       )
     ).asJson.deepDropNullValues.noSpaces
 
@@ -44,8 +43,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         |  },
         |  "azureDisk" : {
         |    "name" : "disk",
-        |    "size": 50,
-        |    "region" : "eastus"
+        |    "size": 50
         |  }
         |}
         |""".stripMargin.replaceAll("\\s", "")

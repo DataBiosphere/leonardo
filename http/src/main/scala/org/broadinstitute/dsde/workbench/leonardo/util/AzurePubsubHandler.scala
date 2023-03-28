@@ -380,8 +380,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             CreateDiskRequestData(
               // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
               AzureDiskName(disk.name.value),
-              disk.size,
-              params.runtimeConfig.region
+              disk.size
             )
           )
           diskResp <- wsmDao.createDisk(request, leoAuth)
