@@ -155,7 +155,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   // for Sam provider to generate the expected response
   var pactDslResponse: PactDslResponse = buildInteraction(
     pactProvider,
-    state = "Sam subsystems changes are ok to run in the Pact Broker pipeline",
+    state = "Sam subsystems changes are ok to run in the Pact Broker CI/CD pipeline",
     stateParams = subsystems.map(s => s.toString() -> "ok").toMap,
     uponReceiving = "Request to get Sam ok status",
     method = "GET",
