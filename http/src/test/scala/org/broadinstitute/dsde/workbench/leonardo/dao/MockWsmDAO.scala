@@ -1,35 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
-import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
-  ApplicationInsightsName,
-  AzureCloudContext,
-  BatchAccountName,
-  ContainerName,
-  ManagedResourceGroupName,
-  RelayNamespace,
-  SubscriptionId,
-  TenantId
-}
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
+import java.util.UUID
 
 class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDao[IO] {
-  override def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[CreateIpResponse] =
-    IO.pure(
-      CreateIpResponse(
-        WsmControlledResourceId(UUID.randomUUID())
-      )
-    )
 
   override def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
@@ -191,65 +172,6 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
         )
       )
     )
-
-  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[Option[DeleteWsmResourceResult]] =
-    IO.pure(
-      Some(
-        DeleteWsmResourceResult(
-          WsmJobReport(
-            request.deleteRequest.jobControl.id,
-            "desc",
-            jobStatus,
-            200,
-            ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-            Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-            "resultUrl"
-          ),
-          if (jobStatus.equals(WsmJobStatus.Failed))
-            Some(
-              WsmErrorReport(
-                "error",
-                500,
-                List.empty
-              )
-            )
-          else None
-        )
-      )
-    )
-
-  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[Option[DeleteWsmResourceResult]] = IO.pure(
-    Some(
-      DeleteWsmResourceResult(
-        WsmJobReport(
-          request.deleteRequest.jobControl.id,
-          "desc",
-          jobStatus,
-          200,
-          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-          "resultUrl"
-        ),
-        if (jobStatus.equals(WsmJobStatus.Failed))
-          Some(
-            WsmErrorReport(
-              "error",
-              500,
-              List.empty
-            )
-          )
-        else None
-      )
-    )
-  )
-
-  override def getRelayNamespace(workspaceId: WorkspaceId, region: Region, authorization: Authorization)(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[Option[RelayNamespace]] = IO.pure(Some(RelayNamespace("fake-relay-ns")))
 
   override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]

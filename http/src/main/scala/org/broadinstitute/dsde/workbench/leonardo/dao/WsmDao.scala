@@ -10,10 +10,8 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
-  azureRegionDecoder,
   azureRegionEncoder,
   googleProjectDecoder,
-  relayNamespaceDecoder,
   runtimeNameEncoder,
   storageContainerNameDecoder,
   storageContainerNameEncoder,
@@ -33,10 +31,6 @@ import java.time.ZonedDateTime
 import java.util.UUID
 
 trait WsmDao[F[_]] {
-  def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateIpResponse]
-
   def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateDiskResponse]
@@ -61,14 +55,6 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]]
 
-  def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]]
-
-  def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]]
-
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
@@ -84,14 +70,6 @@ trait WsmDao[F[_]] {
   def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources]
-
-  // TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
-  def getRelayNamespace(workspaceId: WorkspaceId,
-                        region: com.azure.core.management.Region,
-                        authorization: Authorization
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[RelayNamespace]]
 
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -178,29 +156,13 @@ final case class GetDeleteJobResult(jobReport: WsmJobReport, errorReport: Option
 
 sealed trait ResourceAttributes extends Serializable with Product
 object ResourceAttributes {
-  final case class RelayNamespaceResourceAttributes(namespaceName: RelayNamespace,
-                                                    region: com.azure.core.management.Region
-  ) extends ResourceAttributes
   final case class StorageContainerResourceAttributes(name: ContainerName) extends ResourceAttributes
 }
 
 final case class WsmResourceMetadata(resourceId: WsmControlledResourceId)
 final case class WsmResource(metadata: WsmResourceMetadata, resourceAttributes: ResourceAttributes)
 final case class GetWsmResourceResponse(resources: List[WsmResource])
-
 final case class GetJobResultRequest(workspaceId: WorkspaceId, jobId: WsmJobId)
-
-// Azure IP models
-final case class CreateIpRequest(workspaceId: WorkspaceId,
-                                 common: ControlledResourceCommonFields,
-                                 ipData: CreateIpRequestData
-)
-
-final case class CreateIpRequestData(name: AzureIpName, region: com.azure.core.management.Region)
-
-final case class AzureIpName(value: String) extends AnyVal
-
-final case class CreateIpResponse(resourceId: WsmControlledResourceId)
 
 // Azure Disk models
 final case class CreateDiskRequest(workspaceId: WorkspaceId,
@@ -212,26 +174,7 @@ final case class CreateDiskRequestData(name: AzureDiskName, size: DiskSize, regi
 
 final case class CreateDiskResponse(resourceId: WsmControlledResourceId)
 
-//Network models
-final case class CreateNetworkRequest(workspaceId: WorkspaceId,
-                                      common: ControlledResourceCommonFields,
-                                      networkData: CreateNetworkRequestData
-)
-
-final case class CreateNetworkRequestData(networkName: AzureNetworkName,
-                                          subnetName: AzureSubnetName,
-                                          addressSpaceCidr: CidrIP,
-                                          subnetAddressCidr: CidrIP,
-                                          region: com.azure.core.management.Region
-)
-
-final case class AzureNetworkName(value: String) extends AnyVal
-final case class AzureSubnetName(value: String) extends AnyVal
-
-final case class CreateNetworkResponse(resourceId: WsmControlledResourceId)
-
 // Common Controlled resource models
-
 final case class ControlledResourceCommonFields(name: ControlledResourceName,
                                                 description: ControlledResourceDescription,
                                                 cloningInstructions: CloningInstructions,
@@ -350,22 +293,10 @@ object ManagedBy {
 // End Common Controlled resource models
 
 object WsmDecoders {
-  implicit val createIpResponseDecoder: Decoder[CreateIpResponse] = Decoder.instance { c =>
-    for {
-      id <- c.downField("resourceId").as[UUID]
-    } yield CreateIpResponse(WsmControlledResourceId(id))
-  }
-
   implicit val createDiskResponseDecoder: Decoder[CreateDiskResponse] = Decoder.instance { c =>
     for {
       id <- c.downField("resourceId").as[UUID]
     } yield CreateDiskResponse(WsmControlledResourceId(id))
-  }
-
-  implicit val createNetworkResponseDecoder: Decoder[CreateNetworkResponse] = Decoder.instance { c =>
-    for {
-      id <- c.downField("resourceId").as[UUID]
-    } yield CreateNetworkResponse(WsmControlledResourceId(id))
   }
 
   implicit val metadataDecoder: Decoder[WsmVMMetadata] = Decoder.instance { c =>
@@ -453,18 +384,12 @@ object WsmDecoders {
   implicit val createVmResultDecoder: Decoder[CreateVmResult] =
     Decoder.forProduct2("jobReport", "errorReport")(CreateVmResult.apply)
 
-  implicit val relayNamespaceResourceAttributesDecoder: Decoder[ResourceAttributes.RelayNamespaceResourceAttributes] =
-    Decoder.forProduct2("namespaceName", "region")(ResourceAttributes.RelayNamespaceResourceAttributes.apply)
   implicit val storageContainerResourceAttributesDecoder
     : Decoder[ResourceAttributes.StorageContainerResourceAttributes] =
     Decoder.forProduct1("storageContainerName")(ResourceAttributes.StorageContainerResourceAttributes.apply)
   implicit val resourceAttributesDecoder: Decoder[ResourceAttributes] =
     Decoder.instance { x =>
-      val decodeAsRelayNamespace =
-        x.downField("azureRelayNamespace").as[ResourceAttributes.RelayNamespaceResourceAttributes]
-      val decodeAsStorageContainer =
-        x.downField("azureStorageContainer").as[ResourceAttributes.StorageContainerResourceAttributes]
-      decodeAsRelayNamespace orElse decodeAsStorageContainer
+      x.downField("azureStorageContainer").as[ResourceAttributes.StorageContainerResourceAttributes]
     }
   implicit val wsmResourceMetadataDecoder: Decoder[WsmResourceMetadata] =
     Decoder.forProduct1("resourceId")(WsmResourceMetadata.apply)
@@ -503,22 +428,11 @@ object WsmEncoders {
       )
     )
 
-  implicit val ipRequestDataEncoder: Encoder[CreateIpRequestData] =
-    Encoder.forProduct2("name", "region")(x => (x.name.value, x.region.toString))
-  implicit val createIpRequestEncoder: Encoder[CreateIpRequest] =
-    Encoder.forProduct2("common", "azureIp")(x => (x.common, x.ipData))
-
   implicit val diskRequestDataEncoder: Encoder[CreateDiskRequestData] =
     Encoder.forProduct3("name", "size", "region")(x => (x.name.value, x.size.gb, x.region.toString))
   implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] =
     Encoder.forProduct2("common", "azureDisk")(x => (x.common, x.diskData))
 
-  implicit val networkRequestDataEncoder: Encoder[CreateNetworkRequestData] =
-    Encoder.forProduct5("name", "subnetName", "addressSpaceCidr", "subnetAddressCidr", "region")(x =>
-      (x.networkName.value, x.subnetName.value, x.addressSpaceCidr.value, x.subnetAddressCidr.value, x.region.toString)
-    )
-  implicit val createNetworkRequestEncoder: Encoder[CreateNetworkRequest] =
-    Encoder.forProduct2("common", "azureNetwork")(x => (x.common, x.networkData))
   implicit val protectedSettingsEncoder: Encoder[ProtectedSettings] = Encoder.instance { x =>
     val fileUrisMap = Map(
       "key" -> "fileUris".asJson,

@@ -514,6 +514,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       auth <- samDAO.getLeoAuthToken
 
+      // Delete the VM in WSM
       _ <- msg.wsmResourceId.fold(
         logger
           .info(ctx.loggingCtx)(
@@ -541,6 +542,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
       }
 
+      // Delete the staging storage container in WSM
       stagingBucketResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
         .transaction
@@ -564,17 +566,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .void
       }
 
-      // Delete hybrid connection for this VM
-      leoAuth <- samDAO.getLeoAuthToken
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      azureRuntimeConfig <- runtimeConfig match {
-        case x: RuntimeConfig.AzureConfig => F.pure(x)
-        case _ =>
-          F.raiseError(
-            ClusterError(msg.runtimeId, ctx.traceId, s"Runtime should have Azure config, but it doesn't")
-          )
-      }
-      relayNamespaceOpt <- wsmDao.getRelayNamespace(msg.workspaceId, azureRuntimeConfig.region, leoAuth)
+      // Grab the cloud context for the runtime
       cloudContext <- runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           F.raiseError[AzureCloudContext](
@@ -585,12 +577,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         case x: CloudContext.Azure => F.pure(x.value)
       }
-      _ <- relayNamespaceOpt.traverse(ns =>
-        azureRelay.deleteRelayHybridConnection(
-          ns,
-          RelayHybridConnectionName(runtime.runtimeName.asString),
-          cloudContext
-        )
+
+      // Delete hybrid connection for this VM
+      _ <- azureRelay.deleteRelayHybridConnection(
+        msg.landingZoneResources.relayNamespace,
+        RelayHybridConnectionName(runtime.runtimeName.asString),
+        cloudContext
       )
 
       getDeleteJobResultOpt = msg.wsmResourceId.flatTraverse(wsmResourceId =>
@@ -600,8 +592,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       )
 
+      // Poll for VM deletion
       taskToRun = for {
-        // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk, and networks
+        // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk
         respOpt <- streamFUntilDone(
           getDeleteJobResultOpt,
           config.deleteVmPollConfig.maxAttempts,
@@ -768,22 +761,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
         case true => F.unit
       }
-
-      networkResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
-        .transaction
-      _ <- networkResourceOpt.traverse { network =>
-        wsmDao.deleteNetworks(
-          DeleteWsmResourceRequest(
-            e.workspaceId,
-            network.resourceId,
-            DeleteControlledAzureResourceRequest(
-              WsmJobControl(getWsmJobId("delete-networks", network.resourceId))
-            )
-          ),
-          auth
-        )
-      }.void
     } yield ()
 
   override def createAndPollApp(appId: AppId,

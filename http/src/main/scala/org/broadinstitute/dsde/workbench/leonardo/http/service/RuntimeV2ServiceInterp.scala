@@ -308,6 +308,16 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .raiseError[Unit](RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied"))
         .whenA(!hasPermission)
 
+      // Query WSM for Landing Zone resources
+      userToken = org.http4s.headers.Authorization(
+        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
+      )
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+      leoAuth <- samDAO.getLeoAuthToken
+      landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
+
+      // Update DB record to Deleting status
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
       // pass the disk to delete to publisher if specified
@@ -317,7 +327,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         else F.pure(none[DiskId])
 
       _ <- publisherQueue.offer(
-        DeleteAzureRuntimeMessage(runtime.id, diskIdToDelete, workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
+        DeleteAzureRuntimeMessage(runtime.id,
+                                  diskIdToDelete,
+                                  workspaceId,
+                                  wsmVMResourceSamId,
+                                  landingZoneResources,
+                                  Some(ctx.traceId)
+        )
       )
     } yield ()
 

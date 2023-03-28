@@ -366,6 +366,7 @@ object LeoPubsubMessage {
                                              diskIdToDelete: Option[DiskId],
                                              workspaceId: WorkspaceId,
                                              wsmResourceId: Option[WsmControlledResourceId],
+                                             landingZoneResources: LandingZoneResources,
                                              traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureRuntime
@@ -541,7 +542,7 @@ object LeoPubsubCodec {
     )
 
   implicit val deleteAzureRuntimeDecoder: Decoder[DeleteAzureRuntimeMessage] =
-    Decoder.forProduct5("runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(
+    Decoder.forProduct6("runtimeId", "diskId", "workspaceId", "wsmResourceId", "landingZoneResources", "traceId")(
       DeleteAzureRuntimeMessage.apply
     )
 
