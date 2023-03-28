@@ -160,7 +160,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           vmCommon,
           CreateVmRequestData(
             params.runtime.runtimeName,
-            params.runtimeConfig.region,
             VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
             config.runtimeDefaults.image,
             CustomScriptExtension(

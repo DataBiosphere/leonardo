@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import _root_.io.circe.syntax._
-import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -57,7 +56,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       testCommonControlledResourceFields,
       CreateVmRequestData(
         RuntimeName("runtime"),
-        Region.US_EAST,
         VirtualMachineSizeTypes.STANDARD_A2, // Standard_A2
         ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
         CustomScriptExtension(
@@ -94,7 +92,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |  },
          |  "azureVm" : {
          |    "name" : "runtime",
-         |    "region" : "eastus",
          |    "vmSize": "Standard_A2",
          |    "vmImage": {
          |      "publisher": "microsoft-dsvm",

@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
-  azureRegionEncoder,
   googleProjectDecoder,
   runtimeNameEncoder,
   storageContainerNameDecoder,
@@ -135,7 +134,6 @@ final case class CustomScriptExtension(name: String,
 )
 final case class StorageContainerResponse(name: ContainerName, resourceId: WsmControlledResourceId)
 final case class CreateVmRequestData(name: RuntimeName,
-                                     region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,
                                      vmImage: AzureImage,
                                      customScriptExtension: CustomScriptExtension,
@@ -455,8 +453,8 @@ object WsmEncoders {
     Encoder.forProduct2("name", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct7("name", "region", "vmSize", "vmImage", "customScriptExtension", "vmUser", "diskId")(x =>
-      (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId)
+    Encoder.forProduct6("name", "vmSize", "vmImage", "customScriptExtension", "vmUser", "diskId")(x =>
+      (x.name, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId)
     )
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 
