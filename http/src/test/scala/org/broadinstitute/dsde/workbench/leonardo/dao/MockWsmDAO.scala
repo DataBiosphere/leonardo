@@ -4,7 +4,6 @@ package dao
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -127,22 +126,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     ev: Ask[IO, AppContext]
   ): IO[LandingZoneResources] =
     IO.pure(
-      LandingZoneResources(
-        UUID.randomUUID(),
-        AKSClusterName("lzcluster"),
-        BatchAccountName("lzbatch"),
-        RelayNamespace("lznamespace"),
-        StorageAccountName("lzstorage"),
-        NetworkName("lzvnet"),
-        PostgresName("lzpostgres"),
-        LogAnalyticsWorkspaceName("lzloganalytics"),
-        SubnetworkName("batchsub"),
-        SubnetworkName("akssub"),
-        SubnetworkName("postgressub"),
-        SubnetworkName("computesub"),
-        com.azure.core.management.Region.US_WEST,
-        ApplicationInsightsName("lzappinsights")
-      )
+      CommonTestData.landingZoneResources
     )
 
   override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
