@@ -381,8 +381,6 @@ class AzurePubsubHandlerSpec
       )
     )
 
-    val eqWorkspaceId: WorkspaceId = any[UUID].asInstanceOf[WorkspaceId]
-
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
     val res =
@@ -465,8 +463,6 @@ class AzurePubsubHandlerSpec
         )
       )
     )
-
-    val eqWorkspaceId: WorkspaceId = any[UUID].asInstanceOf[WorkspaceId]
 
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
