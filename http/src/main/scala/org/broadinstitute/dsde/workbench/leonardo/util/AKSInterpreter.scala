@@ -175,7 +175,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Only do this for user-private apps; do not assign any identity for shared apps.
       // In the future we may use a shared identity instead.
       petMi <- app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => F.pure(None)
+        // TODO
+//        case SamResourceType.SharedApp => F.pure(None)
         case _ =>
           for {
             msi <- buildMsiManager(params.cloudContext)
@@ -454,14 +455,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.targetHost=http://batch:8080/",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        // TODO tmp
-        raw"relaylistener.samResourceType=kubernetes-app-shared", // ${samResourceId.resourceType.asString}",
+        raw"relaylistener.samResourceType=${samResourceId.resourceType.asString}",
         raw"relaylistener.samAction=connect",
         // TODO only for hail
         raw"""relaylistener.removeEntityPathFromHttpUrl="false"""",
         // TODO
-        raw"""relaylistener.workspaceId=${workspaceId.value.toString}""",
-        raw"""relaylistener.runtimeName=runtime-name""",
+        raw"relaylistener.workspaceId=${workspaceId.value.toString}",
+        raw"relaylistener.runtimeName=runtime-name",
+        raw"relaylistener.image=terradevacrpublic.azurecr.io/terra-azure-relay-listeners:3a932af",
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")
