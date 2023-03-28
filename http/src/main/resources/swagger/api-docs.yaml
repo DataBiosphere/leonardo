@@ -3132,7 +3132,7 @@ components:
       properties:
         id:
           type: integer
-          description: The user-supplied ID of the persistent disk
+          description: The cloud-platform provided unique ID of this persistent disk
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
         zone:

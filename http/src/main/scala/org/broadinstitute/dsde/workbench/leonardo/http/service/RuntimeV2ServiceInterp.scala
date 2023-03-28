@@ -579,8 +579,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ZoneName(region.toString),
       diskName,
       userInfo.userEmail,
-      // TODO: WSM will populate this, we can update in backleo if its needed for anything
-      // PersistentDiskSamResourceId("fakeUUID"),
       samResource,
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),

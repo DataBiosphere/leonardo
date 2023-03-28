@@ -1015,6 +1015,70 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+//  it should "delete azure disk properly" in isolatedDbTest {
+//    val queue = QueueFactory.asyncTaskQueue()
+//    val mockWsmDao = mock[WsmDao[IO]]
+//    when {
+//      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
+//    } thenReturn IO.pure(None)
+//    when {
+//      mockWsmDao.getDeleteDiskJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
+//    } thenReturn IO.pure(
+//      GetDeleteJobResult(
+//        WsmJobReport(
+//          WsmJobId("job1"),
+//          "desc",
+//          WsmJobStatus.Succeeded,
+//          200,
+//          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+//          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+//          "resultUrl"
+//        ),
+//        None
+//      )
+//    )
+//
+//    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+//    val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+//
+//    val res =
+//      for {
+//        disk <- makePersistentDisk(wsmResourceId = Some(wsmResourceId)).copy(status = DiskStatus.Ready).save()
+//
+//        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+//                                                       disk.id,
+//                                                       azureRegion
+//        )
+//        runtime = makeCluster(2)
+//          .copy(
+//            status = RuntimeStatus.Running,
+//            cloudContext = CloudContext.Azure(azureCloudContext)
+//          )
+//          .saveWithRuntimeConfig(azureRuntimeConfig)
+//
+//        assertions = for {
+//          getDiskOpt <- persistentDiskQuery.getActiveByIdWorkspace(workspaceId, disk.id).transaction
+//          getDisk = getDiskOpt.get
+//        } yield {
+//          verify(mockWsmDao, times(1)).deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(
+//            any[Ask[IO, AppContext]]
+//          )
+//          getDisk.status shouldBe DiskStatus.Deleted
+//        }
+//
+//        _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureDisk).transaction
+//
+//        msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, Some(wsmResourceId), None)
+//
+//        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+//        _ <- azureInterp.deleteDisk(msg)
+//
+//        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+//      } yield ()
+//
+//    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//  }
+
   it should "delete azure disk properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val mockWsmDao = mock[WsmDao[IO]]
@@ -1039,11 +1103,11 @@ class AzurePubsubHandlerSpec
     )
 
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
-    val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val res =
       for {
-        disk <- makePersistentDisk(wsmResourceId = Some(wsmResourceId)).copy(status = DiskStatus.Ready).save()
+        disk <- makePersistentDisk(wsmResourceId = Some(resourceId)).copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
@@ -1056,19 +1120,21 @@ class AzurePubsubHandlerSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
+        _ <- controlledResourceQuery
+          .save(runtime.id, resourceId, WsmResourceType.AzureDisk)
+          .transaction
+
         assertions = for {
-          getDiskOpt <- persistentDiskQuery.getActiveByIdWorkspace(workspaceId, disk.id).transaction
-          getDisk = getDiskOpt.get
+          diskStatusOpt <- persistentDiskQuery.getStatus(disk.id).transaction
+          diskStatus = diskStatusOpt.get
         } yield {
           verify(mockWsmDao, times(1)).deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(
             any[Ask[IO, AppContext]]
           )
-          getDisk.status shouldBe DiskStatus.Deleted
+
+          diskStatus shouldBe DiskStatus.Deleted
         }
-
-        _ <- controlledResourceQuery.save(runtime.id, wsmResourceId, WsmResourceType.AzureDisk).transaction
-
-        msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, Some(wsmResourceId), None)
+        msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, disk.wsmResourceId, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteDisk(msg)

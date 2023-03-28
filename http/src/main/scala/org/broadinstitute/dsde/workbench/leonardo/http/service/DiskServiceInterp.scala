@@ -385,7 +385,7 @@ object DiskServiceInterp {
       labels,
       sourceDisk.map(_.diskLink),
       None,
-      None // TODO: can't delete disks w/o workspaceId supplied
+      None // TODO: workspace must be present for V2 routes
     )
   }
 }
@@ -402,7 +402,7 @@ case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject,
 
 case class DiskCannotBeDeletedException(id: DiskId, status: DiskStatus, cloudContext: CloudContext, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${id.value} cannot be deleted in ${status} status. CloudContext: ${CloudContext.toString}",
+      s"Persistent disk ${id.value} cannot be deleted in ${status} status. CloudContext: ${cloudContext.asStringWithProvider}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

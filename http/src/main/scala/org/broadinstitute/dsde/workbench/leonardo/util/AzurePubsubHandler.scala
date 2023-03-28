@@ -150,8 +150,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.workspaceName,
           wsStorageContainerUrl
         )
+
         val cmdToExecute =
-          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
+          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
+              .map(s => s"'$s'")
+              .mkString(" ")}"
+
         CreateVmRequest(
           params.workspaceId,
           vmCommon,
@@ -554,7 +558,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               stagingBucketResourceId.resourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(WsmJobId(s"del-staging-${ctx.traceId.asString.take(10)}"))
+                WsmJobControl(getWsmJobId("del-staging", stagingBucketResourceId.resourceId))
               )
             ),
             auth
@@ -643,7 +647,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             // We still want deletion to succeed in this case.
             for {
               _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-              _ <- logger.info(ctx.loggingCtx)(s"runtime ${msg.runtimeId} is deleted successfully")
+              _ <- logger.info(ctx.loggingCtx)(
+                s"runtime ${msg.runtimeId} with name ${runtime.runtimeName.asString} is deleted successfully"
+              )
               _ <- deleteDiskAction
             } yield ()
         }
@@ -734,7 +740,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             e.workspaceId,
             network.resourceId,
             DeleteControlledAzureResourceRequest(
-              WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
+              WsmJobControl(getWsmJobId("delete-networks", network.resourceId))
             )
           ),
           auth

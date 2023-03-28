@@ -91,7 +91,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .raiseError[Unit](DiskNotFoundByIdWorkspaceException(diskId, workspaceId, ctx.traceId))
         .whenA(!hasPermission)
 
-      // check that runtime disk was attached to is deleted
+      // check that the disk is in a deletable status
+      _ <- F
+        .raiseUnless(disk.status.isDeletable)(
+          DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
+        )
+
+      // check that disk isn't attached to a runtime
       previousRuntime <- clusterQuery.getLastClusterWithDiskId(diskId).transaction
       _ <- previousRuntime.traverse(runtime =>
         F.raiseError[Unit](DiskCannotBeDeletedAttachedException(diskId, workspaceId, ctx.traceId))
