@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.azure.{
   BatchAccountName,
   RelayNamespace
 }
-
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
@@ -46,27 +45,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     with Http4sClientDsl[F] {
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
-
-  override def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateIpResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateIpResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
 
   override def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -312,16 +290,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "disks")
 
-  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "ip")
-
-  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "network")
-
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =
@@ -361,23 +329,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         )
       )(onError)
     } yield res
-
-  def getRelayNamespace(workspaceId: WorkspaceId,
-                        region: com.azure.core.management.Region,
-                        authorization: Authorization
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[RelayNamespace]] =
-    for {
-      resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureRelayNamespace)
-    } yield resp.resources.collect {
-      case r
-          if r.resourceAttributes
-            .isInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes] && r.resourceAttributes
-            .asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes]
-            .region == region =>
-        r.resourceAttributes.asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes].namespaceName
-    }.headOption
 
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
