@@ -190,7 +190,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/4ff00726e7ec507f03e2d6049a7ff56aea7bbbfc/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/b34c5b0807d5b6ff50d9f2c25328fae53c6b4b96/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
@@ -206,7 +206,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |  }
          |}
          |""".stripMargin.replaceAll("\\s", "")
-    // TODO replace ^ protectedSettings[_.value] with new URI once change to init_script merged
   }
 
   it should "encode DeleteVmRequest" in {
