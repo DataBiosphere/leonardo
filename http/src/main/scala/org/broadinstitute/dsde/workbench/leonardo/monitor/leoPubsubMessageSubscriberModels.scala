@@ -932,8 +932,15 @@ object LeoPubsubCodec {
     )
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
-    Encoder.forProduct6("messageType", "runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.diskIdToDelete, x.workspaceId, x.wsmResourceId, x.traceId)
+    Encoder.forProduct7("messageType",
+                        "runtimeId",
+                        "diskId",
+                        "workspaceId",
+                        "wsmResourceId",
+                        "landingZoneResources",
+                        "traceId"
+    )(x =>
+      (x.messageType, x.runtimeId, x.diskIdToDelete, x.workspaceId, x.wsmResourceId, x.landingZoneResources, x.traceId)
     )
 
   implicit val storageContainerResponseEncoder: Encoder[StorageContainerResponse] =
