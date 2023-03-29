@@ -48,15 +48,20 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       repo-branch: ${{ steps.extract-branch.outputs.repo-branch }}
+      fork: ${{ steps.extract-branch.outputs.fork }}
 
     steps:
       - uses: actions/checkout@v3
-      - id: extract-branch
+
+      - name: Obtain branch properties
+        id: extract-branch
         run: |
+          FORK=false
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             GITHUB_REF=${{ github.ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            FORK=${{ github.event.pull_request.head.repo.fork }}
             GITHUB_REF=refs/heads/${{ github.head_ref }}
           elif [[ "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
             GITHUB_REF=refs/heads/${{ github.head_ref }}
@@ -65,6 +70,12 @@ jobs:
             exit 1
           fi
           echo "repo-branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
+          echo "fork=${FORK}" >> $GITHUB_OUTPUT
+
+      - name: Is PR triggered by forked repo?
+        if: ${{ steps.extract-branch.outputs.fork == 'true' }}
+        run: |
+          echo "PR was triggered by forked repo"
 
       - name: Echo repo and branch information
         run: |
@@ -96,14 +107,17 @@ jobs:
           NON_BREAKING_B64=$(cat target/pacts/leo-consumer-sam-provider.json | base64 -w 0)
           echo "pact-b64=${NON_BREAKING_B64}" >> $GITHUB_OUTPUT
 
+  # Prevent untrusted sources from using PRs to publish contracts
+  # since access to secrets is not allowed.
   publish-contracts:
     runs-on: ubuntu-latest
+    if: ${{ needs.init-github-context.outputs.fork == 'false' }}
     needs: [init-github-context, leo-consumer-contract-tests]
     steps:
       - name: Dispatch to terra-github-workflows
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        uses: broadinstitute/workflow-dispatch@v3
         with:
-          workflow: publish-contracts
+          workflow: .github/workflows/publish-contracts.yaml
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo

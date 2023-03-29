@@ -557,17 +557,17 @@ object CommonTestData {
 
   val landingZoneResources = LandingZoneResources(
     UUID.randomUUID(),
-    AKSClusterName(""),
-    BatchAccountName(""),
-    RelayNamespace(""),
-    StorageAccountName(""),
-    NetworkName(""),
-    PostgresName(""),
-    LogAnalyticsWorkspaceName(""),
-    SubnetworkName(""),
-    SubnetworkName(""),
-    SubnetworkName(""),
-    SubnetworkName(""),
+    AKSClusterName("lzcluster"),
+    BatchAccountName("lzbatch"),
+    RelayNamespace("lznamespace"),
+    StorageAccountName("lzstorage"),
+    NetworkName("lzvnet"),
+    PostgresName("lzpostgres"),
+    LogAnalyticsWorkspaceName("lzloganalytics"),
+    SubnetworkName("batchsub"),
+    SubnetworkName("akssub"),
+    SubnetworkName("postgressub"),
+    SubnetworkName("computesub"),
     azureRegion,
     ApplicationInsightsName("lzappinsights")
   )

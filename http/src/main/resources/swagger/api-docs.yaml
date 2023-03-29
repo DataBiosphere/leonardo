@@ -2814,6 +2814,7 @@ components:
         - CROMWELL
         - CUSTOM
         - GALAXY
+        - WDS
     AppStatus:
       type: string
       enum:

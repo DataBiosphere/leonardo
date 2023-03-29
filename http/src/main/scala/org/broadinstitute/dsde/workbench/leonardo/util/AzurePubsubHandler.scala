@@ -161,7 +161,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           vmCommon,
           CreateVmRequestData(
             params.runtime.runtimeName,
-            params.runtimeConfig.region,
             VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
             config.runtimeDefaults.image,
             CustomScriptExtension(
@@ -381,8 +380,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             CreateDiskRequestData(
               // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
               AzureDiskName(disk.name.value),
-              disk.size,
-              params.runtimeConfig.region
+              disk.size
             )
           )
           diskResp <- wsmDao.createDisk(request, leoAuth)
@@ -516,6 +514,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       auth <- samDAO.getLeoAuthToken
 
       deleteJobId = WsmJobId(s"delete-vm-${ctx.traceId.asString.take(10)}")
+
+      // Delete the VM in WSM
       _ <- msg.wsmResourceId.fold(
         logger
           .info(ctx.loggingCtx)(
@@ -543,6 +543,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
       }
 
+      // Delete the staging storage container in WSM
       stagingBucketResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
         .transaction
@@ -566,17 +567,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .void
       }
 
-      // Delete hybrid connection for this VM
-      leoAuth <- samDAO.getLeoAuthToken
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-      azureRuntimeConfig <- runtimeConfig match {
-        case x: RuntimeConfig.AzureConfig => F.pure(x)
-        case _ =>
-          F.raiseError(
-            ClusterError(msg.runtimeId, ctx.traceId, s"Runtime should have Azure config, but it doesn't")
-          )
-      }
-      relayNamespaceOpt <- wsmDao.getRelayNamespace(msg.workspaceId, azureRuntimeConfig.region, leoAuth)
+      // Grab the cloud context for the runtime
       cloudContext <- runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           F.raiseError[AzureCloudContext](
@@ -587,12 +578,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         case x: CloudContext.Azure => F.pure(x.value)
       }
-      _ <- relayNamespaceOpt.traverse(ns =>
-        azureRelay.deleteRelayHybridConnection(
-          ns,
-          RelayHybridConnectionName(runtime.runtimeName.asString),
-          cloudContext
-        )
+
+      // Delete hybrid connection for this VM
+      _ <- azureRelay.deleteRelayHybridConnection(
+        msg.landingZoneResources.relayNamespace,
+        RelayHybridConnectionName(runtime.runtimeName.asString),
+        cloudContext
       )
 
       getDeleteJobResultOpt = wsmDao.getDeleteVmJobResult(
@@ -600,8 +591,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         auth
       )
 
+      // Poll for VM deletion
       taskToRun = for {
-        // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk, and networks
+        // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk
         respOpt <- streamFUntilDone(
           getDeleteJobResultOpt,
           config.deleteVmPollConfig.maxAttempts,
@@ -730,22 +722,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
         case true => F.unit
       }
-
-      networkResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
-        .transaction
-      _ <- networkResourceOpt.traverse { network =>
-        wsmDao.deleteNetworks(
-          DeleteWsmResourceRequest(
-            e.workspaceId,
-            network.resourceId,
-            DeleteControlledAzureResourceRequest(
-              WsmJobControl(getWsmJobId("delete-networks", network.resourceId))
-            )
-          ),
-          auth
-        )
-      }.void
     } yield ()
 
   override def createAndPollApp(appId: AppId,

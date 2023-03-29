@@ -115,7 +115,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       c <- r.images.filter(i => imageTypes.contains(i.imageType)).headOption
     } yield Map(
       RuntimeStatusMetric(r.cloudContext.cloudProvider,
-                          c,
+                          c.imageType,
+                          c.imageUrl,
                           r.status,
                           getRuntimeUI(r.labels),
                           getAzureCloudContext(r.cloudContext)
@@ -155,7 +156,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
                 relayPath = Uri.unsafeFromString(baseUri.asString) / app.appName.value
                 isUp <- serviceName match {
-                  case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("wds") =>
+                    wdsDAO.getStatus(relayPath, authHeader, app.appType).handleError(_ => false)
                   case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cbas-ui")  => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
@@ -230,13 +232,15 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
               )
         } yield Map(
           RuntimeHealthMetric(runtime.cloudContext.cloudProvider,
-                              image,
+                              image.imageType,
+                              image.imageUrl,
                               getRuntimeUI(runtime.labels),
                               getAzureCloudContext(runtime.cloudContext),
                               isUp
           ) -> 1,
           RuntimeHealthMetric(runtime.cloudContext.cloudProvider,
-                              image,
+                              image.imageType,
+                              image.imageUrl,
                               getRuntimeUI(runtime.labels),
                               getAzureCloudContext(runtime.cloudContext),
                               !isUp
@@ -323,7 +327,8 @@ object LeoMetric {
   }
 
   final case class RuntimeStatusMetric(cloudProvider: CloudProvider,
-                                       image: RuntimeImage,
+                                       imageType: RuntimeImageType,
+                                       imageUrl: String,
                                        status: RuntimeStatus,
                                        runtimeUI: RuntimeUI,
                                        azureCloudContext: Option[AzureCloudContext]
@@ -332,8 +337,8 @@ object LeoMetric {
     override def tags: Map[String, String] =
       Map(
         "cloudProvider" -> cloudProvider.asString,
-        "imageType" -> image.imageType.toString,
-        "imageUrl" -> image.imageUrl,
+        "imageType" -> imageType.toString,
+        "imageUrl" -> imageUrl,
         "status" -> status.toString,
         "uiClient" -> runtimeUI.asString,
         "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
@@ -341,7 +346,8 @@ object LeoMetric {
   }
 
   final case class RuntimeHealthMetric(cloudProvider: CloudProvider,
-                                       image: RuntimeImage,
+                                       imageType: RuntimeImageType,
+                                       imageUrl: String,
                                        runtimeUI: RuntimeUI,
                                        azureCloudContext: Option[AzureCloudContext],
                                        isUp: Boolean
@@ -350,8 +356,8 @@ object LeoMetric {
     override def tags: Map[String, String] =
       Map(
         "cloudProvider" -> cloudProvider.asString,
-        "imageType" -> image.imageType.toString,
-        "imageUrl" -> image.imageUrl,
+        "imageType" -> imageType.toString,
+        "imageUrl" -> imageUrl,
         "uiClient" -> runtimeUI.asString,
         "isUp" -> isUp.toString,
         "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
