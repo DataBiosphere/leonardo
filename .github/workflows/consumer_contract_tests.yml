@@ -142,4 +142,4 @@ jobs:
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
-          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.init-github-context.outputs.repo-version }}", "environment": "alpha" }'
+          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.init-github-context.outputs.repo-version }}" }'
