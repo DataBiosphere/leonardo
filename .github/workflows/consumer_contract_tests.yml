@@ -143,17 +143,3 @@ jobs:
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.init-github-context.outputs.repo-version }}", "environment": "alpha" }'
-
-  try-deploy:
-    runs-on: ubuntu-latest
-    if: ${{ needs.init-github-context.outputs.fork == 'false' }}
-    needs: [ init-github-context, can-i-deploy ]
-    steps:
-      - name: Dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v3
-        with:
-          workflow: .github/workflows/record-deployment.yaml
-          repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
-          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
-          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.init-github-context.outputs.repo-version }}", "environment": "alpha" }'
