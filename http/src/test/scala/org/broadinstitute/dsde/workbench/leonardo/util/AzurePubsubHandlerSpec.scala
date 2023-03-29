@@ -3,9 +3,9 @@ package util
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import cats.implicits._
 import cats.effect.IO
 import cats.effect.std.Queue
+import cats.implicits._
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
@@ -360,9 +360,6 @@ class AzurePubsubHandlerSpec
       mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(None)
     when {
-      mockWsmDao.deleteNetworks(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
       mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(None)
     when {
@@ -384,13 +381,6 @@ class AzurePubsubHandlerSpec
       )
     )
 
-    val eqWorkspaceId: WorkspaceId = any[UUID].asInstanceOf[WorkspaceId]
-
-    when {
-      mockWsmDao.getRelayNamespace(eqWorkspaceId, any[com.azure.core.management.Region], any[Authorization])(
-        any[Ask[IO, AppContext]]
-      )
-    } thenReturn IO.pure(None)
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
     val res =
@@ -429,7 +419,13 @@ class AzurePubsubHandlerSpec
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
           .transaction
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(wsmResourceId), None)
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(wsmResourceId),
+                                        landingZoneResources,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
@@ -468,13 +464,6 @@ class AzurePubsubHandlerSpec
       )
     )
 
-    val eqWorkspaceId: WorkspaceId = any[UUID].asInstanceOf[WorkspaceId]
-
-    when {
-      mockWsmDao.getRelayNamespace(eqWorkspaceId, any[com.azure.core.management.Region], any[Authorization])(
-        any[Ask[IO, AppContext]]
-      )
-    } thenReturn IO.pure(None)
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
     val res =
@@ -515,7 +504,7 @@ class AzurePubsubHandlerSpec
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
           .transaction
-        msg = DeleteAzureRuntimeMessage(runtime.id, None, workspaceId, Some(wsmResourceId), None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, None, workspaceId, Some(wsmResourceId), landingZoneResources, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
@@ -734,7 +723,13 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(wsmResourceId), None)
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(wsmResourceId),
+                                        landingZoneResources,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
@@ -803,7 +798,13 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(wsmResourceId), None)
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(wsmResourceId),
+                                        landingZoneResources,
+                                        None
+        )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)

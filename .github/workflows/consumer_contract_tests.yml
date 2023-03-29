@@ -39,16 +39,21 @@ jobs:
     outputs:
       repo-branch: ${{ steps.extract-branch.outputs.repo-branch }}
       repo-version: ${{ steps.extract-branch.outputs.repo-version }}
+      fork: ${{ steps.extract-branch.outputs.fork }}
 
     steps:
       - uses: actions/checkout@v3
-      - id: extract-branch
+
+      - name: Obtain branch properties
+        id: extract-branch
         run: |
+          FORK=false
           GITHUB_EVENT_NAME=${{ github.event_name }}
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             GITHUB_REF=${{ github.ref }}
             GITHUB_SHA=${{ github.sha }}
           elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            FORK=${{ github.event.pull_request.head.repo.fork }}
             GITHUB_REF=refs/heads/${{ github.head_ref }}
             GITHUB_SHA=${{ github.event.pull_request.head.sha }}
           elif [[ "$GITHUB_EVENT_NAME" == "merge_group" ]]; then
@@ -59,6 +64,12 @@ jobs:
           fi
           echo "repo-branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
           echo "repo-version=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "fork=${FORK}" >> $GITHUB_OUTPUT
+
+      - name: Is PR triggered by forked repo?
+        if: ${{ steps.extract-branch.outputs.fork == 'true' }}
+        run: |
+          echo "PR was triggered by forked repo"
 
       - name: Echo repo and branch information
         run: |
@@ -91,8 +102,11 @@ jobs:
           NON_BREAKING_B64=$(cat target/pacts/leo-consumer-sam-provider.json | base64 -w 0)
           echo "pact-b64=${NON_BREAKING_B64}" >> $GITHUB_OUTPUT
 
+  # Prevent untrusted sources from using PRs to publish contracts
+  # since access to secrets is not allowed.
   publish-contracts:
     runs-on: ubuntu-latest
+    if: ${{ needs.init-github-context.outputs.fork == 'false' }}
     needs: [init-github-context, leo-consumer-contract-tests]
     steps:
       - name: Dispatch to terra-github-workflows

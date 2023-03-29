@@ -95,7 +95,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                       a.appType,
                       a.status,
                       getRuntimeUI(a.labels),
-                      getAzureCloudContext(c.cloudContext)
+                      getAzureCloudContext(c.cloudContext),
+                      a.chart
       ) -> 1
     )
 
@@ -108,18 +109,19 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
   private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeMetrics]): Map[RuntimeStatusMetric, Int] = {
     val allContainers = for {
       r <- allRuntimes
-      // Exclude welder to not double-count runtimes. Assume every runtime has a jupyter or rstudio
-      // container, but not both.
-      c <- r.containers if c != RuntimeContainerServiceType.WelderService
+      // Only care about Jupyter, RStudio, or Azure image types.
+      // Assume every runtime has exactly 1 of these.
+      imageTypes = Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio, RuntimeImageType.Azure)
+      c <- r.images.filter(i => imageTypes.contains(i.imageType)).headOption
     } yield Map(
       RuntimeStatusMetric(r.cloudContext.cloudProvider,
                           c.imageType,
+                          c.imageUrl,
                           r.status,
                           getRuntimeUI(r.labels),
                           getAzureCloudContext(r.cloudContext)
       ) -> 1
     )
-
     allContainers.combineAll
   }
 
@@ -154,7 +156,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
                 relayPath = Uri.unsafeFromString(baseUri.asString) / app.appName.value
                 isUp <- serviceName match {
-                  case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("wds") =>
+                    wdsDAO.getStatus(relayPath, authHeader, app.appType).handleError(_ => false)
                   case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cbas-ui")  => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
@@ -183,14 +186,16 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                           serviceName,
                           getRuntimeUI(app.labels),
                           getAzureCloudContext(cloudContext),
-                          isUp
+                          isUp,
+                          app.chart
           ) -> 1,
           AppHealthMetric(cloudContext.cloudProvider,
                           app.appType,
                           serviceName,
                           getRuntimeUI(app.labels),
                           getAzureCloudContext(cloudContext),
-                          !isUp
+                          !isUp,
+                          app.chart
           ) -> 0
         )
       }
@@ -204,11 +209,13 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     val allContainers = for {
       // Only care about Running runtimes for health checks
       r <- allRuntimes if r.status == RuntimeStatus.Running
-      c <- r.containers
-    } yield (r, c)
+      (i, c) <- r.images.flatMap(i =>
+        RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(i.imageType).map(c => (i, c))
+      )
+    } yield (r, i, c)
 
     allContainers
-      .parTraverseN(parallelism) { case (runtime, container) =>
+      .parTraverseN(parallelism) { case (runtime, image, container) =>
         for {
           ctx <- ev.ask
           isUp <- container.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
@@ -225,13 +232,15 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
               )
         } yield Map(
           RuntimeHealthMetric(runtime.cloudContext.cloudProvider,
-                              container.imageType,
+                              image.imageType,
+                              image.imageUrl,
                               getRuntimeUI(runtime.labels),
                               getAzureCloudContext(runtime.cloudContext),
                               isUp
           ) -> 1,
           RuntimeHealthMetric(runtime.cloudContext.cloudProvider,
-                              container.imageType,
+                              image.imageType,
+                              image.imageUrl,
                               getRuntimeUI(runtime.labels),
                               getAzureCloudContext(runtime.cloudContext),
                               !isUp
@@ -282,7 +291,8 @@ object LeoMetric {
                                    appType: AppType,
                                    status: AppStatus,
                                    runtimeUI: RuntimeUI,
-                                   azureCloudContext: Option[AzureCloudContext]
+                                   azureCloudContext: Option[AzureCloudContext],
+                                   chart: Chart
   ) extends LeoMetric {
     override def name: String = "leoAppStatus"
     override def tags: Map[String, String] =
@@ -291,7 +301,8 @@ object LeoMetric {
         "appType" -> appType.toString,
         "status" -> status.toString,
         "uiClient" -> runtimeUI.asString,
-        "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
+        "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
+        "chart" -> chart.toString
       )
   }
 
@@ -300,7 +311,8 @@ object LeoMetric {
                                    serviceName: ServiceName,
                                    runtimeUI: RuntimeUI,
                                    azureCloudContext: Option[AzureCloudContext],
-                                   isUp: Boolean
+                                   isUp: Boolean,
+                                   chart: Chart
   ) extends LeoMetric {
     override def name: String = "leoAppHealth"
     override def tags: Map[String, String] = Map(
@@ -309,12 +321,14 @@ object LeoMetric {
       "serviceName" -> serviceName.value,
       "uiClient" -> runtimeUI.asString,
       "isUp" -> isUp.toString,
-      "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
+      "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
+      "chart" -> chart.toString
     )
   }
 
   final case class RuntimeStatusMetric(cloudProvider: CloudProvider,
                                        imageType: RuntimeImageType,
+                                       imageUrl: String,
                                        status: RuntimeStatus,
                                        runtimeUI: RuntimeUI,
                                        azureCloudContext: Option[AzureCloudContext]
@@ -324,6 +338,7 @@ object LeoMetric {
       Map(
         "cloudProvider" -> cloudProvider.asString,
         "imageType" -> imageType.toString,
+        "imageUrl" -> imageUrl,
         "status" -> status.toString,
         "uiClient" -> runtimeUI.asString,
         "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
@@ -332,6 +347,7 @@ object LeoMetric {
 
   final case class RuntimeHealthMetric(cloudProvider: CloudProvider,
                                        imageType: RuntimeImageType,
+                                       imageUrl: String,
                                        runtimeUI: RuntimeUI,
                                        azureCloudContext: Option[AzureCloudContext],
                                        isUp: Boolean
@@ -341,6 +357,7 @@ object LeoMetric {
       Map(
         "cloudProvider" -> cloudProvider.asString,
         "imageType" -> imageType.toString,
+        "imageUrl" -> imageUrl,
         "uiClient" -> runtimeUI.asString,
         "isUp" -> isUp.toString,
         "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
