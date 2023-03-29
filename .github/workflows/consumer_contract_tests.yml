@@ -1,40 +1,32 @@
 name: Consumer contract tests
-# The purpose of this workflow is to validate the service level contract using Pact framework.
+# The purpose of this workflow is to run a suite of Leo contract tests against mock service provider(s) using Pact framework.
 #
-# More details on Contract Testing can be found in our handbook
+# More details about Contract Testing can be found in our handbook
 #
 # https://broadworkbench.atlassian.net/wiki/spaces/IRT/pages/2660368406/Getting+Started+with+Pact+Contract+Testing
 #
-# The workflow involves two parties: Leo as a consumer. Any provider (e.g. Sam) Leo consumes.
+# This workflow involves Leo as a consumer, and ANY provider (e.g. Sam) Leo consumes.
 # Each party owns a set of tests (aka contract tests).
 #
-#   The consumer contract tests (aka consumer tests) are completely independent of
-#   the provider contract tests (aka provider verification tests), and vice versa.
+#   Consumer contract tests (aka consumer tests) runs on a mock provider service and does not require a real provider service.
+#   Provider contract tests (aka provider verification tests) runs independently of any consumer.
 #
-# Specifically
-#   Leo runs consumer tests against mock Sam service. Upon success, publish a consumer pact to
+# Specifically:
+#   Leo runs consumer tests against mock Sam service. Upon success, publish consumer pacts to
 #   Pact Broker https://pact-broker.dsp-eng-tools.broadinstitute.org/.
 #
-#   Pact Broker is the source of truth
-#   to forge contractual obligations between consumer and provider.
+#   Pact Broker is the source of truth to forge contractual obligations between consumer and provider.
 #
-#   Provider downloads relevant versions of consumer pacts from Pact Broker
-#   and verify rhe provider tests against the pacts.
+#   This workflow meets the criteria of Pact Broker *Platinum* as described in https://docs.pact.io/pact_nirvana/step_6.
+#   The can-i-deploy job has been added to this workflow to support *Platinum* and gate the code for promotion to default branch.
 #
-#   This workflow meets Pact Broker *Platinum* as described in https://docs.pact.io/pact_nirvana/step_6.
-#   The can-i-deploy job has been added to this workflow to gate the merge of PRs into default branch.
+#   This is how it works.
 #
-#   This workflow is triggered when
-#
-#     Consumer makes a change that results in a new pact published to Pact Broker (will verify ONLY the changed pact and publish the verification results back to the broker)
-#
-# The Pact Broker is a 2-way street.
-#   It can trigger provider verification upon changes in the content of consumer pacts
-#
-#   The provider can run verification tests against any consumers in deployed environments and publish statues to Pact Broker
-#
-#   Both consumer and the provider can gate deployment on availability/honoring of the published pact
-#   (contract expectations) between the two parties.
+#     Consumer makes a change that results in a new pact published to Pact Broker.
+#     Pact Broker notifies provider(s) of the changed pact and trigger corresponding verification workflows.
+#     Provider downloads relevant versions of consumer pacts from Pact Broker and kicks off verification tests against the consumer pacts.
+#     Provider updates Pact Broker with verification status.
+#     Consumer kicks off can-i-deploy on process to determine if changes can be promoted and used for deployment.
 #
 # NOTE: The publish-contracts workflow will use the latest commit of the branch that triggers this workflow to publish the unique consumer contract version to Pact Broker.
 
