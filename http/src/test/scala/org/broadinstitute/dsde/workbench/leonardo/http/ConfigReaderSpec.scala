@@ -98,7 +98,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
           List(
-            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"))
+            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
           ),
           instrumentationEnabled = false
         ),
