@@ -676,7 +676,7 @@ class HttpRoutesSpec
   }
 
   it should "reject get a disk if workspaceId is invalid" in {
-    Get(s"/api/v2/disks/workspaceId/1") ~> routes.route ~> check {
+    Get(s"/api/v2/disks/-1/workspaceId") ~> routes.route ~> check {
       val expectedResponse =
         """Invalid workspace id workspaceId, workspace id must be a valid UUID"""
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String.contains(expectedResponse)
