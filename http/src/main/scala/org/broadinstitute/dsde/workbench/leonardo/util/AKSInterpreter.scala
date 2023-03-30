@@ -320,6 +320,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
 
+      // Delete hybrid connection for this app
+      _ <- azureRelayService.deleteRelayHybridConnection(
+        landingZoneResources.relayNamespace,
+        RelayHybridConnectionName(app.appName.value),
+        cloudContext
+      )
+
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
 
