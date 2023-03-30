@@ -38,6 +38,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
+import java.net.URL
 import java.nio.file.Paths
 import java.time.ZonedDateTime
 import java.util.UUID
@@ -1031,7 +1032,7 @@ class AzurePubsubHandlerSpec
                             GoogleProject("test"),
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
-                            "https://leonardo.foo.broadinstitute.org",
+                            new URL("https://leonardo.foo.broadinstitute.org"),
                             0L
       ),
       contentSecurityPolicy,

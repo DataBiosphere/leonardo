@@ -64,6 +64,8 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import scalacache.caffeine.CaffeineCache
+
+import java.net.URL
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
@@ -2052,7 +2054,7 @@ class LeoPubsubMessageSubscriberSpec
                             GoogleProject("test"),
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
-                            "https://leonardo.foo.org",
+                            new URL("https://leonardo.foo.org"),
                             0L
       ),
       contentSecurityPolicy,
