@@ -237,7 +237,7 @@ object RuntimeServiceDbQueries {
   }
 
   def listRuntimes(labelMap: LabelMap,
-                   includeDeleted: Boolean,
+                   excludeStatuses: List[RuntimeStatus],
                    creatorOnly: Option[WorkbenchEmail],
                    cloudContext: Option[CloudContext] = None
   )(implicit
@@ -247,23 +247,23 @@ object RuntimeServiceDbQueries {
       case Some(cc) => Some(Left(cc))
       case None     => None
     }
-    listRuntimesHelper(labelMap, includeDeleted, creatorOnly, None, cloudContextFilter).map(
+    listRuntimesHelper(labelMap, excludeStatuses, creatorOnly, None, cloudContextFilter).map(
       _.toList
     )
   }
 
   def listRuntimesForWorkspace(labelMap: LabelMap,
-                               includeDeleted: Boolean,
+                               excludeStatuses: List[RuntimeStatus],
                                creatorOnly: Option[WorkbenchEmail],
                                workspaceId: Option[WorkspaceId],
                                cloudProvider: Option[CloudProvider]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val cp = cloudProvider.map(cp => Right(cp))
-    listRuntimesHelper(labelMap, includeDeleted, creatorOnly, workspaceId, cp)
+    listRuntimesHelper(labelMap, excludeStatuses, creatorOnly, workspaceId, cp)
   }
 
   private def listRuntimesHelper(labelMap: LabelMap,
-                                 includeDeleted: Boolean,
+                                 excludeStatuses: List[RuntimeStatus],
                                  creatorOnly: Option[WorkbenchEmail],
                                  workspaceId: Option[WorkspaceId],
                                  cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]]
@@ -272,9 +272,7 @@ object RuntimeServiceDbQueries {
       case Some(creator) => List(s"C.`creator` = '${creator.value}'")
       case None          => List.empty
     }
-    val runtimeQueryFilteredByDeletion =
-      if (includeDeleted) List.empty
-      else List("C.`status` != 'Deleted'")
+    val runtimeQueryFilteredByDeletion = excludeStatuses.map(s => s"C.`status` != '${s.toString}'")
 
     val runtimeQueryFilteredByWorkspace = workspaceId match {
       case Some(wid) =>
@@ -306,12 +304,12 @@ object RuntimeServiceDbQueries {
           .mkString(" or ")
 
         s"""where (
-           |   select 
-           |     count(1) 
-           |   from 
-           |     `LABEL` 
-           |   where 
-           |     (`resourceId` = FILTERED_CLUSTER.id) 
+           |   select
+           |     count(1)
+           |   from
+           |     `LABEL`
+           |   where
+           |     (`resourceId` = FILTERED_CLUSTER.id)
            |     AND (`resourceType` = 'runtime')
            |     AND (${query})
            |    ) = ${labelMap.size}""".stripMargin
@@ -319,11 +317,11 @@ object RuntimeServiceDbQueries {
 
     val sqlStatement =
       sql"""
-         select  
-          LABEL_FILTERED.`id`, 
-          LABEL_FILTERED.`workspaceId`, 
-          LABEL_FILTERED.`runtimeName`, 
-          LABEL_FILTERED.`cloudProvider`, 
+         select
+          LABEL_FILTERED.`id`,
+          LABEL_FILTERED.`workspaceId`,
+          LABEL_FILTERED.`runtimeName`,
+          LABEL_FILTERED.`cloudProvider`,
           LABEL_FILTERED.`cloudContext`,
           LABEL_FILTERED.`hostIp`,
           LABEL_FILTERED.`creator`,
@@ -332,78 +330,78 @@ object RuntimeServiceDbQueries {
           LABEL_FILTERED.`dateAccessed`,
           LABEL_FILTERED.`status`,
           LABEL_FILTERED.`internalId`,
-          RG.`cloudService`, 
-          RG.`numberOfWorkers`, 
-          RG.`machineType`, 
-          RG.`diskSize`, 
-          RG.`bootDiskSize`, 
-          RG.`workerMachineType`, 
-          RG.`workerDiskSize`, 
-          RG.`numberOfWorkerLocalSSDs`, 
-          RG.`numberOfPreemptibleWorkers`, 
-          RG.`dataprocProperties`, 
-          RG.`persistentDiskId`, 
-          RG.`zone`, 
-          RG.`region`, 
-          RG.`gpuType`, 
-          RG.`numOfGpus`, 
-          RG.`componentGatewayEnabled`, 
+          RG.`cloudService`,
+          RG.`numberOfWorkers`,
+          RG.`machineType`,
+          RG.`diskSize`,
+          RG.`bootDiskSize`,
+          RG.`workerMachineType`,
+          RG.`workerDiskSize`,
+          RG.`numberOfWorkerLocalSSDs`,
+          RG.`numberOfPreemptibleWorkers`,
+          RG.`dataprocProperties`,
+          RG.`persistentDiskId`,
+          RG.`zone`,
+          RG.`region`,
+          RG.`gpuType`,
+          RG.`numOfGpus`,
+          RG.`componentGatewayEnabled`,
           RG.`workerPrivateAccess`,
-          GROUP_CONCAT(labelKey) labelKeys, 
+          GROUP_CONCAT(labelKey) labelKeys,
           GROUP_CONCAT(labelValue) labelValues,
           CP.`inProgress`
-        from 
+        from
           (
             select
               `id`,
-              `status`, 
-              `cloudContext`, 
-              `serviceAccount`, 
-              `dateAccessed`, 
-              `createdDate`, 
-              `deletedFrom`, 
-              `destroyedDate`, 
-              `autopauseThreshold`, 
-              `hostIp`, 
+              `status`,
+              `cloudContext`,
+              `serviceAccount`,
+              `dateAccessed`,
+              `createdDate`,
+              `deletedFrom`,
+              `destroyedDate`,
+              `autopauseThreshold`,
+              `hostIp`,
               `internalId`,
-              `workspaceId`, 
-              `cloudProvider`, 
-              `runtimeName`, 
-              `kernelFoundBusyDate`, 
-              `creator`, 
+              `workspaceId`,
+              `cloudProvider`,
+              `runtimeName`,
+              `kernelFoundBusyDate`,
+              `creator`,
               `proxyHostName`,
               `runtimeConfigId`,
               L.`key` as labelKey,
               L.`value` as labelValue
-            from 
+            from
               (
                 select
-                  C.`status`, 
-                  C.`cloudContext`, 
-                  C.`serviceAccount`, 
-                  C.`dateAccessed`, 
-                  C.`createdDate`, 
-                  C.`deletedFrom`, 
-                  C.`destroyedDate`, 
-                  C.`autopauseThreshold`, 
+                  C.`status`,
+                  C.`cloudContext`,
+                  C.`serviceAccount`,
+                  C.`dateAccessed`,
+                  C.`createdDate`,
+                  C.`deletedFrom`,
+                  C.`destroyedDate`,
+                  C.`autopauseThreshold`,
                   C.`hostIp`,
-                  C.`internalId`, 
-                  C.`workspaceId`, 
-                  C.`cloudProvider`, 
-                  C.`id`, 
-                  C.`runtimeName`, 
-                  C.`kernelFoundBusyDate`, 
-                  C.`creator`, 
+                  C.`internalId`,
+                  C.`workspaceId`,
+                  C.`cloudProvider`,
+                  C.`id`,
+                  C.`runtimeName`,
+                  C.`kernelFoundBusyDate`,
+                  C.`creator`,
                   C.`proxyHostName`,
                   C.`runtimeConfigId`
-                from 
+                from
                   `CLUSTER` AS C
                 #${clusterFiltersFinal}
-              ) AS FILTERED_CLUSTER 
-              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) and (L.`resourceType` = 'runtime') 
+              ) AS FILTERED_CLUSTER
+              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) and (L.`resourceType` = 'runtime')
               #${labelMapFilters}
-          ) AS LABEL_FILTERED 
-          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.runtimeConfigId = RG.`id` 
+          ) AS LABEL_FILTERED
+          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.runtimeConfigId = RG.`id`
           left join `CLUSTER_PATCH` CP on LABEL_FILTERED.id = CP.`clusterId`
           GROUP BY LABEL_FILTERED.id""".stripMargin
 
