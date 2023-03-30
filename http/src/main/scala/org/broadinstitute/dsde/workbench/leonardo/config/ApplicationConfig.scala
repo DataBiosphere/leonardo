@@ -11,16 +11,6 @@ case class ApplicationConfig(applicationName: String,
                              leoGoogleProject: GoogleProject,
                              leoServiceAccountJsonFile: Path,
                              leoServiceAccountEmail: WorkbenchEmail,
-                             leoUrlBase: String,
+                             leoUrlBase: URL,
                              concurrency: Long
-) {
-  def getLeoUrl: String = {
-    val url = new URL(leoUrlBase)
-
-    // TODO is this needed? Copied from ProxyConfig
-    // The port is specified in fiabs, but generally unset otherwise
-    val portStr = if (url.getPort == -1) "" else s":${url.getPort.toString}"
-
-    s"${url.getProtocol}://${url.getHost}${portStr}"
-  }
-}
+)
