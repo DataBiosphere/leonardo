@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
@@ -32,6 +33,7 @@ import scala.concurrent.ExecutionContext
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
+  applicationConfig: ApplicationConfig,
   contentSecurityPolicyConfig: ContentSecurityPolicyConfig,
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
@@ -147,7 +149,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           stagingContainerName.value,
           stagingContainerResourceId.value.toString,
           params.workspaceName,
-          wsStorageContainerUrl
+          wsStorageContainerUrl,
+          applicationConfig.leoUrlBase,
+          params.runtime.runtimeName.asString
         )
 
         val cmdToExecute =

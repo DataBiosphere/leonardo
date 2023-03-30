@@ -659,16 +659,18 @@ object Boot extends IOApp {
         wdsDao
       )
 
-      val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
-                                                     contentSecurityPolicy,
-                                                     asyncTasksQueue,
-                                                     wsmDao,
-                                                     samDao,
-                                                     welderDao,
-                                                     jupyterDao,
-                                                     azureRelay,
-                                                     azureVmService,
-                                                     aksAlg
+      val azureAlg = new AzurePubsubHandlerInterp[F](
+        ConfigReader.appConfig.azure.pubsubHandler,
+        applicationConfig,
+        contentSecurityPolicy,
+        asyncTasksQueue,
+        wsmDao,
+        samDao,
+        welderDao,
+        jupyterDao,
+        azureRelay,
+        azureVmService,
+        aksAlg
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)

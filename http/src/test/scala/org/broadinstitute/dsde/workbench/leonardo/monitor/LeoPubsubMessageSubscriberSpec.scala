@@ -32,6 +32,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, _}
@@ -64,6 +65,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import scalacache.caffeine.CaffeineCache
 
+import java.net.URL
+import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -2047,6 +2050,13 @@ class LeoPubsubMessageSubscriberSpec
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
+      new ApplicationConfig("test",
+                            GoogleProject("test"),
+                            Paths.get("x.y"),
+                            WorkbenchEmail("z@x.y"),
+                            new URL("https://leonardo.foo.org"),
+                            0L
+      ),
       contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
