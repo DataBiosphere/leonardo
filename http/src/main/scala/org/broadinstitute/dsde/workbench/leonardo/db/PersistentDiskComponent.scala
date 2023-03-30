@@ -180,12 +180,6 @@ object persistentDiskQuery {
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
 
-  private[db] def findActiveByIdWorkspaceQuery(workspaceId: WorkspaceId, id: DiskId) =
-    tableQuery
-      .filterOpt(Some(workspaceId))(_.workspaceId === _)
-      .filter(_.id === id)
-      .filter(_.destroyedDate === dummyDate)
-
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
       (disk, label) <- baseQuery joinLeft labelQuery on { case (d, lbl) =>
@@ -230,11 +224,6 @@ object persistentDiskQuery {
     ec: ExecutionContext
   ): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(cloudContext, name)).result.map(aggregateLabels).map(_.headOption)
-
-  def getActiveByIdWorkspace(workspaceId: WorkspaceId, id: DiskId)(implicit
-    ec: ExecutionContext
-  ): DBIO[Option[PersistentDisk]] =
-    joinLabelQuery(findActiveByIdWorkspaceQuery(workspaceId, id)).result.map(aggregateLabels).map(_.headOption)
 
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))

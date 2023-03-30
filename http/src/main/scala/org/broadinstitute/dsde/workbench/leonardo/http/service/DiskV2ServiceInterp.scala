@@ -8,10 +8,7 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  PersistentDiskSamResourceId,
-  WorkspaceResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -33,13 +30,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ec: ExecutionContext
 ) extends DiskV2Service[F] {
 
-  override def getDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  override def getDisk(userInfo: UserInfo, diskId: DiskId)(implicit
     as: Ask[F, AppContext]
-  ): F[GetPersistentDiskResponse] =
+  ): F[GetPersistentDiskV2Response] =
     for {
       ctx <- as.ask
       diskResp <- DiskServiceDbQueries
-        .getGetPersistentDiskResponseV2(diskId, ctx.traceId, workspaceId = workspaceId)
+        .getGetPersistentDiskResponseV2(diskId, ctx.traceId)
         .transaction
 
       // If user is creator of the disk, they should definitely be able to see the disk.
@@ -56,7 +53,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure disk permission")))
       _ <- F
         .raiseError[Unit](
-          DiskNotFoundByIdWorkspaceException(diskId, workspaceId, ctx.traceId)
+          DiskNotFoundByIdException(diskId, ctx.traceId)
         )
         .whenA(!hasPermission)
 
@@ -67,35 +64,34 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      diskOpt <- persistentDiskQuery.getActiveByIdWorkspace(workspaceId, diskId).transaction
+      diskOpt <- persistentDiskQuery.getById(diskId).transaction
 
       disk <- diskOpt.fold(
-        F.raiseError[PersistentDisk](DiskNotFoundByIdWorkspaceException(diskId, workspaceId, ctx.traceId))
+        F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId))
       )(
         F.pure
       )
 
+      // check read permission first
+      listOfPermissions <- authProvider.getActions(disk.samResource, userInfo)
+      hasReadPermission = listOfPermissions.toSet.contains(PersistentDiskAction.ReadPersistentDisk)
+      _ <- F
+        .raiseError[Unit](DiskNotFoundByIdException(diskId, ctx.traceId))
+        .whenA(!hasReadPermission)
+
+      // check if disk is deletable
       _ <- F
         .raiseUnless(disk.status.isDeletable)(
           DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
         )
-      hasPermission <-
-        if (disk.auditInfo.creator == userInfo.userEmail)
-          F.pure(true)
-        else
-          authProvider
-            .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
+
+      // check delete permission
+      hasDeletePermission = listOfPermissions.toSet.contains(PersistentDiskAction.DeletePersistentDisk)
+      _ <- F
+        .raiseError[Unit](ForbiddenError(userInfo.userEmail))
+        .whenA(!hasDeletePermission)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure disk permission")))
-      _ <- F
-        .raiseError[Unit](DiskNotFoundByIdWorkspaceException(diskId, workspaceId, ctx.traceId))
-        .whenA(!hasPermission)
-
-      // check that the disk is in a deletable status
-      _ <- F
-        .raiseUnless(disk.status.isDeletable)(
-          DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
-        )
 
       // check that disk isn't attached to a runtime
       previousRuntime <- clusterQuery.getLastClusterWithDiskId(diskId).transaction
@@ -117,13 +113,6 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
     } yield ()
 }
-
-case class DiskNotFoundByIdWorkspaceException(diskId: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
-    extends LeoException(s"Persistent disk ${diskId.value} not found in workspace ${workspaceId.value}",
-                         StatusCodes.NotFound,
-                         traceId = Some(traceId)
-    )
-
 case class DiskCannotBeDeletedAttachedException(id: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
       s"Persistent disk ${id.value} in workspace ${workspaceId.value} cannot be deleted. Disk is still attached to a runtime",

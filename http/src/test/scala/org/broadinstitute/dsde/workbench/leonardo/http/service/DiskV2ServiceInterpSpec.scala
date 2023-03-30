@@ -55,7 +55,6 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       getResponse <- diskV2Service
         .getDisk(
           userInfo,
-          workspaceId,
           pd.id
         )
     } yield {
@@ -82,11 +81,10 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       getResponse <- diskV2Service
         .getDisk(
           userInfo,
-          workspaceId,
           diskId
         )
         .attempt
-    } yield getResponse shouldBe Left(DiskNotFoundByIdWorkspaceException(diskId, workspaceId, ctx.traceId))
+    } yield getResponse shouldBe Left(DiskNotFoundByIdException(diskId, ctx.traceId))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -103,11 +101,10 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       getResponse <- diskV2Service
         .getDisk(
           userInfo,
-          workspaceId,
           pd.id
         )
         .attempt
-    } yield getResponse shouldBe Left(DiskNotFoundByIdWorkspaceException(pd.id, workspaceId, ctx.traceId))
+    } yield getResponse shouldBe Left(DiskNotFoundByIdException(pd.id, ctx.traceId))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

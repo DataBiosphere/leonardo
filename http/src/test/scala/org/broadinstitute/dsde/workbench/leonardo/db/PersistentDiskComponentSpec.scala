@@ -14,8 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.diskEq
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
 
-import java.util.UUID
-
 class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
 
   "PersistentDiskComponent" should "save and get records" in isolatedDbTest {
@@ -51,25 +49,6 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       _ <- deletedDisk.save()
       d1 <- persistentDiskQuery.getActiveByName(disk.cloudContext, disk.name).transaction
       d2 <- persistentDiskQuery.getActiveByName(deletedDisk.cloudContext, deletedDisk.name).transaction
-    } yield {
-      d1.get shouldEqual disk
-      d2 shouldEqual None
-    }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "get by id and workspace" in isolatedDbTest {
-    val diskInOtherWorkspace =
-      makePersistentDisk(Some(DiskName("d2")), workspaceId = Some(WorkspaceId(UUID.randomUUID())))
-
-    val res = for {
-      disk <- makePersistentDisk(Some(DiskName("d1"))).save()
-      _ <- diskInOtherWorkspace.save()
-      d1 <- persistentDiskQuery.getActiveByIdWorkspace(disk.workspaceId.get, disk.id).transaction
-      d2 <- persistentDiskQuery
-        .getActiveByIdWorkspace(diskInOtherWorkspace.workspaceId.get, diskInOtherWorkspace.id)
-        .transaction
     } yield {
       d1.get shouldEqual disk
       d2 shouldEqual None

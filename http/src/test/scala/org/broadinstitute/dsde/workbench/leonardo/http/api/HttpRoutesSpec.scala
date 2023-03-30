@@ -661,15 +661,15 @@ class HttpRoutesSpec
   }
 
   it should "get a disk v2" in {
-    Get(s"/api/v2/disks/${workspaceId.value.toString}/-1") ~> routes.route ~> check {
+    Get(s"/api/v2/disks/-1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[GetPersistentDiskResponse].name shouldBe CommonTestData.diskName
+      responseAs[GetPersistentDiskV2Response].name shouldBe CommonTestData.diskName
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "delete a disk v2" in {
-    Delete(s"/api/v2/disks/${workspaceId.value.toString}/-1") ~> routes.route ~> check {
+    Delete(s"/api/v2/disks/-1/${workspaceId.value.toString}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }

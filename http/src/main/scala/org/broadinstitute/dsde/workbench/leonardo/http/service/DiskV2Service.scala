@@ -8,9 +8,9 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 trait DiskV2Service[F[_]] {
 
   // TODO: Implement rest of v2 routes: createDisk, listDisks, updateDisk
-  def getDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  def getDisk(userInfo: UserInfo, diskId: DiskId)(implicit
     as: Ask[F, AppContext]
-  ): F[GetPersistentDiskResponse]
+  ): F[GetPersistentDiskV2Response]
 
   def deleteDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
     as: Ask[F, AppContext]

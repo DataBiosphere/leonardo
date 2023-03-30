@@ -7,11 +7,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
-import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  DiskNotFoundByIdWorkspaceException,
-  DiskNotFoundException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.{GetPersistentDiskResponse, GetPersistentDiskV2Response}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskNotFoundByIdException, DiskNotFoundException}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
@@ -120,10 +117,10 @@ object DiskServiceDbQueries {
     }
   }
 
-  def getGetPersistentDiskResponseV2(diskId: DiskId, traceId: TraceId, workspaceId: WorkspaceId)(implicit
+  def getGetPersistentDiskResponseV2(diskId: DiskId, traceId: TraceId)(implicit
     executionContext: ExecutionContext
-  ): DBIO[GetPersistentDiskResponse] = {
-    val diskQuery = persistentDiskQuery.findActiveByIdWorkspaceQuery(workspaceId, diskId)
+  ): DBIO[GetPersistentDiskV2Response] = {
+    val diskQuery = persistentDiskQuery.findByIdQuery(diskId)
     val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
 
     diskQueryJoinedWithLabels.result.flatMap { x =>
@@ -131,12 +128,12 @@ object DiskServiceDbQueries {
         val labelMap = labelRecOpt.map(labelRec => labelRec.key -> labelRec.value).toMap
         Map(diskRec -> labelMap)
       }.headOption
-      diskWithLabel.fold[DBIO[GetPersistentDiskResponse]](
-        DBIO.failed(DiskNotFoundByIdWorkspaceException(diskId, workspaceId, traceId))
+      diskWithLabel.fold[DBIO[GetPersistentDiskV2Response]](
+        DBIO.failed(DiskNotFoundByIdException(diskId, traceId))
       ) { d =>
         val diskRec = d._1
         val labelMap = d._2
-        val getDiskResponse = GetPersistentDiskResponse(
+        val getDiskResponse = GetPersistentDiskV2Response(
           diskRec.id,
           diskRec.cloudContext,
           diskRec.zone,
@@ -153,6 +150,7 @@ object DiskServiceDbQueries {
           diskRec.diskType,
           diskRec.blockSize,
           labelMap,
+          diskRec.workspaceId,
           diskRec.formattedBy
         )
         DBIO.successful(getDiskResponse)

@@ -60,4 +60,20 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            formattedBy: Option[FormattedBy]
 )
 
+final case class GetPersistentDiskV2Response(id: DiskId,
+                                             cloudContext: CloudContext,
+                                             zone: ZoneName,
+                                             name: DiskName,
+                                             serviceAccount: WorkbenchEmail,
+                                             samResource: PersistentDiskSamResourceId,
+                                             status: DiskStatus,
+                                             auditInfo: AuditInfo,
+                                             size: DiskSize,
+                                             diskType: DiskType,
+                                             blockSize: BlockSize,
+                                             labels: LabelMap,
+                                             workspaceId: Option[WorkspaceId],
+                                             formattedBy: Option[FormattedBy]
+)
+
 final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)

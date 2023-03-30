@@ -8,11 +8,11 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 object MockDiskV2ServiceInterp extends DiskV2Service[IO] {
 
-  def getDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  def getDisk(userInfo: UserInfo, diskId: DiskId)(implicit
     as: Ask[IO, AppContext]
-  ): IO[GetPersistentDiskResponse] =
+  ): IO[GetPersistentDiskV2Response] =
     IO.pure(
-      GetPersistentDiskResponse(
+      GetPersistentDiskV2Response(
         DiskId(-1),
         CommonTestData.cloudContextAzure,
         CommonTestData.zone,
@@ -25,6 +25,7 @@ object MockDiskV2ServiceInterp extends DiskV2Service[IO] {
         CommonTestData.diskType,
         CommonTestData.blockSize,
         Map.empty,
+        CommonTestData.workspaceIdOpt,
         None
       )
     )

@@ -26,32 +26,34 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo) {
           implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
-          pathPrefix("v2" / "disks" / workspaceIdSegment) { workspaceId =>
-            pathPrefix(diskIdSegment) { diskId =>
-              pathEndOrSingleSlash {
-                get {
-                  complete(
-                    getDiskV2Handler(userInfo, workspaceId, diskId)
-                  )
-                } ~ delete {
-                  complete(
-                    deleteDiskV2Handler(userInfo, workspaceId, diskId)
-                  )
+          pathPrefix("v2" / "disks" / diskIdSegment) { diskId =>
+            pathEndOrSingleSlash {
+              get {
+                complete(
+                  getDiskV2Handler(userInfo, diskId)
+                )
+              }
+            } ~
+              pathPrefix(workspaceIdSegment) { workspaceId =>
+                pathEndOrSingleSlash {
+                  delete {
+                    complete(
+                      deleteDiskV2Handler(userInfo, workspaceId, diskId)
+                    )
+                  }
                 }
               }
-            }
           }
         }
       }
     }
   }
-
-  private[api] def getDiskV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  private[api] def getDiskV2Handler(userInfo: UserInfo, diskId: DiskId)(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = diskV2Service.getDisk(userInfo, workspaceId, diskId)
+      apiCall = diskV2Service.getDisk(userInfo, diskId)
       _ <- metrics.incrementCounter("getDiskV2")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "getDiskV2")
@@ -71,19 +73,35 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
 }
 
 object DiskV2Routes {
-  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct13(
+  implicit val getPersistentDiskV2ResponseEncoder: Encoder[GetPersistentDiskV2Response] = Encoder.forProduct13(
     "id",
     "cloudContext",
     "zone",
     "name",
     "serviceAccount",
-    "samResource",
     "status",
     "auditInfo",
     "size",
     "diskType",
     "blockSize",
     "labels",
+    "workspaceId",
     "formattedBy"
-  )(x => GetPersistentDiskResponse.unapply(x).get)
+  )(x =>
+    (
+      x.id,
+      x.cloudContext,
+      x.zone,
+      x.name,
+      x.serviceAccount,
+      x.status,
+      x.auditInfo,
+      x.size,
+      x.diskType,
+      x.blockSize,
+      x.labels,
+      x.workspaceId,
+      x.formattedBy
+    )
+  )
 }

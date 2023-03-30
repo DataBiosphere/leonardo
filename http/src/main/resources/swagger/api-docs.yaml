@@ -1230,7 +1230,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-  "/api/v2/disks/{workspaceId}/{id}":
+  "/api/v2/disks/{id}":
     get:
       summary: Get details of a persistent disk
       description: >
@@ -1240,12 +1240,6 @@ paths:
       tags:
         - disks
       parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
         - in: path
           name: id
           description: diskId
@@ -1258,7 +1252,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GetPersistentDiskResponse"
+                $ref: "#/components/schemas/GetPersistentDiskV2Response"
         "403":
           description: User does not have permission to perform action on disk
         "404":
@@ -1273,6 +1267,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/disks/{id}/{workspaceId}":
     delete:
       summary: Deletes an existing persistent disk instance in the given workspce
       description: Deletes a persistent disk
@@ -1281,17 +1276,17 @@ paths:
         - disks
       parameters:
         - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
           name: id
           description: diskId
           required: true
           schema:
             type: integer
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
       responses:
         "202":
           description: Persistent disk deletion request accepted
@@ -3163,6 +3158,68 @@ components:
         labels:
           type: object
           description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        formattedBy:
+          type: string
+          enum:
+            - GALAXY
+            - GCE
+            - CROMWELL
+            - CUSTOM
+          description: App that formatted disk, missing if unformatted
+
+    GetPersistentDiskV2Response:
+      description: ""
+      required:
+        - id
+        - cloudContext
+        - zone
+        - name
+        - serviceAccount
+        - samResourceId
+        - status
+        - auditInfo
+        - size
+        - diskType
+        - blockSize
+        - labels
+        - workspaceId
+        - formattedBy
+      properties:
+        id:
+          type: integer
+          description: The cloud-platform provided unique ID of this persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
+        zone:
+          type: string
+          description: The zone in which the persistent disk was created
+        name:
+          type: string
+          description: The name of the persistent disk
+        serviceAccount:
+          type: string
+          description: The account used to create the disk
+        samResourceId:
+          type: string
+          description: Internal resource ID of the persistent disk
+        status:
+          $ref: "#/components/schemas/DiskStatus"
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        size:
+          type: integer
+          description: Size of persistent disk in GB
+        diskType:
+          $ref: "#/components/schemas/DiskType"
+        blockSize:
+          type: integer
+          description: Block size of persistent disk in bytes
+        labels:
+          type: object
+          description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        workspaceId:
+          type: string
+          description: The id of the disk's workspace
         formattedBy:
           type: string
           enum:
