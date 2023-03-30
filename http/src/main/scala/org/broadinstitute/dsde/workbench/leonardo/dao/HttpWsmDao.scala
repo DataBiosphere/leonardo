@@ -350,23 +350,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  def getRelayNamespace(workspaceId: WorkspaceId,
-                        region: com.azure.core.management.Region,
-                        authorization: Authorization
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[RelayNamespace]] =
-    for {
-      resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureRelayNamespace)
-    } yield resp.resources.collect {
-      case r
-          if r.resourceAttributes
-            .isInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes] && r.resourceAttributes
-            .asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes]
-            .region == region =>
-        r.resourceAttributes.asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes].namespaceName
-    }.headOption
-
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]] = for {
