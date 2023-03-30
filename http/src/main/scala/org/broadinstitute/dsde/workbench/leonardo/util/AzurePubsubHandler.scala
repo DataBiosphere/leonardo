@@ -150,7 +150,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           stagingContainerResourceId.value.toString,
           params.workspaceName,
           wsStorageContainerUrl,
-          applicationConfig.getLeoUrl,
+          applicationConfig.leoUrlBase,
           params.runtime.runtimeName.asString
         )
 
