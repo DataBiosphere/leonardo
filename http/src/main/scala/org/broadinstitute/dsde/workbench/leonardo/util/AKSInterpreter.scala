@@ -539,6 +539,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
         raw"persistence.workspaceManager.storageContainerUrl=https://${landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
+        raw"persistence.leoAppName=${appName}",
 
         // identity configs
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",

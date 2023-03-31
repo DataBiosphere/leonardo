@@ -31,7 +31,7 @@ ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.213
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.213
-ENV HAIL_BATCH_CHART_VERSION 0.1.0
+ENV HAIL_BATCH_CHART_VERSION 0.1.4
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
