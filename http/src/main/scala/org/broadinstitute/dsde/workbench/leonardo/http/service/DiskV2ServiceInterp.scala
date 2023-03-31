@@ -30,6 +30,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ec: ExecutionContext
 ) extends DiskV2Service[F] {
 
+  // backwards compatible with v1 getDisk route
   override def getDisk(userInfo: UserInfo, diskId: DiskId)(implicit
     as: Ask[F, AppContext]
   ): F[GetPersistentDiskV2Response] =
