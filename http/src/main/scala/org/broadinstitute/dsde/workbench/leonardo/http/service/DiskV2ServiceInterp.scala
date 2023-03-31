@@ -64,7 +64,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      diskOpt <- persistentDiskQuery.getById(diskId).transaction
+      diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
 
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId))

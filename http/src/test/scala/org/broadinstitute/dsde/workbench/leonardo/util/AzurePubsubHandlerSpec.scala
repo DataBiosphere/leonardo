@@ -369,19 +369,17 @@ class AzurePubsubHandlerSpec
     when {
       mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(
-      Some(
-        GetDeleteJobResult(
-          WsmJobReport(
-            WsmJobId("job1"),
-            "desc",
-            WsmJobStatus.Succeeded,
-            200,
-            ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-            Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-            "resultUrl"
-          ),
-          None
-        )
+      GetDeleteJobResult(
+        WsmJobReport(
+          WsmJobId("job1"),
+          "desc",
+          WsmJobStatus.Succeeded,
+          200,
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+          "resultUrl"
+        ),
+        None
       )
     )
 
@@ -452,19 +450,17 @@ class AzurePubsubHandlerSpec
     when {
       mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(
-      Some(
-        GetDeleteJobResult(
-          WsmJobReport(
-            WsmJobId("job1"),
-            "desc",
-            WsmJobStatus.Succeeded,
-            200,
-            ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-            Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-            "resultUrl"
-          ),
-          None
-        )
+      GetDeleteJobResult(
+        WsmJobReport(
+          WsmJobId("job1"),
+          "desc",
+          WsmJobStatus.Succeeded,
+          200,
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+          "resultUrl"
+        ),
+        None
       )
     )
 
@@ -691,7 +687,7 @@ class AzurePubsubHandlerSpec
     val wsm = new MockWsmDAO {
       override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
-      ): IO[Option[GetDeleteJobResult]] = IO.raiseError(new Exception("test exception"))
+      ): IO[GetDeleteJobResult] = IO.raiseError(new Exception("test exception"))
     }
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
 
@@ -750,21 +746,19 @@ class AzurePubsubHandlerSpec
     val wsm = new MockWsmDAO {
       override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
-      ): IO[Option[GetDeleteJobResult]] =
+      ): IO[GetDeleteJobResult] =
         IO.pure(
-          Some(
-            GetDeleteJobResult(
-              WsmJobReport(
-                request.jobId,
-                "desc",
-                WsmJobStatus.Running,
-                200,
-                ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-                Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-                "resultUrl"
-              ),
-              None
-            )
+          GetDeleteJobResult(
+            WsmJobReport(
+              request.jobId,
+              "desc",
+              WsmJobStatus.Running,
+              200,
+              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+              "resultUrl"
+            ),
+            None
           )
         )
     }

@@ -174,6 +174,11 @@ object persistentDiskQuery {
 
   private[db] def findByIdQuery(id: DiskId) = tableQuery.filter(_.id === id)
 
+  private[db] def findActiveByIdQuery(id: DiskId) =
+    tableQuery
+      .filter(_.id === id)
+      .filter(_.destroyedDate === dummyDate)
+
   private[db] def findActiveByNameQuery(cloudContext: CloudContext, name: DiskName) =
     tableQuery
       .filter(_.cloudContext === cloudContext.asCloudContextDb)
@@ -219,6 +224,11 @@ object persistentDiskQuery {
 
   def getPersistentDiskRecord(id: DiskId): DBIO[Option[PersistentDiskRecord]] =
     findByIdQuery(id).result.headOption
+
+  def getActiveById(id: DiskId)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[PersistentDisk]] =
+    joinLabelQuery(findActiveByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
 
   def getActiveByName(cloudContext: CloudContext, name: DiskName)(implicit
     ec: ExecutionContext

@@ -57,6 +57,23 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "get by id" in isolatedDbTest {
+    val deletedDisk =
+      LeoLenses.diskToDestroyedDate.modify(_ => Some(Instant.now))(makePersistentDisk(Some(DiskName("d2"))))
+
+    val res = for {
+      disk <- makePersistentDisk(Some(DiskName("d1"))).save()
+      _ <- deletedDisk.save()
+      d1 <- persistentDiskQuery.getActiveById(disk.id).transaction
+      d2 <- persistentDiskQuery.getActiveById(deletedDisk.id).transaction
+    } yield {
+      d1.get shouldEqual disk
+      d2 shouldEqual None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "update status" in isolatedDbTest {
     val res = for {
       savedDisk <- makePersistentDisk().save()

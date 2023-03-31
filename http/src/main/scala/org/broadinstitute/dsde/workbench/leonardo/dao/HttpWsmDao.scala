@@ -312,10 +312,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[GetDeleteJobResult]] =
+  ): F[GetDeleteJobResult] =
     for {
       ctx <- ev.ask
-      res <- httpClient.expectOptionOr[GetDeleteJobResult](
+      res <- httpClient.expectOr[GetDeleteJobResult](
         Request[F](
           method = Method.GET,
           uri = config.uri
