@@ -132,6 +132,32 @@ LEONARDO_URL="${18:-dummy}"
 RUNTIME_NAME="${19:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
+# Save output to file
+echo "Saving variables to file..."
+echo "RELAY_NAME = ${RELAY_NAME}" >> ~/env_vars.txt
+echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}" >> ~/env_vars.txt
+echo "RELAY_TARGET_HOST = ${RELAY_TARGET_HOST}" >> ~/env_vars.txt
+echo "RELAY_CONNECTION_POLICY_KEY = ${RELAY_CONNECTION_POLICY_KEY}" >> ~/env_vars.txt
+echo "LISTENER_DOCKER_IMAGE = ${LISTENER_DOCKER_IMAGE}" >> ~/env_vars.txt
+echo "SAMURL = ${SAMURL}" >> ~/env_vars.txt
+echo "SAMRESOURCEID = ${SAMRESOURCEID}" >> ~/env_vars.txt
+echo "CONTENTSECURITYPOLICY_FILE = ${CONTENTSECURITYPOLICY_FILE}" >> ~/env_vars.txt
+echo "WELDER_WSM_URL = ${WELDER_WSM_URL}" >> ~/env_vars.txt
+echo "WORKSPACE_ID = ${WORKSPACE_ID}" >> ~/env_vars.txt
+echo "WORKSPACE_STORAGE_CONTAINER_ID = ${WORKSPACE_STORAGE_CONTAINER_ID}" >> ~/env_vars.txt
+echo "WELDER_WELDER_DOCKER_IMAGE = ${WELDER_WELDER_DOCKER_IMAGE}" >> ~/env_vars.txt
+echo "WELDER_OWNER_EMAIL = ${WELDER_OWNER_EMAIL}" >> ~/env_vars.txt
+echo "WELDER_STAGING_BUCKET = ${WELDER_STAGING_BUCKET}" >> ~/env_vars.txt
+echo "WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID = ${WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID}" >> ~/env_vars.txt
+echo "WORKSPACE_NAME = ${WORKSPACE_NAME}" >> ~/env_vars.txt
+echo "WORKSPACE_STORAGE_CONTAINER_URL = ${WORKSPACE_STORAGE_CONTAINER_URL}" >> ~/env_vars.txt
+echo "SERVER_APP_BASE_URL = ${SERVER_APP_BASE_URL}" >> ~/env_vars.txt
+echo "SERVER_APP_ALLOW_ORIGIN = ${SERVER_APP_ALLOW_ORIGIN}" >> ~/env_vars.txt
+echo "SERVER_APP_WEBSOCKET_URL = ${SERVER_APP_WEBSOCKET_URL}" >> ~/env_vars.txt
+echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}" >> enviornments
+echo "LEONARDO_URL = ${LEONARDO_URL}" >> ~/env_vars.txt
+echo "RUNTIME_NAME = ${RUNTIME_NAME}" >> ~/env_vars.txt
+
 # Install relevant libraries
 
 /anaconda/envs/py38_default/bin/pip3 install igv-jupyter
@@ -154,15 +180,15 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
 
 #echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
 
-echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel
+echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel pydevd
 
 echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
 sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/710389b23b6d6ad6e5698632fe5c0eb34ea952e2/http/src/main/resources/init-resources/jupyter_server_config.py"
-sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.9/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/622ce501c10968aae26fdf5f5223bda3ffcba3a3/terra-jupyter-base/custom/jupyter_delocalize.py"
-sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.9/site-packages/jupyter_delocalize.py"
+sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.10/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/0ea6d2ebd7fcae7072e01e1c2f2d178390a276b0/terra-jupyter-base/custom/jupyter_delocalize.py"
+sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
 sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
 
 # Store Jupyter Server parameters for reboot processes
