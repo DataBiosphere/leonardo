@@ -68,7 +68,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Request[F](
             method = Method.POST,
             uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self")),
-            entity = Entity.strict(Chunk.array("app.terra.bio/#terms-of-service".getBytes(UTF_8))),
+            entity = Entity.strict(Chunk.array("app.terra.bio/#terms-of-service".getBytes(UTF_8)).toByteVector),
             headers = Headers(leoToken)
           )
         )

@@ -21,7 +21,9 @@ object Dependencies {
   private val workbenchLibsHash = "3dddc947-SNAP"
   val serviceTestV = s"2.1-$workbenchLibsHash"
   val workbenchModelV = s"0.17-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.26-$workbenchLibsHash"
+
+  // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
+  val workbenchGoogleV = s"0.23-4b46aac"
   val workbenchGoogle2V = s"0.26-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.4-$workbenchLibsHash"
   val workbenchOauth2V = s"0.3-$workbenchLibsHash"

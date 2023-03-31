@@ -72,7 +72,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       _ <- IO {
         Orchestration.billingV2.createBillingProject(
           billingProjectName,
-          billingAccount = ServiceTestConfig.Projects.billingAccountId
+          ServiceTestConfig.Projects.billingAccountId
         )(hermioneAuthToken)
       }
 
