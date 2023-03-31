@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureDiskResourceDeletionError,
   AzureRuntimeCreationError,
   AzureRuntimeStartingError,
   AzureRuntimeStoppingError,
@@ -368,19 +369,17 @@ class AzurePubsubHandlerSpec
     when {
       mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(
-      Some(
-        GetDeleteJobResult(
-          WsmJobReport(
-            WsmJobId("job1"),
-            "desc",
-            WsmJobStatus.Succeeded,
-            200,
-            ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-            Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-            "resultUrl"
-          ),
-          None
-        )
+      GetDeleteJobResult(
+        WsmJobReport(
+          WsmJobId("job1"),
+          "desc",
+          WsmJobStatus.Succeeded,
+          200,
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+          "resultUrl"
+        ),
+        None
       )
     )
 
@@ -451,19 +450,17 @@ class AzurePubsubHandlerSpec
     when {
       mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(
-      Some(
-        GetDeleteJobResult(
-          WsmJobReport(
-            WsmJobId("job1"),
-            "desc",
-            WsmJobStatus.Succeeded,
-            200,
-            ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-            Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-            "resultUrl"
-          ),
-          None
-        )
+      GetDeleteJobResult(
+        WsmJobReport(
+          WsmJobId("job1"),
+          "desc",
+          WsmJobStatus.Succeeded,
+          200,
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+          "resultUrl"
+        ),
+        None
       )
     )
 
@@ -690,7 +687,7 @@ class AzurePubsubHandlerSpec
     val wsm = new MockWsmDAO {
       override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
-      ): IO[Option[GetDeleteJobResult]] = IO.raiseError(new Exception("test exception"))
+      ): IO[GetDeleteJobResult] = IO.raiseError(new Exception("test exception"))
     }
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
 
@@ -749,21 +746,19 @@ class AzurePubsubHandlerSpec
     val wsm = new MockWsmDAO {
       override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
         ev: Ask[IO, AppContext]
-      ): IO[Option[GetDeleteJobResult]] =
+      ): IO[GetDeleteJobResult] =
         IO.pure(
-          Some(
-            GetDeleteJobResult(
-              WsmJobReport(
-                request.jobId,
-                "desc",
-                WsmJobStatus.Running,
-                200,
-                ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-                Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-                "resultUrl"
-              ),
-              None
-            )
+          GetDeleteJobResult(
+            WsmJobReport(
+              request.jobId,
+              "desc",
+              WsmJobStatus.Running,
+              200,
+              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+              "resultUrl"
+            ),
+            None
           )
         )
     }
@@ -798,6 +793,67 @@ class AzurePubsubHandlerSpec
           error <- clusterErrorQuery.get(runtime.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(wsmResourceId),
+                                        landingZoneResources,
+                                        None
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.deleteAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "update runtime correctly when wsm deleteDisk call errors on runtime deletion" in isolatedDbTest {
+    val exceptionMsg = "test exception"
+    val queue = QueueFactory.asyncTaskQueue()
+    val wsm = new MockWsmDAO {
+      override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[DeleteWsmResourceResult]] =
+        IO.raiseError(new Exception("test exception"))
+    }
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(2)
+          .copy(
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .transaction
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
+          .transaction
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          getRuntime.auditInfo.destroyedDate shouldBe None
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
@@ -1015,6 +1071,97 @@ class AzurePubsubHandlerSpec
         None
       )
     )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "delete azure disk properly" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val mockWsmDao = mock[WsmDao[IO]]
+    when {
+      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(None)
+    when {
+      mockWsmDao.getDeleteDiskJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
+    } thenReturn IO.pure(
+      GetDeleteJobResult(
+        WsmJobReport(
+          WsmJobId("job1"),
+          "desc",
+          WsmJobStatus.Succeeded,
+          200,
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+          "resultUrl"
+        ),
+        None
+      )
+    )
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+
+    val res =
+      for {
+        disk <- makePersistentDisk(wsmResourceId = Some(resourceId)).copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion
+        )
+        runtime = makeCluster(2)
+          .copy(
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        _ <- controlledResourceQuery
+          .save(runtime.id, resourceId, WsmResourceType.AzureDisk)
+          .transaction
+
+        assertions = for {
+          diskStatusOpt <- persistentDiskQuery.getStatus(disk.id).transaction
+          diskStatus = diskStatusOpt.get
+        } yield {
+          verify(mockWsmDao, times(1)).deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(
+            any[Ask[IO, AppContext]]
+          )
+
+          diskStatus shouldBe DiskStatus.Deleted
+        }
+        msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, disk.wsmResourceId, None)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.deleteDisk(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a disk without a WSMresourceId" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDao = mock[WsmDao[IO]]
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+
+    val res =
+      for {
+        disk <- makePersistentDisk(wsmResourceId = Some(wsmResourceId)).copy(status = DiskStatus.Ready).save()
+
+        msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, Some(wsmResourceId), None)
+
+        err <- azureInterp.deleteDisk(msg).attempt
+
+      } yield err shouldBe Left(
+        AzureDiskResourceDeletionError(
+          Right(wsmResourceId),
+          workspaceId,
+          "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
+        )
+      )
+
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

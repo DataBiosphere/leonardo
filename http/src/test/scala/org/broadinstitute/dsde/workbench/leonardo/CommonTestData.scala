@@ -445,7 +445,9 @@ object CommonTestData {
                          formattedBy: Option[FormattedBy] = None,
                          appRestore: Option[AppRestore] = None,
                          zoneName: Option[ZoneName] = None,
-                         cloudContextOpt: Option[CloudContext] = None
+                         cloudContextOpt: Option[CloudContext] = None,
+                         wsmResourceId: Option[WsmControlledResourceId] = None,
+                         workspaceId: Option[WorkspaceId] = workspaceIdOpt
   ): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
@@ -463,7 +465,8 @@ object CommonTestData {
       appRestore,
       Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3"),
       None,
-      None
+      wsmResourceId,
+      workspaceId
     )
 
   // TODO look into parameterized tests so both provider impls can be tested
@@ -518,6 +521,7 @@ object CommonTestData {
   val azureCloudContext =
     AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
+  val workspaceIdOpt = Some(workspaceId)
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())

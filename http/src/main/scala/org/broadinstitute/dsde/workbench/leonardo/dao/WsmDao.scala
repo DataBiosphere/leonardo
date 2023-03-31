@@ -60,7 +60,11 @@ trait WsmDao[F[_]] {
 
   def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[GetDeleteJobResult]]
+  ): F[GetDeleteJobResult]
+
+  def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[GetDeleteJobResult]
 
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]

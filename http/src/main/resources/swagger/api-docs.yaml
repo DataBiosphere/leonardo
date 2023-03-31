@@ -1230,6 +1230,81 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  "/api/v2/disks/{id}":
+    get:
+      summary: Get details of a persistent disk
+      description: >
+        Returns information about an existing persistent disk managed by Leo.
+        Poll this to find out your disk status.
+      operationId: getDiskV2
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: id
+          description: diskId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Persistent disk found, here are the details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetPersistentDiskV2Response"
+        "403":
+          description: User does not have permission to perform action on disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/disks/{id}/{workspaceId}":
+    delete:
+      summary: Deletes an existing persistent disk instance in the given workspce
+      description: Deletes a persistent disk
+      operationId: deleteDiskV2
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: id
+          description: diskId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Persistent disk deletion request accepted
+        "403":
+          description: User does not have permission to perform action on persistent disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Kubernetes App API ##
   "/api/google/v1/apps":
     get:
@@ -3038,10 +3113,10 @@ components:
       description: ""
       required:
         - id
-        - googleProject
+        - cloudContext
         - zone
         - name
-        - googleId
+        - serviceAccount
         - samResourceId
         - status
         - auditInfo
@@ -3049,22 +3124,22 @@ components:
         - diskType
         - blockSize
         - labels
+        - formattedBy
       properties:
         id:
           type: integer
-          description: Internal Leonardo ID of the persistent disk
-        googleProject:
-          type: string
-          description: The google project used to create the persistent disk
+          description: The cloud-platform provided unique ID of this persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
         zone:
           type: string
-          description: The google zone in which the persistent disk was created
+          description: The zone in which the persistent disk was created
         name:
           type: string
-          description: The user-supplied name of the persistent disk
-        googleId:
+          description: The name of the persistent disk
+        serviceAccount:
           type: string
-          description: Google's UUID for the persistent disk
+          description: The account used to create the disk
         samResourceId:
           type: string
           description: Internal resource ID of the persistent disk
@@ -3083,6 +3158,68 @@ components:
         labels:
           type: object
           description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        formattedBy:
+          type: string
+          enum:
+            - GALAXY
+            - GCE
+            - CROMWELL
+            - CUSTOM
+          description: App that formatted disk, missing if unformatted
+
+    GetPersistentDiskV2Response:
+      description: ""
+      required:
+        - id
+        - cloudContext
+        - zone
+        - name
+        - serviceAccount
+        - samResourceId
+        - status
+        - auditInfo
+        - size
+        - diskType
+        - blockSize
+        - labels
+        - workspaceId
+        - formattedBy
+      properties:
+        id:
+          type: integer
+          description: The cloud-platform provided unique ID of this persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
+        zone:
+          type: string
+          description: The zone in which the persistent disk was created
+        name:
+          type: string
+          description: The name of the persistent disk
+        serviceAccount:
+          type: string
+          description: The account used to create the disk
+        samResourceId:
+          type: string
+          description: Internal resource ID of the persistent disk
+        status:
+          $ref: "#/components/schemas/DiskStatus"
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        size:
+          type: integer
+          description: Size of persistent disk in GB
+        diskType:
+          $ref: "#/components/schemas/DiskType"
+        blockSize:
+          type: integer
+          description: Block size of persistent disk in bytes
+        labels:
+          type: object
+          description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        workspaceId:
+          type: string
+          description: The id of the disk's workspace
         formattedBy:
           type: string
           enum:

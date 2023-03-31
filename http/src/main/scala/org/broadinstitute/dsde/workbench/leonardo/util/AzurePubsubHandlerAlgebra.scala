@@ -7,7 +7,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage
+  DeleteAzureRuntimeMessage,
+  DeleteDiskV2Message
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
@@ -36,6 +37,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
+
+  def deleteDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def createAndPollApp(appId: AppId,
                        appName: AppName,
@@ -100,6 +103,7 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           welderImageHash: String,
                                           createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
+                                          deleteDiskPollConfig: PollMonitorConfig,
                                           runtimeDefaults: AzureRuntimeDefaults
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"

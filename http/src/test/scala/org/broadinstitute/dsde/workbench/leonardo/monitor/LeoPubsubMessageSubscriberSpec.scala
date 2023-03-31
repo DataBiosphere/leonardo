@@ -1983,6 +1983,22 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle Azure delete disk message" in isolatedDbTest {
+    val azurePubsubHandlerMock = mock[AzurePubsubHandlerInterp[IO]]
+    when(azurePubsubHandlerMock.deleteDisk(any[DeleteDiskV2Message])(any()))
+      .thenReturn(IO.unit)
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubsubHandlerMock)
+    val res = for {
+      disk <- makePersistentDisk(cloudContextOpt = Some(cloudContextAzure)).copy(status = DiskStatus.Ready).save()
+      _ <- leoSubscriber.messageResponder(
+        DeleteDiskV2Message(disk.id, disk.workspaceId.get, disk.cloudContext, disk.wsmResourceId, None)
+      )
+
+    } yield verify(azurePubsubHandlerMock, times(1)).deleteDisk(any[DeleteDiskV2Message])(any())
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty
   ): GKEInterpreter[IO] =
