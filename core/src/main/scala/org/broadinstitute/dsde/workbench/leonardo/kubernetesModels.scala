@@ -322,6 +322,10 @@ object AppType {
     override def toString: String = "WDS"
   }
 
+  case object HailBatch extends AppType {
+    override def toString: String = "HAIL_BATCH"
+  }
+
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
@@ -329,14 +333,13 @@ object AppType {
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 
-  /** Host formatting for an App. Currently, for Azure there is only 1 configuration,
-   * and FormattedBy.Cromwell is expected. */
+  /** Disk formatting for an App. Currently, for Azure there is only 1 configuration,
+   * and FormattedBy.Cromwell is expected for WDS and HailBatch. */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy   => FormattedBy.Galaxy
-      case Cromwell => FormattedBy.Cromwell
-      case Custom   => FormattedBy.Custom
-      case Wds      => FormattedBy.Cromwell
+      case Galaxy                     => FormattedBy.Galaxy
+      case Custom                     => FormattedBy.Custom
+      case Cromwell | Wds | HailBatch => FormattedBy.Cromwell
     }
 }
 

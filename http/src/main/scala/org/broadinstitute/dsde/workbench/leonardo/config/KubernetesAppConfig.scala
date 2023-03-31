@@ -97,7 +97,17 @@ final case class WdsAppConfig(chartName: ChartName,
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
-  def coaServices: Set[CoaService] = Set(Wds)
+}
+
+final case class HailBatchAppConfig(chartName: ChartName,
+                                    chartVersion: ChartVersion,
+                                    releaseNameSuffix: ReleaseNameSuffix,
+                                    namespaceNameSuffix: NamespaceNameSuffix,
+                                    ksaName: KsaName,
+                                    services: List[ServiceConfig]
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
 }
 
 sealed trait CoaService

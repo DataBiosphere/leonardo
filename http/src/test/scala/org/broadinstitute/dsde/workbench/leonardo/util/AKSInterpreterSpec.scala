@@ -18,12 +18,7 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.mockito.ArgumentMatchers
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
-  azureRegion,
-  landingZoneResources,
-  petUserInfo,
-  workspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
@@ -50,6 +45,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.terraAppSetupChart,
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.wdsAppConfig,
+    ConfigReader.appConfig.azure.hailBatchAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
@@ -64,6 +60,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockHailBatchDAO = setUpMockHailBatchDAO
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
@@ -80,7 +77,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCromwellDAO,
     mockCbasDAO,
     mockCbasUiDAO,
-    mockWdsDAO
+    mockWdsDAO,
+    mockHailBatchDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -144,7 +142,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       storageContainer,
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
-      "coa",
       None,
       petUserInfo.accessToken.token
     )
@@ -191,7 +188,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
-      "wds",
       None,
       petUserInfo.accessToken.token
     )
@@ -225,7 +221,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       storageContainer,
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
-      "coa",
       Some(sourceWorkspaceId),
       petUserInfo.accessToken.token
     )
@@ -275,7 +270,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
-      "wds",
       Some(sourceWorkspaceId),
       petUserInfo.accessToken.token
     )
@@ -712,6 +706,17 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       wds.getStatus(any, any, any)(any)
     } thenReturn IO.pure(true)
     wds
+  }
+
+  private def setUpMockHailBatchDAO: HailBatchDAO[IO] = {
+    val batch = mock[HailBatchDAO[IO]]
+    when {
+      batch.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    when {
+      batch.getDriverStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    batch
   }
 
 }

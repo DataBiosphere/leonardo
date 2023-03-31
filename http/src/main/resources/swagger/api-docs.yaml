@@ -2810,6 +2810,7 @@ components:
         - CUSTOM
         - GALAXY
         - WDS
+        - HAIL_BATCH
     AppStatus:
       type: string
       enum:

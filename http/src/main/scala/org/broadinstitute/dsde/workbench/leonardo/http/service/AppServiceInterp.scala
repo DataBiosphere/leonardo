@@ -1031,11 +1031,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       // Validate app type
       gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
-        case (Galaxy, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.galaxyAppConfig)
-        case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
-        case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
-        case (Wds, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.wdsAppConfig)
+        case (Galaxy, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
+        case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
         case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
       }
 
