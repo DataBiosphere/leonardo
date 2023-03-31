@@ -105,13 +105,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false
         ),
         HailBatchAppConfig(
-          ChartName("/leonardo/hail"),
+          ChartName("/leonardo/hail-batch-terra-azure"),
           ChartVersion("0.1.4"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),
           List(
-            ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
+            ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
           )
         ),
         AadPodIdentityConfig(
