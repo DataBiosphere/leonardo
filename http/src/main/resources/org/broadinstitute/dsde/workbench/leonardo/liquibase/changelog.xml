@@ -97,4 +97,5 @@
     <include file="changesets/20230201_add_wsmResourceId_to_persistent_disk.xml" relativeToChangelogFile="true" />
     <include file="changesets/20230224_add_accessScope_to_app.xml" relativeToChangelogFile="true" />
     <include file="changesets/20230313_add_workspaceid_to_persistent_disk.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230403_update_persistent_disk_workspaceId.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
