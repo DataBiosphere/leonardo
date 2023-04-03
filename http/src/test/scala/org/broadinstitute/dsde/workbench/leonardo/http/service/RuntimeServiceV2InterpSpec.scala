@@ -94,7 +94,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
-
     }
     val azureService = makeInterp(publisherQueue, wsmDao)
     val res = for {
@@ -329,6 +328,154 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     } yield err shouldBe Left(
       OnlyOneRuntimePerWorkspacePerCreator(workspaceId, userInfo.userEmail, runtime.clusterName, runtime.status)
     )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to create a runtime if one exists in the workspace" in isolatedDbTest {
+    runtimeV2Service
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val exc = runtimeV2Service
+      .createRuntime(userInfo, name2, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+
+    exc shouldBe a[OnlyOneRuntimePerWorkspacePerCreator]
+  }
+
+  it should "create a runtime if one exists in the workspace but for another user" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
+
+    val wsmDao = new MockWsmDAO {
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[StorageContainerResponse]] =
+        IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
+
+      override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[LandingZoneResources] =
+        IO.pure(landingZoneResources)
+    }
+    val azureService = makeInterp(publisherQueue, wsmDao)
+
+    azureService
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val res = for {
+      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+      context <- appContext.ask[AppContext]
+
+      r <- azureService
+        .createRuntime(
+          userInfo2,
+          name2,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq.copy(
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
+          )
+        )
+        .attempt
+      workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
+      cloudContext = CloudContext.Azure(workspaceDesc.get.azureContext.get)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(cloudContext, name2)(scala.concurrent.ExecutionContext.global)
+        .transaction
+      cluster = clusterOpt.get
+      message <- publisherQueue.take
+    } yield {
+      r shouldBe Right(CreateRuntimeResponse(context.traceId))
+
+      val expectedMessage = CreateAzureRuntimeMessage(
+        cluster.id,
+        workspaceId,
+        storageContainerResourceId,
+        landingZoneResources,
+        false,
+        Some(context.traceId),
+        workspaceDesc.get.displayName,
+        ContainerName("dummy")
+      )
+      message shouldBe expectedMessage
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "create a runtime if one exists but in deleting status" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
+
+    val wsmDao = new MockWsmDAO {
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[StorageContainerResponse]] =
+        IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
+
+      override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[LandingZoneResources] =
+        IO.pure(landingZoneResources)
+    }
+    val azureService = makeInterp(publisherQueue, wsmDao)
+
+    azureService
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val updateRuntimeStatus = for {
+      now <- IO.realTimeInstant
+      runtime <- RuntimeServiceDbQueries
+        .getActiveRuntime(workspaceId, name0)
+        .transaction
+      _ <- clusterQuery
+        .updateClusterStatus(runtime.id, RuntimeStatus.Deleting, now)
+        .transaction
+    } yield ()
+    updateRuntimeStatus.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val res = for {
+      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+      context <- appContext.ask[AppContext]
+
+      r <- azureService
+        .createRuntime(
+          userInfo,
+          name2,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq.copy(
+            azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName("diskName2"))
+          )
+        )
+        .attempt
+      workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
+      cloudContext = CloudContext.Azure(workspaceDesc.get.azureContext.get)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(cloudContext, name2)(scala.concurrent.ExecutionContext.global)
+        .transaction
+      cluster = clusterOpt.get
+      message <- publisherQueue.take
+    } yield {
+      r shouldBe Right(CreateRuntimeResponse(context.traceId))
+
+      val expectedMessage = CreateAzureRuntimeMessage(
+        cluster.id,
+        workspaceId,
+        storageContainerResourceId,
+        landingZoneResources,
+        false,
+        Some(context.traceId),
+        workspaceDesc.get.displayName,
+        ContainerName("dummy")
+      )
+      message shouldBe expectedMessage
+    }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

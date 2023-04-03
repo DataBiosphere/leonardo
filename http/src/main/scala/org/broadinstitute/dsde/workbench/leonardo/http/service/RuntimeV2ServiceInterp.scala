@@ -95,7 +95,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // enforcing one runtime per workspace/user at a time
       runtime <- RuntimeServiceDbQueries
         .listRuntimesForWorkspace(Map.empty,
-                                  false,
+                                  List(RuntimeStatus.Deleted, RuntimeStatus.Deleting),
                                   Some(userInfo.userEmail),
                                   Some(workspaceId),
                                   Some(cloudContext.cloudProvider)
@@ -354,7 +354,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       // We should not list runtimes that are already in a `Deleted` status
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, false, None, Some(workspaceId), None)
+        .listRuntimesForWorkspace(Map.empty, List(RuntimeStatus.Deleted), None, Some(workspaceId), None)
         .map(_.toList)
         .transaction
 
@@ -465,9 +465,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
+      excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(labelMap, includeDeleted, creatorOnly, workspaceId, cloudProvider)
+        .listRuntimesForWorkspace(labelMap, excludeStatuses, creatorOnly, workspaceId, cloudProvider)
         .map(_.toList)
         .transaction
       filteredRuntimes <-

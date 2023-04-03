@@ -241,9 +241,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
+      excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimes(labelMap, includeDeleted, creatorOnly, cloudContext)
+        .listRuntimes(labelMap, excludeStatuses, creatorOnly, cloudContext)
         .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
