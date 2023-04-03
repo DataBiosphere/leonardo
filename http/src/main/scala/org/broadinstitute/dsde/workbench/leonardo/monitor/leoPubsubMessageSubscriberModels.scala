@@ -163,6 +163,11 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object DeleteAzureRuntime extends LeoPubsubMessageType {
     val asString = "deleteAzureRuntime"
   }
+
+  final case object DeleteDiskV2 extends LeoPubsubMessageType {
+    val asString = "deleteDiskV2"
+  }
+
   final case object CreateAppV2 extends LeoPubsubMessageType {
     val asString = "createAppV2"
   }
@@ -371,6 +376,16 @@ object LeoPubsubMessage {
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureRuntime
   }
+
+  final case class DeleteDiskV2Message(diskId: DiskId,
+                                       workspaceId: WorkspaceId,
+                                       cloudContext: CloudContext,
+                                       wsmResourceId: Option[WsmControlledResourceId],
+                                       traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteDiskV2
+  }
+
 }
 
 sealed trait ClusterNodepoolActionType extends Product with Serializable {
@@ -572,9 +587,14 @@ object LeoPubsubCodec {
                         "cloudContext",
                         "diskId",
                         "landingZoneResourcesOpt",
-                        "tradeId"
+                        "traceId"
     )(
       DeleteAppV2Message.apply
+    )
+
+  implicit val deleteDiskV2Decoder: Decoder[DeleteDiskV2Message] =
+    Decoder.forProduct5("diskId", "workspaceId", "cloudContext", "wsmResourceId", "traceId")(
+      DeleteDiskV2Message.apply
     )
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
@@ -597,6 +617,8 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
         case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
         case LeoPubsubMessageType.DeleteAppV2        => message.as[DeleteAppV2Message]
+        case LeoPubsubMessageType.DeleteDiskV2       => message.as[DeleteDiskV2Message]
+
       }
     } yield value
   }
@@ -981,6 +1003,11 @@ object LeoPubsubCodec {
       (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.diskId, x.landingZoneResourcesOpt, x.traceId)
     )
 
+  implicit val deleteDiskV2MessageEncoder: Encoder[DeleteDiskV2Message] =
+    Encoder.forProduct6("messageType", "diskId", "workspaceId", "cloudContext", "wsmResourceId", "traceId")(x =>
+      (x.messageType, x.diskId, x.workspaceId, x.cloudContext, x.wsmResourceId, x.traceId)
+    )
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
     case m: CreateDiskMessage         => m.asJson
     case m: UpdateDiskMessage         => m.asJson
@@ -998,6 +1025,7 @@ object LeoPubsubCodec {
     case m: DeleteAzureRuntimeMessage => m.asJson
     case m: CreateAppV2Message        => m.asJson
     case m: DeleteAppV2Message        => m.asJson
+    case m: DeleteDiskV2Message       => m.asJson
   }
 }
 
@@ -1055,10 +1083,31 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class DiskInvalidState(diskId: DiskId, projectName: String, disk: PersistentDisk)
+  final case class DiskDeletionError(diskId: DiskId, workspaceId: WorkspaceId, errorMsg: String)
       extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"${diskId}, ${projectName} | Unable to process disk because not in correct state. Disk details: ${disk}"
+      s"\n\tdisk ${diskId} in workspace ${workspaceId}, \n\tmsg: ${errorMsg})"
+
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureDiskDeletionError(wsmControlledResourceId: WsmControlledResourceId,
+                                          workspaceId: WorkspaceId,
+                                          errorMsg: String
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\tdisk resource: ${wsmControlledResourceId}, \n\tmsg: ${errorMsg})"
+
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureDiskResourceDeletionError(id: Either[Long, WsmControlledResourceId],
+                                                  workspaceId: WorkspaceId,
+                                                  errorMsg: String
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\tAssociated disk resource: ${id} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
+
     val isRetryable: Boolean = false
   }
 

@@ -264,7 +264,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // throw 409 if the disk is not deletable
       _ <-
         if (disk.status.isDeletable) F.unit
-        else F.raiseError[Unit](DiskCannotBeDeletedException(googleProject, disk.name, disk.status, ctx.traceId))
+        else F.raiseError[Unit](DiskCannotBeDeletedException(disk.id, disk.status, cloudContext, ctx.traceId))
       // throw 409 if the disk is attached to a runtime
       attached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
       _ <-
@@ -384,7 +384,8 @@ object DiskServiceInterp {
       None,
       labels,
       sourceDisk.map(_.diskLink),
-      None
+      None,
+      None // TODO: workspace must be present for V2 routes
     )
   }
 }
@@ -399,12 +400,9 @@ case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject,
       traceId = Some(traceId)
     )
 
-case class DiskCannotBeDeletedException(googleProject: GoogleProject,
-                                        diskName: DiskName,
-                                        status: DiskStatus,
-                                        traceId: TraceId
-) extends LeoException(
-      s"Persistent disk ${googleProject.value}/${diskName.value} cannot be deleted in ${status} status",
+case class DiskCannotBeDeletedException(id: DiskId, status: DiskStatus, cloudContext: CloudContext, traceId: TraceId)
+    extends LeoException(
+      s"Persistent disk ${id.value} cannot be deleted in ${status} status. CloudContext: ${cloudContext.asStringWithProvider}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

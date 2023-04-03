@@ -122,8 +122,9 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
-        case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
-        case msg: DeleteAppV2Message => handleDeleteAppV2Message(msg)
+        case msg: CreateAppV2Message  => handleCreateAppV2Message(msg)
+        case msg: DeleteAppV2Message  => handleDeleteAppV2Message(msg)
+        case msg: DeleteDiskV2Message => handleDeleteDiskV2Message(msg)
       }
     } yield resp
 
@@ -1579,6 +1580,24 @@ class LeoPubsubMessageSubscriber[F[_]](
               None
             )
           )
+      }
+    } yield ()
+
+  private[monitor] def handleDeleteDiskV2Message(
+    msg: DeleteDiskV2Message
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      _ <- msg.cloudContext match {
+        case CloudContext.Azure(_) =>
+          azurePubsubHandler.deleteDisk(msg).adaptError { case e =>
+            PubsubHandleMessageError.DiskDeletionError(
+              msg.diskId,
+              msg.workspaceId,
+              e.getMessage
+            )
+          }
+        case CloudContext.Gcp(_) =>
+          deleteDisk(msg.diskId, false)
       }
     } yield ()
 }

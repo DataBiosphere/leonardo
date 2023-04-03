@@ -47,6 +47,7 @@ class HttpRoutesSpec
       proxyService,
       MockRuntimeServiceInterp,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       timedUserInfoDirectives,
@@ -61,6 +62,7 @@ class HttpRoutesSpec
       proxyService,
       MockRuntimeServiceInterp,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       timedUserInfoDirectives,
@@ -658,6 +660,30 @@ class HttpRoutesSpec
     }
   }
 
+  it should "get a disk v2" in {
+    Get(s"/api/v2/disks/-1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[GetPersistentDiskV2Response].name shouldBe CommonTestData.diskName
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "delete a disk v2" in {
+    Delete(s"/api/v2/disks/-1/${workspaceId.value.toString}") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "reject get a disk if workspaceId is invalid" in {
+    Get(s"/api/v2/disks/-1/workspaceId") ~> routes.route ~> check {
+      val expectedResponse =
+        """Invalid workspace id workspaceId, workspace id must be a valid UUID"""
+      responseEntity.toStrict(5 seconds).futureValue.data.utf8String.contains(expectedResponse)
+      status shouldEqual StatusCodes.BadRequest
+    }
+  }
+
   "HttpRoutes" should "not handle unrecognized routes" in {
     Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
@@ -685,6 +711,11 @@ class HttpRoutesSpec
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
     Get("/api/google/v1/disks/googleProject1/disk1/foo") ~> routes.route ~> check {
+      status shouldBe StatusCodes.NotFound
+      val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
+      resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
+    }
+    Get(s"/api/disks/v2/${workspaceId.value.toString}/disk1") ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
@@ -872,6 +903,7 @@ class HttpRoutesSpec
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       MockAppService,
       runtimev2Service,
       timedUserInfoDirectives,
@@ -886,6 +918,7 @@ class HttpRoutesSpec
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       kubernetesService,
       runtimev2Service,
       timedUserInfoDirectives,

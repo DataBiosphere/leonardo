@@ -33,7 +33,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       formattedBy: Option[FormattedBy],
                                       appRestore: Option[AppRestore],
                                       sourceDisk: Option[DiskLink],
-                                      wsmResourceId: Option[WsmControlledResourceId]
+                                      wsmResourceId: Option[WsmControlledResourceId],
+                                      workspaceId: Option[WorkspaceId]
 )
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
@@ -57,6 +58,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
   def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
   def wsmResourceId = column[Option[WsmControlledResourceId]]("wsmResourceId")
+  def workspaceId = column[Option[WorkspaceId]]("workspaceId")
 
   override def * =
     (id,
@@ -76,7 +78,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      formattedBy,
      (galaxyPvcId, lastUsedBy),
      sourceDisk,
-     wsmResourceId
+     wsmResourceId,
+     workspaceId
     ) <> ({
       case (id,
             (cloudProvider, cloudContextDb),
@@ -95,7 +98,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             formattedBy,
             (galaxyPvcId, lastUsedBy),
             sourceDisk,
-            wsmResourceId
+            wsmResourceId,
+            workspaceId
           ) =>
         PersistentDiskRecord(
           id,
@@ -128,7 +132,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
           sourceDisk,
-          wsmResourceId
+          wsmResourceId,
+          workspaceId
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -158,7 +163,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
         },
         record.sourceDisk,
-        record.wsmResourceId
+        record.wsmResourceId,
+        record.workspaceId
       )
     })
 }
@@ -168,18 +174,16 @@ object persistentDiskQuery {
 
   private[db] def findByIdQuery(id: DiskId) = tableQuery.filter(_.id === id)
 
+  private[db] def findActiveByIdQuery(id: DiskId) =
+    tableQuery
+      .filter(_.id === id)
+      .filter(_.destroyedDate === dummyDate)
+
   private[db] def findActiveByNameQuery(cloudContext: CloudContext, name: DiskName) =
     tableQuery
       .filter(_.cloudContext === cloudContext.asCloudContextDb)
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
-
-  private[db] def findByNameQuery(cloudContext: CloudContext, name: DiskName) =
-    tableQuery
-      .filter(
-        _.cloudContext === cloudContext.asCloudContextDb
-      )
-      .filter(_.name === name)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
@@ -220,6 +224,11 @@ object persistentDiskQuery {
 
   def getPersistentDiskRecord(id: DiskId): DBIO[Option[PersistentDiskRecord]] =
     findByIdQuery(id).result.headOption
+
+  def getActiveById(id: DiskId)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[PersistentDisk]] =
+    joinLabelQuery(findActiveByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
 
   def getActiveByName(cloudContext: CloudContext, name: DiskName)(implicit
     ec: ExecutionContext
@@ -290,7 +299,8 @@ object persistentDiskQuery {
       disk.formattedBy,
       disk.appRestore,
       disk.sourceDisk,
-      disk.wsmResourceId
+      disk.wsmResourceId,
+      disk.workspaceId
     )
 
   private[db] def aggregateLabels(
@@ -329,6 +339,7 @@ object persistentDiskQuery {
       rec.appRestore,
       labels,
       rec.sourceDisk,
-      rec.wsmResourceId
+      rec.wsmResourceId,
+      rec.workspaceId
     )
 }
