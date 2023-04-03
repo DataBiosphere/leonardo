@@ -465,7 +465,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
     }
 
-    val removeEntityPathFromHttpUrl = appType == AppType.HailBatch
+    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
+    // so requires that we don't strip the entity path. For other app types we do
+    // strip the entity path.
+    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
 
     Values(
       List(
