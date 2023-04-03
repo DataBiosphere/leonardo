@@ -643,7 +643,8 @@ object Config {
       config.as[GalaxyOrchUrl]("orchUrl"),
       config.as[GalaxyDrsUrl]("drsUrl"),
       config.as[Int]("minMemoryGb"),
-      config.as[Int]("minNumOfCpus")
+      config.as[Int]("minNumOfCpus"),
+      config.as[Boolean]("enabled")
     )
   }
 
@@ -666,7 +667,8 @@ object Config {
       releaseNameSuffix = config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       services = config.as[List[ServiceConfig]]("services"),
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
-      dbPassword = config.as[DbPassword]("dbPassword")
+      dbPassword = config.as[DbPassword]("dbPassword"),
+      enabled = config.as[Boolean]("enabled")
     )
   }
 
@@ -677,7 +679,8 @@ object Config {
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
+      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList"),
+      config.as[Boolean]("enabled")
     )
   }
 

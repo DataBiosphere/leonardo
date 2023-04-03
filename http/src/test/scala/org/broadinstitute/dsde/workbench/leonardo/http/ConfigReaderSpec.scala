@@ -91,7 +91,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
-          instrumentationEnabled = false
+          instrumentationEnabled = false,
+          enabled = true
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
@@ -102,7 +103,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           List(
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
           ),
-          instrumentationEnabled = false
+          instrumentationEnabled = false,
+          enabled = true
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
@@ -112,7 +114,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           KsaName("hail-ksa"),
           List(
             ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
-          )
+          ),
+          true
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),
