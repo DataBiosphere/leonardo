@@ -170,6 +170,8 @@ done
 
 DISK_DEVICE_ID= basename ${FreesdDisks[0]}
 
+## Let's try to mount the disk first, it the disk has previously been in use, then
+## the working directory should appear
 mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 
 ## Only format disk is it hasn't already been formatted
