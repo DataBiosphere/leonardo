@@ -152,3 +152,21 @@ jq --null-input \
 /anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
+
+log 'Formatting and mounting persistent disk...'
+
+WORK_DIRECTORY='/home/jupyter/persistent_disk'
+
+# Mount persistent disk
+# Fix this to `sdc`. Azure Vm is already mounting a boot sba disk and a sdb disk,
+USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdc}
+
+## Only format disk is it hasn't already been formatted
+## Maybe check if the working directory exists already?
+if [ ! -d ${WORK_DIRECTORY} ] ; then
+  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
+  mkdir -p ${WORK_DIRECTORY}
+fi
+
+mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
