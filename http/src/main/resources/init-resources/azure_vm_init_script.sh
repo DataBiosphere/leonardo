@@ -170,14 +170,14 @@ done
 
 DISK_DEVICE_ID= basename ${FreesdDisks[0]}
 
-## Let's try to mount the disk first, it the disk has previously been in use, then
-## the working directory should appear
-mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
-
 ## Only format disk is it hasn't already been formatted
 ## Maybe check if the working directory exists already?
 if [ ! -d ${WORK_DIRECTORY} ] ; then
-  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
+  fdisk /dev/${DISK_DEVICE_ID}
+  mkfs -t ext4 /dev/${DISK_DEVICE_ID}
   mkdir -p ${WORK_DIRECTORY}
 fi
 
+## Let's try to mount the disk first, it the disk has previously been in use, then
+## the working directory should appear
+mount -t ext4 /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
