@@ -6,12 +6,12 @@ object Merging {
     // [error] Deduplicate found different file contents in the following:
     // [error]   Jar name = auto-value-1.10.1.jar, jar org = com.google.auto.value, entry target = META-INF/kotlin-stdlib.kotlin_module
     // [error]   Jar name = kotlin-stdlib-1.6.20.jar, jar org = org.jetbrains.kotlin, entry target = META-INF/kotlin-stdlib.kotlin_module
-    case PathList("kotlin-stdlib", "kotlin_module", _ @ _*) => MergeStrategy.preferProject
+    case PathList("META-INF", "kotlin-stdlib", "kotlin_module", _ @ _*) => MergeStrategy.preferProject
     // For the following error:
     // [error] Deduplicate found different file contents in the following:
     // [error]   Jar name = auto-value-1.10.1.jar, jar org = com.google.auto.value, entry target = META-INF/kotlin-stdlib-common.kotlin_module
     // [error]   Jar name = kotlin-stdlib-1.6.20.jar, jar org = org.jetbrains.kotlin, entry target = META-INF/kotlin-stdlib-common.kotlin_module
-    case PathList("kotlin-stdlib-common", "kotlin_module", _ @ _*) => MergeStrategy.preferProject
+    case PathList("META-INF", "kotlin-stdlib-common", "kotlin_module", _ @ _*) => MergeStrategy.preferProject
     case PathList("org", "joda", "time", "base", "BaseDateTime.class") => MergeStrategy.first
     // For the following error:
     // [error] java.lang.RuntimeException: deduplicate: different file contents found in the following:
