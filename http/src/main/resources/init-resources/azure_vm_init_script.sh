@@ -170,6 +170,8 @@ done
 
 DISK_DEVICE_ID= basename ${FreesdDisks[0]}
 
+mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+
 ## Only format disk is it hasn't already been formatted
 ## Maybe check if the working directory exists already?
 if [ ! -d ${WORK_DIRECTORY} ] ; then
@@ -177,4 +179,3 @@ if [ ! -d ${WORK_DIRECTORY} ] ; then
   mkdir -p ${WORK_DIRECTORY}
 fi
 
-mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
