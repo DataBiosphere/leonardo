@@ -158,9 +158,17 @@ log 'Formatting and mounting persistent disk...'
 WORK_DIRECTORY='/home/jupyter/persistent_disk'
 
 # Mount persistent disk
-# Fix this to `sdc`. Azure Vm is already mounting a boot sba disk and a sdb disk,
-USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdc}
+# The PD should be the only `sd` disk that is not mounted yet
+AllsdDisks=($(/usr/bin/lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
+FreesdDisks=()
+for Disk in "${AllsdDisks[@]}"; do
+    Mounts="$(/usr/bin/lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
+    if [ "${Mounts}" == "" ]; then
+        FreesdDisks+=("${Disk}")
+    fi
+done
+
+DISK_DEVICE_ID= basename ${FreesdDisks[0]}
 
 ## Only format disk is it hasn't already been formatted
 ## Maybe check if the working directory exists already?
