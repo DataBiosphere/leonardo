@@ -153,7 +153,7 @@ jq --null-input \
 /anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 
-log 'Formatting and mounting persistent disk...'
+#log 'Formatting and mounting persistent disk...'
 
 WORK_DIRECTORY='/home/jupyter/persistent_disk'
 
