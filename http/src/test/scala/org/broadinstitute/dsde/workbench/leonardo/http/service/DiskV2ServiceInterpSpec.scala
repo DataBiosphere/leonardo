@@ -122,7 +122,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
 
-      _ <- diskV2Service.deleteDisk(userInfo, workspaceId, disk.id)
+      _ <- diskV2Service.deleteDisk(userInfo, disk.id)
       dbDiskOpt <- persistentDiskQuery
         .getActiveByName(disk.cloudContext, disk.name)
         .transaction
@@ -154,13 +154,13 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(cloudContextOpt = Some(cloudContextAzure)).copy(samResource = diskSamResource).save()
 
-      _ <- diskV2Service.deleteDisk(userInfo, workspaceId, disk.id)
+      _ <- diskV2Service.deleteDisk(userInfo, disk.id)
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), disk.id, azureRegion)
         )
       )
-      err <- diskV2Service.deleteDisk(userInfo, workspaceId, disk.id).attempt
+      err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(
       DiskCannotBeDeletedException(disk.id, DiskStatus.Deleting, cloudContextAzure, ctx.traceId)
     )
@@ -192,8 +192,35 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
           )
         )
       )
-      err <- diskV2Service.deleteDisk(userInfo, workspaceId, disk.id).attempt
+      err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(DiskCannotBeDeletedAttachedException(disk.id, workspaceId, ctx.traceId))
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a disk if it has no workspaceId" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val diskV2Service = makeDiskV2Service(publisherQueue)
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allow-listed
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(workspaceId = None).copy(samResource = diskSamResource).save()
+
+      _ <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), disk.id, azureRegion)
+        )
+      )
+      err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
+    } yield err shouldBe Left(
+      DiskWithoutWorkspaceException(disk.id, ctx.traceId)
+    )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
