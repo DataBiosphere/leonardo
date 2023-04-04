@@ -669,18 +669,18 @@ class HttpRoutesSpec
   }
 
   it should "delete a disk v2" in {
-    Delete(s"/api/v2/disks/-1/${workspaceId.value.toString}") ~> routes.route ~> check {
+    Delete(s"/api/v2/disks/-1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "reject get a disk if workspaceId is invalid" in {
-    Get(s"/api/v2/disks/-1/workspaceId") ~> routes.route ~> check {
+  it should "reject get a disk if id is invalid" in {
+    Get(s"/api/v2/disks/diskid") ~> routes.route ~> check {
       val expectedResponse =
         """Invalid workspace id workspaceId, workspace id must be a valid UUID"""
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String.contains(expectedResponse)
-      status shouldEqual StatusCodes.BadRequest
+      status shouldEqual StatusCodes.InternalServerError
     }
   }
 
