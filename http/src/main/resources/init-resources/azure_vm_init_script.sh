@@ -155,35 +155,35 @@ jq --null-input \
 
 #echo "Formatting and mounting persistent disk..."
 
-WORK_DIRECTORY='/home/jupyter/persistent_disk'
-
-# Mount persistent disk
-# The PD should be the only `sd` disk that is not mounted yet
-AllsdDisks=($(/usr/bin/lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
-FreesdDisks=()
-for Disk in "${AllsdDisks[@]}"; do
-    Mounts="$(/usr/bin/lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
-    if [ "${Mounts}" == "" ]; then
-        FreesdDisks+=("${Disk}")
-    fi
-done
-
-DISK_DEVICE_ID= basename ${FreesdDisks[0]}
-
-## Let's try to mount the disk first, it the disk has previously been in use, then
-## the working directory should appear
-mount -t ext4 /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
-
-## Only format disk is it hasn't already been formatted
-## Maybe check if the working directory exists already?
-if [ ! -d ${WORK_DIRECTORY} ] ; then
-  ## Format
-  fdisk /dev/${DISK_DEVICE_ID}
-  ## Partition
-  mkfs -t ext4 /dev/${DISK_DEVICE_ID}
-  ## Create the PD working directory
-  mkdir -p ${WORK_DIRECTORY}
-  ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
-  OUTPUT="$(blkid -s UUID -o value /dev/${DISK_DEVICE_ID})"
-  echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | tee -a /etc/fstab
-fi
+#WORK_DIRECTORY='/home/jupyter/persistent_disk'
+#
+## Mount persistent disk
+## The PD should be the only `sd` disk that is not mounted yet
+#AllsdDisks=($(/usr/bin/lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
+#FreesdDisks=()
+#for Disk in "${AllsdDisks[@]}"; do
+#    Mounts="$(/usr/bin/lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
+#    if [ "${Mounts}" == "" ]; then
+#        FreesdDisks+=("${Disk}")
+#    fi
+#done
+#
+#DISK_DEVICE_ID= basename ${FreesdDisks[0]}
+#
+### Let's try to mount the disk first, it the disk has previously been in use, then
+### the working directory should appear
+#mount -t ext4 /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+#
+### Only format disk is it hasn't already been formatted
+### Maybe check if the working directory exists already?
+#if [ ! -d ${WORK_DIRECTORY} ] ; then
+#  ## Format
+#  fdisk /dev/${DISK_DEVICE_ID}
+#  ## Partition
+#  mkfs -t ext4 /dev/${DISK_DEVICE_ID}
+#  ## Create the PD working directory
+#  mkdir -p ${WORK_DIRECTORY}
+#  ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
+#  OUTPUT="$(blkid -s UUID -o value /dev/${DISK_DEVICE_ID})"
+#  echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | tee -a /etc/fstab
+#fi
