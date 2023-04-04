@@ -125,8 +125,8 @@ case class DiskCannotBeDeletedAttachedException(id: DiskId, workspaceId: Workspa
     )
 
 case class DiskWithoutWorkspaceException(id: DiskId, traceId: TraceId)
-  extends LeoException(
-    s"Persistent disk ${id.value} cannot be deleted. Disk record has no workspaceId",
-    StatusCodes.Conflict,
-    traceId = Some(traceId)
-  )
+    extends LeoException(
+      s"Persistent disk ${id.value} cannot be deleted. Disk record has no workspaceId",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )

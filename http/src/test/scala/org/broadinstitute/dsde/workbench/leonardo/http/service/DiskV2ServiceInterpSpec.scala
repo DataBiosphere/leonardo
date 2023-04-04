@@ -202,9 +202,9 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskV2Service = makeDiskV2Service(publisherQueue)
     val userInfo = UserInfo(OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
     ) // this email is allow-listed
 
     val res = for {
