@@ -3377,6 +3377,18 @@ components:
         imageUri:
           type: string
           description: The azure identifier for the vm image uri. Optional, there is an intelligent default. Note this must be in the same region specified in the request Ex, /subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0
+        autopause:
+          type: boolean
+          description: Whether autopause feature is enabled for this specific VM. If
+            unset, autopause will be enabled and the threshold value will be set to either the autopauseThreshold value
+            or the system default if autopauseThreshold is also unset.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the cluster is
+            autopaused. If autopause is set to false, this value is disregarded.
+            A value of 0 is equivalent to autopause being turned off. If
+            autopause is enabled and this is unset, a system default threshold
+            will be used.
         customEnvironmentVariabales:
           type: object
           description: an optional set of key value pairs for environment variables to be injected into the VM
