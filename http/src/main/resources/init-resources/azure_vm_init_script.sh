@@ -17,12 +17,13 @@ for Disk in "${AllsdDisks[@]}"; do
     Mounts="$(lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
     echo $Mounts
     if [ "${Mounts}" == "" ]; then
-        FreesdDisks+=("${Disk}")
+        echo "Found our unmounted persistent disk!"
+        FreesdDisks="${Disk}"
     fi
-    echo ${FreesdDisks[@]}
+    echo ${FreesdDisks}
 done
-echo ${FreesdDisks[@]}
-DISK_DEVICE_PATH=${FreesdDisks[0]}
+echo ${FreesdDisks}
+DISK_DEVICE_PATH=${FreesdDisks}
 echo $DISK_DEVICE_PATH
 
 ## Let's try to mount the disk first, it the disk has previously been in use, then
