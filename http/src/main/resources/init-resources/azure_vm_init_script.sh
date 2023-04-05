@@ -9,37 +9,41 @@ echo $WORK_DIRECTORY
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
-echo $AllsdDisks
+echo ${AllsdDisks[@]}
 FreesdDisks=()
+echo ${FreesdDisks[@]}
 for Disk in "${AllsdDisks[@]}"; do
+    echo $Disk
     Mounts="$(lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
+    echo $Mounts
     if [ "${Mounts}" == "" ]; then
         FreesdDisks+=("${Disk}")
     fi
+    echo ${FreesdDisks[@]}
 done
-echo $FreesdDisks
-DISK_DEVICE_ID= basename ${FreesdDisks[0]}
-echo $DISK_DEVICE_ID
+echo ${FreesdDisks[@]}
+DISK_DEVICE_PATH=${FreesdDisks[0]}
+echo $DISK_DEVICE_PATH
 
 ## Let's try to mount the disk first, it the disk has previously been in use, then
 ## the working directory should appear
-sudo mount -t ext4 /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+sudo mount -t ext4 ${DISK_DEVICE_PATH} ${WORK_DIRECTORY}
 echo "successful mount"
 
 ## Only format disk is it hasn't already been formatted
 ## Maybe check if the working directory exists already?
 if [ ! -d ${WORK_DIRECTORY} ] ; then
   ## Format
-  sudo fdisk /dev/${DISK_DEVICE_ID}
+  sudo fdisk ${DISK_DEVICE_PATH}
   echo "successful formatting"
   ## Partition
-  sudo mkfs -t ext4 /dev/${DISK_DEVICE_ID}
+  sudo mkfs -t ext4 ${DISK_DEVICE_PATH}
   echo "successful partitioning"
   ## Create the PD working directory
   sudo mkdir -p ${WORK_DIRECTORY}
   echo "successful creation of work directory"
   ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
-  OUTPUT="$(blkid -s UUID -o value /dev/${DISK_DEVICE_ID})"
+  OUTPUT="$(blkid -s UUID -o value ${DISK_DEVICE_PATH})"
   echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
   echo "successful write of PD UUID to fstab"
 fi
