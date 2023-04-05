@@ -16,7 +16,8 @@ for Disk in "${AllsdDisks[@]}"; do
     echo $Disk
     Mounts="$(lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
     echo $Mounts
-    if [ "${Mounts}" == "" ]; then
+    echo "${Mounts[0]}"
+    if [ "${Mounts[0]}" == "" ]; then
         echo "Found our unmounted persistent disk!"
         FreesdDisks="${Disk}"
     fi
