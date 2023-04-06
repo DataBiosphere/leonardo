@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
@@ -27,9 +28,9 @@ echo $DISK_DEVICE_PATH
 
 ## Only format disk is it hasn't already been formatted
 ## It the disk has previously been in use, then we should only need to mount it
-if sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}; then
-  echo "Existing PD successfully remounted"
-else
+EXIT_CODE=0
+sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY} || EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
   ## Create one partition on the PD
   (
   echo o #create a new empty DOS partition table
@@ -54,6 +55,8 @@ else
   OUTPUT="$(lsblk -no UUID "${DISK_DEVICE_PATH}1")"
   echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
   echo "successful write of PD UUID to fstab"
+else
+  echo "Existing PD successfully remounted"
 fi
 
 # This is to avoid the error Ref BioC
