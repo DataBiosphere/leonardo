@@ -110,7 +110,8 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.AzureRuntimeCreationError(
               msg.runtimeId,
               msg.workspaceId,
-              e.getMessage
+              e.getMessage,
+              msg.useExistingDisk
             )
           }
         case msg: DeleteAzureRuntimeMessage =>
@@ -121,8 +122,9 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
-        case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
-        case msg: DeleteAppV2Message => handleDeleteAppV2Message(msg)
+        case msg: CreateAppV2Message  => handleCreateAppV2Message(msg)
+        case msg: DeleteAppV2Message  => handleDeleteAppV2Message(msg)
+        case msg: DeleteDiskV2Message => handleDeleteDiskV2Message(msg)
       }
     } yield resp
 
@@ -1343,7 +1345,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         case CloudService.GCE =>
           for {
             runtimeOpt <- clusterQuery.getClusterById(runtimeId).transaction
-
             _ <- runtimeOpt.traverse_ { runtime =>
               // If the disk is in Creating status, then it means it hasn't been used previously. Hence delete the disk
               // if the runtime fails to create.
@@ -1365,11 +1366,17 @@ class LeoPubsubMessageSubscriber[F[_]](
                       persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
                         persistentDiskQuery.getPersistentDiskRecord(did).transaction
                       )
-                      _ <- persistentDiskOpt.traverse_(d =>
-                        googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
-                          .updateStatus(d.id, DiskStatus.Deleted, now)
-                          .transaction
-                      )
+                      _ <- persistentDiskOpt match {
+                        case Some(value) =>
+                          if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
+                            persistentDiskOpt.traverse_(d =>
+                              googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                                .updateStatus(d.id, DiskStatus.Deleted, now)
+                                .transaction
+                            )
+                          } else F.unit
+                        case None => F.unit
+                      }
                     } yield ()
                   }
                 } yield ()
@@ -1390,8 +1397,21 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
             _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
           } yield ()
-        case CloudService.Dataproc => F.unit
-        case CloudService.AzureVm  => F.unit
+        case CloudService.Dataproc =>
+          val errorMessage = e match {
+            case leoEx: LeoException =>
+              Some(ErrorReport.loggableString(leoEx.toErrorReport))
+            case ee: com.google.api.gax.rpc.AbortedException
+                if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
+              None // this could happen when pubsub redelivers an event unexpectedly
+            case _ =>
+              Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
+          }
+          errorMessage.traverse(m =>
+            (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
+              clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
+          )
+        case CloudService.AzureVm => F.unit
       }
     } yield ()
 
@@ -1560,6 +1580,24 @@ class LeoPubsubMessageSubscriber[F[_]](
               None
             )
           )
+      }
+    } yield ()
+
+  private[monitor] def handleDeleteDiskV2Message(
+    msg: DeleteDiskV2Message
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      _ <- msg.cloudContext match {
+        case CloudContext.Azure(_) =>
+          azurePubsubHandler.deleteDisk(msg).adaptError { case e =>
+            PubsubHandleMessageError.DiskDeletionError(
+              msg.diskId,
+              msg.workspaceId,
+              e.getMessage
+            )
+          }
+        case CloudContext.Gcp(_) =>
+          deleteDisk(msg.diskId, false)
       }
     } yield ()
 }

@@ -238,10 +238,36 @@ object CustomImage {
 }
 
 /** Configuration of the runtime such as machine types, disk size, etc */
+sealed trait RuntimeConfigType extends EnumEntry with Product with Serializable {
+  def asString: String
+
+  override def toString: String = asString // Enumeratum's withName function uses `toString` as key for lookup
+}
+object RuntimeConfigType extends Enum[RuntimeConfigType] {
+  case object Dataproc extends RuntimeConfigType {
+    val asString = "Dataproc"
+  }
+
+  case object GceConfig extends RuntimeConfigType {
+    val asString = "GceConfig"
+  }
+
+  case object GceWithPdConfig extends RuntimeConfigType {
+    val asString = "GceWithPdConfig"
+  }
+
+  case object AzureVmConfig extends RuntimeConfigType {
+    val asString = "AzureVmConfig"
+  }
+
+  override def values: immutable.IndexedSeq[RuntimeConfigType] = findValues
+}
 final case class RuntimeConfigId(id: Long) extends AnyVal
 sealed trait RuntimeConfig extends Product with Serializable {
   def cloudService: CloudService
   def machineType: MachineTypeName
+
+  def configType: RuntimeConfigType
 }
 object RuntimeConfig {
   final case class GceConfig(
@@ -254,6 +280,7 @@ object RuntimeConfig {
     gpuConfig: Option[GpuConfig] // This is optional since not all runtimes use gpus
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
+    val configType: RuntimeConfigType = RuntimeConfigType.GceConfig
   }
 
   // When persistentDiskId is None, then we don't have any disk attached to the runtime
@@ -264,6 +291,7 @@ object RuntimeConfig {
                                    gpuConfig: Option[GpuConfig]
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
+    val configType: RuntimeConfigType = RuntimeConfigType.GceWithPdConfig
   }
 
   final case class DataprocConfig(numberOfWorkers: Int,
@@ -282,6 +310,7 @@ object RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
+    val configType: RuntimeConfigType = RuntimeConfigType.Dataproc
   }
 
   // Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
@@ -290,6 +319,7 @@ object RuntimeConfig {
                                region: com.azure.core.management.Region
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.AzureVm
+    val configType: RuntimeConfigType = RuntimeConfigType.AzureVmConfig
   }
 }
 
@@ -374,7 +404,7 @@ sealed trait RuntimeContainerServiceType extends EnumEntry with Serializable wit
 object RuntimeContainerServiceType extends Enum[RuntimeContainerServiceType] {
   val values = findValues
   val imageTypeToRuntimeContainerServiceType: Map[RuntimeImageType, RuntimeContainerServiceType] =
-    values.toList.map(v => v.imageType -> v).toMap
+    values.toList.map(v => v.imageType -> v).toMap ++ Map(RuntimeImageType.Azure -> JupyterService)
   case object JupyterService extends RuntimeContainerServiceType {
     override def imageType: RuntimeImageType = Jupyter
     override def proxySegment: String = "jupyter"
@@ -511,9 +541,12 @@ object MemorySize {
  */
 final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
 
-final case class RunningRuntime(cloudContext: CloudContext,
+final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
-                                containers: List[RuntimeContainerServiceType]
+                                status: RuntimeStatus,
+                                workspaceId: Option[WorkspaceId],
+                                images: Set[RuntimeImage],
+                                labels: LabelMap
 )
 
 final case class RuntimeName(asString: String) extends AnyVal

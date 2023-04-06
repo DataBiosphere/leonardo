@@ -28,7 +28,7 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
 //        rat <- Ron.authToken()
 //           Create the app
-        _ <- LeonardoApiClient.createAzureRuntime(workspaceId, runtimeName)
+        _ <- LeonardoApiClient.createAzureRuntime(workspaceId, runtimeName, useExistingDisk = false)
 
         // Verify the initial getApp call
         getRuntime = LeonardoApiClient.getAzureRuntime(workspaceId, runtimeName)
@@ -51,7 +51,7 @@ class AzureRuntimeSpec
         _ <- IO.sleep(3 seconds)
 
         // Delete the app
-        _ <- LeonardoApiClient.deleteRuntimeV2WithWait(workspaceId, runtimeName)
+        _ <- LeonardoApiClient.deleteRuntimeV2WithWait(workspaceId, runtimeName, true)
       } yield ()
     }
     res.unsafeRunSync()

@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
 
+import java.net.URL
 import java.nio.file.Path
 
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -10,5 +11,6 @@ case class ApplicationConfig(applicationName: String,
                              leoGoogleProject: GoogleProject,
                              leoServiceAccountJsonFile: Path,
                              leoServiceAccountEmail: WorkbenchEmail,
+                             leoUrlBase: URL,
                              concurrency: Long
 )

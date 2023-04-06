@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{dataDe
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AccessTokenExpiredException,
   MockDiskServiceInterp,
+  MockDiskV2ServiceInterp,
   MockProxyService,
   ProxyService,
   TestProxy
@@ -85,13 +86,19 @@ class ProxyRoutesSpec
       _ <- samResourceCache.put(
         RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
       )(
-        Some(runtimeSamResource.resourceId),
+        (Some(runtimeSamResource.resourceId), None),
         None
       )
       _ <- samResourceCache.put(
-        AppCacheKey(GoogleProject(googleProject), AppName(appName))
+        AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
       )(
-        Some(appSamId.resourceId),
+        (Some(appSamId.resourceId), appSamId.accessScope),
+        None
+      )
+      _ <- samResourceCache.put(
+        AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
+      )(
+        (Some(appSamId.resourceId), appSamId.accessScope),
         None
       )
     } yield ()
@@ -141,7 +148,7 @@ class ProxyRoutesSpec
     samResourceCache
       .put(
         RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(newName))
-      )(Some(runtimeSamResource.resourceId), None)
+      )((Some(runtimeSamResource.resourceId), None), None)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     Get(s"/proxy/$googleProject/$newName")
       .addHeader(Cookie(tokenCookie))
@@ -168,7 +175,7 @@ class ProxyRoutesSpec
     }
   }
 
-  it should "404 when using a non-white-listed user in a runtime proxy request" in {
+  it should "404 when using a non-allowlisted user in a runtime proxy request" in {
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Cookie(unauthorizedTokenCookie))
       .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {
@@ -190,7 +197,7 @@ class ProxyRoutesSpec
       new MockProxyService(
         proxyConfig,
         MockJupyterDAO,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         runtimeDnsCache,
         kubernetesDnsCache,
         googleTokenCache,
@@ -200,7 +207,7 @@ class ProxyRoutesSpec
       )
     samResourceCache.put(
       RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
-    )(Some(runtimeSamResource.resourceId), None)
+    )((Some(runtimeSamResource.resourceId), None), None)
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Cookie(tokenCookie))
@@ -469,7 +476,7 @@ class ProxyRoutesSpec
       new MockProxyService(
         proxyConfig,
         MockJupyterDAO,
-        whitelistAuthProvider,
+        allowListAuthProvider,
         runtimeDnsCache,
         kubernetesDnsCache,
         googleTokenCache,
@@ -483,6 +490,7 @@ class ProxyRoutesSpec
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       userInfoDirectives,
@@ -573,7 +581,7 @@ class ProxyRoutesSpec
     val proxyService =
       new MockProxyService(proxyConfig,
                            jupyterDAO,
-                           whitelistAuthProvider,
+                           allowListAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
                            googleTokenCache,
@@ -587,6 +595,7 @@ class ProxyRoutesSpec
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       userInfoDirectives,

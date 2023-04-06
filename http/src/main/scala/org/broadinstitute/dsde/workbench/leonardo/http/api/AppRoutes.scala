@@ -202,6 +202,7 @@ object AppRoutes {
       for {
         c <- x.downField("kubernetesRuntimeConfig").as[Option[KubernetesRuntimeConfig]]
         a <- x.downField("appType").as[Option[AppType]]
+        s <- x.downField("accessScope").as[Option[AppAccessScope]]
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
@@ -209,6 +210,7 @@ object AppRoutes {
         ea <- x.downField("extraArgs").as[Option[List[String]]]
       } yield CreateAppRequest(c,
                                a.getOrElse(AppType.Galaxy),
+                               s,
                                d,
                                l.getOrElse(Map.empty),
                                cv.getOrElse(Map.empty),
@@ -228,7 +230,6 @@ object AppRoutes {
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
     Encoder.forProduct12(
-      "cloudProvider",
       "workspaceId",
       "cloudContext",
       "kubernetesRuntimeConfig",
@@ -239,10 +240,10 @@ object AppRoutes {
       "appType",
       "diskName",
       "auditInfo",
+      "accessScope",
       "labels"
     )(x =>
-      (x.cloudProvider,
-       x.workspaceId,
+      (x.workspaceId,
        x.cloudContext,
        x.kubernetesRuntimeConfig,
        x.errors,
@@ -252,12 +253,13 @@ object AppRoutes {
        x.appType,
        x.diskName,
        x.auditInfo,
+       x.accessScope,
        x.labels
       )
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct11(
+    Encoder.forProduct12(
       "appName",
       "cloudContext",
       "kubernetesRuntimeConfig",
@@ -268,6 +270,7 @@ object AppRoutes {
       "customEnvironmentVariables",
       "auditInfo",
       "appType",
+      "accessScope",
       "labels"
     )(x => GetAppResponse.unapply(x).get)
 }

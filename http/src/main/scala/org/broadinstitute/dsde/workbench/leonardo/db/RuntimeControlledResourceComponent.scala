@@ -38,11 +38,28 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
       .result
       .headOption
 
+  def getWsmRecordFromResourceId(resourceId: WsmControlledResourceId,
+                                 resourceType: WsmResourceType
+  ): DBIO[Option[RuntimeControlledResourceRecord]] =
+    controlledResourceQuery
+      .filter(_.resourceId === resourceId)
+      .filter(_.resourceType === resourceType)
+      .result
+      .headOption // db entry is updated with new runtimeId, so there will only ever be 1 entry per resourceId
+
   def getAllForRuntime(runtimeId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeControlledResourceRecord]] =
     controlledResourceQuery
       .filter(_.runtimeId === runtimeId)
       .result
       .map(_.toList)
+
+  def updateRuntime(resourceId: WsmControlledResourceId, resourceType: WsmResourceType, newRuntimeId: Long): DBIO[Int] =
+    controlledResourceQuery
+      .filter(_.resourceId === resourceId)
+      .filter(_.resourceType === resourceType)
+      .map(_.runtimeId)
+      .update(newRuntimeId)
+
 }
 
 sealed abstract class WsmResourceType

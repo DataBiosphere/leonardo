@@ -23,7 +23,7 @@ class MockGoogleOAuth2Service extends GoogleOAuth2Service[IO] {
         IO(
           UserInfo(OAuth2BearerToken(accessToken),
                    WorkbenchUserId("1234567890"),
-                   WorkbenchEmail("non_whitelisted@example.com"),
+                   WorkbenchEmail("non_allowlisted@example.com"),
                    (1 hour).toSeconds
           )
         )

@@ -4,7 +4,12 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  BatchAccountName,
+  RelayNamespace
+}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
@@ -17,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
   WORKSPACE_COMPUTE_SUBNET
 }
 import org.broadinstitute.dsde.workbench.leonardo.{
-  BatchAccountName,
   LandingZoneResources,
   LeonardoTestSuite,
   LogAnalyticsWorkspaceName,
@@ -73,7 +77,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
           buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
           buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
           buildMockLandingZoneResource("microsoft.dbforpostgresql/servers", "lzpostgres"),
-          buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics")
+          buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics"),
+          buildMockLandingZoneResource("Microsoft.Insights/components", "lzappinsights")
         )
       ),
       LandingZoneResourcesByPurpose(
@@ -128,6 +133,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     res.isRight shouldBe true
 
     val expectedLandingZoneResources = LandingZoneResources(
+      UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
       AKSClusterName("lzcluster"),
       BatchAccountName("lzbatch"),
       RelayNamespace("lznamespace"),
@@ -138,7 +144,9 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       SubnetworkName("batchsub"),
       SubnetworkName("akssub"),
       SubnetworkName("postgressub"),
-      SubnetworkName("computesub")
+      SubnetworkName("computesub"),
+      com.azure.core.management.Region.US_EAST,
+      ApplicationInsightsName("lzappinsights")
     )
 
     val landingZoneResources = res.toOption.get
@@ -151,7 +159,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       resourceType,
       resourceName = if (useId) None else Some(resourceName),
       resourceParentId = if (useId) None else Some("lzvnet"),
-      region = "us-east"
+      region = com.azure.core.management.Region.US_EAST.toString
     )
 
   implicit val landingZoneEncoder: Encoder[LandingZone] =

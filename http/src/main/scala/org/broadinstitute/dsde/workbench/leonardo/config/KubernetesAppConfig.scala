@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
 import org.broadinstitute.dsde.workbench.leonardo.{
   Chart,
   DbPassword,
@@ -70,8 +71,40 @@ final case class CoaAppConfig(chartName: ChartName,
                               releaseNameSuffix: ReleaseNameSuffix,
                               namespaceNameSuffix: NamespaceNameSuffix,
                               ksaName: KsaName,
-                              services: List[ServiceConfig]
+                              services: List[ServiceConfig],
+                              instrumentationEnabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
+  def coaServices: Set[CoaService] = services
+    .map(_.name)
+    .collect {
+      case ServiceName("cbas")     => Cbas
+      case ServiceName("cbas-ui")  => CbasUI
+      case ServiceName("wds")      => Wds
+      case ServiceName("cromwell") => Cromwell
+    }
+    .toSet
+}
+
+final case class WdsAppConfig(chartName: ChartName,
+                              chartVersion: ChartVersion,
+                              releaseNameSuffix: ReleaseNameSuffix,
+                              namespaceNameSuffix: NamespaceNameSuffix,
+                              ksaName: KsaName,
+                              services: List[ServiceConfig],
+                              instrumentationEnabled: Boolean
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
+  def coaServices: Set[CoaService] = Set(Wds)
+}
+
+sealed trait CoaService
+object CoaService {
+  final case object Cbas extends CoaService
+  final case object CbasUI extends CoaService
+  final case object Wds extends CoaService
+  final case object Cromwell extends CoaService
+  final case object Tes extends CoaService
 }

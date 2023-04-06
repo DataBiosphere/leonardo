@@ -10,9 +10,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoTestUtils
 }
 import org.scalatest.time.{Minutes, Seconds, Span}
-import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-
 import scala.concurrent.duration._
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 @DoNotDiscover
 class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
@@ -36,6 +35,5 @@ class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestEx
         dbCluster.status shouldBe ClusterStatus.Stopping
       }
     }
-
   }
 }

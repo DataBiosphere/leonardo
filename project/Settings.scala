@@ -204,4 +204,17 @@ object Settings {
 
     Test / testOptions += Tests.Argument("-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
   )
+
+  val pact4sSettings = commonSettings ++ commonTestSettings ++ List(
+    libraryDependencies ++= pact4sDependencies,
+
+    /**
+     * Invoking pact tests from root project (sbt "project pact" test)
+     * will launch tests in a separate JVM context that ensures contracts
+     * are written to the pact/target/pacts folder. Otherwise, contracts
+     * will be written to the root folder.
+     */
+    Test / fork := true
+
+  ) ++ commonAssemblySettings ++ versionSettings
 }

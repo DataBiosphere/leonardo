@@ -13,6 +13,7 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
+                             useExistingDisk: Boolean,
                              req: CreateAzureRuntimeRequest
   )(implicit as: Ask[IO, AppContext]): IO[CreateRuntimeResponse] = for {
     ctx <- as.ask[AppContext]
@@ -39,7 +40,15 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
                              req: UpdateAzureRuntimeRequest
   )(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.pure()
 
-  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+  override def deleteRuntime(userInfo: UserInfo,
+                             runtimeName: RuntimeName,
+                             workspaceId: WorkspaceId,
+                             deleteDisk: Boolean
+  )(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] = IO.pure()
+
+  override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.pure()
 
@@ -75,6 +84,10 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   ): IO[Unit] = IO.unit
 
   override def stopRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] = IO.unit
+
+  override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 }

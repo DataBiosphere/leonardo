@@ -656,12 +656,6 @@ class DataprocInterpreter[F[_]: Parallel](
                                        dataprocServiceAccountEmail,
                                        createCluster
             )
-            // Sometimes adding member to a group can take longer than when it gets to the point when we create dataproc cluster.
-            // Hence add polling here to make sure the 2 service accounts are added to the image user group properly before proceeding
-            _ <-
-              if (createCluster)
-                waitUntilMemberAdded(dataprocServiceAccountEmail)
-              else F.unit
             apiServiceAccountEmail = WorkbenchEmail(
               s"${projectNumber}@cloudservices.gserviceaccount.com"
             )
@@ -669,24 +663,28 @@ class DataprocInterpreter[F[_]: Parallel](
                                        apiServiceAccountEmail,
                                        createCluster
             )
-            _ <-
-              if (createCluster)
-                waitUntilMemberAdded(apiServiceAccountEmail)
-              else F.unit
           } yield ()
         }
     } yield ()
 
-  private def waitUntilMemberAdded(memberEmail: WorkbenchEmail): F[Boolean] = {
+  private[util] def waitUntilMemberAdded(memberEmail: WorkbenchEmail)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
     implicit val doneCheckable = isMemberofGroupDoneCheckable
-    streamUntilDoneOrTimeout(
-      F.fromFuture(
+    val checkMemberWithLogs = for {
+      ctx <- ev.ask
+      isMember <- F.fromFuture(
         F.blocking(
           googleDirectoryDAO.isGroupMember(config.groupsConfig.dataprocImageProjectGroupEmail, memberEmail)
         )
-      ),
-      60,
-      5 seconds,
+      )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Is ${memberEmail.value} a member of ${config.groupsConfig.dataprocImageProjectGroupEmail.value}? ${isMember}"
+      )
+    } yield isMember
+
+    F.sleep(config.groupsConfig.waitForMemberAddedPollConfig.initialDelay) >> streamUntilDoneOrTimeout(
+      checkMemberWithLogs,
+      config.groupsConfig.waitForMemberAddedPollConfig.maxAttempts,
+      config.groupsConfig.waitForMemberAddedPollConfig.interval,
       s"fail to add ${memberEmail.value} to ${config.groupsConfig.dataprocImageProjectGroupEmail.value}"
     )
   }
@@ -830,8 +828,10 @@ class DataprocInterpreter[F[_]: Parallel](
       isMember <- checkIsMember
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
+          // Sometimes adding member to a group can take longer than when it gets to the point when we create dataproc cluster.
+          // Hence add polling here to make sure the 2 service accounts are added to the image user group properly before proceeding
           logger.info(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >>
-            addMemberToGroup
+            addMemberToGroup >> waitUntilMemberAdded(memberEmail)
         case (true, false) =>
           logger.info(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >>
             removeMemberFromGroup

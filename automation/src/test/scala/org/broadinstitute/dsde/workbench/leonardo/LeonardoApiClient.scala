@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{IO, Resource}
-import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
@@ -115,6 +114,7 @@ object LeonardoApiClient {
     None,
     AppType.Galaxy,
     None,
+    None,
     Map.empty,
     Map.empty,
     None,
@@ -123,7 +123,6 @@ object LeonardoApiClient {
 
   val defaultCreateAzureRuntimeRequest = CreateAzureRuntimeRequest(
     Map.empty,
-    Region.US_WEST_CENTRAL,
     VirtualMachineSizeTypes.STANDARD_DS1_V2,
     Map.empty,
     CreateAzureDiskRequest(
@@ -277,8 +276,8 @@ object LeonardoApiClient {
       res <- IO.sleep(80 seconds) >> streamUntilDoneOrTimeout(
         ioa,
         120,
-        10 seconds,
-        s"app ${googleProject.value}/${appName.value} did not finish app creation after 20 minutes."
+        15 seconds,
+        s"app ${googleProject.value}/${appName.value} did not finish app creation after 30 minutes."
       )
       _ <- res.status match {
         case AppStatus.Error =>
@@ -680,6 +679,7 @@ object LeonardoApiClient {
   def createAzureRuntime(
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName,
+    useExistingDisk: Boolean,
     createAzureRuntimeRequest: CreateAzureRuntimeRequest = defaultCreateAzureRuntimeRequest
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
@@ -690,9 +690,12 @@ object LeonardoApiClient {
           Request[IO](
             method = Method.POST,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(
-              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
-            ),
+            uri = rootUri
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+              )
+              .withQueryParam("useExistingDisk", useExistingDisk),
             entity = createAzureRuntimeRequest
           )
         )
@@ -725,7 +728,8 @@ object LeonardoApiClient {
 
   def deleteRuntimeV2(
     workspaceId: WorkspaceId,
-    runtimeName: RuntimeName
+    runtimeName: RuntimeName,
+    deleteDisk: Boolean = true
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
@@ -735,9 +739,12 @@ object LeonardoApiClient {
           Request[IO](
             method = Method.DELETE,
             headers = Headers(authHeader, traceIdHeader),
-            uri = rootUri.withPath(
-              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
-            )
+            uri = rootUri
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+              )
+              .withQueryParam("deleteDisk", deleteDisk)
           )
         )
         .use { resp =>
@@ -751,10 +758,11 @@ object LeonardoApiClient {
 
   def deleteRuntimeV2WithWait(
     workspaceId: WorkspaceId,
-    runtimeName: RuntimeName
+    runtimeName: RuntimeName,
+    deleteDisk: Boolean = true
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
-      _ <- deleteRuntimeV2(workspaceId, runtimeName)
+      _ <- deleteRuntimeV2(workspaceId, runtimeName, deleteDisk)
       ioa = getAzureRuntime(workspaceId, runtimeName).attempt
       res <- IO.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
       _ <-

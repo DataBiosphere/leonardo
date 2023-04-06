@@ -143,6 +143,8 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     ev: Ask[IO, TraceId]
   ): IO[WorkbenchEmail] = ???
 
+  override def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
   override def notifyResourceCreatedV2[R](samResource: R,
@@ -171,7 +173,7 @@ class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
   def stop: IO[Unit] = IO.unit
 }
 
-object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
+class BaseMockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[CreateGoogleRuntimeResponse]] = ???
@@ -198,6 +200,8 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 }
 
+object MockRuntimeAlgebra extends BaseMockRuntimeAlgebra
+
 class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease: List[Release] = List.empty)
     extends org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService {
   override def listPodStatus(clusterId: GKEModels.KubernetesClusterId, namespace: KubernetesModels.KubernetesNamespace)(
@@ -210,13 +214,13 @@ class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease
   ): IO[List[V1PersistentVolumeClaim]] =
     appRelease.flatTraverse { r =>
       val nfcMetadata = new V1ObjectMeta()
-      nfcMetadata.setName(s"${r.asString}-galaxy-pvc")
+      nfcMetadata.setName(s"${r.asString}-galaxy-galaxy-pvc")
       nfcMetadata.setUid(s"nfs-pvc-id1")
       val nfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaim()
       nfsPvc.setMetadata(nfcMetadata)
 
       val cvmfsMetadata = new V1ObjectMeta()
-      cvmfsMetadata.setName(s"${r.asString}-cvmfs-alien-cache-pvc")
+      cvmfsMetadata.setName(s"cvmfs-alien-cache")
       cvmfsMetadata.setUid(s"cvmfs-pvc-id1")
       val cvmfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaim()
       cvmfsPvc.setMetadata(cvmfsMetadata)

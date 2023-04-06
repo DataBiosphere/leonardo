@@ -24,6 +24,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
+import scala.collection.immutable.List
+
 class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   val maxElapsed = 5.seconds
 
@@ -47,7 +49,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, List(RuntimeStatus.Deleted), None).transaction
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
@@ -58,7 +60,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(d1RuntimeConfig)
       )
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, List(RuntimeStatus.Deleted), None).transaction
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       d2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d2.id),
@@ -69,7 +71,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
       )
-      list3 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
+      list3 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, List(RuntimeStatus.Deleted), None).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -112,14 +114,14 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                     "clusterName" -> c2.runtimeName.asString,
                     "creator" -> c2.auditInfo.creator.value
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(labels2, false, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(labels1, List(RuntimeStatus.Deleted), None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(labels2, List(RuntimeStatus.Deleted), None).transaction
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
       _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
-      list3 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
-      list4 <- RuntimeServiceDbQueries.listRuntimes(labels2, false, None).transaction
+      list3 <- RuntimeServiceDbQueries.listRuntimes(labels1, List(RuntimeStatus.Deleted), None).transaction
+      list4 <- RuntimeServiceDbQueries.listRuntimes(labels2, List(RuntimeStatus.Deleted), None).transaction
       list5 <- RuntimeServiceDbQueries
-        .listRuntimes(Map("googleProject" -> c1.cloudContext.asString), false, None)
+        .listRuntimes(Map("googleProject" -> c1.cloudContext.asString), List(RuntimeStatus.Deleted), None)
         .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -165,14 +167,27 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                     "clusterName" -> c2.runtimeName.asString,
                     "creator" -> c2.auditInfo.creator.value
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels1, false, None, None, None).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels2, false, None, None, None).transaction
+      list1 <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(labels1, List(RuntimeStatus.Deleted), None, None, None)
+        .transaction
+      list2 <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(labels2, List(RuntimeStatus.Deleted), None, None, None)
+        .transaction
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
       _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
-      list3 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels1, false, None, None, None).transaction
-      list4 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(labels2, false, None, None, None).transaction
+      list3 <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(labels1, List(RuntimeStatus.Deleted), None, None, None)
+        .transaction
+      list4 <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(labels2, List(RuntimeStatus.Deleted), None, None, None)
+        .transaction
       list5 <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map("googleProject" -> c1.cloudContext.asString), false, None, None, None)
+        .listRuntimesForWorkspace(Map("googleProject" -> c1.cloudContext.asString),
+                                  List(RuntimeStatus.Deleted),
+                                  None,
+                                  None,
+                                  None
+        )
         .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -214,8 +229,12 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None, Some(cloudContextGcp)).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None, Some(cloudContext2Gcp)).transaction
+      list1 <- RuntimeServiceDbQueries
+        .listRuntimes(Map.empty, List(RuntimeStatus.Deleted), None, Some(cloudContextGcp))
+        .transaction
+      list2 <- RuntimeServiceDbQueries
+        .listRuntimes(Map.empty, List(RuntimeStatus.Deleted), None, Some(cloudContext2Gcp))
+        .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -274,8 +293,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           )
         )
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, List.empty, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, List(RuntimeStatus.Deleted), None).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -325,8 +344,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           c3RuntimeConfig
         )
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(Map.empty, true, None, None, None).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(Map.empty, false, None, None, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(Map.empty, List.empty, None, None, None).transaction
+      list2 <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map.empty, List(RuntimeStatus.Deleted), None, None, None)
+        .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -385,10 +406,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           )
       )
       list1 <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, true, None, Some(workspaceId1), None)
+        .listRuntimesForWorkspace(Map.empty, List.empty, None, Some(workspaceId1), None)
         .transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, false, None, Some(workspaceId2), None)
+        .listRuntimesForWorkspace(Map.empty, List(RuntimeStatus.Deleted), None, Some(workspaceId2), None)
         .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -470,20 +491,35 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c5ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c5.cloudContext, c5.runtimeName).transaction
 
       list1 <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, false, None, Some(workspaceId1), Some(CloudProvider.Azure))
+        .listRuntimesForWorkspace(Map.empty,
+                                  List(RuntimeStatus.Deleted),
+                                  None,
+                                  Some(workspaceId1),
+                                  Some(CloudProvider.Azure)
+        )
         .transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, false, None, Some(workspaceId2), Some(CloudProvider.Azure))
+        .listRuntimesForWorkspace(Map.empty,
+                                  List(RuntimeStatus.Deleted),
+                                  None,
+                                  Some(workspaceId2),
+                                  Some(CloudProvider.Azure)
+        )
         .transaction
       list3 <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, false, None, Some(workspaceId1), Some(CloudProvider.Gcp))
+        .listRuntimesForWorkspace(Map.empty,
+                                  List(RuntimeStatus.Deleted),
+                                  None,
+                                  Some(workspaceId1),
+                                  Some(CloudProvider.Gcp)
+        )
         .transaction
       list4 <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(Map.empty, false, None, None, Some(CloudProvider.Azure))
+        .listRuntimesForWorkspace(Map.empty, List(RuntimeStatus.Deleted), None, None, Some(CloudProvider.Azure))
         .transaction
       list5 <- RuntimeServiceDbQueries
         .listRuntimesForWorkspace(Map.empty,
-                                  false,
+                                  List(RuntimeStatus.Deleted),
                                   Some(c5ClusterRecord.get.auditInfo.creator),
                                   Some(workspaceId2),
                                   Some(CloudProvider.Azure)

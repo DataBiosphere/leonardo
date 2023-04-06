@@ -1,10 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 final case class CreateAzureRuntimeRequest(labels: LabelMap,
-                                           region: Region,
                                            machineSize: VirtualMachineSizeTypes,
                                            customEnvironmentVariables: Map[String, String],
                                            azureDiskConfig: CreateAzureDiskRequest,

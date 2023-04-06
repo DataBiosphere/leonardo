@@ -4,13 +4,13 @@ import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
+  AppAccessScope,
   AppError,
   AppName,
   AppStatus,
   AppType,
   AuditInfo,
   CloudContext,
-  CloudProvider,
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,
@@ -23,6 +23,7 @@ import java.net.URL
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
+                                  accessScope: Option[AppAccessScope],
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty,
                                   customEnvironmentVariables: Map[String, String],
@@ -40,11 +41,11 @@ final case class GetAppResponse(appName: AppName,
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo,
                                 appType: AppType,
+                                accessScope: Option[AppAccessScope],
                                 labels: LabelMap
 )
 
-final case class ListAppResponse(cloudProvider: CloudProvider,
-                                 workspaceId: Option[WorkspaceId],
+final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  cloudContext: CloudContext,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
@@ -54,6 +55,7 @@ final case class ListAppResponse(cloudProvider: CloudProvider,
                                  appType: AppType,
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo,
+                                 accessScope: Option[AppAccessScope],
                                  labels: LabelMap
 )
 
@@ -64,7 +66,6 @@ object ListAppResponse {
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
-          c.cloudContext.cloudProvider,
           a.workspaceId,
           c.cloudContext,
           KubernetesRuntimeConfig(
@@ -79,6 +80,7 @@ object ListAppResponse {
           a.appType,
           a.appResources.disk.map(_.name),
           a.auditInfo,
+          a.appAccessScope,
           a.labels.filter(l => labelsToReturn.contains(l._1))
         )
       }
@@ -102,6 +104,7 @@ object GetAppResponse {
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,
       appResult.app.appType,
+      appResult.app.appAccessScope,
       appResult.app.labels
     )
 }

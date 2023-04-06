@@ -20,6 +20,35 @@ It is recommended to consume these APIs and functionality via the [Terra UI](htt
 
 We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
 
+## Java client library
+for sbt:
+
+```libraryDependencies += "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "0.1-<git hash>"```
+
+where ```<git hash>``` is the first 7 characters of the commit hash of the HEAD of develop
+
+Example Scala Usage:
+```
+import org.broadinstitute.dsde.workbench.client.leonardo.api.RuntimesApi
+import org.broadinstitute.dsde.workbench.client.leonardo.ApiClient
+import org.broadinstitute.dsde.workbench.client.leonardo.model.GetRuntimeResponse
+
+class LeonardoClient(leonardoBasePath: String) {
+  private def leonardoApi(accessToken: String): RuntimesApi = {
+    val apiClient = new ApiClient()
+    apiClient.setAccessToken(accessToken)
+    apiClient.setBasePath(leonardoBasePath)
+    new RuntimesApi(apiClient)
+  }
+
+  def getAzureRuntimeDetails(token: String, workspaceId: String, runtimeName: String): GetRuntimeResponse = {
+    val leonardoApi = leonardoApi(token)
+    leonardoApi.getAzureRuntime(workspaceId, runtimeName)
+  }
+}
+
+```
+
 ## Building and running Leonardo
 Clone the repo.
 ```
@@ -45,7 +74,7 @@ ERROR 2003 (HY000): Can't connect to MySQL server on 'mysql' (113)
 Warning: Using a password on the command line interface can be insecure.
 ERROR 2003 (HY000): Can't connect to MySQL server on 'mysql' (113)
 ```
-Run `docker system prune -a`. If the error persists, try restart your laptop.
+Run `docker system prune -a`. If the error persists, try restarting your laptop.
 
 Build Leonardo and run all unit tests.
 ```
@@ -62,6 +91,11 @@ or a particular test within a suite, e.g.
 sbt "testOnly *LeoPubsubMessageSubscriberSpec -- -z "handle Azure StopRuntimeMessage and stop runtime""
 ```
 where `map` is a substring within the test name.
+
+If you made a change to the leonardo Db by adding a changeset xml file, and then adding that file path to the changelog
+file, you have to set `initWithLiquibase = true` in the leonardo.conf file for these changes to be reflected in the unit
+tests. Once youare done testing your changes, make sure to switch it back to `initWithLiquibase = false`, as this can do
+some damage if you are running local Leo against Dev!
 
 Once you're done, tear down MySQL.
 ```

@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -51,7 +51,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F]
+                                                wsmDao: WsmDao[F],
+                                                samDAO: SamDAO[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -102,7 +103,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](AppAlreadyExistsException(cloudContext, appName, c.app.status, ctx.traceId))
       )
 
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
+      // Shared app SAM resource is not enabled for V1 endpoint
+      _ <- F.raiseWhen(req.accessScope != None)(
+        BadRequestException("accessScope is not a V1 parameter", Some(ctx.traceId))
+      )
+
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
@@ -190,7 +196,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
       )
       lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
-
       saveApp <- F.fromEither(
         getSavableApp(cloudContext,
                       appName,
@@ -470,6 +475,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
+      // Validate shared access scope apps against an allow-list. No-op for private apps.
+      _ <- req.accessScope match {
+        case Some(AppAccessScope.WorkspaceShared) =>
+          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType.toString))(
+            SharedAppNotAllowedException(req.appType, ctx.traceId)
+          )
+        case _ => F.unit
+      }
+
       // Resolve the workspace in WSM to get the cloud context
       userToken = org.http4s.headers.Authorization(
         org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
@@ -489,11 +503,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
 
       // Get the Landing Zone Resources for the app for Azure
+      leoAuth <- samDAO.getLeoAuthToken
       landingZoneResourcesOpt <- cloudContext.cloudProvider match {
         case CloudProvider.Gcp => F.pure(None)
         case CloudProvider.Azure =>
           for {
-            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
           } yield Some(landingZoneResources)
       }
 
@@ -520,9 +535,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
       }
 
-      // Create a new Sam resource for the app
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
-      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent.
+      // Create a new Sam resource for the app (either shared or not)
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
+      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent google project.
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
       _ <- authProvider
         .notifyResourceCreatedV2(samResourceId, originatingUserEmail, cloudContext, workspaceId, userInfo)
@@ -632,7 +647,35 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appOpt,
       AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
     )
-    listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+    _ <- deleteAppV2Base(appResult.app, userInfo, workspaceId, deleteDisk)
+  } yield ()
+
+  override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+    allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
+    apps = allClusters
+      .flatMap(_.nodepools)
+      .flatMap(n => n.apps)
+
+    nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app.status))
+
+    _ <- F
+      .raiseError(DeleteAllAppsCannotBePerformed(workspaceId, nonDeletableApps, ctx.traceId))
+      .whenA(!nonDeletableApps.isEmpty)
+
+    _ <- apps
+      .traverse { app =>
+        deleteAppV2Base(app, userInfo, workspaceId, deleteDisk)
+      }
+  } yield ()
+
+  private def deleteAppV2Base(app: App, userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+    listOfPermissions <- authProvider.getActions(app.samResourceId, userInfo)
 
     // throw 404 if no GetAppStatus permission
     hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
@@ -640,23 +683,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       if (hasReadPermission) F.unit
       else
         F.raiseError[Unit](
-          AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "no read permission")
+          AppNotFoundByWorkspaceIdException(workspaceId, app.appName, ctx.traceId, "no read permission")
         )
 
     // throw 403 if no DeleteApp permission
     hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
     _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-    canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
+    canDelete = AppStatus.deletableStatuses.contains(app.status)
     _ <-
       if (canDelete) F.unit
       else
         F.raiseError[Unit](
-          AppCannotBeDeletedByWorkspaceIdException(workspaceId, appName, appResult.app.status, ctx.traceId)
+          AppCannotBeDeletedByWorkspaceIdException(workspaceId, app.appName, app.status, ctx.traceId)
         )
 
     // Get the disk to delete if specified
-    diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
+    diskOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
 
     // Resolve the workspace in WSM to get the cloud context
     userToken = org.http4s.headers.Authorization(
@@ -671,27 +714,28 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     }
 
     // Get the Landing Zone Resources for the app for Azure
+    leoAuth <- samDAO.getLeoAuthToken
     landingZoneResourcesOpt <- cloudContext.cloudProvider match {
       case CloudProvider.Gcp => F.pure(None)
       case CloudProvider.Azure =>
         for {
-          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, userToken)
+          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield Some(landingZoneResources)
     }
 
     _ <-
-      if (appResult.app.status == AppStatus.Error) {
+      if (app.status == AppStatus.Error) {
         for {
-          _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction >> authProvider
-            .notifyResourceDeletedV2(appResult.app.samResourceId, userInfo)
+          _ <- appQuery.markAsDeleted(app.id, ctx.now).transaction >> authProvider
+            .notifyResourceDeletedV2(app.samResourceId, userInfo)
             .void
         } yield ()
       } else {
         for {
-          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.app.id).transaction
+          _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
           deleteMessage = DeleteAppV2Message(
-            appResult.app.id,
-            appResult.app.appName,
+            app.id,
+            app.appName,
             workspaceId,
             cloudContext,
             diskOpt,
@@ -799,7 +843,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           F.pure(none[LastUsedApp])
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
-            case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _, _))) |
+            case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
                 (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
@@ -823,7 +867,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
               )
-            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
+            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _))) =>
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
               )
@@ -893,6 +937,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       None,
       None,
       labels,
+      None,
+      None,
       None
     )
   }
@@ -989,6 +1035,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
         case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
         case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (Wds, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.wdsAppConfig)
         case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
       }
 
@@ -1058,6 +1105,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         nodepoolId,
         req.appType,
         appName,
+        req.accessScope,
         workspaceId,
         AppStatus.Precreating,
         chart,
@@ -1121,6 +1169,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
           .toVector
     }
+    // We authenticate actions on resources. If there are no visible clusters,
+    // we need to check if user should be able to see the empty list.
+    _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
   } yield res
 
 }
@@ -1203,12 +1254,10 @@ case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
       traceId = Some(traceId)
     )
 
-case class AppCannotBeCreatedException(googleProject: GoogleProject,
-                                       appName: AppName,
-                                       status: AppStatus,
-                                       traceId: TraceId
-) extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be created in ${status} status.",
+case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
+    extends LeoException(
+      s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
+          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
@@ -1228,13 +1277,6 @@ case class AppDiskNotSupportedException(cloudContext: CloudContext,
       s"App ${cloudContext.asStringWithProvider}/${appName.value} of type ${appType} does not support persistent disk. Trace ID: ${traceId.toString}",
       StatusCodes.BadRequest,
       traceId = Some(traceId)
-    )
-
-case class ClusterExistsException(googleProject: GoogleProject)
-    extends LeoException(
-      s"Cannot pre-create nodepools for project $googleProject because a cluster already exists",
-      StatusCodes.Conflict,
-      traceId = None
     )
 
 case class AppCannotBeStoppedException(cloudContext: CloudContext,
@@ -1268,5 +1310,12 @@ case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: A
     extends LeoException(
       s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
       StatusCodes.BadRequest,
+      traceId = Some(traceId)
+    )
+
+case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"App with type ${appType.toString} cannot be launched with shared access scope. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict,
       traceId = Some(traceId)
     )

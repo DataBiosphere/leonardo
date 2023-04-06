@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 
 import cats.effect.Sync
 import org.broadinstitute.dsde.workbench.google2.RegionName
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.http4s.{Entity, EntityEncoder}
 import org.typelevel.ci._
 
@@ -30,6 +31,25 @@ package object leonardo {
           s"Invalid name ${nameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names"
         )
     }
+
+  val googleDataprocRetryPolicy = {
+    // Google permission update is getting slow. This is to address the issue when creating dataproc
+    // we're getting the following error
+    // com.google.api.gax.rpc.PermissionDeniedException: io.grpc.StatusRuntimeException: PERMISSION_DENIED: Required 'compute.images.get' permission for 'projects/broad-dsp-gcr-public/global/images/custom-leo-image-dataproc-2-0-51-debian10-a46b242'. This usually happens when Dataproc Control Plane Identity service account does not have permission to validate resources in another project. For additional details see https://cloud.google.com/dataproc/docs/concepts/iam/dataproc-principals#service_agent_control_plane_identity
+    val retryOnPermissionDenied: Throwable => Boolean = {
+      case e: com.google.api.gax.rpc.PermissionDeniedException =>
+        if ((e.getCause.getMessage contains "compute.images.get") || (e.getMessage contains "compute.images.get"))
+          true
+        else false
+      case _ => false
+    }
+
+    RetryPredicates.retryConfigWithPredicates(
+      RetryPredicates.standardGoogleRetryPredicate,
+      RetryPredicates.whenStatusCode(400),
+      retryOnPermissionDenied
+    )
+  }
 
   val allSupportedRegions = List(
     RegionName("us-central1"),

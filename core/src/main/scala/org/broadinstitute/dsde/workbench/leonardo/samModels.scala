@@ -24,8 +24,12 @@ object SamResourceId {
     override def resourceType: SamResourceType = SamResourceType.Project
   }
 
-  final case class AppSamResourceId(resourceId: String) extends SamResourceId {
-    override def resourceType: SamResourceType = SamResourceType.App
+  final case class AppSamResourceId(resourceId: String, accessScope: Option[AppAccessScope]) extends SamResourceId {
+    override def resourceType: SamResourceType = accessScope match {
+      case Some(AppAccessScope.UserPrivate)     => SamResourceType.App
+      case Some(AppAccessScope.WorkspaceShared) => SamResourceType.SharedApp
+      case None                                 => SamResourceType.App
+    }
   }
 
   final case class WorkspaceResourceSamResourceId(workspaceId: WorkspaceId) extends SamResourceId {
@@ -54,6 +58,9 @@ object SamResourceType {
   }
   final case object App extends SamResourceType {
     val asString = "kubernetes-app"
+  }
+  final case object SharedApp extends SamResourceType {
+    val asString = "kubernetes-app-shared"
   }
   final case object Workspace extends SamResourceType {
     val asString = "workspace"
@@ -260,6 +267,9 @@ object SamPolicyName {
   final case object Manager extends SamPolicyName {
     override def toString = "manager"
   }
+  final case object User extends SamPolicyName {
+    override def toString = "user"
+  }
   final case class Other(asString: String) extends SamPolicyName {
     override def toString = asString
   }
@@ -269,3 +279,17 @@ object SamPolicyName {
 
 final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
 final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])
+
+sealed abstract class AppAccessScope
+object AppAccessScope {
+  case object UserPrivate extends AppAccessScope {
+    override def toString: String = "USER_PRIVATE"
+  }
+  case object WorkspaceShared extends AppAccessScope {
+    override def toString: String = "WORKSPACE_SHARED"
+  }
+
+  def values: Set[AppAccessScope] = sealerate.values[AppAccessScope]
+
+  def stringToObject: Map[String, AppAccessScope] = values.map(v => v.toString -> v).toMap
+}

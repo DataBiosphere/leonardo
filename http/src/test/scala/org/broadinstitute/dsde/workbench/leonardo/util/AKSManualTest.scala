@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CbasUiDAO, CromwellDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -69,7 +69,7 @@ object AKSManualTest {
   val uamiName = ManagedIdentityName("uami-name")
 
   val appName = AppName("coa-app")
-  val appSamResourceId = AppSamResourceId("sam-id")
+  val appSamResourceId = AppSamResourceId("sam-id", None)
 
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]
@@ -136,12 +136,15 @@ object AKSManualTest {
   /** Creates an AKSInterpreter */
   def getAksInterp(implicit dbRef: DbReference[IO]): Resource[IO, AKSInterpreter[IO]] = for {
     containerService <- AzureContainerService.fromAzureAppRegistrationConfig[IO](appRegConfig)
+    batchService <- AzureBatchService.fromAzureAppRegistrationConfig[IO](appRegConfig)
+    azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     relayService <- AzureRelayService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     helmConcurrency <- Resource.eval(Semaphore[IO](20L))
     helmClient = new HelmInterpreter[IO](helmConcurrency)
     config = AKSInterpreterConfig(
       ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
+      ConfigReader.appConfig.azure.wdsAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
@@ -153,11 +156,14 @@ object AKSManualTest {
   } yield new AKSInterpreter(
     config,
     helmClient,
+    batchService,
     containerService,
+    azureApplicationInsightsService,
     relayService,
     mock[SamDAO[IO]],
     mock[CromwellDAO[IO]],
     mock[CbasDAO[IO]],
+    mock[CbasUiDAO[IO]],
     mock[WdsDAO[IO]]
   )
 
