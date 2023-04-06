@@ -192,7 +192,7 @@ object Dependencies {
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
-    "com.auth0" % "java-jwt" % "4.2.2",
+    "com.auth0" % "java-jwt" % "4.4.0",
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
