@@ -3,9 +3,9 @@ package org.broadinstitute.dede.workbench.leonardo.consumer
 import cats.effect.kernel.Concurrent
 import cats.syntax.all._
 import io.circe.Decoder
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceType
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ListResourceResponse
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResource
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.Credentials.Token
 import org.http4s._
@@ -16,9 +16,9 @@ import org.http4s.headers.Authorization
 trait SamClient[F[_]] {
 
   def fetchResourcePolicies[R](
-    authHeader: Authorization
+    authHeader: Authorization,
+    resourceType: SamResourceType
   )(implicit
-    sr: SamResource[R],
     decoder: Decoder[R]
   ): F[Iterable[ListResourceResponse[R]]]
 
@@ -46,12 +46,12 @@ class SamClientImpl[F[_]: Concurrent](client: Client[F], baseUrl: Uri, bearer: T
   }
 
   override def fetchResourcePolicies[R](
-    authHeader: Authorization
+    authHeader: Authorization,
+    resourceType: SamResourceType
   )(implicit
-    sr: SamResource[R],
     decoder: Decoder[R]
   ): F[Iterable[ListResourceResponse[R]]] = {
-    val request = Request[F](uri = baseUrl / "api" / "resources" / "v2" / sr.resourceType.asString).withHeaders(
+    val request = Request[F](uri = baseUrl / "api" / "resources" / "v2" / resourceType.asString).withHeaders(
       org.http4s.headers.Accept(MediaType.application.json),
       authHeader
     )

@@ -10,7 +10,7 @@ case class AppMonitorConfig(nodepoolCreate: PollMonitorConfig,
                             createIngress: PollMonitorConfig,
                             createApp: InterruptablePollMonitorConfig,
                             deleteApp: PollMonitorConfig,
-                            scaleNodepool: PollMonitorConfig,
-                            setNodepoolAutoscaling: PollMonitorConfig,
+                            scalingUpNodepool: PollMonitorConfig,
+                            scalingDownNodepool: PollMonitorConfig,
                             startApp: InterruptablePollMonitorConfig
 )

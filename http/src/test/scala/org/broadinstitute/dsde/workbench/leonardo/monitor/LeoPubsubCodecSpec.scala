@@ -8,7 +8,9 @@ import _root_.io.circe.syntax._
 import io.circe.Printer
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
+  ApplicationInsightsName,
   AzureCloudContext,
+  BatchAccountName,
   ContainerName,
   ManagedResourceGroupName,
   RelayNamespace,
@@ -139,7 +141,10 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                 WorkspaceId(UUID.randomUUID()),
                                 storageContainerResourceId,
                                 landingZoneResources,
-                                None
+                                false,
+                                None,
+                                "WorkspaceName",
+                                ContainerName("dummy")
       )
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
@@ -148,6 +153,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   val landingZoneResources = LandingZoneResources(
+    UUID.randomUUID(),
     AKSClusterName("cluster-name"),
     BatchAccountName("batch-account"),
     RelayNamespace("relay-ns"),
@@ -159,7 +165,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     SubnetworkName("aks-subnet"),
     SubnetworkName("pg-subnet"),
     SubnetworkName("compute-subnet"),
-    com.azure.core.management.Region.US_EAST
+    com.azure.core.management.Region.US_EAST,
+    ApplicationInsightsName("lzappinsights")
   )
 
   it should "encode/decode LandingZoneResources properly" in {

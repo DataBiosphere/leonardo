@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
+import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
@@ -40,15 +41,18 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
                                              samDAO: SamDAO[F],
-                                             publisherQueue: Queue[F, LeoPubsubMessage]
+                                             publisherQueue: Queue[F, LeoPubsubMessage],
+                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
-  ec: ExecutionContext
+  ec: ExecutionContext,
+  log: StructuredLogger[F]
 ) extends RuntimeV2Service[F] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
+                             useExistingDisk: Boolean,
                              req: CreateAzureRuntimeRequest
   )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
@@ -87,6 +91,26 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                             Some(ctx.traceId)
         )
       )
+
+      // enforcing one runtime per workspace/user at a time
+      runtime <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map.empty,
+                                  List(RuntimeStatus.Deleted, RuntimeStatus.Deleting),
+                                  Some(userInfo.userEmail),
+                                  Some(workspaceId),
+                                  Some(cloudContext.cloudProvider)
+        )
+        .transaction
+      _ <- F
+        .raiseError(
+          OnlyOneRuntimePerWorkspacePerCreator(workspaceId,
+                                               userInfo.userEmail,
+                                               runtime.head.clusterName,
+                                               runtime.head.status
+          )
+        )
+        .whenA(runtime.length != 0)
+
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
 
@@ -126,17 +150,59 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
-            diskToSave <- F.fromEither(
-              convertToDisk(
-                userInfo,
-                cloudContext,
-                DiskName(req.azureDiskConfig.name.value),
-                config.azureConfig.diskConfig,
-                req,
-                landingZoneResources.region,
-                ctx.now
-              )
-            )
+            diskId <- useExistingDisk match {
+
+              // if using existing disk, find disk in users workspace
+              case true =>
+                for {
+                  disks <- DiskServiceDbQueries
+                    .listDisks(Map.empty,
+                               includeDeleted = false,
+                               Some(userInfo.userEmail),
+                               Some(cloudContext),
+                               Some(workspaceId)
+                    )
+                    .transaction
+                  // check if 0 or multiple disks
+                  disk <- disks.length match {
+                    case 1 => F.pure(disks.head)
+                    case 0 => F.raiseError(NoPersistentDiskException(workspaceId))
+                    case _ =>
+                      F.raiseError(MultiplePersistentDisksException(workspaceId, disks.length, disks))
+                  }
+                  // check disk is ready
+                  _ <- F
+                    .raiseError(PersistentDiskNotReadyException(disk.id, disk.status))
+                    .whenA(disk.status != DiskStatus.Ready)
+                } yield disk.id
+
+              // if not using existing disk, create a new one
+              case false =>
+                for {
+                  samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
+                  pd <- F.fromEither(
+                    convertToDisk(
+                      userInfo,
+                      cloudContext,
+                      DiskName(req.azureDiskConfig.name.value),
+                      samResource,
+                      config.azureConfig.diskConfig,
+                      req,
+                      landingZoneResources.region,
+                      workspaceId,
+                      ctx.now
+                    )
+                  )
+                  _ <- authProvider
+                    .notifyResourceCreatedV2(samResource, userInfo.userEmail, cloudContext, workspaceId, userInfo)
+                    .handleErrorWith { t =>
+                      log.error(t)(
+                        s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${req.azureDiskConfig.name.value}"
+                      ) >> F.raiseError(t)
+                    }
+                  disk <- persistentDiskQuery.save(pd).transaction
+                } yield disk.id
+            }
 
             runtime = convertToRuntime(
               workspaceId,
@@ -150,20 +216,23 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               ctx.now
             )
 
-            disk <- persistentDiskQuery.save(diskToSave).transaction
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
-              disk.id,
+              diskId,
               landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
             _ <- publisherQueue.offer(
-              CreateAzureRuntimeMessage(savedRuntime.id,
-                                        workspaceId,
-                                        storageContainer.resourceId,
-                                        landingZoneResources,
-                                        Some(ctx.traceId)
+              CreateAzureRuntimeMessage(
+                savedRuntime.id,
+                workspaceId,
+                storageContainer.resourceId,
+                landingZoneResources,
+                useExistingDisk,
+                Some(ctx.traceId),
+                workspaceDesc.displayName,
+                storageContainer.name
               )
             )
           } yield ()
@@ -249,6 +318,16 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .raiseError[Unit](RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied"))
         .whenA(!hasPermission)
 
+      // Query WSM for Landing Zone resources
+      userToken = org.http4s.headers.Authorization(
+        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
+      )
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+      leoAuth <- samDAO.getLeoAuthToken
+      landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
+
+      // Update DB record to Deleting status
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
       // pass the disk to delete to publisher if specified
@@ -258,8 +337,72 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         else F.pure(none[DiskId])
 
       _ <- publisherQueue.offer(
-        DeleteAzureRuntimeMessage(runtime.id, diskIdToDelete, workspaceId, wsmVMResourceSamId, Some(ctx.traceId))
+        DeleteAzureRuntimeMessage(runtime.id,
+                                  diskIdToDelete,
+                                  workspaceId,
+                                  wsmVMResourceSamId,
+                                  landingZoneResources,
+                                  Some(ctx.traceId)
+        )
       )
+    } yield ()
+
+  override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      // We should not list runtimes that are already in a `Deleted` status
+      runtimes <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map.empty, List(RuntimeStatus.Deleted), None, Some(workspaceId), None)
+        .map(_.toList)
+        .transaction
+
+      nonDeletableRuntimes = runtimes.filterNot(r => r.status.isDeletable)
+
+      _ <-
+        if (nonDeletableRuntimes.isEmpty)
+          runtimes
+            .map(r => r.clusterName)
+            .traverse(runtime_name => deleteRuntime(userInfo, runtime_name, workspaceId, deleteDisk))
+        else
+          // Error out if any runtime is in a non deletable state
+          F.raiseError[Unit](
+            NonDeletableRuntimesInWorkspaceFoundException(workspaceId,
+                                                          s"${nonDeletableRuntimes.map(r => r.clusterName)}"
+            )
+          )
+    } yield ()
+
+  override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+
+      // If user is creator of the runtime, they should definitely be able to see the runtime.
+      hasPermission <-
+        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
+        else {
+          checkSamPermission(
+            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+            userInfo,
+            WsmResourceAction.Write
+          ).map(_._1)
+        }
+
+      _ <- ctx.span.traverse(s =>
+        F.delay(s.addAnnotation("Done auth call for update date accessed runtime permission"))
+      )
+      _ <- F
+        .raiseError[Unit](
+          RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
+        )
+        .whenA(!hasPermission)
+
+      _ <- dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, runtime.cloudContext, ctx.now)) >>
+        log.info(s"Queued message to update dateAccessed for runtime ${runtime.cloudContext}/$runtimeName")
     } yield ()
 
   def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
@@ -322,10 +465,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
-
+      excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(labelMap, includeDeleted, creatorOnly, workspaceId, cloudProvider)
+        .listRuntimesForWorkspace(labelMap, excludeStatuses, creatorOnly, workspaceId, cloudProvider)
         .map(_.toList)
         .transaction
       filteredRuntimes <-
@@ -414,15 +557,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           // samVisibleRuntimesWithoutWorkspaceId: runtimes user is not creator, but user can view the runtime according to Sam
           runtimesUserIsCreator ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
         }
-
+      // We authenticate actions on resources. If there are no visible runtimes,
+      // we need to check if user should be able to see the empty list.
+      _ <- if (filteredRuntimes.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield filteredRuntimes.toVector
 
   private[service] def convertToDisk(userInfo: UserInfo,
                                      cloudContext: CloudContext,
                                      diskName: DiskName,
+                                     samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
                                      region: com.azure.core.management.Region,
+                                     workspaceId: WorkspaceId,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
@@ -449,8 +596,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ZoneName(region.toString),
       diskName,
       userInfo.userEmail,
-      // TODO: WSM will populate this, we can update in backleo if its needed for anything
-      PersistentDiskSamResourceId("fakeUUID"),
+      samResource,
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),
       req.azureDiskConfig.size.getOrElse(config.defaultDiskSizeGb),
@@ -459,7 +605,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       None,
       None,
       labels,
-      None
+      None,
+      None,
+      Some(workspaceId)
     )
   }
 
@@ -588,4 +736,36 @@ final case class AzureRuntimeHasInvalidRuntimeConfig(cloudContext: CloudContext,
       s"Azure runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} was found with an invalid runtime config",
       StatusCodes.InternalServerError,
       traceId = Some(traceId)
+    )
+
+case class MultiplePersistentDisksException(workspaceId: WorkspaceId, numDisks: Int, disks: List[PersistentDisk])
+    extends LeoException(
+      s"Workspace: ${workspaceId.value} contains ${numDisks} persistent disks, must have only 1. Current PDs: ${disks
+          .map(disks => s"(${disks.name.value},${disks.id.value})")}. Runtime cannot be created with an existing disk ",
+      StatusCodes.PreconditionFailed,
+      traceId = None
+    )
+
+case class NoPersistentDiskException(workspaceId: WorkspaceId)
+    extends LeoException(
+      s"Workspace: ${workspaceId.value} does not contain any persistent disks. Runtime cannot be created with an existing disk",
+      StatusCodes.PreconditionFailed,
+      traceId = None
+    )
+
+case class PersistentDiskNotReadyException(diskId: DiskId, diskStatus: DiskStatus)
+    extends LeoException(
+      s"Existing disk: ${diskId.value} has status ${diskStatus}. Runtime cannot be created with an existing disk",
+      StatusCodes.PreconditionFailed,
+      traceId = None
+    )
+
+case class OnlyOneRuntimePerWorkspacePerCreator(workspaceId: WorkspaceId,
+                                                creator: WorkbenchEmail,
+                                                runtime: RuntimeName,
+                                                status: RuntimeStatus
+) extends LeoException(
+      s"There is already an active runtime ${runtime.asString} in this workspace ${workspaceId.value} created by user ${creator.value} with the status ${status}. New runtime cannot be created until this one is deleted",
+      StatusCodes.PreconditionFailed,
+      traceId = None
     )

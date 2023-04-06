@@ -4,7 +4,12 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  BatchAccountName,
+  RelayNamespace
+}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
@@ -40,27 +45,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     with Http4sClientDsl[F] {
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
-
-  override def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateIpResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateIpResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
 
   override def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -201,6 +185,11 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                               SHARED_RESOURCE,
                                                               false
       )
+      applicationInsightsName <- getLandingZoneResourceName(groupedLzResources,
+                                                            "Microsoft.Insights/components",
+                                                            SHARED_RESOURCE,
+                                                            false
+      )
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
                                                          "DeployedSubnet",
@@ -214,7 +203,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                       false
       )
       postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
+
     } yield LandingZoneResources(
+      landingZoneId,
       AKSClusterName(aksClusterName),
       BatchAccountName(batchAccountName),
       RelayNamespace(relayNamespace),
@@ -226,7 +217,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       SubnetworkName(aksSubnetName),
       SubnetworkName(postgresSubnetName),
       SubnetworkName(computeSubnetName),
-      region
+      region,
+      ApplicationInsightsName(applicationInsightsName)
     )
 
   private def getLandingZoneResourceName(
@@ -298,16 +290,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "disks")
 
-  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "ip")
-
-  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "network")
-
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =
@@ -330,10 +312,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[GetDeleteJobResult]] =
+  ): F[GetDeleteJobResult] =
     for {
       ctx <- ev.ask
-      res <- httpClient.expectOptionOr[GetDeleteJobResult](
+      res <- httpClient.expectOr[GetDeleteJobResult](
         Request[F](
           method = Method.GET,
           uri = config.uri
@@ -348,22 +330,25 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  def getRelayNamespace(workspaceId: WorkspaceId,
-                        region: com.azure.core.management.Region,
-                        authorization: Authorization
-  )(implicit
+  override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[RelayNamespace]] =
+  ): F[GetDeleteJobResult] =
     for {
-      resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureRelayNamespace)
-    } yield resp.resources.collect {
-      case r
-          if r.resourceAttributes
-            .isInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes] && r.resourceAttributes
-            .asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes]
-            .region == region =>
-        r.resourceAttributes.asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes].namespaceName
-    }.headOption
+      ctx <- ev.ask
+      res <- httpClient.expectOr[GetDeleteJobResult](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks/delete-result/${request.jobId.value}"
+                )
+            ),
+          headers = headers(authorization, ctx.traceId, false)
+        )
+      )(onError)
+    } yield res
 
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]

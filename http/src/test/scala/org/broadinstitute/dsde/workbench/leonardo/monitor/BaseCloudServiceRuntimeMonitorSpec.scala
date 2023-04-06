@@ -255,6 +255,47 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
       elapsed should be >= 10000L
       status shouldBe Some(RuntimeStatus.Deleted)
+      diskStatus shouldBe (Some(DiskStatus.Ready))
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "delete creating disk on failed runtime start" in isolatedDbTest {
+    val runtimeMonitor = baseRuntimeMonitor(false)
+
+    val res = for {
+      start <- IO.realTimeInstant
+      tid <- traceId.ask[TraceId]
+      implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
+      disk <- makePersistentDisk().save()
+      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Failed, Instant.now()).transaction
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Creating)
+          .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+      )
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, runtimeConfig)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+      runCheckTools = Stream.eval(
+        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
+      )
+      deleteRuntime = Stream.sleep[IO](2 seconds) ++ Stream.eval(
+        clusterQuery.completeDeletion(runtime.id, start).transaction
+      )
+      // run above tasks concurrently and wait for both to terminate
+      _ <- Stream(runCheckTools, deleteRuntime).parJoin(2).compile.drain.timeout(15 seconds)
+
+      end <- IO.realTimeInstant
+      elapsed = end.toEpochMilli - start.toEpochMilli
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
+    } yield {
+      // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
+      elapsed should be >= 10000L
+      status shouldBe Some(RuntimeStatus.Deleted)
       diskStatus shouldBe (Some(DiskStatus.Deleted))
     }
 

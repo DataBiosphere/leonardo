@@ -62,6 +62,14 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       )
                     }
                   }
+                } ~ pathPrefix("deleteAll") {
+                  post {
+                    parameterMap { params =>
+                      complete(
+                        deleteAllRuntimesForWorkspaceHandler(userInfo, workspaceId, params)
+                      )
+                    }
+                  }
                 } ~ pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                   path("stop") {
                     post {
@@ -78,6 +86,17 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       post {
                         complete(
                           startRuntimeHandler(
+                            userInfo,
+                            workspaceId,
+                            runtimeName
+                          )
+                        )
+                      }
+                    } ~
+                    path("updateDateAccessed") {
+                      patch {
+                        complete(
+                          updateDateAccessedHandler(
                             userInfo,
                             workspaceId,
                             runtimeName
@@ -104,10 +123,12 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                         pathEndOrSingleSlash {
                           post {
-                            entity(as[CreateAzureRuntimeRequest]) { req =>
-                              complete(
-                                createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
-                              )
+                            parameterMap { params =>
+                              entity(as[CreateAzureRuntimeRequest]) { req =>
+                                complete(
+                                  createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req, params)
+                                )
+                              }
                             }
                           } ~ get {
                             complete(
@@ -139,14 +160,16 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def createAzureRuntimeHandler(userInfo: UserInfo,
                                              workspaceId: WorkspaceId,
                                              runtimeName: RuntimeName,
-                                             req: CreateAzureRuntimeRequest
+                                             req: CreateAzureRuntimeRequest,
+                                             params: Map[String, String]
   )(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-
-      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, req)
+      // if not specified, create new disk
+      useExistingDisk = params.get("useExistingDisk").exists(_ == "true")
+      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, useExistingDisk, req)
       _ <- metrics.incrementCounter("createRuntimeV2")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntimeV2")
@@ -172,7 +195,6 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      _ = println("111 starting runtime")
       apiCall = runtimeV2Service.startRuntime(userInfo, runtimeName, workspaceId)
       _ <- metrics.incrementCounter("startRuntimeV2")
       resp <- ctx.span.fold(apiCall)(span =>
@@ -220,13 +242,29 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      // default to true, if `deleteDisk` is explicitly set to false, then we don't delete disk
+      deleteDisk = !params.get("deleteDisk").exists(_ == "false")
       apiCall = runtimeV2Service.deleteRuntime(userInfo, runtimeName, workspaceId, deleteDisk)
       tags = Map("deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteRuntimeV2", 1, tags)
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "deleteRuntimeV2")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+  def deleteAllRuntimesForWorkspaceHandler(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      // default to true, if `deleteDisk` is explicitly set to false, then we don't delete disk
+      deleteDisk = !params.get("deleteDisk").exists(_ == "false")
+      apiCall = runtimeV2Service.deleteAllRuntimes(userInfo, workspaceId, deleteDisk)
+      tags = Map("deleteDisk" -> deleteDisk.toString)
+      _ <- metrics.incrementCounter("deleteAllRuntimesV2", 1, tags)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "deleteAllRuntimesV2")
           .use(_ => apiCall)
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
@@ -247,6 +285,19 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
           .use(_ => apiCall)
       )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
+
+  private[api] def updateDateAccessedHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = runtimeV2Service.updateDateAccessed(userInfo, workspaceId, runtimeName)
+      _ <- metrics.incrementCounter("updateDateAccessed")
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "updateDateAccessed")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted: ToResponseMarshallable
 
   implicit val createAzureDiskReqDecoder: Decoder[CreateAzureDiskRequest] =
     Decoder.forProduct4("labels", "name", "size", "diskType")(CreateAzureDiskRequest.apply)

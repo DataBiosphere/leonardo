@@ -106,7 +106,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       json <- io.circe.parser.parse(inputString)
       r <- json.as[RuntimeConfigRequest.DataprocConfig]
     } yield r
-    decodeResult.leftMap(_.getMessage) shouldBe Left("Minimum required masterDiskSize is 50GB")
+    decodeResult.leftMap(_.getMessage) shouldBe Left("DecodingFailure at : Minimum required masterDiskSize is 50GB")
   }
 
   it should "fail with oneWorkerSpecifiedDecodingFailure when numberOfPreemptibleWorkers is negative" in {
@@ -369,7 +369,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
          |    "gpuConfig" : {
          |      "gpuType" : "nvidia-tesla-t4",
          |      "numOfGpus" : 2
-         |    }
+         |    },
+         |    "configType" : "GceConfig"
          |  },
          |  "proxyUrl" : "https://leo.org/proxy",
          |  "status" : "Running",
@@ -437,7 +438,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |    "diskSize" : 500,
         |    "cloudService" : "GCE",
         |    "bootDiskSize" : 50,
-        |    "zone" : "us-west2-b"
+        |    "zone" : "us-west2-b",
+        |    "configType" : "GceConfig"
         |  },
         |  "proxyUrl" : "https://leo.org/proxy",
         |  "status" : "Running",

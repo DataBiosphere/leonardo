@@ -101,7 +101,7 @@ trait TestLeoRoutes {
 
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
     Config.appServiceConfig,
-    whitelistAuthProvider,
+    allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService,
@@ -122,10 +122,11 @@ trait TestLeoRoutes {
 
   val runtimev2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   whitelistAuthProvider,
+                                   allowListAuthProvider,
                                    new MockWsmDAO,
                                    new MockSamDAO,
-                                   QueueFactory.makePublisherQueue()
+                                   QueueFactory.makePublisherQueue(),
+                                   QueueFactory.makeDateAccessedQueue()
     )
 
   val underlyingRuntimeDnsCache =
@@ -147,13 +148,16 @@ trait TestLeoRoutes {
   val googleTokenCache: Cache[IO, String, (UserInfo, Instant)] =
     CaffeineCache[IO, String, (UserInfo, Instant)](underlyingGoogleTokenCache)
   val underlyingSamResourceCache =
-    Caffeine.newBuilder().maximumSize(10000L).build[SamResourceCacheKey, scalacache.Entry[Option[String]]]()
-  val samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]] =
-    CaffeineCache[IO, SamResourceCacheKey, Option[String]](underlyingSamResourceCache)
+    Caffeine
+      .newBuilder()
+      .maximumSize(10000L)
+      .build[SamResourceCacheKey, scalacache.Entry[(Option[String], Option[AppAccessScope])]]()
+  val samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])] =
+    CaffeineCache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])](underlyingSamResourceCache)
 
   val proxyService = new MockProxyService(proxyConfig,
                                           MockJupyterDAO,
-                                          whitelistAuthProvider,
+                                          allowListAuthProvider,
                                           runtimeDnsCache,
                                           kubernetesDnsCache,
                                           googleTokenCache,
@@ -176,7 +180,7 @@ trait TestLeoRoutes {
   val runtimeService = RuntimeService(
     serviceConfig,
     ConfigReader.appConfig.persistentDisk,
-    whitelistAuthProvider,
+    allowListAuthProvider,
     serviceAccountProvider,
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,
@@ -191,6 +195,7 @@ trait TestLeoRoutes {
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       userInfoDirectives,
@@ -205,6 +210,7 @@ trait TestLeoRoutes {
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       timedUserInfoDirectives,

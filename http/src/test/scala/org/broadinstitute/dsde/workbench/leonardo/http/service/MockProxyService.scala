@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, Runti
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
@@ -31,7 +30,7 @@ class MockProxyService(
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]],
+  samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   googleOauth2Service: GoogleOAuth2Service[IO],
   samDAO: Option[SamDAO[IO]] = None,
   queue: Option[Queue[IO, UpdateDateAccessMessage]] = None
@@ -59,7 +58,7 @@ class MockProxyService(
   override def getRuntimeTargetHost(cloudContext: CloudContext, clusterName: RuntimeName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost"), "path", CloudProvider.Gcp))
 
-  override def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
+  override def getAppTargetHost(cloudContext: CloudContext, appName: AppName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost"), "path", CloudProvider.Gcp))
 
 }

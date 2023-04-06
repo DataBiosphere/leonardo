@@ -57,6 +57,23 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "get by id" in isolatedDbTest {
+    val deletedDisk =
+      LeoLenses.diskToDestroyedDate.modify(_ => Some(Instant.now))(makePersistentDisk(Some(DiskName("d2"))))
+
+    val res = for {
+      disk <- makePersistentDisk(Some(DiskName("d1"))).save()
+      _ <- deletedDisk.save()
+      d1 <- persistentDiskQuery.getActiveById(disk.id).transaction
+      d2 <- persistentDiskQuery.getActiveById(deletedDisk.id).transaction
+    } yield {
+      d1.get shouldEqual disk
+      d2 shouldEqual None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "update status" in isolatedDbTest {
     val res = for {
       savedDisk <- makePersistentDisk().save()
@@ -85,6 +102,20 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d2.get.auditInfo.destroyedDate should not equal savedDisk.auditInfo.destroyedDate
     }
 
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "update resourceId" in isolatedDbTest {
+    val res = for {
+      savedDisk <- makePersistentDisk().save()
+      now <- IO.realTimeInstant
+      d1 <- persistentDiskQuery.updateWSMResourceId(savedDisk.id, wsmResourceId, now).transaction
+      d2 <- persistentDiskQuery.getById(savedDisk.id).transaction
+    } yield {
+      d1 shouldEqual 1
+      d2.get.wsmResourceId shouldEqual Some(wsmResourceId)
+      d2.get.auditInfo.dateAccessed should not equal savedDisk.auditInfo.dateAccessed
+    }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

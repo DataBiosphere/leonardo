@@ -20,7 +20,9 @@ final case class PersistentDisk(id: DiskId,
                                 formattedBy: Option[FormattedBy],
                                 appRestore: Option[AppRestore],
                                 labels: LabelMap,
-                                sourceDisk: Option[DiskLink]
+                                sourceDisk: Option[DiskLink],
+                                wsmResourceId: Option[WsmControlledResourceId],
+                                workspaceId: Option[WorkspaceId]
 ) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
@@ -55,6 +57,7 @@ object DiskStatus extends Enum[DiskStatus] {
   final case object Ready extends DiskStatus
   final case object Deleting extends DiskStatus
   final case object Deleted extends DiskStatus
+  final case object Error extends DiskStatus
 
   val activeStatuses: Set[DiskStatus] =
     Set(Creating, Restoring, Ready)
@@ -133,7 +136,7 @@ sealed trait AppRestore extends Product with Serializable {
 
 object AppRestore {
   // information needed for restoring a Galaxy app
-  final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
+  final case class GalaxyRestore(galaxyPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
 
   // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
   final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore

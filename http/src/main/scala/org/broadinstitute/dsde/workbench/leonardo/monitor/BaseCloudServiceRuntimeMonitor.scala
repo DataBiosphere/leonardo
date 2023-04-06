@@ -167,11 +167,17 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
                   persistentDiskQuery.getPersistentDiskRecord(did).transaction
                 )
-                _ <- persistentDiskOpt.traverse_(d =>
-                  googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
-                    .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
-                    .transaction
-                )
+                _ <- persistentDiskOpt match {
+                  case Some(value) =>
+                    if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
+                      persistentDiskOpt.traverse_(d =>
+                        googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
+                          .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
+                          .transaction
+                      )
+                    } else F.unit
+                  case None => F.unit
+                }
               } yield ()
             }
           } yield ()
@@ -252,7 +258,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             runtimeAndRuntimeConfig.runtime.auditInfo.createdDate,
             runtimeAndRuntimeConfig.runtime.runtimeImages,
             monitorConfig.imageConfig,
-            runtimeAndRuntimeConfig.runtimeConfig.cloudService
+            runtimeAndRuntimeConfig.runtimeConfig.cloudService,
+            runtimeAndRuntimeConfig.runtime.customEnvironmentVariables.getOrElse("CUSTOM_IMAGE", "false").toBoolean
           )
         else F.unit
       timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).milliseconds
@@ -572,6 +579,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, mainDataprocInstance)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
+          openTelemetry.incrementCounter("runtimeCreationTimeout", 1)
           failedRuntime(
             monitorContext,
             runtimeAndRuntimeConfig,

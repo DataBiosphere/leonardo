@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, CloudCon
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 trait AppService[F[_]] {
+
   def createApp(
     userInfo: UserInfo,
     cloudContext: CloudContext.Gcp,
@@ -64,6 +65,10 @@ trait AppService[F[_]] {
     appName: AppName,
     deleteDisk: Boolean
   )(implicit as: Ask[F, AppContext]): F[Unit]
+
+  def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
 }
 
 final case class AppServiceConfig(enableCustomAppCheck: Boolean, leoKubernetesConfig: LeoKubernetesConfig)
