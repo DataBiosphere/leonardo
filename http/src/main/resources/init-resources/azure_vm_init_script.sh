@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-set -e
-
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
 # Formatting and mounting persistent disk
