@@ -4,7 +4,7 @@ set -e
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
 # Formatting and mounting persistent disk
-WORK_DIRECTORY='/home/jupyter/persistent_disk'
+WORK_DIRECTORY='/home/jupyter'
 echo $WORK_DIRECTORY
 
 ## The PD should be the only `sd` disk that is not mounted yet
@@ -16,8 +16,7 @@ for Disk in "${AllsdDisks[@]}"; do
     echo $Disk
     Mounts="$(lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
     echo $Mounts
-    echo "${Mounts[0]}"
-    if [ "${Mounts[0]}" == "" ]; then
+    if [ -z "$Mounts" ]; then
         echo "Found our unmounted persistent disk!"
         FreesdDisks="${Disk}"
     fi
@@ -27,25 +26,33 @@ echo ${FreesdDisks}
 DISK_DEVICE_PATH=${FreesdDisks}
 echo $DISK_DEVICE_PATH
 
-## Let's try to mount the disk first, it the disk has previously been in use, then
-## the working directory should appear
-sudo mount -t ext4 ${DISK_DEVICE_PATH} ${WORK_DIRECTORY}
-echo "successful mount"
-
 ## Only format disk is it hasn't already been formatted
-## Maybe check if the working directory exists already?
-if [ ! -d ${WORK_DIRECTORY} ] ; then
-  ## Format
-  sudo fdisk ${DISK_DEVICE_PATH}
-  echo "successful formatting"
-  ## Partition
-  sudo mkfs -t ext4 ${DISK_DEVICE_PATH}
+## It the disk has previously been in use, then we should only need to mount it
+if sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}; then
+  echo "Existing PD successfully remounted"
+else
+  ## Create one partition on the PD
+  (
+  echo o #create a new empty DOS partition table
+  echo n #add a new partition
+  echo p #print the partition table
+  echo
+  echo
+  echo
+  echo w #write table to disk and exit
+  ) | sudo fdisk ${DISK_DEVICE_PATH}
   echo "successful partitioning"
+  ## Format the partition
+  echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1"
+  echo "successful formatting"
   ## Create the PD working directory
   sudo mkdir -p ${WORK_DIRECTORY}
   echo "successful creation of work directory"
+  ## Mount the PD partition to the working directory
+  sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
+  echo "successful mount"
   ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
-  OUTPUT="$(blkid -s UUID -o value ${DISK_DEVICE_PATH})"
+  OUTPUT="$(lsblk -no UUID "${DISK_DEVICE_PATH}1")"
   echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
   echo "successful write of PD UUID to fstab"
 fi
