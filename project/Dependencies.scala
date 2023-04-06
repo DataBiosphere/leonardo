@@ -9,7 +9,7 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   // TODO update to 3.2.15 - https://github.com/DataBiosphere/leonardo/pull/3092
-  val scalaTestV = "3.2.14"
+  val scalaTestV = "3.2.15"
   val http4sVersion = "1.0.0-M38"
   val slickV = "3.4.1"
   val guavaV = "31.1-jre"
