@@ -6,6 +6,9 @@ set -e
 # Formatting and mounting persistent disk
 WORK_DIRECTORY='/home/jupyter/persistent_disk'
 echo $WORK_DIRECTORY
+## Create the PD working directory
+sudo mkdir -p ${WORK_DIRECTORY}
+echo "successful creation of work directory"
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
@@ -47,9 +50,6 @@ if [ $EXIT_CODE -ne 0 ]; then
   ## Format the partition
   echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1"
   echo "successful formatting"
-  ## Create the PD working directory
-  sudo mkdir -p ${WORK_DIRECTORY}
-  echo "successful creation of work directory"
   ## Mount the PD partition to the working directory
   sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
   echo "successful mount"
