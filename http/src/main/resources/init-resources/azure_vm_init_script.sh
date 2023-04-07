@@ -156,8 +156,10 @@ jq --null-input \
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 echo $WORK_DIRECTORY
 ## Create the PD working directory
-sudo runuser -l $VM_JUP_USER -c "mkdir -p ${WORK_DIRECTORY}"
+sudo mkdir -p ${WORK_DIRECTORY}
 echo "successful creation of work directory"
+## Change ownership of the mounted drive to the user
+sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
