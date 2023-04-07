@@ -158,6 +158,8 @@ echo $WORK_DIRECTORY
 ## Create the PD working directory
 sudo mkdir -p ${WORK_DIRECTORY}
 echo "successful creation of work directory"
+## Give write permission to the work directory
+sudo chmod 755 -R ${WORK_DIRECTORY}
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
