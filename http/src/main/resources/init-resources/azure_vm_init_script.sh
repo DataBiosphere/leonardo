@@ -3,6 +3,64 @@ set -e
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
+# Formatting and mounting persistent disk
+WORK_DIRECTORY='/mnt/disks/work'
+echo $WORK_DIRECTORY
+
+## The PD should be the only `sd` disk that is not mounted yet
+AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
+echo ${AllsdDisks[@]}
+FreesdDisks=()
+echo ${FreesdDisks[@]}
+for Disk in "${AllsdDisks[@]}"; do
+    echo $Disk
+    Mounts="$(lsblk -no MOUNTPOINT "${Disk}")"
+    echo $Mounts
+    if [ -z "$Mounts" ]; then
+        echo "Found our unmounted persistent disk!"
+        FreesdDisks="${Disk}"
+    else
+        echo "Not our persistent disk!"
+    fi
+    echo ${FreesdDisks}
+done
+echo ${FreesdDisks}
+DISK_DEVICE_PATH=${FreesdDisks}
+echo $DISK_DEVICE_PATH
+
+## Only format disk is it hasn't already been formatted
+## It the disk has previously been in use, then we should only need to mount it
+EXIT_CODE=0
+sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY} || EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+  ## Create one partition on the PD
+  (
+  echo o #create a new empty DOS partition table
+  echo n #add a new partition
+  echo p #print the partition table
+  echo
+  echo
+  echo
+  echo w #write table to disk and exit
+  ) | sudo fdisk ${DISK_DEVICE_PATH}
+  echo "successful partitioning"
+  ## Format the partition
+  echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1"
+  echo "successful formatting"
+  ## Create the PD working directory
+  sudo mkdir -p ${WORK_DIRECTORY}
+  echo "successful creation of work directory"
+  ## Mount the PD partition to the working directory
+  sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
+  echo "successful mount"
+  ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
+  OUTPUT="$(lsblk -no UUID "${DISK_DEVICE_PATH}1")"
+  echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
+  echo "successful write of PD UUID to fstab"
+else
+  echo "Existing PD successfully remounted"
+fi
+
 # This is to avoid the error Ref BioC
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
@@ -66,7 +124,6 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 LEONARDO_URL="${18:-dummy}"
 RUNTIME_NAME="${19:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
-
 
 # Install relevant libraries
 
