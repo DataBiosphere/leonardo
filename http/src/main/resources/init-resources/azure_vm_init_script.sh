@@ -4,7 +4,7 @@ set -e
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
 # Formatting and mounting persistent disk
-WORK_DIRECTORY='/home/jupyter'
+WORK_DIRECTORY='/mnt/disks/work'
 echo $WORK_DIRECTORY
 
 ## The PD should be the only `sd` disk that is not mounted yet
