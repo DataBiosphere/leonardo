@@ -4,7 +4,7 @@ package util
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
-import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys} //BatchAccount //
+import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
 import com.azure.resourcemanager.compute.ComputeManager
 import com.azure.resourcemanager.compute.fluent.{ComputeManagementClient, VirtualMachineScaleSetsClient}
 import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, VirtualMachineScaleSets}
@@ -44,6 +44,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.terraAppSetupChart,
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.wdsAppConfig,
+    ConfigReader.appConfig.azure.hailBatchAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
@@ -57,6 +58,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockHailBatchDAO = setUpMockHailBatchDAO
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
@@ -72,7 +74,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCromwellDAO,
     mockCbasDAO,
     mockCbasUiDAO,
-    mockWdsDAO
+    mockWdsDAO,
+    mockHailBatchDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -135,8 +138,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       storageContainer,
       BatchAccountKey("batchKey"),
-      "applicationInsightsConnectionString",
-      "coa"
+      "applicationInsightsConnectionString"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -177,8 +179,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       workspaceId,
       lzResources,
       Some(setUpMockIdentity),
-      "applicationInsightsConnectionString",
-      "wds"
+      "applicationInsightsConnectionString"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -472,6 +473,17 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       wds.getStatus(any, any, any)(any)
     } thenReturn IO.pure(true)
     wds
+  }
+
+  private def setUpMockHailBatchDAO: HailBatchDAO[IO] = {
+    val batch = mock[HailBatchDAO[IO]]
+    when {
+      batch.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    when {
+      batch.getDriverStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    batch
   }
 
 }

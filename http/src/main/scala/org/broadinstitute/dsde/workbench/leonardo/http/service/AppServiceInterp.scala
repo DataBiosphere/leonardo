@@ -1031,13 +1031,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       // Validate app type
       gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
-        case (Galaxy, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.galaxyAppConfig)
-        case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
-        case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
-        case (Wds, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.wdsAppConfig)
-        case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
+        case (Galaxy, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
+        case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
+        case _ => Left(AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId))
       }
+
+      // Check if app type is enabled
+      _ <- Either.cond(gkeAppConfig.enabled, (), AppTypeNotEnabledException(req.appType, ctx.traceId))
 
       // check the labels do not contain forbidden keys
       labels <-
@@ -1306,16 +1310,23 @@ case class AppMachineConfigNotSupportedException(traceId: TraceId)
       traceId = Some(traceId)
     )
 
-case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
+case class AppTypeNotSupportedOnCloudException(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
     extends LeoException(
       s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
-      StatusCodes.BadRequest,
+      StatusCodes.Conflict,
       traceId = Some(traceId)
     )
 
 case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App with type ${appType.toString} cannot be launched with shared access scope. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

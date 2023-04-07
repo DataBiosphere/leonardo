@@ -394,6 +394,8 @@ object Boot extends IOApp {
       wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
         new HttpWdsDAO[F](client)
       )
+      hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
+        .map(client => new HttpHailBatchDAO[F](client))
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -649,6 +651,7 @@ object Boot extends IOApp {
           ConfigReader.appConfig.terraAppSetupChart,
           ConfigReader.appConfig.azure.coaAppConfig,
           ConfigReader.appConfig.azure.wdsAppConfig,
+          ConfigReader.appConfig.azure.hailBatchAppConfig,
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
           ConfigReader.appConfig.azure.appRegistration,
           samConfig,
@@ -665,7 +668,8 @@ object Boot extends IOApp {
         cromwellDao,
         cbasDao,
         cbasUiDao,
-        wdsDao
+        wdsDao,
+        hailBatchDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -750,7 +754,8 @@ object Boot extends IOApp {
         wdsDao,
         cbasDao,
         cbasUiDao,
-        cromwellDao
+        cromwellDao,
+        hailBatchDao
       )
     }
 
@@ -870,5 +875,6 @@ final case class AppDependencies[F[_]](
   wdsDAO: WdsDAO[F],
   cbasDAO: CbasDAO[F],
   cbasUiDAO: CbasUiDAO[F],
-  cromwellDAO: CromwellDAO[F]
+  cromwellDAO: CromwellDAO[F],
+  hailBatchDAO: HailBatchDAO[F]
 )

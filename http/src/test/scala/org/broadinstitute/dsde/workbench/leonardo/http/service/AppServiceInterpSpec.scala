@@ -1201,7 +1201,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1241,7 +1242,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1283,7 +1285,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1324,7 +1327,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1362,7 +1366,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1406,7 +1411,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1450,7 +1456,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao

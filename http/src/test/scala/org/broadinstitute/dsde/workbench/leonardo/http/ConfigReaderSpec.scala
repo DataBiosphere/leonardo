@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   CoaAppConfig,
+  HailBatchAppConfig,
   HttpWsmDaoConfig,
   PersistentDiskConfig,
   WdsAppConfig
@@ -28,7 +29,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.8")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.9")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -90,7 +91,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
-          instrumentationEnabled = false
+          instrumentationEnabled = false,
+          enabled = true
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
@@ -101,7 +103,19 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           List(
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
           ),
-          instrumentationEnabled = false
+          instrumentationEnabled = false,
+          enabled = true
+        ),
+        HailBatchAppConfig(
+          ChartName("/leonardo/hail-batch-terra-azure"),
+          ChartVersion("0.1.4"),
+          ReleaseNameSuffix("hail-rls"),
+          NamespaceNameSuffix("hail-ns"),
+          KsaName("hail-ksa"),
+          List(
+            ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          true
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),
