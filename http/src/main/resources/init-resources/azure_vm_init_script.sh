@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -e
+
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
 # Formatting and mounting persistent disk
@@ -12,11 +14,13 @@ FreesdDisks=()
 echo ${FreesdDisks[@]}
 for Disk in "${AllsdDisks[@]}"; do
     echo $Disk
-    Mounts="$(lsblk --noheadings --output MOUNTPOINT "${Disk}" | grep -vE "^$")"
+    Mounts="$(lsblk -no MOUNTPOINT "${Disk}")"
     echo $Mounts
     if [ -z "$Mounts" ]; then
         echo "Found our unmounted persistent disk!"
         FreesdDisks="${Disk}"
+    else
+        echo "Not our persistent disk!"
     fi
     echo ${FreesdDisks}
 done
