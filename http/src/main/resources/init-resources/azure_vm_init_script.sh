@@ -153,13 +153,11 @@ jq --null-input \
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 
 # Formatting and mounting persistent disk
-WORK_DIRECTORY='/home/jupyter/persistent_disk'
+WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 echo $WORK_DIRECTORY
 ## Create the PD working directory
-sudo mkdir -p ${WORK_DIRECTORY}
+sudo runuser -l $VM_JUP_USER -c mkdir -p ${WORK_DIRECTORY}
 echo "successful creation of work directory"
-## Give write permission to the work directory
-sudo chmod 777 -R ${WORK_DIRECTORY}
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
@@ -183,10 +181,12 @@ DISK_DEVICE_PATH=${FreesdDisks}
 echo $DISK_DEVICE_PATH
 
 ## Only format disk is it hasn't already been formatted
-## It the disk has previously been in use, then we should only need to mount it
-EXIT_CODE=0
-sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY} || EXIT_CODE=$?
-if [ $EXIT_CODE -ne 0 ]; then
+## It the disk has previously been in use, then it should have a partition that
+# we can mount
+PdPartition="$(lsblk -no NAME | grep -i "${DISK_DEVICE_PATH}1")"
+if [ ! -z "$PdPartition" ]; then
+  sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
+else
   ## Create one partition on the PD
   (
   echo o #create a new empty DOS partition table
