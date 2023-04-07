@@ -188,6 +188,7 @@ lsblk -no NAME --paths "${DISK_DEVICE_PATH}1" || EXIT_CODE=$?
 if [ $EXIT_CODE -eq 0 ]; then
   # There is a pre-existing partition that we should try to directly mount
   sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
+  echo "Existing PD successfully remounted"
 else
   ## Create one partition on the PD
   (
@@ -210,6 +211,4 @@ else
   OUTPUT="$(lsblk -no UUID "${DISK_DEVICE_PATH}1")"
   echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
   echo "successful write of PD UUID to fstab"
-else
-  echo "Existing PD successfully remounted"
 fi
