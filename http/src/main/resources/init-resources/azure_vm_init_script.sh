@@ -156,7 +156,7 @@ jq --null-input \
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 echo $WORK_DIRECTORY
 ## Create the PD working directory
-sudo mkdir -p ${WORK_DIRECTORY}
+mkdir -p ${WORK_DIRECTORY}
 echo "successful creation of work directory"
 ## Change ownership of the mounted drive to the user
 sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
