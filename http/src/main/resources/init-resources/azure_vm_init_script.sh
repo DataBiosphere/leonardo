@@ -156,7 +156,7 @@ jq --null-input \
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 echo $WORK_DIRECTORY
 ## Create the PD working directory
-sudo runuser -l $VM_JUP_USER -c mkdir -p ${WORK_DIRECTORY}
+sudo runuser -l $VM_JUP_USER -c "mkdir -p ${WORK_DIRECTORY}"
 echo "successful creation of work directory"
 
 ## The PD should be the only `sd` disk that is not mounted yet
