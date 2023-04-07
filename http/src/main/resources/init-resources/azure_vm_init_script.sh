@@ -183,8 +183,10 @@ echo $DISK_DEVICE_PATH
 ## Only format disk is it hasn't already been formatted
 ## It the disk has previously been in use, then it should have a partition that
 # we can mount
-PdPartition="$(lsblk -no NAME | grep -i "${DISK_DEVICE_PATH}1")"
-if [ ! -z "$PdPartition" ]; then
+EXIT_CODE=0
+lsblk -no NAME --paths "${DISK_DEVICE_PATH}1" || EXIT_CODE=$?
+if [ $EXIT_CODE -eq 0 ]; then
+  # There is a pre-existing partition that we should try to directly mount
   sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
 else
   ## Create one partition on the PD
