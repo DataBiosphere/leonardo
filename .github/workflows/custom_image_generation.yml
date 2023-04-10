@@ -1,13 +1,6 @@
-# To test run this job against your branch, you will need to uncomment the lines labelled [DEBUG_UNCOMMENT] and comment out the lines labelled [DEBUG_COMMENT]
-# You will also need to change the branch to your branch in the `on` section
 name: Custom Image Generation
 
 on:
-  #    [START DEBUG UNCOMMENT]
-#  push:
-#    branches:
-#      - 'jc-image-action'
-  #    [END DEBUG UNCOMMENT]
   workflow_dispatch:
     inputs:
       run-dataproc-override:
