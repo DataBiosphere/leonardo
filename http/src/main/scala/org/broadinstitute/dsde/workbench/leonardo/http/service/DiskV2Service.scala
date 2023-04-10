@@ -12,7 +12,7 @@ trait DiskV2Service[F[_]] {
     as: Ask[F, AppContext]
   ): F[GetPersistentDiskV2Response]
 
-  def deleteDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  def deleteDisk(userInfo: UserInfo, diskId: DiskId)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 
