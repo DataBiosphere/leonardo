@@ -32,17 +32,13 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
                 complete(
                   getDiskV2Handler(userInfo, diskId)
                 )
-              }
-            } ~
-              pathPrefix(workspaceIdSegment) { workspaceId =>
-                pathEndOrSingleSlash {
-                  delete {
-                    complete(
-                      deleteDiskV2Handler(userInfo, workspaceId, diskId)
-                    )
-                  }
+              } ~
+                delete {
+                  complete(
+                    deleteDiskV2Handler(userInfo, diskId)
+                  )
                 }
-              }
+            }
           }
         }
       }
@@ -61,12 +57,12 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
       )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
 
-  private[api] def deleteDiskV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  private[api] def deleteDiskV2Handler(userInfo: UserInfo, diskId: DiskId)(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = diskV2Service.deleteDisk(userInfo, workspaceId, diskId)
+      apiCall = diskV2Service.deleteDisk(userInfo, diskId)
       _ <- metrics.incrementCounter("deleteDiskV2")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteDiskV2").use(_ => apiCall))
     } yield StatusCodes.Accepted

@@ -1,13 +1,6 @@
-# To test run this job against your branch, you will need to uncomment the lines labelled [DEBUG_UNCOMMENT] and comment out the lines labelled [DEBUG_COMMENT]
-# You will also need to change the branch to your branch in the `on` section
 name: Custom Image Generation
 
 on:
-  #    [START DEBUG UNCOMMENT]
-#  push:
-#    branches:
-#      - 'jc-image-action'
-  #    [END DEBUG UNCOMMENT]
   workflow_dispatch:
     inputs:
       run-dataproc-override:
@@ -68,7 +61,7 @@ jobs:
     - name: Run image generation script
       shell: bash
       run: |
-         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
+         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/prepare_gce_image.sh
          gsutil rm -r $GCE_IMAGE_BUCKET || true
 
     - name: Output image URI
@@ -116,7 +109,7 @@ jobs:
         shell: bash
         run: |
           gsutil ls $DATAPROC_IMAGE_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$DATAPROC_IMAGE_BUCKET"
-          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
+          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
           gsutil rm -r $DATAPROC_IMAGE_BUCKET || true
 
       - name: Output image URI

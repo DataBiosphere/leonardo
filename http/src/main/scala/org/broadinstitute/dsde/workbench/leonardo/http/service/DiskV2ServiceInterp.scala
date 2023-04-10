@@ -60,7 +60,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
     } yield diskResp
 
-  override def deleteDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  override def deleteDisk(userInfo: UserInfo, diskId: DiskId)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -94,6 +94,9 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure disk permission")))
 
+      // check that workspaceId is not null
+      workspaceId <- F.fromOption(disk.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
+
       // check that disk isn't attached to a runtime
       previousRuntime <- clusterQuery.getLastClusterWithDiskId(diskId).transaction
       _ <- previousRuntime.traverse(runtime =>
@@ -117,6 +120,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 case class DiskCannotBeDeletedAttachedException(id: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
       s"Persistent disk ${id.value} in workspace ${workspaceId.value} cannot be deleted. Disk is still attached to a runtime",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class DiskWithoutWorkspaceException(id: DiskId, traceId: TraceId)
+    extends LeoException(
+      s"Persistent disk ${id.value} cannot be deleted. Disk record has no workspaceId",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
