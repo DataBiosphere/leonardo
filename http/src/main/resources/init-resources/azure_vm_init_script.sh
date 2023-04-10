@@ -74,6 +74,9 @@ else
   echo "successful mount"
 fi
 
+## Change ownership of the mounted drive to the user
+sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
+
 ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
 OUTPUT="$(lsblk -no UUID "${DISK_DEVICE_PATH}1")"
 if [ -z "$OUTPUT" ]; then
@@ -83,9 +86,6 @@ else
   echo lsblk -f
   exit 1
 fi
-
-## Change ownership of the mounted drive to the user
-sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
 
 
 # Read script arguments
