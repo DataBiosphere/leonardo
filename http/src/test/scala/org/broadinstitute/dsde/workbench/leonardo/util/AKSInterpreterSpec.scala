@@ -178,7 +178,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
-      "wds"
+      "wds",
+      Map.empty[String, String]
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -193,6 +194,36 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false"
+  }
+
+  it should "build wds override values with sourceWorkspaceId" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val sourceWorkspaceId = WorkspaceId(UUID.randomUUID).toString
+    val overrides = aksInterp.buildWdsChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources,
+      Some(setUpMockIdentity),
+      "applicationInsightsConnectionString",
+      "wds",
+      Map("sourceWorkspaceId" -> sourceWorkspaceId)
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "general.leoAppInstanceName=app," +
+      s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "fullnameOverride=wds-rel-1," +
+      "instrumentationEnabled=false" +
+      "sourceWorkspaceId=${sourceWorkspaceId}"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {

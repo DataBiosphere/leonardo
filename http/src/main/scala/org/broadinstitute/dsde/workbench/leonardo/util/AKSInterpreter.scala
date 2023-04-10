@@ -251,7 +251,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.landingZoneResources,
                   petMi,
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix
+                  appChartPrefix,
+                  app.customEnvironmentVariables
                 ),
                 createNamespace = true
               )
@@ -520,35 +521,44 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 landingZoneResources: LandingZoneResources,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
-                                                appChartPrefix: String
-  ): Values =
-    Values(
-      List(
-        // azure resources configs
-        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+                                                appChartPrefix: String,
+                                                customEnvironmentVariables: Map[String, String]
+  ): Values = {
+    val ls = List(
+      // azure resources configs
+      raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
+      raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
-        // Azure subscription configs currently unused
-        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
-        raw"config.region=${landingZoneResources.region}",
+      // Azure subscription configs currently unused
+      raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
+      raw"config.region=${landingZoneResources.region}",
 
-        // persistence configs
-        raw"general.leoAppInstanceName=${appName.value}",
-        raw"general.workspaceManager.workspaceId=${workspaceId.value}",
+      // persistence configs
+      raw"general.leoAppInstanceName=${appName.value}",
+      raw"general.workspaceManager.workspaceId=${workspaceId.value}",
 
-        // identity configs
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+      // identity configs
+      raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+      raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+      raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
 
-        // Sam configs
-        raw"sam.url=${config.samConfig.server}",
+      // Sam configs
+      raw"sam.url=${config.samConfig.server}",
 
-        // general configs
-        raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
-      ).mkString(",")
+      // general configs
+      raw"fullnameOverride=$appChartPrefix-${release.asString}",
+      raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
     )
+    val updatedLs = customEnvironmentVariables.get("sourceWorkspaceId") match {
+      case Some(value) => raw"sourceWorkspaceId=${value}" :: ls
+      case None        => ls
+    }
+
+    Values(
+      ls.mkString(",")
+    )
+
+  }
 
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,
