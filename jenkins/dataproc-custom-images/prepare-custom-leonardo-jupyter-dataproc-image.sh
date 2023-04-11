@@ -97,18 +97,22 @@ log 'Installing prerequisites...'
 # Obtain the latest valid apt-key.gpg key file from https://packages.cloud.google.com to work
 # around intermittent apt authentication errors. See:
 # https://cloud.google.com/compute/docs/troubleshooting/known-issues
-mkdir -p /etc/apt/keyrings/
-wget -O- https://packages.cloud.google.com/apt/doc/apt-key.gpg |
-    gpg --dearmor |
-    sudo tee /etc/apt/keyrings/gcloud.gpg > /dev/null
+# mkdir -p /etc/apt/keyrings/
+# wget -O- https://packages.cloud.google.com/apt/doc/apt-key.gpg |
+#     gpg --dearmor |
+#     sudo tee /etc/apt/keyrings/gcloud.gpg > /dev/null
 
-echo "deb [signed-by=/etc/apt/keyrings/gcloud.gpg] https://packages.cloud.google.com/apt stable main" |
-    sudo tee /etc/apt/sources.list.d/gcloud.list
+# echo "deb [signed-by=/etc/apt/keyrings/gcloud.gpg] https://packages.cloud.google.com/apt stable main" |
+#     sudo tee /etc/apt/sources.list.d/gcloud.list
+
+# snap install google-cloud-sdk --classic
+#
+
 # retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 # retry 5 apt-key update
 
 #TODO: Remove this flag once we migrate to debian11
-retry 5 sudo apt-get --allow-releaseinfo-change update
+# retry 5 sudo apt-get --allow-releaseinfo-change update
 
 # retry 5 betterAptGet
 retry 5 sudo apt-get install -y -q \
@@ -121,6 +125,12 @@ retry 5 sudo apt-get install -y -q \
     libsqlite3-dev
 
 log 'Adding Docker package sources...'
+
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg
+sudo apt-get update && sudo apt-get install google-cloud-cli
+# RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | tee /usr/share/keyrings/cloud.google.gpg && apt-get update -y && apt-get install google-cloud-sdk -y
+      
 
 sudo apt-get remove docker docker-engine
 
