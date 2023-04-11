@@ -100,10 +100,10 @@ log 'Installing prerequisites...'
 mkdir -p /etc/apt/keyrings/
 wget -O- https://packages.cloud.google.com/apt/doc/apt-key.gpg |
     gpg --dearmor |
-    tee /etc/apt/keyrings/gcloud.gpg > /dev/null
+    sudo tee /etc/apt/keyrings/gcloud.gpg > /dev/null
 
 echo "deb [signed-by=/etc/apt/keyrings/gcloud.gpg] https://packages.cloud.google.com/apt stable main" |
-    tee /etc/apt/sources.list.d/gcloud.list
+    sudo tee /etc/apt/sources.list.d/gcloud.list
 # retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 # retry 5 apt-key update
 
