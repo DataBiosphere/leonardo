@@ -112,7 +112,7 @@ log 'Installing prerequisites...'
 # retry 5 apt-key update
 
 #TODO: Remove this flag once we migrate to debian11
-# retry 5 sudo apt-get --allow-releaseinfo-change update
+retry 5 sudo apt-get --allow-releaseinfo-change update
 
 # retry 5 betterAptGet
 retry 5 sudo apt-get install -y -q \
@@ -126,10 +126,10 @@ retry 5 sudo apt-get install -y -q \
 
 log 'Adding Docker package sources...'
 
-echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+# echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+echo "deb https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg
 sudo apt-get update && sudo apt-get install google-cloud-cli
-# RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | tee /usr/share/keyrings/cloud.google.gpg && apt-get update -y && apt-get install google-cloud-sdk -y
       
 
 sudo apt-get remove docker docker-engine
