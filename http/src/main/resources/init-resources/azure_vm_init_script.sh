@@ -83,15 +83,8 @@ fi
 
 ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
 OUTPUT="$(lsblk -no UUID --paths "${DISK_DEVICE_PATH}1")"
-if [ -z "$OUTPUT" ]; then
-  echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
-  echo "successful write of PD UUID to fstab"
-else
-  echo $(lsblk -f)
-  echo "$(lsblk -no UUID --paths "${DISK_DEVICE_PATH}1")"
-  exit 1
-fi
-
+echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
+echo "successful write of PD UUID to fstab"
 
 ## Change ownership of the mounted drive to the user
 sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
