@@ -108,10 +108,10 @@ echo "deb [signed-by=/etc/apt/keyrings/gcloud.gpg] https://packages.cloud.google
 # retry 5 apt-key update
 
 #TODO: Remove this flag once we migrate to debian11
-retry 5 apt-get --allow-releaseinfo-change update
+retry 5 sudo apt-get --allow-releaseinfo-change update
 
 # retry 5 betterAptGet
-retry 5 apt-get install -y -q \
+retry 5 sudo apt-get install -y -q \
     apt-transport-https \
     ca-certificates \
     curl \
@@ -122,7 +122,7 @@ retry 5 apt-get install -y -q \
 
 log 'Adding Docker package sources...'
 
-apt-get remove docker docker-engine
+sudo apt-get remove docker docker-engine
 
 # shellcheck disable=SC1091
 os_dist_name="$(. /etc/os-release; echo "$ID")"
@@ -142,14 +142,14 @@ add-apt-repository \
 
 log 'Installing Docker...'
 
-retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
-retry 5 apt-get update
+retry 5 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+retry 5 sudo apt-get update
 
 dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
 # The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
 # NOTE: If it fails with another legitimate error, this `|| true` could mask it. It was used as a last resort after a lot of attempts to fix.
-apt-get install -y -q docker-ce || true
+sudo apt-get install -y -q docker-ce || true
 log 'Installing Docker Compose...'
 
 # Install docker-compose
