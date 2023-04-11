@@ -35,15 +35,15 @@ jobs:
       OUTPUT_FILE_RELATIVE_PATH: jenkins/gce-custom-images/output.txt
 
     steps:
-    # - uses: easimon/maximize-build-space@master
-    #   name: maximize build space
-    #   with:
-    #     root-reserve-mb: '51200'
-    #     remove-dotnet: 'true'
-    #     remove-android: 'true'
-    #     remove-haskell: 'true'
-    #     remove-codeql: 'true'
-    #     remove-docker-images: 'true'
+    - uses: easimon/maximize-build-space@master
+      name: maximize build space
+      with:
+        root-reserve-mb: '51200'
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        remove-docker-images: 'true'
 
     - uses: actions/checkout@v3
 
