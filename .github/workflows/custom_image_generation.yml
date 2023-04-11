@@ -67,12 +67,12 @@ jobs:
       run: |
         gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
         docker pull $DAISY_IMAGE
+        df -kh
+        du -a /dev/root | sort -n -r | head -n 20
 
     - name: Run image generation script
       shell: bash
       run: |
-          df -kh
-          du -a /dev/root | sort -n -r | head -n 20
           docker images
           OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/prepare_gce_image.sh
           gsutil rm -r $GCE_IMAGE_BUCKET || true
