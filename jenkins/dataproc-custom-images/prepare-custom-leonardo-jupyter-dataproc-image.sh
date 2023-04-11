@@ -97,8 +97,15 @@ log 'Installing prerequisites...'
 # Obtain the latest valid apt-key.gpg key file from https://packages.cloud.google.com to work
 # around intermittent apt authentication errors. See:
 # https://cloud.google.com/compute/docs/troubleshooting/known-issues
-retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-retry 5 apt-key update
+mkdir -p /etc/apt/keyrings/
+wget -O- https://packages.cloud.google.com/apt/doc/apt-key.gpg |
+    gpg --dearmor |
+    tee /etc/apt/keyrings/gcloud.gpg > /dev/null
+
+echo "deb [signed-by=/etc/apt/keyrings/gcloud.gpg] https://packages.cloud.google.com/apt stable main" |
+    tee /etc/apt/sources.list.d/gcloud.list
+# retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+# retry 5 apt-key update
 
 #TODO: Remove this flag once we migrate to debian11
 retry 5 apt-get --allow-releaseinfo-change update
