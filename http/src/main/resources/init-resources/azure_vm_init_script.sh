@@ -51,6 +51,10 @@ DISK_DEVICE_PATH=${FreesdDisks}
 EXIT_CODE=0
 lsblk -no NAME --paths "${DISK_DEVICE_PATH}1" || EXIT_CODE=$?
 if [ $EXIT_CODE -eq 0 ]; then
+  ## From https://learn.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal?tabs=ubuntu
+  ## Use the partprobe utility to make sure the kernel is aware of the new partition and filesystem.
+  ## Failure to use partprobe can cause the blkid or lslbk commands to not return the UUID for the new filesystem immediately.
+  sudo partprobe "${DISK_DEVICE_PATH}1"
   # There is a pre-existing partition that we should try to directly mount
   sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
   echo "Existing PD successfully remounted"
@@ -69,27 +73,28 @@ else
   ## Format the partition
   echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1"
   echo "successful formatting"
+  ## From https://learn.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal?tabs=ubuntu
+  ## Use the partprobe utility to make sure the kernel is aware of the new partition and filesystem.
+  ## Failure to use partprobe can cause the blkid or lslbk commands to not return the UUID for the new filesystem immediately.
+  sudo partprobe "${DISK_DEVICE_PATH}1"
   ## Mount the PD partition to the working directory
   sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
   echo "successful mount"
 fi
 
-## Change ownership of the mounted drive to the user
-sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
-
 ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
-## From https://learn.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal?tabs=ubuntu
-## Use the partprobe utility to make sure the kernel is aware of the new partition and filesystem.
-## Failure to use partprobe can cause the blkid or lslbk commands to not return the UUID for the new filesystem immediately.
-sudo partprobe "${DISK_DEVICE_PATH}1"
 OUTPUT="$(lsblk -no UUID "${DISK_DEVICE_PATH}1")"
 if [ -z "$OUTPUT" ]; then
   echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
   echo "successful write of PD UUID to fstab"
 else
-  echo lsblk -f
+  echo $(lsblk -f)
   exit 1
 fi
+
+
+## Change ownership of the mounted drive to the user
+sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
 
 
 # Read script arguments
