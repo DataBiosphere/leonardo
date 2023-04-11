@@ -22,8 +22,8 @@ env:
 
 jobs:
   run-image-generation-script-gce:
-    # runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
     if:  ${{ inputs.run-gce-override }} # [DEBUG COMMENT]
     permissions:
       contents: 'read'
@@ -75,6 +75,10 @@ jobs:
         docker images
         echo 'test3 ====='
         docker system df
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
     - name: Run image generation script
       shell: bash
