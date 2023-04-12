@@ -61,7 +61,7 @@ jobs:
     - name: Run image generation script
       shell: bash
       run: |
-         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/prepare_gce_image.sh
+         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
          gsutil rm -r $GCE_IMAGE_BUCKET || true
 
     - name: Output image URI
