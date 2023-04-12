@@ -550,7 +550,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
     )
     val updatedLs = customEnvironmentVariables.get("sourceWorkspaceId") match {
-      case Some(value) => raw"wds.sourceWorkspaceId=${value}" :: ls
+      case Some(value) => raw"sourceWorkspaceId=${value}" :: ls
       case None        => ls
     }
 
