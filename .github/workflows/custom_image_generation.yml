@@ -109,7 +109,7 @@ jobs:
         shell: bash
         run: |
           gsutil ls $DATAPROC_IMAGE_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$DATAPROC_IMAGE_BUCKET"
-          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
           gsutil rm -r $DATAPROC_IMAGE_BUCKET || true
 
       - name: Output image URI
