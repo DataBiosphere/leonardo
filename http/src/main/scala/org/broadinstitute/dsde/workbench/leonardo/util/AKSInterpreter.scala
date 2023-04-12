@@ -524,6 +524,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 appChartPrefix: String,
                                                 customEnvironmentVariables: Map[String, String]
   ): Values = {
+    logger.info(
+      s"Creating wds chart overrides, sourceWorkspaceId: ${customEnvironmentVariables.get("sourceWorkspaceId")}"
+    )
     val ls = List(
       // azure resources configs
       raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
