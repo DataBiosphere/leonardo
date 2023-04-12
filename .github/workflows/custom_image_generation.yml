@@ -22,7 +22,7 @@ env:
 
 jobs:
   run-image-generation-script-gce:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if:  ${{ inputs.run-gce-override }} # [DEBUG COMMENT]
     permissions:
       contents: 'read'
@@ -61,7 +61,7 @@ jobs:
     - name: Run image generation script
       shell: bash
       run: |
-         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/prepare_gce_image.sh
+         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
          gsutil rm -r $GCE_IMAGE_BUCKET || true
 
     - name: Output image URI
@@ -109,7 +109,7 @@ jobs:
         shell: bash
         run: |
           gsutil ls $DATAPROC_IMAGE_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$DATAPROC_IMAGE_BUCKET"
-          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
           gsutil rm -r $DATAPROC_IMAGE_BUCKET || true
 
       - name: Output image URI
