@@ -30,7 +30,7 @@ object MockDiskV2ServiceInterp extends DiskV2Service[IO] {
       )
     )
 
-  def deleteDisk(userInfo: UserInfo, workspaceId: WorkspaceId, diskId: DiskId)(implicit
+  def deleteDisk(userInfo: UserInfo, diskId: DiskId)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 

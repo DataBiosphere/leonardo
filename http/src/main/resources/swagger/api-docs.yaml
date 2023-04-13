@@ -1267,9 +1267,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/api/v2/disks/{id}/{workspaceId}":
     delete:
-      summary: Deletes an existing persistent disk instance in the given workspce
+      summary: Deletes an existing persistent disk instance
       description: Deletes a persistent disk
       operationId: deleteDiskV2
       tags:
@@ -1281,12 +1280,6 @@ paths:
           required: true
           schema:
             type: integer
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
       responses:
         "202":
           description: Persistent disk deletion request accepted
@@ -3889,8 +3882,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app
@@ -3930,8 +3925,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app
