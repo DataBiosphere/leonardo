@@ -19,6 +19,8 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Uri
 
+import java.util.UUID
+
 class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
 ) {
@@ -175,6 +177,7 @@ object AppV2Routes {
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
         dp <- x.downField("descriptorPath").as[Option[Uri]]
         ea <- x.downField("extraArgs").as[Option[List[String]]]
+        swi <- x.downField("sourceWorkspaceId").as[Option[UUID]]
       } yield CreateAppRequest(c,
                                a.getOrElse(AppType.Galaxy),
                                s,
@@ -182,7 +185,8 @@ object AppV2Routes {
                                l.getOrElse(Map.empty),
                                cv.getOrElse(Map.empty),
                                dp,
-                               ea.getOrElse(List.empty)
+                               ea.getOrElse(List.empty),
+                               swi
       )
     }
 

@@ -3858,6 +3858,9 @@ components:
           items:
             type: string
           description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
+        sourceWorkspaceId:
+          type: string
+          description: Id of source workspace if app is a clone.
 
     GetAppResponse:
       description: the configuration of an app

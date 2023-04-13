@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.http4s.Uri
 
 import java.net.URL
+import java.util.UUID
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
@@ -28,7 +29,8 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   labels: LabelMap = Map.empty,
                                   customEnvironmentVariables: Map[String, String],
                                   descriptorPath: Option[Uri],
-                                  extraArgs: List[String]
+                                  extraArgs: List[String],
+                                  sourceWorkspaceId: Option[UUID]
 )
 
 final case class GetAppResponse(appName: AppName,
