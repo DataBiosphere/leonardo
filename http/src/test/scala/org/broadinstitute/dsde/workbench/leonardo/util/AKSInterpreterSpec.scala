@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import java.net.URL
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
@@ -49,7 +50,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
     appMonitorConfig,
     ConfigReader.appConfig.azure.wsm,
-    ConfigReader.appConfig.drs
+    ConfigReader.appConfig.drs,
+    new URL("https://leo-dummy-url.org")
   )
 
   val mockSamDAO = setUpMockSamDAO
