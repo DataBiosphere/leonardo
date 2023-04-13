@@ -177,7 +177,7 @@ object AppV2Routes {
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
         dp <- x.downField("descriptorPath").as[Option[Uri]]
         ea <- x.downField("extraArgs").as[Option[List[String]]]
-        swi <- x.downField("sourceWorkspaceId").as[Option[UUID]]
+        swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
       } yield CreateAppRequest(c,
                                a.getOrElse(AppType.Galaxy),
                                s,

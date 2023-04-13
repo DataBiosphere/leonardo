@@ -137,7 +137,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
       "coa",
-      Map.empty[String, String]
+      None
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +

@@ -18,6 +18,7 @@ import slick.lifted.Tag
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 final case class AppRecord(id: AppId,
@@ -40,7 +41,8 @@ final case class AppRecord(id: AppId,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
                            descriptorPath: Option[Uri],
-                           extraArgs: Option[List[String]]
+                           extraArgs: Option[List[String]],
+                           sourceWorkspaceId: Option[WorkspaceId]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -66,7 +68,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
   def descriptorPath = column[Option[Uri]]("descriptorPath", O.Length(1024))
   def extraArgs = column[Option[List[String]]]("extraArgs")
-
+  def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
   def * =
     (
       id,

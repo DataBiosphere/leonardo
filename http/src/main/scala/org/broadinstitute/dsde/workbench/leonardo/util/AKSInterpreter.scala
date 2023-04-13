@@ -469,7 +469,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
                                                      appChartPrefix: String,
-                                                     sourceWorkspaceId: Option[UUID]
+                                                     sourceWorkspaceId: Option[WorkspaceId]
   ): Values =
     Values(
       List(
