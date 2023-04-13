@@ -18,7 +18,6 @@ import slick.lifted.Tag
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
-import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 final case class AppRecord(id: AppId,

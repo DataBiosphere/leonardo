@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.http4s.Uri
 
 import java.net.URL
-import java.util.UUID
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
