@@ -252,8 +252,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.landingZoneResources,
                   petMi,
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix,
-                  app.customEnvironmentVariables
+                  appChartPrefix
                 ),
                 createNamespace = true
               )
@@ -470,8 +469,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      applicationInsightsConnectionString: String,
                                                      appChartPrefix: String,
                                                      sourceWorkspaceId: Option[WorkspaceId]
-  ): Values =
-    Values(
+  ): Values = {
+    val ls =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -512,10 +511,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
-        raw"config.sourceWorkspaceId=${sourceWorkspaceId.getOrElse("NO SOURCE WORKSPACE")}" // TODO move to buildWdsChartOverrides after WDS chart migration
-      ).mkString(",")
-    )
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+      )
+
+    val updatedLs = sourceWorkspaceId match { // TODO move to buildWdsChartOverrideValues after WDS chart migration
+      case Some(value) => ls ::: List(raw"config.sourceWorkspaceId=${value.value}")
+      case None        => ls
+    }
+    Values(updatedLs.mkString(","))
+  }
 
   private[util] def buildWdsChartOverrideValues(release: Release,
                                                 appName: AppName,
@@ -524,15 +528,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 landingZoneResources: LandingZoneResources,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
-                                                appChartPrefix: String,
-                                                customEnvironmentVariables: Map[String, String]
+                                                appChartPrefix: String
   ): Values =
     Values(
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
-        raw"config.sourceWorkspaceId=${customEnvironmentVariables.get("sourceWorkspaceId").getOrElse("NO SOURCE WORKSPACE")}",
 
         // Azure subscription configs currently unused
         raw"config.subscriptionId=${cloudContext.subscriptionId.value}",

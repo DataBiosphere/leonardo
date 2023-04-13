@@ -179,8 +179,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
-      "wds",
-      Map.empty[String, String]
+      "wds"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -197,34 +196,52 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "instrumentationEnabled=false"
   }
 
-  it should "build wds override values with sourceWorkspaceId" in {
+  it should "build coa override values with sourceWorkspaceId" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val sourceWorkspaceId = WorkspaceId(UUID.randomUUID).toString
-    val overrides = aksInterp.buildWdsChartOverrideValues(
+    val sourceWorkspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildCromwellChartOverrideValues(
       Release("rel-1"),
       AppName("app"),
       cloudContext,
       workspaceId,
       lzResources,
+      Uri.unsafeFromString("https://relay.com/app"),
       Some(setUpMockIdentity),
+      storageContainer,
+      BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
-      "wds",
-      Map("sourceWorkspaceId" -> sourceWorkspaceId)
+      "coa",
+      Some(sourceWorkspaceId)
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
-      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.batchAccountKey=batchKey," +
+      "config.batchAccountName=batch," +
+      "config.batchNodesSubnetId=subnet1," +
+      s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
-      "general.leoAppInstanceName=app," +
-      s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "relay.path=https://relay.com/app," +
+      "persistence.storageResourceGroup=mrg," +
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      "persistence.leoAppInstanceName=app," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
-      "fullnameOverride=wds-rel-1," +
-      "instrumentationEnabled=false" +
-      s"sourceWorkspaceId=${sourceWorkspaceId}"
+      "cbas.enabled=true," +
+      "cbasUI.enabled=true," +
+      "wds.enabled=true," +
+      "cromwell.enabled=true," +
+      "fullnameOverride=coa-rel-1," +
+      "instrumentationEnabled=false," +
+      s"config.sourceWorkspaceId=${sourceWorkspaceId.value}"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
