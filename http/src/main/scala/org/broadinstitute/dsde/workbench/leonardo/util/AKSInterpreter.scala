@@ -116,7 +116,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
+        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString} with variables ${app.customEnvironmentVariables}"
       )
 
       // Authenticate helm client
