@@ -73,7 +73,8 @@ object KubernetesTestData {
     Map.empty,
     Map.empty,
     None,
-    List.empty
+    List.empty,
+    None
   )
 
   val testCluster = makeKubeCluster(1)
@@ -107,7 +108,8 @@ object KubernetesTestData {
       labels = Map.empty,
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
-      extraArgs = List.empty
+      extraArgs = List.empty,
+      None
     )
 
   def makeNodepool(index: Int,
@@ -221,7 +223,8 @@ object KubernetesTestData {
       List.empty,
       customEnvironmentVariables,
       None,
-      List.empty
+      List.empty,
+      None
     )
   }
 

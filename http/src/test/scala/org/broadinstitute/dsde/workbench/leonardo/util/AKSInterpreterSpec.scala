@@ -224,7 +224,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false" +
-      "sourceWorkspaceId=${sourceWorkspaceId}"
+      s"sourceWorkspaceId=${sourceWorkspaceId}"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {

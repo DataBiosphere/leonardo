@@ -1126,7 +1126,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         List.empty,
         req.customEnvironmentVariables,
         req.descriptorPath,
-        req.extraArgs
+        req.extraArgs,
+        req.sourceWorkspaceId
       )
     )
   }
