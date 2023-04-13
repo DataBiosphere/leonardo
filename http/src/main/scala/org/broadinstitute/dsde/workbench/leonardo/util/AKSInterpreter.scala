@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import java.net.URL
 import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
