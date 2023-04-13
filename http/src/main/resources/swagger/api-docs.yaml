@@ -3882,8 +3882,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app
@@ -3923,8 +3925,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app
