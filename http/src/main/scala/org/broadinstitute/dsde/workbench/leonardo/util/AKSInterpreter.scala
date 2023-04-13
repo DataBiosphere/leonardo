@@ -230,7 +230,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix
+                  appChartPrefix,
+                  app.customEnvironmentVariables
                 ),
                 createNamespace = true
               )
@@ -467,7 +468,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
-                                                     appChartPrefix: String
+                                                     appChartPrefix: String,
+                                                     customEnvironmentVariables: Map[String, String]
   ): Values =
     Values(
       List(
@@ -510,7 +512,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
+        raw"config.sourceWorkspaceId=${customEnvironmentVariables.get("sourceWorkspaceId").getOrElse("NO SOURCE WORKSPACE")}" // TODO remove after WDS chart migration
       ).mkString(",")
     )
 
