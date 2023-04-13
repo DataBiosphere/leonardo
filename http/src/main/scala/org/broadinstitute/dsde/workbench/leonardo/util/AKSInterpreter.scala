@@ -806,5 +806,5 @@ final case class AKSInterpreterConfig(
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
   drsConfig: DrsConfig,
-  leoUrlBase: String
+  leoUrlBase: URL
 )
