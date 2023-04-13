@@ -502,7 +502,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"sam.url=${config.samConfig.server}",
 
         // Leo configs
-        raw"leonardo.url=${config.leoUrlBase}"
+        raw"leonardo.url=${config.leoUrlBase}",
 
         // Enabled services configs
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
