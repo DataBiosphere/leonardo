@@ -1057,6 +1057,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case _ => Right(())
       }
 
+      // adding the relayHybridConnection name to custom env vars
+      // necessary for backwards compatibility before workspace was added to name
+      customEnvironmentVariables = (cloudContext.cloudProvider, workspaceId) match {
+        case (CloudProvider.Azure, Some(workspaceId)) =>
+          req.customEnvironmentVariables + ("RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}")
+        case _ => req.customEnvironmentVariables
+      }
+
       // Generate namespace and app release names using a random 6-character string prefix.
       //
       // Theoretically release names should only need to be unique within a namespace, but the Galaxy
@@ -1124,7 +1132,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           Option(gkeAppConfig.serviceAccountName)
         ),
         List.empty,
-        req.customEnvironmentVariables,
+        customEnvironmentVariables,
         req.descriptorPath,
         req.extraArgs
       )

@@ -318,15 +318,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- azureRelayService
         .deleteRelayHybridConnection(
           landingZoneResources.relayNamespace,
-          RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}"),
+          RelayHybridConnectionName(
+            app.customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", app.appName.value)
+          ),
           cloudContext
-        )
-        .handleErrorWith(_ =>
-          azureRelayService.deleteRelayHybridConnection(
-            landingZoneResources.relayNamespace,
-            RelayHybridConnectionName(params.appName.value),
-            cloudContext
-          )
         )
 
       // Authenticate helm client
