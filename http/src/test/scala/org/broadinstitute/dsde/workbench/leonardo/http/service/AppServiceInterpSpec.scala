@@ -2121,6 +2121,19 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     messages shouldBe List.empty
   }
 
+  it should "fail to create a V2 app if it is disabled" in {
+    val appName = AppName("app1")
+    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.HailBatch, diskConfig = None)
+
+    val thrown = the[AppTypeNotEnabledException] thrownBy {
+      appServiceInterp
+        .createAppV2(userInfo, workspaceId, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+
+    thrown.appType shouldBe AppType.HailBatch
+  }
+
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {

@@ -52,7 +52,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     appMonitorConfig,
     ConfigReader.appConfig.azure.wsm,
     ConfigReader.appConfig.drs,
-    new URL("https://leo-dummy-url.org")
+    new URL("https://leo-dummy-url.org"),
+    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage
   )
 
   val mockSamDAO = setUpMockSamDAO
@@ -291,6 +292,31 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   }
 
+  it should "build hail batch override values" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildHailBatchChartOverrideValues(AppName("app"),
+                                                                workspaceId,
+                                                                lzResources,
+                                                                Some(setUpMockIdentity),
+                                                                storageContainer,
+                                                                "relay.com"
+    )
+    overrides.asString shouldBe
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+      s"persistence.workspaceManager.storageContainerUrl=https://${lzResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}," +
+      "persistence.leoAppName=app," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      s"relay.domain=relay.com," +
+      "relay.subpath=/app"
+  }
+
+
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -344,7 +370,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 

@@ -72,13 +72,13 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
       case SamResourceType.App =>
         val res = apps
-          .get((AppSamResourceId(resource, None), authHeader))
+          .get((AppSamResourceId(resource)(None), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
       case SamResourceType.SharedApp =>
         val res = apps
-          .get((AppSamResourceId(resource, Some(AppAccessScope.WorkspaceShared)), authHeader))
+          .get((AppSamResourceId(resource)(Some(AppAccessScope.WorkspaceShared)), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)

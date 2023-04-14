@@ -367,7 +367,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       PersistentDiskAction.allActions
     )
 
-    val newApp = AppSamResourceId("new_app", None)
+    val newApp = AppSamResourceId("new_app")(None)
     samAuthProvider.notifyResourceCreated(newApp, userEmail, project).unsafeRunSync()
     mockSam.apps.get((newApp, authHeader)) shouldBe Some(
       AppAction.allActions
@@ -376,7 +376,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       MockSamDAO.appManagerActions
     )
 
-    val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.WorkspaceShared))
+    val newSharedApp = AppSamResourceId("new_shared_app")(Some(AppAccessScope.WorkspaceShared))
     samAuthProvider
       .notifyResourceCreatedV2(newSharedApp, userEmail, cloudContextGcp, workspaceId, userInfo)
       .unsafeRunSync()
@@ -422,7 +422,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       diskSamResource
     )
 
-    val newApp = AppSamResourceId("new_app", None)
+    val newApp = AppSamResourceId("new_app")(None)
     mockSam.createResourceWithGoogleProjectParent(newApp, userEmail2, project).unsafeRunSync()
     samAuthProvider.filterUserVisible(NonEmptyList.of(appSamId, newApp), userInfo).unsafeRunSync() shouldBe List(
       appSamId
@@ -434,7 +434,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       newApp
     )
 
-    val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.WorkspaceShared))
+    val newSharedApp = AppSamResourceId("new_shared_app")(Some(AppAccessScope.WorkspaceShared))
     mockSam.createResourceWithWorkspaceParent(newSharedApp, userEmail3, userInfo, workspaceId).unsafeRunSync()
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), userInfo)

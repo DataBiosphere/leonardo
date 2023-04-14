@@ -137,7 +137,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                                        hcName,
                                                                        params.cloudContext
       )
-      relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+      relayDomain = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
 
@@ -265,12 +266,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                 app.chart.name,
                 app.chart.version,
                 buildHailBatchChartOverrideValues(
+                  params.appName,
                   params.workspaceId,
                   params.landingZoneResources,
                   petMi,
                   storageContainer,
-                  relayEndpoint.dropRight(1).replace("https://", ""), // domain, TODO maybe a better way
-                  params.appName.value
+                  relayDomain
                 ),
                 createNamespace = true
               )
@@ -487,7 +488,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.samAction=connect",
         raw"relaylistener.workspaceId=${workspaceId.value.toString}",
         raw"relaylistener.runtimeName=${appName.value}",
-        raw"relaylistener.image=terradevacrpublic.azurecr.io/terra-azure-relay-listeners:3a932af",
+        raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
 
         // general configs
@@ -612,12 +613,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     Values(updatedLs.mkString(","))
   }
 
-  private[util] def buildHailBatchChartOverrideValues(workspaceId: WorkspaceId,
+  private[util] def buildHailBatchChartOverrideValues(appName: AppName,
+                                                      workspaceId: WorkspaceId,
                                                       landingZoneResources: LandingZoneResources,
                                                       petManagedIdentity: Option[Identity],
                                                       storageContainer: StorageContainerResponse,
-                                                      relayDomain: String,
-                                                      appName: String
+                                                      relayDomain: String
   ): Values =
     Values(
       List(
@@ -627,14 +628,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
         raw"persistence.workspaceManager.storageContainerUrl=https://${landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
-        raw"persistence.leoAppName=${appName}",
+        raw"persistence.leoAppName=${appName.value}",
 
         // identity configs
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
         raw"relay.domain=${relayDomain}",
-        raw"relay.subpath=/${appName}"
+        raw"relay.subpath=/${appName.value}"
       ).mkString(",")
     )
 
@@ -893,5 +894,6 @@ final case class AKSInterpreterConfig(
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
   drsConfig: DrsConfig,
-  leoUrlBase: URL
+  leoUrlBase: URL,
+  listenerImage: String
 )

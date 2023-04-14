@@ -70,7 +70,7 @@ object AKSManualTest {
   val uamiName = ManagedIdentityName("uami-name")
 
   val appName = AppName("coa-app")
-  val appSamResourceId = AppSamResourceId("sam-id", None)
+  val appSamResourceId = AppSamResourceId("sam-id")(None)
 
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]
@@ -153,7 +153,8 @@ object AKSManualTest {
       appMonitorConfig,
       ConfigReader.appConfig.azure.wsm,
       ConfigReader.appConfig.drs,
-      new URL("https://leo-dummy-url.org")
+      new URL("https://leo-dummy-url.org"),
+      ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(

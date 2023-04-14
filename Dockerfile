@@ -69,10 +69,9 @@ RUN cd /leonardo && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
     helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
+    # TODO kind of a hack, remove when hail-batch removes relaylistener from their chart
+    rm /leonardo/hail-batch-terra-azure/templates/relay-listener.yaml && \
     cd /
-
-# TODO kind of a hack, remove when hail-batch removes this from their chart
-RUN rm /leonardo/hail-batch-terra-azure/templates/relay-listener.yaml
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \
