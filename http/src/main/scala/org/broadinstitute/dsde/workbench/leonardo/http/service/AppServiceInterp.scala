@@ -108,7 +108,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         BadRequestException("accessScope is not a V1 parameter", Some(ctx.traceId))
       )
 
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString)(req.accessScope))
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
@@ -536,7 +536,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       // Create a new Sam resource for the app (either shared or not)
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString)(req.accessScope))
       // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent google project.
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
       _ <- authProvider

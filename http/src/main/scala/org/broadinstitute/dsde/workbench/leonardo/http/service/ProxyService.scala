@@ -237,7 +237,7 @@ class ProxyService(
 
       cacheSamResourceId = cacheResult._1
       cacheAppAccessScope = cacheResult._2
-      resourceId = cacheSamResourceId.map(s => AppSamResourceId(s, cacheAppAccessScope))
+      resourceId = cacheSamResourceId.map(s => AppSamResourceId(s)(cacheAppAccessScope))
 
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)

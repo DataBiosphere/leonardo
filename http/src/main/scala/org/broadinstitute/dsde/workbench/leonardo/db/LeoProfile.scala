@@ -230,7 +230,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         s => AppAccessScope.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid app access scope ${s}"))
       )
     implicit val appSamResourceIdColumnType: BaseColumnType[AppSamResourceId] =
-      MappedColumnType.base[AppSamResourceId, String](_.resourceId, s => AppSamResourceId.apply(s, None))
+      MappedColumnType.base[AppSamResourceId, String](_.resourceId, s => AppSamResourceId.apply(s)(None))
     implicit val appTypeColumnType: BaseColumnType[AppType] =
       MappedColumnType.base[AppType, String](
         _.toString,

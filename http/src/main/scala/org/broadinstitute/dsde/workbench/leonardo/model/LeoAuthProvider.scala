@@ -46,10 +46,9 @@ object SamResource {
   class AppSamResource extends SamResource[AppSamResourceId] {
     def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
     def resourceType(r: AppSamResourceId): SamResourceType = r.resourceType
-    def policyNames(r: AppSamResourceId): Set[SamPolicyName] = r.resourceType match {
-      case SamResourceType.SharedApp => Set(SamPolicyName.Owner, SamPolicyName.User)
-      case _                         => Set(SamPolicyName.Creator, SamPolicyName.Manager)
-    }
+    // Union of shared and private kubernetes-app roles
+    def policyNames(r: AppSamResourceId): Set[SamPolicyName] =
+      Set(SamPolicyName.Owner, SamPolicyName.User, SamPolicyName.Creator, SamPolicyName.Manager)
     def ownerRoleName(r: AppSamResourceId) = r.resourceType match {
       case SamResourceType.SharedApp => SamRole.Owner
       case _                         => SamRole.Creator
