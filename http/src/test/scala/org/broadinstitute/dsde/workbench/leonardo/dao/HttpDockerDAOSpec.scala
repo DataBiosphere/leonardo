@@ -175,7 +175,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |}
         |""".stripMargin
     val expectedResult =
-      DecodingFailure("Missing required field", List(DownField("Env")))
+      DecodingFailure("Missing required field", List(DownField("Env"), DownField("container_config")))
     decode[ContainerConfigResponse](jsonString).swap.toOption.get.getMessage shouldBe expectedResult.leftSideValue
       .getMessage()
   }

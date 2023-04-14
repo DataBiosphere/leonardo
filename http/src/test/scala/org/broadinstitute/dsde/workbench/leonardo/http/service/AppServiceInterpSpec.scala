@@ -1470,7 +1470,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "V2 GCP - create an app V2 and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace",
+                            "RELAY_HYBRID_CONNECTION_NAME" -> "app1-14d530b7-997d-4102-8810-f8cbd175aec9"
+    )
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     gcpWorkspaceAppServiceInterp
