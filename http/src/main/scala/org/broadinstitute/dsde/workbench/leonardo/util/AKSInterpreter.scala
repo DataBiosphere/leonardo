@@ -116,7 +116,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString} with variables ${app.customEnvironmentVariables}"
+        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
       // Authenticate helm client
@@ -252,7 +252,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.landingZoneResources,
                   petMi,
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix
+                  appChartPrefix,
+                  app.sourceWorkspaceId
                 ),
                 createNamespace = true
               )
@@ -514,7 +515,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
       )
 
-    val updatedLs = sourceWorkspaceId match { // TODO move to buildWdsChartOverrideValues after WDS chart migration
+    val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
       case Some(value) => ls ::: List(raw"config.sourceWorkspaceId=${value.value}")
       case None        => ls
     }
@@ -528,9 +529,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 landingZoneResources: LandingZoneResources,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
-                                                appChartPrefix: String
-  ): Values =
-    Values(
+                                                appChartPrefix: String,
+                                                sourceWorkspaceId: Option[WorkspaceId]
+  ): Values = {
+    val ls =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -555,8 +557,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
-      ).mkString(",")
-    )
+      )
+    val updatedLs = sourceWorkspaceId match {
+      case Some(value) => ls ::: List(raw"config.sourceWorkspaceId=${value.value}")
+      case None        => ls
+    }
+    Values(updatedLs.mkString(","))
+  }
 
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,
