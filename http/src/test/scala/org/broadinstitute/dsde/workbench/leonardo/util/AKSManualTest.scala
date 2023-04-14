@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import java.net.URL
 import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.azure._
@@ -150,7 +151,8 @@ object AKSManualTest {
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
       appMonitorConfig,
       ConfigReader.appConfig.azure.wsm,
-      ConfigReader.appConfig.drs
+      ConfigReader.appConfig.drs,
+      new URL("https://leo-dummy-url.org")
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
