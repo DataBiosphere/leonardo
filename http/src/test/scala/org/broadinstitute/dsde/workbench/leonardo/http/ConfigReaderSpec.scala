@@ -115,7 +115,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           List(
             ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
           ),
-          true
+          false
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),
