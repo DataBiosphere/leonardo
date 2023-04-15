@@ -160,7 +160,7 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
-    "com.github.pureconfig" %% "pureconfig" % "0.17.2" % Provided,
+    "com.github.pureconfig" %% "pureconfig" % "0.17.3" % Provided,
     sealerate,
     enumeratum,
     circeYaml,
