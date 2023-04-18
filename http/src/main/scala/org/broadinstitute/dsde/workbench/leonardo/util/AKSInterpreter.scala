@@ -233,7 +233,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
-                  app.sourceWorkspaceId
+                  app.sourceWorkspaceId,
+                  params.userAccessToken,
                 ),
                 createNamespace = true
               )
@@ -472,7 +473,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
                                                      appChartPrefix: String,
-                                                     sourceWorkspaceId: Option[WorkspaceId]
+                                                     sourceWorkspaceId: Option[WorkspaceId],
+                                                     userAccessToken: String
   ): Values = {
     val valuesList =
       List(
@@ -486,6 +488,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
         raw"config.region=${landingZoneResources.region}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}",
 
         // relay configs
         raw"relay.path=${relayPath.renderString}",
@@ -544,6 +549,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}",
 
         // Azure subscription configs currently unused
         raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
