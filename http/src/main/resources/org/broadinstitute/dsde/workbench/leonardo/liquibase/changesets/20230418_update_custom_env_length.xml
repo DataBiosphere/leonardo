@@ -6,7 +6,7 @@
                 newDataType="varchar(8128)"
                 tableName="CLUSTER"/>
         <modifyDataType
-                columnName="customClusterEnvironmentVariables"
+                columnName="customEnvironmentVariables"
                 newDataType="varchar(8128)"
                 tableName="APP"/>
     </changeSet>
