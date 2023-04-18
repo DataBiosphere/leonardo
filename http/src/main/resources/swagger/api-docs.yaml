@@ -2780,7 +2780,7 @@ components:
           schema:
             $ref: "#/components/schemas/CreateAppRequest"
           example:
-            appType: "GALAXY"
+            appType: "CROMWELL"
     CreateAzureRuntimeRequest:
       content:
         application/json:
