@@ -1676,7 +1676,7 @@ paths:
           schema:
             type: string
       requestBody:
-        $ref: "#/components/requestBodies/CreateAzureAppRequest"
+        $ref: "#/components/requestBodies/CreateAppV2Request"
       responses:
         "202":
           description: App creation request has been received
@@ -2774,7 +2774,7 @@ components:
             diskConfig:
               name: "disk1"
             appType: "GALAXY"
-    CreateAzureAppRequest:
+    CreateAppV2Request:
       content:
         application/json:
           schema:
