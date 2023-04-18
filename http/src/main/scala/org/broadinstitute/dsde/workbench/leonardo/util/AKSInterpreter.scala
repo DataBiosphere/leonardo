@@ -471,7 +471,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      appChartPrefix: String,
                                                      sourceWorkspaceId: Option[WorkspaceId]
   ): Values = {
-    val ls =
+    val valuesList =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -516,8 +516,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
-      case Some(value) => ls ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => ls
+      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
+      case None        => valuesList
     }
     Values(updatedLs.mkString(","))
   }
@@ -532,7 +532,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 appChartPrefix: String,
                                                 sourceWorkspaceId: Option[WorkspaceId]
   ): Values = {
-    val ls =
+    val valuesList =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -559,8 +559,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
       )
     val updatedLs = sourceWorkspaceId match {
-      case Some(value) => ls ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => ls
+      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
+      case None        => valuesList
     }
     Values(updatedLs.mkString(","))
   }
