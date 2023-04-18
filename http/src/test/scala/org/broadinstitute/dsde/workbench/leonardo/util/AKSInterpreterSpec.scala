@@ -188,7 +188,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
       "wds",
-      None
+      None,
+      userInfo.accessToken.token,
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +

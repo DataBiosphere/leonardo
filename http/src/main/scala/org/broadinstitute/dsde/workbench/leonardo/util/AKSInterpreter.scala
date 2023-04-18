@@ -164,8 +164,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             hcName,
             relayPrimaryKey,
             appChartPrefix,
-            app.appType,
-            params.userAccessToken
+            app.appType
           ),
           true
         )
@@ -256,7 +255,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
-                  app.sourceWorkspaceId
+                  app.sourceWorkspaceId,
+                  params.userAccessToken,
                 ),
                 createNamespace = true
               )
@@ -430,8 +430,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   relayHcName: RelayHybridConnectionName,
                                                   relayPrimaryKey: PrimaryKey,
                                                   appChartPrefix: String,
-                                                  appType: AppType,
-                                                  userAccessToken: String
+                                                  appType: AppType
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell => s"http://$appChartPrefix-${release.asString}-reverse-proxy-service:8000/"
@@ -445,9 +444,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cloud=azure",
         // KSA configs
         raw"serviceAccount.name=${ksaName.value}",
-
-        // user token
-        raw"userAccessToken=${userAccessToken}",
 
         // relay configs
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
@@ -540,7 +536,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
                                                 appChartPrefix: String,
-                                                sourceWorkspaceId: Option[WorkspaceId]
+                                                sourceWorkspaceId: Option[WorkspaceId],
+                                                userAccessToken: String
   ): Values = {
     val valuesList =
       List(
@@ -566,7 +563,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
+
+        //provenance (app-cloning) configs
+        raw"provenance.sourceWorkspaceId=${userAccessToken}"
       )
     val updatedLs = sourceWorkspaceId match {
       case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
