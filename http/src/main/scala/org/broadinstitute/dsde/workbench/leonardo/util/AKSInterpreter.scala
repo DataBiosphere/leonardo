@@ -516,7 +516,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
-      case Some(value) => ls ::: List(raw"config.sourceWorkspaceId=${value.value}")
+      case Some(value) => ls ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
       case None        => ls
     }
     Values(updatedLs.mkString(","))
@@ -559,7 +559,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
       )
     val updatedLs = sourceWorkspaceId match {
-      case Some(value) => ls ::: List(raw"config.sourceWorkspaceId=${value.value}")
+      case Some(value) => ls ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
       case None        => ls
     }
     Values(updatedLs.mkString(","))
