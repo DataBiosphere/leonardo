@@ -216,6 +216,9 @@ object Boot extends IOApp {
         contentSecurityPolicy,
         refererConfig
       )
+
+      println(s"@@@@@@@@@@@@@@@@@valid hosts: ${refererConfig.validHosts}")
+
       val httpServer = for {
         start <- IO.realTimeInstant
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
