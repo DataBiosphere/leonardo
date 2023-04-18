@@ -3,11 +3,11 @@
     <changeSet logicalFilePath="leonardo" author="yonghaoy" id="update_custom_env_length">
         <modifyDataType
                 columnName="customClusterEnvironmentVariables"
-                newDataType="varchar(8128)"
+                newDataType="varchar(6144)"
                 tableName="CLUSTER"/>
         <modifyDataType
                 columnName="customClusterEnvironmentVariables"
-                newDataType="varchar(8128)"
+                newDataType="varchar(6144)"
                 tableName="APP"/>
     </changeSet>
 </databaseChangeLog>
