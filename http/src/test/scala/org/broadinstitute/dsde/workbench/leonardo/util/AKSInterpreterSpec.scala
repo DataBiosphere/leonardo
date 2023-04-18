@@ -5,7 +5,7 @@ import java.net.URL
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
-import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys} //BatchAccount //
+import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
 import com.azure.resourcemanager.compute.ComputeManager
 import com.azure.resourcemanager.compute.fluent.{ComputeManagementClient, VirtualMachineScaleSetsClient}
 import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, VirtualMachineScaleSets}
@@ -18,7 +18,12 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, workspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
+  azureRegion,
+  landingZoneResources,
+  userInfo,
+  workspaceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
@@ -304,6 +309,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                   appName,
                                   workspaceId,
                                   cloudContext,
+                                  userInfo.accessToken.token,
                                   landingZoneResources,
                                   Some(storageContainer)
       )
@@ -359,6 +365,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                     appName,
                                     workspaceId,
                                     cloudContext,
+                                    userInfo.accessToken.token,
                                     landingZoneResources,
                                     Some(storageContainer)
         )

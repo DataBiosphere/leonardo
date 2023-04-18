@@ -245,6 +245,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                     app.appName,
                     workspaceId,
                     cluster.cloudContext,
+                    userToken,
                     Some(landingZoneResources),
                     storageContainer,
                     Some(appContext.traceId)

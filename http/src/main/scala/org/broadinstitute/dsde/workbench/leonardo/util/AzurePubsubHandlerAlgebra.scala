@@ -44,6 +44,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
                        appName: AppName,
                        workspaceId: WorkspaceId,
                        cloudContext: AzureCloudContext,
+                       userAccessToken: String,
                        landingZoneResources: LandingZoneResources,
                        storageContainer: Option[StorageContainerResponse]
   )(implicit

@@ -156,14 +156,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(app.release,
-                                        app.samResourceId,
-                                        ksaName,
-                                        params.landingZoneResources.relayNamespace,
-                                        hcName,
-                                        relayPrimaryKey,
-                                        appChartPrefix,
-                                        app.appType
+          buildSetupChartOverrideValues(
+            app.release,
+            app.samResourceId,
+            ksaName,
+            params.landingZoneResources.relayNamespace,
+            hcName,
+            relayPrimaryKey,
+            appChartPrefix,
+            app.appType,
+            params.userAccessToken
           ),
           true
         )
@@ -428,7 +430,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   relayHcName: RelayHybridConnectionName,
                                                   relayPrimaryKey: PrimaryKey,
                                                   appChartPrefix: String,
-                                                  appType: AppType
+                                                  appType: AppType,
+                                                  userAccessToken: String
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell => s"http://$appChartPrefix-${release.asString}-reverse-proxy-service:8000/"
@@ -442,6 +445,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cloud=azure",
         // KSA configs
         raw"serviceAccount.name=${ksaName.value}",
+
+        // user token
+        raw"userAccessToken=${userAccessToken}",
 
         // relay configs
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",

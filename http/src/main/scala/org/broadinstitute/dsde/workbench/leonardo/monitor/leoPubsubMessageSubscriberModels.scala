@@ -281,6 +281,7 @@ object LeoPubsubMessage {
     appName: AppName,
     workspaceId: WorkspaceId,
     cloudContext: CloudContext,
+    userAccessToken: String,
     landingZoneResources: Option[LandingZoneResources],
     storageContainer: Option[StorageContainerResponse],
     traceId: Option[TraceId]
@@ -569,10 +570,11 @@ object LeoPubsubCodec {
     Decoder.forProduct2("name", "resourceId")(StorageContainerResponse.apply)
 
   implicit val createAppV2Decoder: Decoder[CreateAppV2Message] =
-    Decoder.forProduct7("appId",
+    Decoder.forProduct8("appId",
                         "appName",
                         "workspaceId",
                         "cloudContext",
+                        "userAccessToken",
                         "landingZoneResources",
                         "storageContainer",
                         "traceId"
@@ -969,12 +971,13 @@ object LeoPubsubCodec {
     Encoder.forProduct2("name", "resourceId")(x => (x.name, x.resourceId))
 
   implicit val createAppV2MessageEncoder: Encoder[CreateAppV2Message] =
-    Encoder.forProduct8(
+    Encoder.forProduct9(
       "messageType",
       "appId",
       "appName",
       "workspaceId",
       "cloudContext",
+      "userAccessToken",
       "landingZoneResources",
       "storageContainer",
       "traceId"
@@ -984,6 +987,7 @@ object LeoPubsubCodec {
        x.appName,
        x.workspaceId,
        x.cloudContext,
+       x.userAccessToken,
        x.landingZoneResources,
        x.storageContainer,
        x.traceId
