@@ -253,9 +253,9 @@ class RuntimeDataprocSpec
         RuntimeConfigRequest.DataprocConfig(
           Some(2),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(130)),
+          Some(DiskSize(170)),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(150)),
+          Some(DiskSize(170)),
           None,
           None,
           Map.empty,
