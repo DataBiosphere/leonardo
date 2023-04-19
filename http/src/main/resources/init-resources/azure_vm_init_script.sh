@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+# Log output is saved at /var/log/azure_vm_init_script.log
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
@@ -132,31 +133,30 @@ LEONARDO_URL="${18:-dummy}"
 RUNTIME_NAME="${19:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
-# Save output to file
-echo "Saving variables to file..."
-echo "RELAY_NAME = ${RELAY_NAME}" >> ~/env_vars.txt
-echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}" >> ~/env_vars.txt
-echo "RELAY_TARGET_HOST = ${RELAY_TARGET_HOST}" >> ~/env_vars.txt
-echo "RELAY_CONNECTION_POLICY_KEY = ${RELAY_CONNECTION_POLICY_KEY}" >> ~/env_vars.txt
-echo "LISTENER_DOCKER_IMAGE = ${LISTENER_DOCKER_IMAGE}" >> ~/env_vars.txt
-echo "SAMURL = ${SAMURL}" >> ~/env_vars.txt
-echo "SAMRESOURCEID = ${SAMRESOURCEID}" >> ~/env_vars.txt
-echo "CONTENTSECURITYPOLICY_FILE = ${CONTENTSECURITYPOLICY_FILE}" >> ~/env_vars.txt
-echo "WELDER_WSM_URL = ${WELDER_WSM_URL}" >> ~/env_vars.txt
-echo "WORKSPACE_ID = ${WORKSPACE_ID}" >> ~/env_vars.txt
-echo "WORKSPACE_STORAGE_CONTAINER_ID = ${WORKSPACE_STORAGE_CONTAINER_ID}" >> ~/env_vars.txt
-echo "WELDER_WELDER_DOCKER_IMAGE = ${WELDER_WELDER_DOCKER_IMAGE}" >> ~/env_vars.txt
-echo "WELDER_OWNER_EMAIL = ${WELDER_OWNER_EMAIL}" >> ~/env_vars.txt
-echo "WELDER_STAGING_BUCKET = ${WELDER_STAGING_BUCKET}" >> ~/env_vars.txt
-echo "WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID = ${WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID}" >> ~/env_vars.txt
-echo "WORKSPACE_NAME = ${WORKSPACE_NAME}" >> ~/env_vars.txt
-echo "WORKSPACE_STORAGE_CONTAINER_URL = ${WORKSPACE_STORAGE_CONTAINER_URL}" >> ~/env_vars.txt
-echo "SERVER_APP_BASE_URL = ${SERVER_APP_BASE_URL}" >> ~/env_vars.txt
-echo "SERVER_APP_ALLOW_ORIGIN = ${SERVER_APP_ALLOW_ORIGIN}" >> ~/env_vars.txt
-echo "SERVER_APP_WEBSOCKET_URL = ${SERVER_APP_WEBSOCKET_URL}" >> ~/env_vars.txt
-echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}" >> enviornments
-echo "LEONARDO_URL = ${LEONARDO_URL}" >> ~/env_vars.txt
-echo "RUNTIME_NAME = ${RUNTIME_NAME}" >> ~/env_vars.txt
+# Log script files to be saved in script output.
+echo "RELAY_NAME = ${RELAY_NAME}"
+echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}"
+echo "RELAY_TARGET_HOST = ${RELAY_TARGET_HOST}"
+echo "RELAY_CONNECTION_POLICY_KEY = ${RELAY_CONNECTION_POLICY_KEY}"
+echo "LISTENER_DOCKER_IMAGE = ${LISTENER_DOCKER_IMAGE}"
+echo "SAMURL = ${SAMURL}"
+echo "SAMRESOURCEID = ${SAMRESOURCEID}"
+echo "CONTENTSECURITYPOLICY_FILE = ${CONTENTSECURITYPOLICY_FILE}"
+echo "WELDER_WSM_URL = ${WELDER_WSM_URL}"
+echo "WORKSPACE_ID = ${WORKSPACE_ID}"
+echo "WORKSPACE_STORAGE_CONTAINER_ID = ${WORKSPACE_STORAGE_CONTAINER_ID}"
+echo "WELDER_WELDER_DOCKER_IMAGE = ${WELDER_WELDER_DOCKER_IMAGE}"
+echo "WELDER_OWNER_EMAIL = ${WELDER_OWNER_EMAIL}"
+echo "WELDER_STAGING_BUCKET = ${WELDER_STAGING_BUCKET}"
+echo "WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID = ${WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID}"
+echo "WORKSPACE_NAME = ${WORKSPACE_NAME}"
+echo "WORKSPACE_STORAGE_CONTAINER_URL = ${WORKSPACE_STORAGE_CONTAINER_URL}"
+echo "SERVER_APP_BASE_URL = ${SERVER_APP_BASE_URL}"
+echo "SERVER_APP_ALLOW_ORIGIN = ${SERVER_APP_ALLOW_ORIGIN}"
+echo "SERVER_APP_WEBSOCKET_URL = ${SERVER_APP_WEBSOCKET_URL}"
+echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}">> enviornments
+echo "LEONARDO_URL = ${LEONARDO_URL}"
+echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 
 # Install relevant libraries
 
