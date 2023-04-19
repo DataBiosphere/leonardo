@@ -11,8 +11,7 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
@@ -149,11 +148,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
 
         val cmdToExecute =
-          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${
-            arguments
-              .map(s => s"'$s'")
-              .mkString(" ")
-          } > /var/log/azure_vm_init_script.log"
+          s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
+            s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
+                .map(s => s"'$s'")
+                .mkString(" ")} > /var/log/azure_vm_init_script.log"
 
         CreateVmRequest(
           params.workspaceId,
