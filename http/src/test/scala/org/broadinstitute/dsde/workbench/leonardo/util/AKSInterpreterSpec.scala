@@ -157,6 +157,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      s"provenance.userAccessToken=${userInfo.accessToken.token}" +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
@@ -195,6 +196,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      s"provenance.userAccessToken=${userInfo.accessToken.token}" +
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
       "general.leoAppInstanceName=app," +
