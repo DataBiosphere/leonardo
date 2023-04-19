@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import java.net.URL
 import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
@@ -504,6 +505,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // Sam configs
         raw"sam.url=${config.samConfig.server}",
 
+        // Leo configs
+        raw"leonardo.url=${config.leoUrlBase}",
+
         // Enabled services configs
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
         raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
@@ -817,5 +821,6 @@ final case class AKSInterpreterConfig(
   samConfig: SamConfig,
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
-  drsConfig: DrsConfig
+  drsConfig: DrsConfig,
+  leoUrlBase: URL
 )
