@@ -29,8 +29,8 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.219
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.219
+ENV CROMWELL_CHART_VERSION 0.2.220
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.220
 ENV WDS_CHART_VERSION 0.3.0
 
 RUN mkdir /leonardo
@@ -78,4 +78,9 @@ RUN curl -fsSL -o /terra-docker-versions-candidate.json \
     https://storage.googleapis.com/terra-docker-image-documentation/terra-docker-versions-candidate.json
 
 # Add Leonardo as a service (it will start when the container starts)
-CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
+# 1. "Exec" form of CMD necessary to avoid `sh` stripping environment variables with periods in them,
+#    used for Lightbend config
+# 2. $JAVA_OPTS and filesystem like /leonardo/leonardo*.jar both necessary as long as Leonardo runs on 
+#    Kubernetes without foundation (firecloud-develop requires former, old chart requires latter)
+# We use the "exec" form but call `bash` to accomplish both 1 and 2
+CMD ["/bin/bash", "-c", "java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')"]
