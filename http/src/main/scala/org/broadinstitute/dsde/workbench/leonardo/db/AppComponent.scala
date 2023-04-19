@@ -208,7 +208,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
-        if (saveApp.app.sourceWorkspaceId.isEmpty) None else saveApp.app.sourceWorkspaceId
+        saveApp.app.sourceWorkspaceId
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
