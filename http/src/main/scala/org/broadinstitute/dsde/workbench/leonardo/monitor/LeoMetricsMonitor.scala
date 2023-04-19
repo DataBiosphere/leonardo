@@ -156,6 +156,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
                 relayPath = Uri.unsafeFromString(baseUri.asString) / app.appName.value
                 isUp <- serviceName match {
+                  // should this be removed too?
                   case ServiceName("wds") =>
                     wdsDAO.getStatus(relayPath, authHeader, app.appType).handleError(_ => false)
                   case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
