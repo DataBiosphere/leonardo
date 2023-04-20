@@ -133,7 +133,7 @@ LEONARDO_URL="${18:-dummy}"
 RUNTIME_NAME="${19:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
-# Log script files to be saved in script output.
+# Log in script output for debugging purposes.
 echo "RELAY_NAME = ${RELAY_NAME}"
 echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}"
 echo "RELAY_TARGET_HOST = ${RELAY_TARGET_HOST}"
