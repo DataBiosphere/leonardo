@@ -31,7 +31,7 @@ function retry {
       log "Retry $i/$retries exited $exit, no more retries left."
       break
     fi
-    log "Retry $i/$retries exited $exit, retrying in $wait seconds..."
+    log "Retry $i/$retries exited $exit, retrying in $wait seconds...:q"
     sleep $wait
   done
   return 1

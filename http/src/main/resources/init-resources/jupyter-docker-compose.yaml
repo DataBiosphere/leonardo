@@ -13,6 +13,8 @@ services:
     # jupyter-user via docker exec.
     entrypoint: "tail -f /dev/null"
     network_mode: host
+    devices:
+      - /dev/fuse:/dev/fuse
     volumes:
       # shared with welder
       - ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}

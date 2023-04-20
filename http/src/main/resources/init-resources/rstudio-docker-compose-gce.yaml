@@ -10,6 +10,8 @@ services:
     # Override the entrypoint from the Dockerfile so rserver starts with the below environment variables
     entrypoint: "tail -f /dev/null"
     restart: always
+    devices:
+      - /dev/fuse:/dev/fuse
     ports:
       - "8001:8001"
     networks:

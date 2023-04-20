@@ -11,6 +11,8 @@ services:
     entrypoint: "tail -f /dev/null"
     restart: always
     network_mode: host
+    devices:
+      - /dev/fuse:/dev/fuse
     environment:
       # needed to disable auth
       USER: "rstudio"
