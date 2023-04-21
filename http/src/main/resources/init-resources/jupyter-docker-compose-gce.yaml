@@ -21,6 +21,8 @@ services:
       - "/mnt/disks/work:${NOTEBOOKS_DIR}"
     devices:
       - /dev/fuse:/dev/fuse
+    cap_add:
+      - SYS_ADMIN
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
