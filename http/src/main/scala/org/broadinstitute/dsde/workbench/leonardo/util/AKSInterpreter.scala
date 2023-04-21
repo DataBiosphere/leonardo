@@ -469,7 +469,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
                                                      appChartPrefix: String
-  ): Values = {
+  ): Values =
     Values(
       List(
         // azure resources configs
@@ -516,7 +516,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
       ).mkString(",")
     )
-  }
 
   private[util] def buildWdsChartOverrideValues(release: Release,
                                                 appName: AppName,
