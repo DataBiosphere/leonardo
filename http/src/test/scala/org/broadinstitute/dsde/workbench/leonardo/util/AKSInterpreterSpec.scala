@@ -316,7 +316,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "relay.subpath=/app"
   }
 
-
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
