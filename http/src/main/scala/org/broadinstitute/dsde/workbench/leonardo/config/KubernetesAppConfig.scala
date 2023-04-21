@@ -103,6 +103,7 @@ sealed trait CoaService
 object CoaService {
   final case object Cbas extends CoaService
   final case object CbasUI extends CoaService
+  final case object Wds extends CoaService
   final case object Cromwell extends CoaService
   final case object Tes extends CoaService
 }
