@@ -172,7 +172,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       leoMetricsMonitor.countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp)).unsafeRunSync()(IORuntime.global)
     // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
     test.size shouldBe 10
-    List("wds", "cromwell", "cbas", "cbas-ui").foreach { s =>
+    List("cromwell", "cbas", "cbas-ui").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
@@ -257,7 +257,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .unsafeRunSync()(IORuntime.global)
     // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
     test.size shouldBe 10
-    List("wds", "cromwell", "cbas", "cbas-ui").foreach { s =>
+    List("cromwell", "cbas", "cbas-ui").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
@@ -327,7 +327,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       labels = if (isAou) Map(Config.uiConfig.allOfUsLabel -> "true") else Map(Config.uiConfig.terraLabel -> "true")
     )
     val services =
-      if (isCromwell) List("wds", "cbas", "cbas-ui", "cromwell") else if (isGalaxy) List("galaxy") else List("custom")
+      if (isCromwell) List("cbas", "cbas-ui", "cromwell") else if (isGalaxy) List("galaxy") else List("custom")
     val appWithServices = app.copy(appResources = app.appResources.copy(services = services.map(genService)))
     clusterWithAsyncFields.copy(nodepools = List(nodepool.copy(apps = List(appWithServices))))
   }

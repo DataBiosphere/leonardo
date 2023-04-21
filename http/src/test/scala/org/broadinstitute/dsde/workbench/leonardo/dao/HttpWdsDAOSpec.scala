@@ -99,11 +99,6 @@ class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite wi
     val cosStatus = coaRes.unsafeRunSync()
     cosStatus shouldBe true
 
-    // Status fails when we wrongly put apptype as WDS
-    val coaResBad = coaWdsDAO.getStatus(Uri.unsafeFromString(baseUri), authHeader, AppType.Wds)
-    val cosStatusBad = coaResBad.unsafeRunSync()
-    cosStatusBad shouldBe false
-
     // Next test multi-app WDS
     val singleWdsDAO = new HttpWdsDAO(singleWds)
 
