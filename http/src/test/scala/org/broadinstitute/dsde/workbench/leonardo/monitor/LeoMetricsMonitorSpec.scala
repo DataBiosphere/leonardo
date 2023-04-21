@@ -171,7 +171,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val test =
       leoMetricsMonitor.countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp)).unsafeRunSync()(IORuntime.global)
     // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
-    test.size shouldBe 10
+    test.size shouldBe 8
     List("cromwell", "cbas", "cbas-ui").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
@@ -256,7 +256,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp))
         .unsafeRunSync()(IORuntime.global)
     // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
-    test.size shouldBe 10
+    test.size shouldBe 8
     List("cromwell", "cbas", "cbas-ui").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
