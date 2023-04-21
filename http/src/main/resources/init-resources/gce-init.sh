@@ -200,7 +200,7 @@ function apply_start_user_script() {
 
   # Keep in sync with startup.sh
   EXIT_CODE=0
-  docker exec --privileged --device /dev/fuse -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+  docker exec --privileged --cap-add=SYS_ADMIN -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
   if [ $EXIT_CODE -ne 0 ]; then
     echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
     retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
