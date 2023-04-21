@@ -108,7 +108,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
-          ChartVersion("0.1.4"),
+          ChartVersion("0.1.6"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),

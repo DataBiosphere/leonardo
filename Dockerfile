@@ -32,7 +32,7 @@ ENV NGINX_VERSION 4.3.0
 ENV CROMWELL_CHART_VERSION 0.2.223
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.223
 ENV WDS_CHART_VERSION 0.3.0
-ENV HAIL_BATCH_CHART_VERSION 0.1.4
+ENV HAIL_BATCH_CHART_VERSION 0.1.6
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -69,8 +69,6 @@ RUN cd /leonardo && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
     helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
-    # TODO kind of a hack, remove when hail-batch removes relaylistener from their chart
-    rm /leonardo/hail-batch-terra-azure/templates/relay-listener.yaml && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
@@ -84,7 +82,7 @@ RUN curl -fsSL -o /terra-docker-versions-candidate.json \
 # Add Leonardo as a service (it will start when the container starts)
 # 1. "Exec" form of CMD necessary to avoid `sh` stripping environment variables with periods in them,
 #    used for Lightbend config
-# 2. $JAVA_OPTS and filesystem like /leonardo/leonardo*.jar both necessary as long as Leonardo runs on 
+# 2. $JAVA_OPTS and filesystem like /leonardo/leonardo*.jar both necessary as long as Leonardo runs on
 #    Kubernetes without foundation (firecloud-develop requires former, old chart requires latter)
 # We use the "exec" form but call `bash` to accomplish both 1 and 2
 CMD ["/bin/bash", "-c", "java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')"]
