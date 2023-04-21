@@ -105,7 +105,16 @@ jobs:
                           -v jar-cache:/root/.ivy2 \
                           -w /working \
                           sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
-                          sbt "project pact4s" clean test
+                          sbt "project pact4s" clean coverage test coverageReport
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true
+          flags: pact
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+          working-directory: ./pact4s
 
       - name: Output consumer contract as non-breaking base64 string
         id: encode-pact
