@@ -20,8 +20,6 @@ __Jira ticket__: https://broadworkbench.atlassian.net/browse/[ticket_number]
 
 ## Testing these changes
 
-<!-- Some checks run automatically on every PR.  -->
-
 - [ ] This change is covered by automated tests <!-- (unit, automation, contract, etc) -->
   - _NB: Rerun automation tests on this PR by commenting `jenkins retest` or `jenkins multi-test`._
 - [ ] I validated this change <!-- (in what environment?) -->
