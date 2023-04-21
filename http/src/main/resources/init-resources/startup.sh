@@ -292,12 +292,12 @@ if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
       docker cp /var/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
 
-      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+      docker exec --privileged --cap-add=SYS_ADMIN -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     else
       docker cp /etc/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
 
-      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+      docker exec --privileged --cap-add=SYS_ADMIN -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     fi
   fi
 
@@ -305,7 +305,7 @@ if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
     docker cp /var/${START_USER_SCRIPT} ${RSTUDIO_SERVER_NAME}:${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT}
     retry 3 docker exec -u root ${RSTUDIO_SERVER_NAME} chmod +x ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT}
 
-    docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+    docker exec --privileged --cap-add=SYS_ADMIN -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
   fi
 
   failScriptIfError

@@ -173,7 +173,7 @@ function apply_user_script() {
   # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
   # can gain full access to the VM already, so using this flag is not a significant escalation.
   EXIT_CODE=0
-  docker exec --privileged --device /dev/fuse -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/"${USER_SCRIPT}" &> /var/us_output.txt || EXIT_CODE=$?
+  docker exec --privileged --cap-add=SYS_ADMIN -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/"${USER_SCRIPT}" &> /var/us_output.txt || EXIT_CODE=$?
 
   if [ $EXIT_CODE -ne 0 ]; then
     log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
