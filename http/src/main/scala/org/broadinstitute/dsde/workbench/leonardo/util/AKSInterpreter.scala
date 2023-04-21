@@ -230,7 +230,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
-                  applicationInsightsComponent.connectionString()
+                  applicationInsightsComponent.connectionString(),
+                  appChartPrefix: String
                 ),
                 createNamespace = true
               )
@@ -466,7 +467,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      petManagedIdentity: Option[Identity],
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
-                                                     applicationInsightsConnectionString: String
+                                                     applicationInsightsConnectionString: String,
+                                                     appChartPrefix: String
   ): Values = {
     val valuesList =
       List(
