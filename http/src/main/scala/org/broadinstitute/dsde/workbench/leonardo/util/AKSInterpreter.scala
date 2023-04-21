@@ -231,7 +231,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix: String
+                  appChartPrefix
                 ),
                 createNamespace = true
               )
