@@ -1502,7 +1502,6 @@ class LeoPubsubMessageSubscriber[F[_]](
                                                        msg.appName,
                                                        msg.workspaceId,
                                                        c,
-                                                       msg.userAccessToken,
                                                        landingZoneResources,
                                                        msg.storageContainer
             )

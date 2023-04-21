@@ -631,7 +631,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         app.appName,
         workspaceId,
         cloudContext,
-        userInfo.accessToken.token,
         landingZoneResourcesOpt,
         storageContainer,
         Some(ctx.traceId)

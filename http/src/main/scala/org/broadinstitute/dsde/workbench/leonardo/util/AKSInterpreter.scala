@@ -177,6 +177,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                          params.cloudContext
       )
 
+      // get the pet userToken
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      userToken <- F.fromOption(
+        tokenOpt,
+        AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
+      )
+
       // Resolve pet managed identity in Azure
       // Only do this for user-private apps; do not assign any identity for shared apps.
       // In the future we may use a shared identity instead.
@@ -234,7 +241,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
                   app.sourceWorkspaceId,
-                  params.userAccessToken,
+                  userToken
                 ),
                 createNamespace = true
               )
@@ -257,7 +264,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
                   app.sourceWorkspaceId,
-                  params.userAccessToken,
+                  userToken
                 ),
                 createNamespace = true
               )
@@ -489,9 +496,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.region=${landingZoneResources.region}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
-        // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}",
-
         // relay configs
         raw"relay.path=${relayPath.renderString}",
 
@@ -523,10 +527,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
+
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
       )
 
-    val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
+    val updatedLs = sourceWorkspaceId match { // TODO remove after WsDS chart migration
       case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
       case None        => valuesList
     }
@@ -550,9 +557,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
-        // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}",
-
         // Azure subscription configs currently unused
         raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
         raw"config.region=${landingZoneResources.region}",
@@ -573,8 +577,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
 
-        //provenance (app-cloning) configs
-        raw"provenance.sourceWorkspaceId=${userAccessToken}"
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
       )
     val updatedLs = sourceWorkspaceId match {
       case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")

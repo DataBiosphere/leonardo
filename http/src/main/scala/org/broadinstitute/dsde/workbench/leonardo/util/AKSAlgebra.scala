@@ -18,7 +18,6 @@ final case class CreateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     workspaceId: WorkspaceId,
                                     cloudContext: AzureCloudContext,
-                                    userAccessToken: String,
                                     landingZoneResources: LandingZoneResources,
                                     storageContainer: Option[StorageContainerResponse]
 )

@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   azureRegion,
   landingZoneResources,
-  userInfo,
+  petUserInfo,
   workspaceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
@@ -145,7 +145,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "applicationInsightsConnectionString",
       "coa",
       None,
-      userInfo.accessToken.token,
+      petUserInfo.accessToken.token
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -157,7 +157,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
-      s"provenance.userAccessToken=${userInfo.accessToken.token}" +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
@@ -176,7 +175,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "wds.enabled=true," +
       "cromwell.enabled=true," +
       "fullnameOverride=coa-rel-1," +
-      "instrumentationEnabled=false"
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
+
   }
 
   it should "build wds override values" in {
@@ -191,12 +192,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "applicationInsightsConnectionString",
       "wds",
       None,
-      userInfo.accessToken.token,
+      petUserInfo.accessToken.token
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
-      s"provenance.userAccessToken=${userInfo.accessToken.token}" +
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
       "general.leoAppInstanceName=app," +
@@ -206,7 +206,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.clientId=identity-client-id," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
-      "instrumentationEnabled=false"
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
   }
 
   it should "build coa override values with sourceWorkspaceId" in {
@@ -224,7 +225,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
       "coa",
-      Some(sourceWorkspaceId)
+      Some(sourceWorkspaceId),
+      petUserInfo.accessToken.token
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -255,7 +257,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "cromwell.enabled=true," +
       "fullnameOverride=coa-rel-1," +
       "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
+
   }
 
   it should "build wds override values with sourceWorkspaceId" in {
@@ -271,7 +275,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
       "wds",
-      Some(sourceWorkspaceId)
+      Some(sourceWorkspaceId),
+      petUserInfo.accessToken.token
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -286,7 +291,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
+
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
@@ -313,7 +320,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                   appName,
                                   workspaceId,
                                   cloudContext,
-                                  userInfo.accessToken.token,
                                   landingZoneResources,
                                   Some(storageContainer)
       )
@@ -369,7 +375,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                     appName,
                                     workspaceId,
                                     cloudContext,
-                                    userInfo.accessToken.token,
                                     landingZoneResources,
                                     Some(storageContainer)
         )

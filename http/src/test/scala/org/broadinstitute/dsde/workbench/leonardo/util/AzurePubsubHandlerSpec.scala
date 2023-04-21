@@ -1050,7 +1050,6 @@ class AzurePubsubHandlerSpec
                           AppName("app"),
                           WorkspaceId(UUID.randomUUID()),
                           azureCloudContext,
-                          userInfo.accessToken.token,
                           landingZoneResources,
                           None
         )

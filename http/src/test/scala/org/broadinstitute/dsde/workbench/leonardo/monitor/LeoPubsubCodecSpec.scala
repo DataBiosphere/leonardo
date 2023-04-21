@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.azure.{
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.userInfo
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
@@ -189,7 +188,6 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
             ManagedResourceGroupName("rg-name")
           )
         ),
-        userInfo.accessToken.token,
         Some(landingZoneResources),
         Some(StorageContainerResponse(ContainerName("sc-container"), storageContainerResourceId)),
         None

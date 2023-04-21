@@ -723,7 +723,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                 appName: AppName,
                                 workspaceId: WorkspaceId,
                                 cloudContext: AzureCloudContext,
-                                userAccessToken: String,
                                 landingZoneResources: LandingZoneResources,
                                 storageContainer: Option[StorageContainerResponse]
   )(implicit
@@ -735,7 +734,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                   appName,
                                   workspaceId,
                                   cloudContext,
-                                  userAccessToken,
                                   landingZoneResources,
                                   storageContainer
       )

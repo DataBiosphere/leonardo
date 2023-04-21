@@ -6,7 +6,7 @@ import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.CloudContext.Azure
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, userInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.landingZoneResources
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -184,7 +184,6 @@ object AKSManualTest {
           deps.app.appName,
           workspaceId,
           cloudContext,
-          userInfo.accessToken.token,
           landingZoneResources,
           None
         )
