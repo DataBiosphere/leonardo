@@ -306,7 +306,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         AppNotFoundException(CloudContext.Azure(cloudContext), params.appName, ctx.traceId, "No active app found in DB")
       )
       _ <- logger.info(ctx.loggingCtx)(s"Deleting app $appName in workspace $workspaceId")
-      _ <- logger.info(ctx.loggingCtx)(s"traceid app ${ev}")
 
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
@@ -317,7 +316,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Delete hybrid connection for this app
       // for backwards compatibility, name used to be just the appName
       name = app.customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", app.appName.value)
-      _ <- logger.info(ctx.loggingCtx)(s"Deleting relayHybridConnection ${name}")
 
       _ <- azureRelayService
         .deleteRelayHybridConnection(

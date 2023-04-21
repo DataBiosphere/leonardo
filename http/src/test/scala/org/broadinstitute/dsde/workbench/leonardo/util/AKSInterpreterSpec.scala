@@ -3,7 +3,6 @@ package util
 
 import java.net.URL
 import cats.effect.IO
-import cats.mtl.Ask
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
 import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
@@ -16,9 +15,7 @@ import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.models._
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.model.TraceId
-import org.mockito.ArgumentMatchers.same
-//import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.mockito.ArgumentMatchers
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, workspaceId}
@@ -32,9 +29,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.Uri
-import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, anyString}
-import org.mockito.Mockito.{times, verify, when}
+import org.mockito.Mockito.{verify, when}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -258,10 +254,37 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   for (appType <- List(AppType.Wds, AppType.Cromwell))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
+      val mockAzureRelayService = setUpMockAzureRelayService
+
+      val aksInterp = new AKSInterpreter[IO](
+        config,
+        MockHelm,
+        mockAzureBatchService,
+        mockAzureContainerService,
+        mockAzureApplicationInsightsService,
+        mockAzureRelayService,
+        mockSamDAO,
+        mockCromwellDAO,
+        mockCbasDAO,
+        mockCbasUiDAO,
+        mockWdsDAO
+      ) {
+        override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
+
+        override private[util] def buildComputeManager(cloudContext: AzureCloudContext) =
+          IO.pure(setUpMockComputeManager)
+
+        override private[util] def buildCoreV1Client(cloudContext: AzureCloudContext,
+                                                     clusterName: AKSClusterName
+        ): IO[CoreV1Api] = IO.pure(setUpMockKubeAPI)
+      }
       val res = for {
         cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
         nodepool <- IO(makeNodepool(1, cluster.id).save())
-        app = makeApp(1, nodepool.id).copy(
+        customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace",
+                            "RELAY_HYBRID_CONNECTION_NAME" -> s"app1-${workspaceId.value}"
+        )
+        app = makeApp(1, nodepool.id, customEnvironmentVariables = customEnvVars).copy(
           appType = appType,
           appResources = AppResources(
             namespace = Namespace(
@@ -305,35 +328,23 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       val deletion = for {
         _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, landingZoneResources, cloudContext))
-        app <- KubernetesServiceDbQueries
+        deletedApp <- KubernetesServiceDbQueries
           .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
           .transaction
-      } yield app shouldBe None
+      } yield {
+        deletedApp shouldBe None
+        verify(mockAzureRelayService).deleteRelayHybridConnection(
+          RelayNamespace(ArgumentMatchers.eq(landingZoneResources.relayNamespace.value)),
+          RelayHybridConnectionName(ArgumentMatchers.eq(s"${app.appName.value}-${workspaceId.value}")),
+          ArgumentMatchers.eq(cloudContext)
+        )(any())
+      }
 
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
   it should "successfully delete an app with old relayHybridConnection naming convention" in isolatedDbTest {
-    val mockAzureRelayService = mock[AzureRelayService[IO]]
-    val primaryKey = PrimaryKey("testKey")
-    when {
-//      same(landingZoneResources.relayNamespace),
-//      same(RelayHybridConnectionName("app1")),
-//      same(cloudContext)
-//      any[RelayNamespace],
-//      any[RelayHybridConnectionName],
-//      any[AzureCloudContext]
-      mockAzureRelayService.createRelayHybridConnection(any[RelayNamespace],
-                                                        any[RelayHybridConnectionName],
-                                                        any[AzureCloudContext]
-      )(any())
-    } thenReturn IO.pure(primaryKey)
-    when {
-      mockAzureRelayService.deleteRelayHybridConnection(any[RelayNamespace],
-                                                        any[RelayHybridConnectionName],
-                                                        any[AzureCloudContext]
-      )(any())
-    } thenReturn IO.unit
+    val mockAzureRelayService = setUpMockAzureRelayService
 
     val aksInterp = new AKSInterpreter[IO](
       config,
@@ -408,9 +419,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } yield {
       deletedApp shouldBe None
       verify(mockAzureRelayService).deleteRelayHybridConnection(
-        same(landingZoneResources.relayNamespace),
-        same(RelayHybridConnectionName(app.appName.value)),
-        same(cloudContext)
+        RelayNamespace(ArgumentMatchers.eq(landingZoneResources.relayNamespace.value)),
+        RelayHybridConnectionName(ArgumentMatchers.eq(app.appName.value)),
+        ArgumentMatchers.eq(cloudContext)
       )(any())
     }
 
