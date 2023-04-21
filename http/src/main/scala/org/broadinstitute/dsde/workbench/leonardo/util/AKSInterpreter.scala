@@ -230,9 +230,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
-                  applicationInsightsComponent.connectionString(),
-                  appChartPrefix,
-                  app.sourceWorkspaceId
+                  applicationInsightsComponent.connectionString()
                 ),
                 createNamespace = true
               )
@@ -468,9 +466,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      petManagedIdentity: Option[Identity],
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
-                                                     applicationInsightsConnectionString: String,
-                                                     appChartPrefix: String,
-                                                     sourceWorkspaceId: Option[WorkspaceId]
+                                                     applicationInsightsConnectionString: String
   ): Values = {
     val valuesList =
       List(
@@ -517,12 +513,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
       )
-
-    val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
-      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => valuesList
-    }
-    Values(updatedLs.mkString(","))
   }
 
   private[util] def buildWdsChartOverrideValues(release: Release,
