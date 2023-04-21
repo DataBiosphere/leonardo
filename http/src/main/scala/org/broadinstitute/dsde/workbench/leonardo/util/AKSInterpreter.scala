@@ -224,7 +224,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix
+                  appChartPrefix,
+                  app.sourceWorkspaceId
                 ),
                 createNamespace = true
               )
@@ -245,7 +246,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.landingZoneResources,
                   petMi,
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix
+                  appChartPrefix,
+                  app.sourceWorkspaceId
                 ),
                 createNamespace = true
               )
@@ -463,9 +465,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
-                                                     appChartPrefix: String
-  ): Values =
-    Values(
+                                                     appChartPrefix: String,
+                                                     sourceWorkspaceId: Option[WorkspaceId]
+  ): Values = {
+    val valuesList =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -510,8 +513,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
-      ).mkString(",")
-    )
+      )
+
+    val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
+      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
+      case None        => valuesList
+    }
+    Values(updatedLs.mkString(","))
+  }
 
   private[util] def buildWdsChartOverrideValues(release: Release,
                                                 appName: AppName,
@@ -520,9 +529,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 landingZoneResources: LandingZoneResources,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
-                                                appChartPrefix: String
-  ): Values =
-    Values(
+                                                appChartPrefix: String,
+                                                sourceWorkspaceId: Option[WorkspaceId]
+  ): Values = {
+    val valuesList =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -547,8 +557,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
-      ).mkString(",")
-    )
+      )
+    val updatedLs = sourceWorkspaceId match {
+      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
+      case None        => valuesList
+    }
+    Values(updatedLs.mkString(","))
+  }
 
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,

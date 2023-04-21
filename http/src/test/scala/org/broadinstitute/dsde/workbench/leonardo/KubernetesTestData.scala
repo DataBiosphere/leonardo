@@ -43,7 +43,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("/leonardo/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("2.5.1")
+  val galaxyChartVersion = ChartVersion("2.5.2")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -53,7 +53,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.219")
+  val coaChartVersion = ChartVersion("0.2.220")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -73,7 +73,8 @@ object KubernetesTestData {
     Map.empty,
     Map.empty,
     None,
-    List.empty
+    List.empty,
+    None
   )
 
   val testCluster = makeKubeCluster(1)
@@ -107,7 +108,8 @@ object KubernetesTestData {
       labels = Map.empty,
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
-      extraArgs = List.empty
+      extraArgs = List.empty,
+      None
     )
 
   def makeNodepool(index: Int,
@@ -221,7 +223,8 @@ object KubernetesTestData {
       List.empty,
       customEnvironmentVariables,
       None,
-      List.empty
+      List.empty,
+      None
     )
   }
 
