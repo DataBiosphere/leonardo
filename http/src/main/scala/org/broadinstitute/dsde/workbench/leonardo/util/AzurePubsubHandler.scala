@@ -730,13 +730,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = CreateAKSAppParams(appId,
-                                  appName,
-                                  workspaceId,
-                                  cloudContext,
-                                  landingZoneResources,
-                                  storageContainer
-      )
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, landingZoneResources, storageContainer)
       _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(
