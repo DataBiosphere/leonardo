@@ -20,14 +20,16 @@ __Jira ticket__: https://broadworkbench.atlassian.net/browse/[ticket_number]
 
 ## Testing these changes
 
+### What to test
+
+- <!-- Test case 1 -->
+
+<!-- ### Test data -->
+
+### Who tested and where
+
 - [ ] This change is covered by automated tests <!-- (unit, automation, contract, etc) -->
   - _NB: Rerun automation tests on this PR by commenting `jenkins retest` or `jenkins multi-test`._
 - [ ] I validated this change <!-- (in what environment?) -->
 - [ ] Primary reviewer validated this change <!-- (consider a pair review!) -->
 - [ ] I validated this change in the dev environment <!-- (after successfully merging to `develop`) -->
-
-### Test cases
-
-- [ ] <!-- Test case 1 -->
-
-<!-- ### Test data -->
