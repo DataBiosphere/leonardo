@@ -241,7 +241,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
                   app.sourceWorkspaceId,
-                  userToken
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                 ),
                 createNamespace = true
               )
@@ -264,7 +264,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
                   app.sourceWorkspaceId,
-                  userToken
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                 ),
                 createNamespace = true
               )
@@ -533,7 +533,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.userAccessToken=${userAccessToken}"
       )
 
-    val updatedLs = sourceWorkspaceId match { // TODO remove after WsDS chart migration
+    val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
       case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
       case None        => valuesList
     }
