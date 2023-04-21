@@ -137,7 +137,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       storageContainer,
       BatchAccountKey("batchKey"),
-      "applicationInsightsConnectionString"
+      "applicationInsightsConnectionString",
+      "coa"
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
