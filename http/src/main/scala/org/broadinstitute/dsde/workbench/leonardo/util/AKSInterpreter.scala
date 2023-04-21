@@ -470,7 +470,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      applicationInsightsConnectionString: String,
                                                      appChartPrefix: String
   ): Values = {
-    val valuesList =
+    Values(
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -514,7 +514,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
-      )
+      ).mkString(",")
   }
 
   private[util] def buildWdsChartOverrideValues(release: Release,
