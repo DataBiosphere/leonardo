@@ -515,7 +515,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
       ).mkString(",")
-
+    )
   }
 
   private[util] def buildWdsChartOverrideValues(release: Release,
