@@ -73,7 +73,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/1b7690cde14132d6478d5c014341a01b557c6132/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:8fe77a0",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:f5d34be",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -108,7 +108,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
-          ChartVersion("0.1.6"),
+          ChartVersion("0.1.7"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),
