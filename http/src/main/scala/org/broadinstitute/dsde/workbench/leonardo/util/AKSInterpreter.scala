@@ -170,7 +170,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-
       // get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
       userToken <- F.fromOption(
