@@ -5,7 +5,7 @@ import java.net.URL
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
-import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys} //BatchAccount //
+import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
 import com.azure.resourcemanager.compute.ComputeManager
 import com.azure.resourcemanager.compute.fluent.{ComputeManagementClient, VirtualMachineScaleSetsClient}
 import com.azure.resourcemanager.compute.models.{VirtualMachineScaleSet, VirtualMachineScaleSets}
@@ -18,7 +18,12 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, workspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
+  azureRegion,
+  landingZoneResources,
+  petUserInfo,
+  workspaceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
@@ -138,7 +143,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       storageContainer,
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
-      "coa"
+      "coa",
+      None,
+      petUserInfo.accessToken.token
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -167,7 +174,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
       "fullnameOverride=coa-rel-1," +
-      "instrumentationEnabled=false"
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
+
   }
 
   it should "build wds override values" in {
@@ -181,7 +190,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
       "wds",
-      None
+      None,
+      petUserInfo.accessToken.token
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -195,7 +205,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.clientId=identity-client-id," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
-      "instrumentationEnabled=false"
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
   }
 
   it should "build wds override values with sourceWorkspaceId" in {
@@ -211,7 +222,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
       "wds",
-      Some(sourceWorkspaceId)
+      Some(sourceWorkspaceId),
+      petUserInfo.accessToken.token
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -226,7 +238,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
+
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
@@ -331,10 +345,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       val deletion = for {
         _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, landingZoneResources, cloudContext))
-        app <- KubernetesServiceDbQueries
+        deletedApp <- KubernetesServiceDbQueries
           .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
           .transaction
-      } yield app shouldBe None
+      } yield deletedApp shouldBe None
 
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }

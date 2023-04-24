@@ -156,24 +156,25 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(app.release,
-                                        app.samResourceId,
-                                        ksaName,
-                                        params.landingZoneResources.relayNamespace,
-                                        hcName,
-                                        relayPrimaryKey,
-                                        appChartPrefix,
-                                        app.appType
+          buildSetupChartOverrideValues(
+            app.release,
+            app.samResourceId,
+            ksaName,
+            params.landingZoneResources.relayNamespace,
+            hcName,
+            relayPrimaryKey,
+            appChartPrefix,
+            app.appType
           ),
           true
         )
         .run(authContext)
 
-      // Create relay hybrid connection pool
-      hcName = RelayHybridConnectionName(params.appName.value)
-      _ <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                         hcName,
-                                                         params.cloudContext
+      // get the pet userToken
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      userToken <- F.fromOption(
+        tokenOpt,
+        AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
       )
 
       // Resolve pet managed identity in Azure
@@ -231,7 +232,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
-                  appChartPrefix
+                  appChartPrefix,
+                  app.sourceWorkspaceId,
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                 ),
                 createNamespace = true
               )
@@ -253,7 +256,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
-                  app.sourceWorkspaceId
+                  app.sourceWorkspaceId,
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                 ),
                 createNamespace = true
               )
@@ -318,7 +322,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
       kubernetesNamespace = KubernetesNamespace(namespaceName)
-      dbCluster = dbApp.cluster
 
       clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
 
@@ -468,7 +471,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      storageContainer: StorageContainerResponse,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
-                                                     appChartPrefix: String
+                                                     appChartPrefix: String,
+                                                     sourceWorkspaceId: Option[WorkspaceId],
+                                                     userAccessToken: String
   ): Values =
     Values(
       List(
@@ -513,7 +518,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
       ).mkString(",")
     )
 
@@ -525,7 +532,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
                                                 appChartPrefix: String,
-                                                sourceWorkspaceId: Option[WorkspaceId]
+                                                sourceWorkspaceId: Option[WorkspaceId],
+                                                userAccessToken: String
   ): Values = {
     val valuesList =
       List(
@@ -551,7 +559,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
+
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
       )
     val updatedLs = sourceWorkspaceId match {
       case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
