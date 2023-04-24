@@ -156,18 +156,26 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(app.release,
-                                        app.samResourceId,
-                                        ksaName,
-                                        params.landingZoneResources.relayNamespace,
-                                        hcName,
-                                        relayPrimaryKey,
-                                        appChartPrefix,
-                                        app.appType
+          buildSetupChartOverrideValues(
+            app.release,
+            app.samResourceId,
+            ksaName,
+            params.landingZoneResources.relayNamespace,
+            hcName,
+            relayPrimaryKey,
+            appChartPrefix,
+            app.appType
           ),
           true
         )
         .run(authContext)
+
+      // get the pet userToken
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      userToken <- F.fromOption(
+        tokenOpt,
+        AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
+      )
 
       // Resolve pet managed identity in Azure
       // Only do this for user-private apps; do not assign any identity for shared apps.
@@ -225,7 +233,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
-                  app.sourceWorkspaceId
+                  app.sourceWorkspaceId,
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                 ),
                 createNamespace = true
               )
@@ -247,7 +256,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   applicationInsightsComponent.connectionString(),
                   appChartPrefix,
-                  app.sourceWorkspaceId
+                  app.sourceWorkspaceId,
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                 ),
                 createNamespace = true
               )
@@ -466,7 +476,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
                                                      appChartPrefix: String,
-                                                     sourceWorkspaceId: Option[WorkspaceId]
+                                                     sourceWorkspaceId: Option[WorkspaceId],
+                                                     userAccessToken: String
   ): Values = {
     val valuesList =
       List(
@@ -512,7 +523,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
+
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
       )
 
     val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
@@ -530,7 +544,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
                                                 appChartPrefix: String,
-                                                sourceWorkspaceId: Option[WorkspaceId]
+                                                sourceWorkspaceId: Option[WorkspaceId],
+                                                userAccessToken: String
   ): Values = {
     val valuesList =
       List(
@@ -556,7 +571,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=$appChartPrefix-${release.asString}",
-        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}"
+        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
+
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
       )
     val updatedLs = sourceWorkspaceId match {
       case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
