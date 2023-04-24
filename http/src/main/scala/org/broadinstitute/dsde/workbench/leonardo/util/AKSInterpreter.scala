@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
-import java.net.URL
 import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
@@ -51,6 +50,7 @@ import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.io.ByteArrayInputStream
+import java.net.URL
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
@@ -640,7 +640,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relay.subpath=/${hcName.value}"
       ).mkString(",")
     )
-
 
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,
