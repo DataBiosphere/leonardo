@@ -137,13 +137,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
       // Create relay hybrid connection pool
-      hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
+      hcName = RelayHybridConnectionName(params.appName.value)
       relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                                        hcName,
                                                                        params.cloudContext
       )
       relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
-      relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
+      relayPath = Uri.unsafeFromString(relayEndpoint) / params.appName.value
 
       // Deploy setup chart
       appChartPrefix = app.appType match {
@@ -326,15 +326,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
 
       // Delete hybrid connection for this app
-      // for backwards compatibility, name used to be just the appName
-      name = app.customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", app.appName.value)
-
-      _ <- azureRelayService
-        .deleteRelayHybridConnection(
-          landingZoneResources.relayNamespace,
-          RelayHybridConnectionName(name),
-          cloudContext
-        )
+      _ <- azureRelayService.deleteRelayHybridConnection(
+        landingZoneResources.relayNamespace,
+        RelayHybridConnectionName(app.appName.value),
+        cloudContext
+      )
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
