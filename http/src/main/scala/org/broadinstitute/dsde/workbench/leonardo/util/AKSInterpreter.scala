@@ -271,7 +271,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.landingZoneResources,
                   petMi,
                   storageContainer,
-                  relayDomain
+                  relayDomain,
+                  hcName
                 ),
                 createNamespace = true
               )
@@ -618,7 +619,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                       landingZoneResources: LandingZoneResources,
                                                       petManagedIdentity: Option[Identity],
                                                       storageContainer: StorageContainerResponse,
-                                                      relayDomain: String
+                                                      relayDomain: String,
+                                                      hcName: RelayHybridConnectionName
   ): Values =
     Values(
       List(
@@ -635,7 +637,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
         raw"relay.domain=${relayDomain}",
-        raw"relay.subpath=/${appName.value}"
+        raw"relay.subpath=/${hcName.value}"
       ).mkString(",")
     )
 
