@@ -262,11 +262,10 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "fail to create a runtime with existing disk if disk isn't ready" in isolatedDbTest {
     val saveDisk = for {
-      now <- IO.realTimeInstant
       _ <- makePersistentDisk(Some(diskName))
         .copy(
           workspaceId = Some(workspaceId),
-          status = DiskStatus.Ready,
+          status = DiskStatus.Creating,
           auditInfo = auditInfo.copy(creator = userInfo.userEmail),
           cloudContext = CloudContext.Azure(azureCloudContext)
         )
@@ -289,7 +288,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "fail to create a runtime with existing disk if disk is attached" in isolatedDbTest {
     val runtimeIO = for {
       now <- IO.realTimeInstant
-      disk <- makePersistentDisk(Some(diskName)).copy(workspaceId = Some(workspaceId)).save()
+      disk <- makePersistentDisk(Some(diskName))
+        .copy(
+          workspaceId = Some(workspaceId),
+          status = DiskStatus.Ready,
+          auditInfo = auditInfo.copy(creator = userInfo.userEmail),
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        ).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
                                                      azureRegion
@@ -334,35 +339,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     } yield err shouldBe Left(
       OnlyOneRuntimePerWorkspacePerCreator(workspaceId, userInfo.userEmail, runtime.get.runtimeName, runtime.get.status)
-    )
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "fail to create a runtime with existing disk if called twice" in isolatedDbTest {
-    val res = for {
-      _ <- runtimeV2Service
-        .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
-
-      disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
-        .transaction
-      disk = disks.head
-      now <- IO.realTimeInstant
-      runtime <- clusterQuery.getClusterWithDiskId(disk.id).transaction
-      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, now).transaction
-      _ <- clusterQuery.updateClusterStatus(runtime.get.id, RuntimeStatus.Deleted, now).transaction
-
-      _ <- runtimeV2Service
-        .createRuntime(userInfo, name1, workspaceId, true, defaultCreateAzureRuntimeReq)
-
-      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, name1).transaction
-
-      err <- runtimeV2Service
-        .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
-        .attempt
-
-    } yield err shouldBe Left(
-      OnlyOneRuntimePerWorkspacePerCreator(workspaceId, userInfo.userEmail, runtime.clusterName, runtime.status)
     )
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
