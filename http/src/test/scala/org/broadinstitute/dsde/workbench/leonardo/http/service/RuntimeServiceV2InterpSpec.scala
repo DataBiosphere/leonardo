@@ -58,7 +58,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
 
       _ <- clusterQuery
-        .updateClusterStatus(runtime.id, RuntimeStatus.Deleted, now)
+        .completeDeletion(runtime.id, now)
         .transaction
     } yield runtime.id
 
@@ -276,6 +276,41 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .get
 
     exc shouldBe a[PersistentDiskNotReadyException]
+  }
+
+  it should "fail to create a runtime with existing disk if disk isn't ready" in isolatedDbTest {
+    runtimeV2Service
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // set runtime status to deleted before creating next
+    setRuntimetoDeleted(workspaceId, name0).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val exc = runtimeV2Service
+      .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+
+    exc shouldBe a[PersistentDiskNotReadyException]
+  }
+
+  it should "fail to create a runtime with existing disk if disk is attached" in isolatedDbTest {
+    runtimeV2Service
+      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val exc = runtimeV2Service
+      .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+
+    exc shouldBe a[DiskAlreadyAttachedException]
   }
 
   it should "fail to create a runtime with existing disk if disk is attached to non-deleted runtime" in isolatedDbTest {
