@@ -394,12 +394,17 @@ final case class App(id: AppId,
       // A service can optionally define a path; otherwise, use the name.
       val leafPath = service.config.path.map(_.value).getOrElse(s"/${service.config.name.value}")
       // GCP uses a Leo proxy endpoint: e.g. https://notebooks.firecloud.org/google/v1/apps/{project}/{app}/{service}
-      // Azure uses Azure relay: e.g. https://{namespace}.servicebus.windows.net/{app}/{service}
+      // Azure uses Azure relay: e.g. https://{namespace}.servicebus.windows.net/{app}-{workspaceId}/{service}
       val proxyPathOpt = cluster.cloudContext match {
         case CloudContext.Gcp(project) =>
           Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
         case CloudContext.Azure(_) =>
-          cluster.asyncFields.map(_.loadBalancerIp.asString).map(base => s"${base}${appName.value}${leafPath}")
+          // for backwards compatibility, name used to be just the appName
+          cluster.asyncFields
+            .map(_.loadBalancerIp.asString)
+            .map(base =>
+              s"${base}${customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", appName.value)}${leafPath}"
+            )
         case _ =>
           None
       }

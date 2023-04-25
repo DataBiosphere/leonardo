@@ -145,6 +145,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"HERE: relayPath ${relayPath.path} with render string ${relayPath.renderString}"
+      )
+
       // Deploy setup chart
       appChartPrefix = app.appType match {
         case AppType.Wds => "wds"
