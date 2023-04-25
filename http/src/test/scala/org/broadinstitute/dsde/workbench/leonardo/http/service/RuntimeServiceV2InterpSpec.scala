@@ -270,7 +270,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
       disk = disks.head
       now <- IO.realTimeInstant
-      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Creating, now)
+      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Creating, now).transaction
 
       // set runtime to deleted so they dont get hit by `OnlyOneRuntimePerWorkspacePerCreator`
       runtime <- clusterQuery.getClusterWithDiskId(disk.id).transaction
