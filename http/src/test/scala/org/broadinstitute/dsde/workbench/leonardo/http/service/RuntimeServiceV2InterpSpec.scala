@@ -8,6 +8,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -260,17 +261,12 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime with existing disk if disk isn't ready" in isolatedDbTest {
-    runtimeV2Service
-      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val updateDiskToNotReady = for {
+    val saveDisk = for {
       now <- IO.realTimeInstant
-      disks <- DiskServiceDbQueries.listDisks(Map.empty, false, None, None, Some(workspaceId)).transaction
-      _ <- persistentDiskQuery.updateStatus(disks.headOption.get.id, DiskStatus.Creating, now).transaction
+      _ <- makePersistentDisk(Some(diskName)).copy(workspaceId = Some(workspaceId), status = DiskStatus.Creating).save()
     } yield ()
 
-    updateDiskToNotReady.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    saveDisk.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val exc = runtimeV2Service
       .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
@@ -284,9 +280,21 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime with existing disk if disk is attached" in isolatedDbTest {
-    runtimeV2Service
-      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val runtimeIO = for {
+      now <- IO.realTimeInstant
+      disk <- makePersistentDisk(Some(diskName)).copy(workspaceId = Some(workspaceId)).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime = makeCluster(1).saveWithRuntimeConfig(runtimeConfig = azureRuntimeConfig)
+    } yield runtime
+
+    val runtime = runtimeIO.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+//    runtimeV2Service
+//      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
+//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val exc = runtimeV2Service
       .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
