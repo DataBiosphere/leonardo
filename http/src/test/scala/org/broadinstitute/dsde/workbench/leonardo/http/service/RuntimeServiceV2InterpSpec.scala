@@ -263,7 +263,14 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "fail to create a runtime with existing disk if disk isn't ready" in isolatedDbTest {
     val saveDisk = for {
       now <- IO.realTimeInstant
-      _ <- makePersistentDisk(Some(diskName)).copy(workspaceId = Some(workspaceId), status = DiskStatus.Creating).save()
+      _ <- makePersistentDisk(Some(diskName))
+        .copy(
+          workspaceId = Some(workspaceId),
+          status = DiskStatus.Ready,
+          auditInfo = auditInfo.copy(creator = userInfo.userEmail),
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .save()
     } yield ()
 
     saveDisk.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
