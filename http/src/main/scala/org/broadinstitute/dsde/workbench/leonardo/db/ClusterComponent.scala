@@ -528,7 +528,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .result
       .headOption
 
-  def getLastClusterWithDiskId(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Option[ClusterRecord]] =
+  def getClusterWithDiskId(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Option[ClusterRecord]] =
     // get most recently created runtime with the specified persistent disk
     for {
       runtimeConfigId <- runtimeConfigs

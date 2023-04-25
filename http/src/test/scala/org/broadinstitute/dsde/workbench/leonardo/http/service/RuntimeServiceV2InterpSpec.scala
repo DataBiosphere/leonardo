@@ -290,7 +290,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       now <- IO.realTimeInstant
       _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, now).transaction
 
-      runtime <- clusterQuery.getLastClusterWithDiskId(disk.id).transaction
+      runtime <- clusterQuery.getClusterWithDiskId(disk.id).transaction
 
       err <- runtimeV2Service
         .createRuntime(userInfo, name1, workspaceId, true, defaultCreateAzureRuntimeReq)
@@ -312,7 +312,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
       disk = disks.head
       now <- IO.realTimeInstant
-      runtime <- clusterQuery.getLastClusterWithDiskId(disk.id).transaction
+      runtime <- clusterQuery.getClusterWithDiskId(disk.id).transaction
       _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, now).transaction
       _ <- clusterQuery.updateClusterStatus(runtime.get.id, RuntimeStatus.Deleted, now).transaction
 

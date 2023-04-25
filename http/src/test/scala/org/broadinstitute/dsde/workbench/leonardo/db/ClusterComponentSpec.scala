@@ -360,6 +360,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  // TODO: why doesn't this error out on save?
   it should "get cluster from diskId" in isolatedDbTest {
     val res = for {
       savedDisk <- makePersistentDisk(None).save()
@@ -379,7 +380,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           )
         )
       )
-      retrievedRuntime <- clusterQuery.getLastClusterWithDiskId(savedDisk.id).transaction
+      retrievedRuntime <- clusterQuery.getClusterWithDiskId(savedDisk.id).transaction
     } yield retrievedRuntime shouldBe savedRuntime2
   }
 }
