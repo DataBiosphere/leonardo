@@ -278,11 +278,15 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       err <- runtimeV2Service
         .createRuntime(userInfo, name1, workspaceId, true, defaultCreateAzureRuntimeReq)
-        .attempt
+    } yield ()
 
-    } yield err shouldBe a[PersistentDiskNotReadyException]
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val exc = res.attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
 
+    exc shouldBe a[PersistentDiskNotReadyException]
   }
 
   it should "fail to create a runtime with existing disk if disk is attached" in isolatedDbTest {
@@ -335,10 +339,16 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       err <- runtimeV2Service
         .createRuntime(userInfo, name1, workspaceId, true, defaultCreateAzureRuntimeReq)
-        .attempt
 
-    } yield err shouldBe a[DiskAlreadyAttachedException]
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    } yield ()
+
+    val exc = res.attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+
+    exc shouldBe a[DiskAlreadyAttachedException]
   }
 
   it should "fail to create a runtime with existing disk if disk is attached to non-deleted runtime" in isolatedDbTest {
