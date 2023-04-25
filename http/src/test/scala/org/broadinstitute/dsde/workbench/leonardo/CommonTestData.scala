@@ -233,7 +233,7 @@ object CommonTestData {
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
-  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
+  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
