@@ -264,27 +264,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    // set runtime status to deleted before creating next
-    setRuntimetoDeleted(workspaceId, name0).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val updateDiskToNotReady = for {
+      now <- IO.realTimeInstant
+      disks <- DiskServiceDbQueries.listDisks(Map.empty, false, None, None, Some(workspaceId)).transaction
+      _ <- persistentDiskQuery.updateStatus(disks.headOption.get.id, DiskStatus.Creating, now).transaction
+    } yield ()
 
-    val exc = runtimeV2Service
-      .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-
-    exc shouldBe a[PersistentDiskNotReadyException]
-  }
-
-  it should "fail to create a runtime with existing disk if disk isn't ready" in isolatedDbTest {
-    runtimeV2Service
-      .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    // set runtime status to deleted before creating next
-    setRuntimetoDeleted(workspaceId, name0).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    updateDiskToNotReady.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val exc = runtimeV2Service
       .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
