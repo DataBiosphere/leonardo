@@ -294,7 +294,8 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           status = DiskStatus.Ready,
           auditInfo = auditInfo.copy(creator = userInfo.userEmail),
           cloudContext = CloudContext.Azure(azureCloudContext)
-        ).save()
+        )
+        .save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
                                                      azureRegion
