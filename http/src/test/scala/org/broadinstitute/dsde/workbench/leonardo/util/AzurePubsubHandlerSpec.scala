@@ -511,7 +511,7 @@ class AzurePubsubHandlerSpec
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
         isAttachedBeforeInterp <- persistentDiskQuery.isDiskAttached(disk.id).transaction
-        _ = isAttachedBeforeInterp shouldBe true 
+        _ = isAttachedBeforeInterp shouldBe true
         _ <- azureInterp.deleteAndPollRuntime(msg)
 
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
