@@ -174,7 +174,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                   _ <- F
                     .raiseError(PersistentDiskNotReadyException(disk.id, disk.status))
                     .whenA(disk.status != DiskStatus.Ready)
-                  // TODO: TEST
                   isAttached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
                   _ <- F
                     .raiseError(DiskAlreadyAttachedException(disk.cloudContext, disk.name, ctx.traceId))
