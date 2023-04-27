@@ -654,6 +654,8 @@ object JsonCodec {
   implicit val appAccessScopeDecoder: Decoder[AppAccessScope] =
     Decoder.decodeString.emap(s => AppAccessScope.stringToObject.get(s).toRight(s"Invalid app accessScope ${s}"))
 
+  // Note these are not implicit because they would be ambiguous types. We switch between them
+  // at runtime depending on app access scope.
   val appSamIdDecoder: Decoder[AppSamResourceId] =
     Decoder.decodeString.map(s => AppSamResourceId(s, Some(AppAccessScope.UserPrivate)))
   val sharedAppSamIdDecoder: Decoder[AppSamResourceId] =
