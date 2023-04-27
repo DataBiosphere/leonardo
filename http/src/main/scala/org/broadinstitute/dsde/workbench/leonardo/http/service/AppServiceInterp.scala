@@ -108,7 +108,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         BadRequestException("accessScope is not a V1 parameter", Some(ctx.traceId))
       )
 
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString)(req.accessScope))
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
@@ -536,7 +536,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       // Create a new Sam resource for the app (either shared or not)
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString)(req.accessScope))
+      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
       // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent google project.
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
       _ <- authProvider
@@ -1153,10 +1153,22 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Vector[ListAppResponse]] = for {
     _ <- as.ask
     samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
-    samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
-      authProvider.filterUserVisible(apps, userInfo)
+    // Partition apps by shared vs. private access scope and make a separate Sam call for each, then re-combine them.
+    // The reason we do this shared vs. private app access scope is represented by different Sam resource types/actions,
+    // and therefore needs different decoders to process the result list..
+    partition = samResources.partition(_.accessScope.exists(_ == AppAccessScope.WorkspaceShared))
+    samVisibleSharedAppsOpt <- NonEmptyList.fromList(partition._1).traverse { apps =>
+      authProvider.filterUserVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
     }
-
+    samVisiblePrivateAppsOpt <- NonEmptyList.fromList(partition._2).traverse { apps =>
+      authProvider.filterUserVisible(apps, userInfo)(implicitly, appSamIdDecoder, implicitly)
+    }
+    samVisibleAppsOpt = (samVisiblePrivateAppsOpt, samVisibleSharedAppsOpt) match {
+      case (Some(a), Some(b)) => Some(a ++ b)
+      case (Some(a), None)    => Some(a)
+      case (None, Some(b))    => Some(b)
+      case (None, None)       => None
+    }
     res = samVisibleAppsOpt match {
       case None => Vector.empty
       case Some(samVisibleApps) =>

@@ -333,8 +333,11 @@ object AppType {
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 
-  /** Disk formatting for an App. Currently, for Azure there is only 1 configuration,
-   * and FormattedBy.Cromwell is expected for WDS and HailBatch. */
+  /**
+   * Disk formatting for an App. Currently, only Galaxy and Custom app types
+   * support disk management. So we default all other app types to Cromwell,
+   * but the field is unused.
+   */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
       case Galaxy                     => FormattedBy.Galaxy

@@ -24,7 +24,8 @@ object SamResourceId {
     override def resourceType: SamResourceType = SamResourceType.Project
   }
 
-  final case class AppSamResourceId(resourceId: String)(accessScope: Option[AppAccessScope]) extends SamResourceId {
+  // Note accessScope is in a separate parameter list
+  final case class AppSamResourceId(resourceId: String, accessScope: Option[AppAccessScope]) extends SamResourceId {
     override def resourceType: SamResourceType = accessScope match {
       case Some(AppAccessScope.UserPrivate)     => SamResourceType.App
       case Some(AppAccessScope.WorkspaceShared) => SamResourceType.SharedApp

@@ -24,9 +24,9 @@ object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")(None)
+  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289", None)
   val sharedAppSamId =
-    AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b290")(Some(AppAccessScope.WorkspaceShared))
+    AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b290", Some(AppAccessScope.WorkspaceShared))
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
