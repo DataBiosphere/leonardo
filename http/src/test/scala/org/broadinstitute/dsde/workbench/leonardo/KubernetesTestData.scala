@@ -77,6 +77,9 @@ object KubernetesTestData {
     None
   )
 
+  val customEnvironmentVariables =
+    Map("WORKSPACE_NAME" -> "testWorkspace", "RELAY_HYBRID_CONNECTION_NAME" -> s"app1-${workspaceId.value}")
+
   val testCluster = makeKubeCluster(1)
   val testNodepool = makeNodepool(1, testCluster.id)
   val testApp = makeApp(1, testNodepool.id)
@@ -99,7 +102,9 @@ object KubernetesTestData {
       )
       .toVector
 
-  def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest], customEnvVars: Map[String, String]) =
+  def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest],
+                               customEnvVars: Map[String, String] = customEnvironmentVariables
+  ) =
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
@@ -188,7 +193,7 @@ object KubernetesTestData {
 
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,
-              customEnvironmentVariables: Map[String, String] = Map.empty,
+              customEnvironmentVariables: Map[String, String] = customEnvironmentVariables,
               status: AppStatus = AppStatus.Unspecified,
               appType: AppType = galaxyApp,
               workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID()),
