@@ -92,13 +92,13 @@ class ProxyRoutesSpec
       _ <- samResourceCache.put(
         AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
       )(
-        (Some(appSamId.resourceId), None),
+        (Some(appSamId.resourceId), appSamId.accessScope),
         None
       )
       _ <- samResourceCache.put(
         AppCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), AppName(appName), None)
       )(
-        (Some(appSamId.resourceId), None),
+        (Some(appSamId.resourceId), appSamId.accessScope),
         None
       )
     } yield ()
