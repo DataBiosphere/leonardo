@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CbasUiDAO, CromwellDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CbasUiDAO, CromwellDAO, HailBatchDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -146,13 +146,15 @@ object AKSManualTest {
       ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
       ConfigReader.appConfig.azure.wdsAppConfig,
+      ConfigReader.appConfig.azure.hailBatchAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
       appMonitorConfig,
       ConfigReader.appConfig.azure.wsm,
       ConfigReader.appConfig.drs,
-      new URL("https://leo-dummy-url.org")
+      new URL("https://leo-dummy-url.org"),
+      ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
@@ -166,7 +168,8 @@ object AKSManualTest {
     mock[CromwellDAO[IO]],
     mock[CbasDAO[IO]],
     mock[CbasUiDAO[IO]],
-    mock[WdsDAO[IO]]
+    mock[WdsDAO[IO]],
+    mock[HailBatchDAO[IO]]
   )
 
   /** Deploys a CoA app */

@@ -1201,7 +1201,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1241,7 +1242,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1283,7 +1285,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1324,7 +1327,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1362,7 +1366,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1406,7 +1411,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1450,7 +1456,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -2112,6 +2119,19 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     messages shouldBe List.empty
+  }
+
+  it should "fail to create a V2 app if it is disabled" in {
+    val appName = AppName("app1")
+    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.HailBatch, diskConfig = None)
+
+    val thrown = the[AppTypeNotEnabledException] thrownBy {
+      appServiceInterp
+        .createAppV2(userInfo, workspaceId, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+
+    thrown.appType shouldBe AppType.HailBatch
   }
 
   private def withLeoPublisher(
