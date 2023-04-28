@@ -14,7 +14,6 @@ import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.models._
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureRelayService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
@@ -33,8 +32,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.Uri
+import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.{any, anyString}
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{verify, when}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -390,7 +390,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCromwellDAO,
         mockCbasDAO,
         mockCbasUiDAO,
-        mockWdsDAO
+        mockWdsDAO,
+        mockHailBatchDAO
       ) {
         override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
 
@@ -480,7 +481,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockCromwellDAO,
       mockCbasDAO,
       mockCbasUiDAO,
-      mockWdsDAO
+      mockWdsDAO,
+      mockHailBatchDAO
     ) {
       override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
 
