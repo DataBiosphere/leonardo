@@ -141,7 +141,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
-
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
