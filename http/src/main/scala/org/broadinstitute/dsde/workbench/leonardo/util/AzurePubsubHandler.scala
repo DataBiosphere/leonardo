@@ -618,7 +618,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               case WsmJobStatus.Succeeded =>
                 for {
                   _ <- deleteDiskAction
-                  _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+                  _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
                   _ <- logger.info(ctx.loggingCtx)(s"runtime ${msg.runtimeId} is deleted successfully")
                 } yield ()
               case WsmJobStatus.Failed =>
