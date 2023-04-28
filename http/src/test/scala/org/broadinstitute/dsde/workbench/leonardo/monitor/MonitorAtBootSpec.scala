@@ -7,6 +7,7 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
+  customEnvironmentVariables,
   makeApp,
   makeAzureCluster,
   makeKubeCluster,
@@ -139,7 +140,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         savedApp.id,
         savedApp.appName,
         Some(disk.id),
-        Map.empty,
+        customEnvironmentVariables,
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
@@ -190,7 +191,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         savedApp.id,
         savedApp.appName,
         Some(disk.id),
-        Map.empty,
+        customEnvironmentVariables,
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
@@ -241,7 +242,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         savedApp.id,
         savedApp.appName,
         Some(disk.id),
-        Map.empty,
+        customEnvironmentVariables,
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),

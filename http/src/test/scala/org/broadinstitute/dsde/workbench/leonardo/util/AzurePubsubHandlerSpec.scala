@@ -487,6 +487,7 @@ class AzurePubsubHandlerSpec
           controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
           diskStatusOpt <- persistentDiskQuery.getStatus(disk.id).transaction
           diskStatus = diskStatusOpt.get
+          isAttached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
         } yield {
           verify(mockWsmDao, times(1)).deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(
             any[Ask[IO, AppContext]]
@@ -496,6 +497,7 @@ class AzurePubsubHandlerSpec
           val resourceTypes = controlledResources.map(_.resourceType)
           resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
           diskStatus shouldBe DiskStatus.Ready
+          isAttached shouldBe false
         }
 
         _ <- controlledResourceQuery
@@ -507,6 +509,9 @@ class AzurePubsubHandlerSpec
         msg = DeleteAzureRuntimeMessage(runtime.id, None, workspaceId, Some(wsmResourceId), landingZoneResources, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+
+        isAttachedBeforeInterp <- persistentDiskQuery.isDiskAttached(disk.id).transaction
+        _ = isAttachedBeforeInterp shouldBe true
         _ <- azureInterp.deleteAndPollRuntime(msg)
 
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)

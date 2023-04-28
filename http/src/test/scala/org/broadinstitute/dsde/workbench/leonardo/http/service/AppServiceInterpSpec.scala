@@ -1507,7 +1507,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "V2 Azure - create an app V2" in isolatedDbTest {
     val appName = AppName("app1")
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace",
+                            "RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}"
+    )
     val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
                                        appType = AppType.Cromwell,
                                        diskConfig = None,
