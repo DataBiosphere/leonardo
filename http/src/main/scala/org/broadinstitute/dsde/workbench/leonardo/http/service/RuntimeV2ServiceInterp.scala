@@ -252,9 +252,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
 
-      // If user is creator of the runtime, they should definitely be able to see the runtime.
+      // If user is creator of the runtime, they should definitely be able to see the runtime if they still have access to the workspace.
       hasPermission <-
-        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
+        if (runtime.auditInfo.creator == userInfo.userEmail)
+          authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
         else {
           checkSamPermission(
             WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
@@ -262,7 +263,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             WsmResourceAction.Read
           ).map(_._1)
         }
-
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
         .raiseError[Unit](
@@ -312,7 +312,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // We must check if they have permission other ways if we did not get an ID back from WSM though
       hasPermission <-
         if (runtime.auditInfo.creator == userInfo.userEmail)
-          F.pure(true)
+          authProvider.isUserWorkspaceReader(
+            WorkspaceResourceSamResourceId(workspaceId),
+            userInfo
+          )
         else
           authProvider
             .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
@@ -385,16 +388,18 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
 
-      // If user is creator of the runtime, they should definitely be able to see the runtime.
-      hasPermission <-
-        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
-        else {
-          checkSamPermission(
-            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
-            userInfo,
-            WsmResourceAction.Write
-          ).map(_._1)
-        }
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+
+      hasResourcePermission <- checkSamPermission(
+        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+        userInfo,
+        WsmResourceAction.Write
+      ).map(_._1)
+
+      hasPermission = hasWorkspacePermission && hasResourcePermission
 
       _ <- ctx.span.traverse(s =>
         F.delay(s.addAnnotation("Done auth call for update date accessed runtime permission"))
@@ -415,12 +420,18 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     ctx <- as.ask
     runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
-    // If user is creator of the runtime, they should definitely be able to see the runtime.
-    hasPermission <- checkPermission(
+    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+      WorkspaceResourceSamResourceId(workspaceId),
+      userInfo
+    )
+
+    hasResourcePermission <- checkPermission(
       runtime.auditInfo.creator,
       userInfo,
       WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.internalId)))
     )
+    hasPermission = hasWorkspacePermission && hasResourcePermission
+
     _ <- F
       .raiseError[Unit](
         RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
@@ -440,12 +451,17 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     ctx <- as.ask
     runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
-    // If user is creator of the runtime, they should definitely be able to see the runtime.
-    hasPermission <- checkPermission(
+    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+      WorkspaceResourceSamResourceId(workspaceId),
+      userInfo
+    )
+
+    hasResourcePermission <- checkPermission(
       runtime.auditInfo.creator,
       userInfo,
       WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.internalId)))
     )
+    hasPermission = hasWorkspacePermission && hasResourcePermission
 
     _ <- F
       .raiseError[Unit](
@@ -482,6 +498,20 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           val (runtimesUserIsCreator, runtimesUserIsNotCreator) =
             runtimes.partition(_.auditInfo.creator == userInfo.userEmail)
 
+          val (runtimesUserIsCreatorWithWorkspaceId, runtimesUserIsCreatorWithoutWorkspaceId) =
+            runtimesUserIsCreator
+              .partition(_.workspaceId.isDefined)
+
+          val runtimesUserIsCreatorWithWorkspaceSamIds = NonEmptyList
+            .fromList(
+              runtimesUserIsCreatorWithWorkspaceId.flatMap(runtime =>
+                runtime.workspaceId match {
+                  case Some(id) => List((runtime, WorkspaceResourceSamResourceId(id)))
+                  case None     => List.empty
+                }
+              )
+            )
+
           // Here, we optimize the SAM lookups based on whether we will need to use the google project fallback
           // IF (workspaceId) EXISTS we need WSM resource ID sam lookup + workspaceId Fallback
           // ELSE we need googleProject fallback
@@ -503,6 +533,16 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
             )
           for {
+            // If user is creator for the runtime, then we check if they still have access to the workspace
+            runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId <- runtimesUserIsCreatorWithWorkspaceSamIds
+              .traverse(workspaces =>
+                authProvider.filterWorkspaceReader(
+                  workspaces.map(_._2),
+                  userInfo
+                )
+              )
+              .map(_.getOrElse(Set.empty))
+
             // If user is not creator for the runtime, then we check if they're workspace owner
             runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId <- runtimesUserIsNotCreatorWithWorkspaceSamIds
               .traverse(workspaces =>
@@ -554,12 +594,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               case None => List.empty
             }
           } yield
-          // runtimesUserIsCreator: runtimes user is creator
+          // runtimesUserIsCreatorWithoutWorkspaceId: runtime user is creator, legacy V1 without workspace
+          // runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId: runtimes user is creator and has access to workspace
           // samUserVisibleRuntimesUserIsNotCreatorWithWorkspace: runtimes user is not creator, but it's visible by checking with Sam directly.
           //                                                      Note here we don't need to check workspace level permission because for WSM created resources, permissions
           //                                                      built hierarchically. So by asking Sam if user can read a runtime will implicitly check user's permission at workspace level
           // samVisibleRuntimesWithoutWorkspaceId: runtimes user is not creator, but user can view the runtime according to Sam
-          runtimesUserIsCreator ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
+          runtimesUserIsCreatorWithoutWorkspaceId ++ runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
         }
       // We authenticate actions on resources. If there are no visible runtimes,
       // we need to check if user should be able to see the empty list.
