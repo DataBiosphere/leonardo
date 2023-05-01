@@ -103,6 +103,12 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   )(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
     checkAllowlist(userInfo)
 
+  override def isUserWorkspaceReader(
+    workspaceResource: WorkspaceResourceSamResourceId,
+    userInfo: UserInfo
+  )(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+    checkAllowlist(userInfo)
+
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
   ): IO[WorkbenchEmail] = petOrUserInfo.userEmail.value match {
@@ -140,6 +146,10 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   ): IO[Unit] = IO.unit
 
   override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Set[WorkspaceResourceSamResourceId]] = IO.pure(resources.toList.toSet)
+
+  override def filterWorkspaceReader(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
   ): IO[Set[WorkspaceResourceSamResourceId]] = IO.pure(resources.toList.toSet)
 }

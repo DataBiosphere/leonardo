@@ -204,9 +204,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     for {
       workspacePolicies <- samDao
         .getResourcePolicies[WorkspaceResourceSamResourceId](authHeader, SamResourceType.Workspace)
-      readingWorkspaces = workspacePolicies.collect { case (r, p) =>
-        r
-      }
+      readingWorkspaces = workspacePolicies.map(_._1)
     } yield readingWorkspaces.toSet
   }
 

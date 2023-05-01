@@ -40,16 +40,11 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .getGetPersistentDiskResponseV2(diskId, ctx.traceId)
         .transaction
 
-      // If user is creator of the disk, they should definitely be able to see the disk.
-      hasPermission <-
-        if (diskResp.auditInfo.creator == userInfo.userEmail) F.pure(true)
-        else {
-          authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
-            diskResp.samResource,
-            PersistentDiskAction.ReadPersistentDisk,
-            userInfo
-          )
-        }
+      hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
+        diskResp.samResource,
+        PersistentDiskAction.ReadPersistentDisk,
+        userInfo
+      )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure disk permission")))
       _ <- F

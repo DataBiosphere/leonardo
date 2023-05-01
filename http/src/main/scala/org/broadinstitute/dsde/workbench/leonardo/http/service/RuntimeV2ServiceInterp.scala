@@ -543,6 +543,16 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
               .map(_.getOrElse(Set.empty))
 
+            samUserVisibleRuntimesUserIsCreatorWithWorkspace =
+              runtimesUserIsCreatorWithWorkspaceId.mapFilter { runtime =>
+                if (
+                  runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId
+                    .exists(workspaceSamId => workspaceSamId.workspaceId == runtime.workspaceId.get)
+                ) {
+                  Some(runtime)
+                } else None
+              }
+
             // If user is not creator for the runtime, then we check if they're workspace owner
             runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId <- runtimesUserIsNotCreatorWithWorkspaceSamIds
               .traverse(workspaces =>
@@ -595,12 +605,12 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             }
           } yield
           // runtimesUserIsCreatorWithoutWorkspaceId: runtime user is creator, legacy V1 without workspace
-          // runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId: runtimes user is creator and has access to workspace
+          // samUserVisibleRuntimesUserIsCreatorWithWorkspace: runtimes user is creator and has access to workspace
           // samUserVisibleRuntimesUserIsNotCreatorWithWorkspace: runtimes user is not creator, but it's visible by checking with Sam directly.
           //                                                      Note here we don't need to check workspace level permission because for WSM created resources, permissions
           //                                                      built hierarchically. So by asking Sam if user can read a runtime will implicitly check user's permission at workspace level
           // samVisibleRuntimesWithoutWorkspaceId: runtimes user is not creator, but user can view the runtime according to Sam
-          runtimesUserIsCreatorWithoutWorkspaceId ++ runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
+          runtimesUserIsCreatorWithoutWorkspaceId ++ samUserVisibleRuntimesUserIsCreatorWithWorkspace ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
         }
       // We authenticate actions on resources. If there are no visible runtimes,
       // we need to check if user should be able to see the empty list.
