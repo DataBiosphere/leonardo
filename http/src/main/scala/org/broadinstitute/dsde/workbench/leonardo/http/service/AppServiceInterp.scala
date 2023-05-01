@@ -270,7 +270,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
-      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v1")
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
     } yield res
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
@@ -435,7 +435,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
       .transaction
 
-    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v2")
+    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
   } yield res
 
   override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
@@ -1144,19 +1144,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
-                                        userInfo: UserInfo,
-                                        labels: List[String],
-                                        apiVersion: String
-  )(implicit
-    as: Ask[F, AppContext]
+  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster], userInfo: UserInfo, labels: List[String])(
+    implicit as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] = for {
     _ <- as.ask
     samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
     // Partition apps by shared vs. private access scope and make a separate Sam call for each, then re-combine them.
     // The reason we do this shared vs. private app access scope is represented by different Sam resource types/actions,
-    // and therefore needs different decoders to process the result list..
-    partition = samResources.partition(_.accessScope.exists(_ == AppAccessScope.WorkspaceShared))
+    // and therefore needs different decoders to process the result list.
+    partition = samResources
+      .map(sr => sr.copy(accessScope = sr.accessScope.orElse(Some(AppAccessScope.UserPrivate))))
+      .partition(_.accessScope == Some(AppAccessScope.WorkspaceShared))
     samVisibleSharedAppsOpt <- NonEmptyList.fromList(partition._1).traverse { apps =>
       authProvider.filterUserVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
     }
@@ -1183,8 +1181,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                   n.copy(apps = n.apps.filter { a =>
                     // Making the assumption that users will always be able to access apps that they create
                     // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                    samVisibleAppsSet
-                      .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
+                    val sr =
+                      a.samResourceId.copy(accessScope = a.appAccessScope.orElse(Some(AppAccessScope.UserPrivate)))
+                    samVisibleAppsSet.contains(sr) || a.auditInfo.creator == userInfo.userEmail
                   })
                 }
                 .filterNot(_.apps.isEmpty)
