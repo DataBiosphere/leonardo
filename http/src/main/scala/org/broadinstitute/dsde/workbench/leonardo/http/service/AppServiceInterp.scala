@@ -448,10 +448,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         appOpt,
         AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
       )
-      hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
-                                                                               AppAction.GetAppStatus,
-                                                                               userInfo
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
       )
+      hasResourcePermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
+                                                                                       AppAction.GetAppStatus,
+                                                                                       userInfo
+      )
+      hasPermission = hasWorkspacePermission && hasResourcePermission
       _ <-
         if (hasPermission) F.unit
         else
@@ -677,10 +682,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     ctx <- as.ask
     listOfPermissions <- authProvider.getActions(app.samResourceId, userInfo)
 
+    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
+
     // throw 404 if no GetAppStatus permission
     hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
     _ <-
-      if (hasReadPermission) F.unit
+      if (hasReadPermission && hasWorkspacePermission) F.unit
       else
         F.raiseError[Unit](
           AppNotFoundByWorkspaceIdException(workspaceId, app.appName, ctx.traceId, "no read permission")
@@ -688,7 +695,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
     // throw 403 if no DeleteApp permission
     hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
-    _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+    _ <-
+      if (hasDeletePermission && hasWorkspacePermission) F.unit
+      else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
     canDelete = AppStatus.deletableStatuses.contains(app.status)
     _ <-
