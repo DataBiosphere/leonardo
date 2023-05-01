@@ -1154,7 +1154,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     // and therefore needs different decoders to process the result list.
     partition = samResources
       .map(sr => sr.copy(accessScope = sr.accessScope.orElse(Some(AppAccessScope.UserPrivate))))
-      .partition(_.accessScope.exists(_ == AppAccessScope.WorkspaceShared))
+      .partition(_.accessScope == Some(AppAccessScope.WorkspaceShared))
     samVisibleSharedAppsOpt <- NonEmptyList.fromList(partition._1).traverse { apps =>
       authProvider.filterUserVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
     }
