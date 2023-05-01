@@ -1181,8 +1181,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                   n.copy(apps = n.apps.filter { a =>
                     // Making the assumption that users will always be able to access apps that they create
                     // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                    samVisibleAppsSet
-                      .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
+                    val sr =
+                      a.samResourceId.copy(accessScope = a.appAccessScope.orElse(Some(AppAccessScope.UserPrivate)))
+                    samVisibleAppsSet.contains(sr) || a.auditInfo.creator == userInfo.userEmail
                   })
                 }
                 .filterNot(_.apps.isEmpty)
