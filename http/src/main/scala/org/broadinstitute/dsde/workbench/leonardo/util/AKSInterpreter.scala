@@ -603,6 +603,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"fullnameOverride=wds-${release.asString}",
         raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
 
+        // import configs
+        raw"import.dataRepoUrl=${config.tdr.url}",
+
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}"
       )
@@ -895,5 +898,6 @@ final case class AKSInterpreterConfig(
   wsmConfig: HttpWsmDaoConfig,
   drsConfig: DrsConfig,
   leoUrlBase: URL,
-  listenerImage: String
+  listenerImage: String,
+  tdr: TdrConfig
 )

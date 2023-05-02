@@ -58,7 +58,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.azure.wsm,
     ConfigReader.appConfig.drs,
     new URL("https://leo-dummy-url.org"),
-    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage
+    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+    ConfigReader.appConfig.tdr
   )
 
   val mockSamDAO = setUpMockSamDAO
@@ -210,6 +211,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
+      "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
   }
 
@@ -292,6 +294,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
+      "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
 
