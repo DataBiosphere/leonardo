@@ -8,13 +8,17 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.http.scaladsl.server.Directives._
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
+import com.typesafe.scalalogging.LazyLogging
 
-class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
+class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig)
+    extends LazyLogging {
   def corsHandler(r: Route) =
-    addAccessControlHeaders {
-      preflightRequestHandler ~ r
+    validateOrigin {
+      addAccessControlHeaders {
+        preflightRequestHandler ~ r
+      }
     }
-
   // This handles preflight OPTIONS requests.
   private def preflightRequestHandler: Route = options {
     complete(
@@ -23,11 +27,21 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
     )
   }
 
+  // Ensure the request Origin is included in our referrer allowlist.
+  private def validateOrigin: Directive0 =
+    if (!refererConfig.enabled || refererConfig.validHosts.contains("*"))
+      pass
+    else {
+      def validOrigins: Set[HttpOrigin] = refererConfig.validHosts.map(uri => HttpOrigin(uri))
+      checkSameOrigin(HttpOriginRange(validOrigins.toSeq: _*))
+    }
+
   // This directive adds access control headers to normal responses
   private def addAccessControlHeaders: Directive0 =
     optionalHeaderValueByType(Origin) map {
-      case Some(origin) => `Access-Control-Allow-Origin`(origin.value)
-      case None         => `Access-Control-Allow-Origin`.*
+      case Some(origin) => Seq(`Access-Control-Allow-Origin`(origin.value), RawHeader("Vary", Origin.name))
+      case None =>
+        Seq(`Access-Control-Allow-Origin`.*)
     } flatMap { allowOrigin =>
       mapResponseHeaders { headers =>
         // Filter out the Access-Control-Allow-Origin set by Jupyter so we don't have duplicate headers
@@ -35,8 +49,8 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
         headers.filter { h =>
           h.isNot(`Access-Control-Allow-Origin`.lowercaseName) && h.isNot("content-security-policy")
         } ++
+          allowOrigin ++
           Seq(
-            allowOrigin,
             `Access-Control-Allow-Credentials`(true),
             `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),
             `Access-Control-Max-Age`(1728000),
@@ -46,5 +60,4 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
           )
       }
     }
-
 }
