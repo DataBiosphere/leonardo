@@ -168,7 +168,7 @@ trait TestLeoRoutes {
   val statusService =
     new StatusService(mockSamDAO, testDbRef, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
-  val corsSupport = new CorsSupport(contentSecurityPolicy)
+  val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   val statusRoutes = new StatusRoutes(statusService)
   val userInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
