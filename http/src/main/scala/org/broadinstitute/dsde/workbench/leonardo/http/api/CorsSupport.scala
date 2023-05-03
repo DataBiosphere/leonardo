@@ -29,10 +29,14 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
 
   // Ensure the request Origin is included in our referrer allowlist.
   private def validateOrigin: Directive0 =
-    if (!refererConfig.enabled || refererConfig.validHosts.contains("*"))
+    // comment out wildcard pass to verify BEE origins are blocked
+    if (!refererConfig.enabled /*|| refererConfig.validHosts.contains("*")*/)
       pass
     else {
-      def validOrigins: Set[HttpOrigin] = refererConfig.validHosts.map(uri => HttpOrigin(uri))
+      def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
+        // ignore wildcard (remove me)
+        .filter(_ != "*")
+        .map(uri => HttpOrigin(uri))
       checkSameOrigin(HttpOriginRange(validOrigins.toSeq: _*))
     }
 
