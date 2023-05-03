@@ -32,7 +32,8 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
     if (!refererConfig.enabled || refererConfig.validHosts.contains("*"))
       pass
     else {
-      def validOrigins: Set[HttpOrigin] = refererConfig.validHosts.map(uri => HttpOrigin(uri))
+      def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
+        .map(uri => HttpOrigin("http", Host(uri)))
       checkSameOrigin(HttpOriginRange(validOrigins.toSeq: _*))
     }
 
