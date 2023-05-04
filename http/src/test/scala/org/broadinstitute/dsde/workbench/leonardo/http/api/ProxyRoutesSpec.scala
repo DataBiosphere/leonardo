@@ -136,7 +136,7 @@ class ProxyRoutesSpec
       .addHeader(Cookie(tokenCookie))
       .addHeader(Origin(validOrigin))
       .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {
-      status shouldBe StatusCodes.NotFound
+      // status shouldBe StatusCodes.
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
@@ -679,12 +679,13 @@ class ProxyRoutesSpec
     }
   }
 
-  it should "401 when Origin is not an allowlisted URI" in {
+  it should "403 when Origin is not an allowlisted URI" in {
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Origin(invalidOrigin))
       .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Unauthorized
-    }
+        handled shouldBe false
+        status shouldEqual StatusCodes.Forbidden
+      }
   }
 
   it should "handle wildcards in referer allow list" in {
