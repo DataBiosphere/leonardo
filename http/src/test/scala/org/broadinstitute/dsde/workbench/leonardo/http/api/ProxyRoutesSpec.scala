@@ -679,11 +679,11 @@ class ProxyRoutesSpec
     }
   }
 
-  it should "403 when Origin is not an allowlisted URI" in {
+  it should "401 when Origin is not an allowlisted URI" in {
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Origin(invalidOrigin))
       .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Forbidden
+      status shouldEqual StatusCodes.Unauthorized
     }
   }
 
