@@ -6,8 +6,10 @@ VAULT_TOKEN=${2:-$(cat "$HOME"/.vault-token)}
 
 VAULT_ADDR="https://clotho.broadinstitute.org:8200"
 LEO_VAULT_PATH="secret/dsde/firecloud/$ENV/leonardo"
-SERVICE_OUTPUT_LOCATION="$PWD/rendered"
+SERVICE_OUTPUT_LOCATION="$(git rev-parse --show-toplevel)/rendered"
 SECRET_ENV_VARS_LOCATION="${SERVICE_OUTPUT_LOCATION}/secrets.env"
+
+gcloud container clusters get-credentials --zone us-central1-a --project broad-dsde-dev terra-dev
 
 if [ -f "${SECRET_ENV_VARS_LOCATION}" ]; then
   rm "${SECRET_ENV_VARS_LOCATION}"
@@ -35,3 +37,34 @@ EOF
 sed -i.bak 's/\"//g' "${SECRET_ENV_VARS_LOCATION}"
 rm "${SECRET_ENV_VARS_LOCATION}.bak"
 
+kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{index .data "leonardo-account.json"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/leonardo-account.json
+kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{index .data "leonardo-account.pem"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/leonardo-account.pem
+
+GOOGLE_PROJECT=$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.project }}' | base64 --decode)
+CLOUDSQL_ZONE=$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.region }}' | base64 --decode)
+CLOUDSQL_INSTANCE=$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.name }}' | base64 --decode)
+
+read -p "Override GOOGLE_PROJECT for CloudSQL proxy? (default: ${GOOGLE_PROJECT}, or press enter): " google_project
+GOOGLE_PROJECT="${google_project:-${GOOGLE_PROJECT}}"
+read -p "Override CLOUDSQL_ZONE? (default: ${CLOUDSQL_ZONE}, or press enter): " cloudsql_zone
+CLOUDSQL_ZONE="${cloudsql_zone:-${CLOUDSQL_ZONE}}"
+read -p "Override CLOUDSQL_INSTANCE? (default ${CLOUDSQL_INSTANCE}, or press enter): " cloudsql_inst
+CLOUDSQL_INSTANCE="${cloudsql_inst:-${CLOUDSQL_INSTANCE}}"
+
+echo "GOOGLE_PROJECT=${GOOGLE_PROJECT}" > ${SERVICE_OUTPUT_LOCATION}/sqlproxy.env
+echo "CLOUDSQL_ZONE=${CLOUDSQL_ZONE}" >> ${SERVICE_OUTPUT_LOCATION}/sqlproxy.env
+echo "CLOUDSQL_INSTANCE=${CLOUDSQL_INSTANCE}" >> ${SERVICE_OUTPUT_LOCATION}/sqlproxy.env
+
+kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{index .data "jupyter-server.crt"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/jupyter-server.crt
+kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{index .data "jupyter-server.key"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/jupyter-server.key
+kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{index .data "leo-client.p12"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/leo-client.p12
+kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{index .data "rootCA.key"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/rootCA.key
+kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{index .data "rootCA.pem"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/rootCA.pem
+
+kubectl -n terra-dev get configmap leonardo-oauth2-configmap -o 'go-template={{index .data "oauth2.conf"}}' > ${SERVICE_OUTPUT_LOCATION}/oauth2.conf
+# Local dev uses a macOS-specific docker replacement hostname for locahost, so replace all instances in the proxy config.
+kubectl -n terra-dev get configmap leonardo-site-configmap -o 'go-template={{index .data "site.conf"}}' | sed 's/localhost/host\.docker\.internal/g' > ${SERVICE_OUTPUT_LOCATION}/site.conf
+
+
+kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{index .data "tls.crt"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/server.crt
+kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{index .data "tls.key"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/server.key
