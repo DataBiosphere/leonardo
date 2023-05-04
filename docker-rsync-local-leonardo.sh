@@ -33,6 +33,8 @@ echo "Creating shared volumes if they don't exist..."
 docker volume create --name leonardo-shared-source
 docker volume create --name jar-cache
 
+SECRETS_DIR="$(git rev-parse --show-toplevel)/rendered"
+
 echo "Launching rsync container..."
 docker run -d \
     --name leonardo-rsync-container \
@@ -66,10 +68,10 @@ start_server () {
     docker create --name sqlproxy \
     --restart "always" \
     --network="fc-leonardo" \
-    --env-file="./config/sqlproxy.env" \
+    --env-file="${SECRETS_DIR}/sqlproxy.env" \
     broadinstitute/cloudsqlproxy:1.11_20180808
 
-    docker cp config/sqlproxy-service-account.json sqlproxy:/etc/sqlproxy-service-account.json
+    docker cp ${SECRETS_DIR}/leonardo-account.json sqlproxy:/etc/sqlproxy-service-account.json
 
     echo "Creating helm docker container..."
     docker build -t helm-lib - < $HELM_SCALA_SDK_DIR/Dockerfile
@@ -80,7 +82,7 @@ start_server () {
     docker create -it --name leonardo-sbt \
     -v leonardo-shared-source:/app -w /app \
     -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
-    -p 25050:5050 \
+    -p 25050:5050 -p 8080:8080 \
     --network=fc-leonardo \
     --env-file="env/local.env" \
     --env-file="rendered/secrets.env" \
@@ -91,13 +93,13 @@ start_server () {
     sbt http/run
 
     echo "Copying files to SBT docker container..."
-    docker cp config/leonardo-account.pem leonardo-sbt:/etc/leonardo-account.pem
-    docker cp config/leonardo-account.json leonardo-sbt:/etc/leonardo-account.json
-    docker cp config/jupyter-server.crt leonardo-sbt:/etc/jupyter-server.crt
-    docker cp config/jupyter-server.key leonardo-sbt:/etc/jupyter-server.key
-    docker cp config/leo-client.p12 leonardo-sbt:/etc/leo-client.p12
-    docker cp config/rootCA.key leonardo-sbt:/etc/rootCA.key
-    docker cp config/rootCA.pem leonardo-sbt:/etc/rootCA.pem
+    docker cp ${SECRETS_DIR}/leonardo-account.pem leonardo-sbt:/etc/leonardo-account.pem
+    docker cp ${SECRETS_DIR}/leonardo-account.json leonardo-sbt:/etc/leonardo-account.json
+    docker cp ${SECRETS_DIR}/jupyter-server.crt leonardo-sbt:/etc/jupyter-server.crt
+    docker cp ${SECRETS_DIR}/jupyter-server.key leonardo-sbt:/etc/jupyter-server.key
+    docker cp ${SECRETS_DIR}/leo-client.p12 leonardo-sbt:/etc/leo-client.p12
+    docker cp ${SECRETS_DIR}/rootCA.key leonardo-sbt:/etc/rootCA.key
+    docker cp ${SECRETS_DIR}/rootCA.pem leonardo-sbt:/etc/rootCA.pem
     docker cp /etc/localtime leonardo-sbt:/etc/localtime
     docker cp leonardo-helm-lib:/build /tmp
     docker cp /tmp/build/ leonardo-sbt:/helm-go-lib-build
@@ -107,22 +109,12 @@ start_server () {
     --restart "always" \
     --network=fc-leonardo \
     -p 20080:80 -p 30443:443 \
-    -e PROXY_URL='http://leonardo-sbt:8080/' \
-    -e PROXY_URL2='http://leonardo-sbt:8080/api' \
-    -e PROXY_URL3='http://leonardo-sbt:8080/register' \
-    -e CALLBACK_URI='https://local.dsde-dev.broadinstitute.org/oauth2callback' \
-    -e LOG_LEVEL='debug' \
-    -e SERVER_NAME='local.dsde-dev.broadinstitute.org' \
-    -e REMOTE_USER_CLAIM='sub' \
-    -e ENABLE_STACKDRIVER='yes' \
-    -e FILTER2='AddOutputFilterByType DEFLATE application/json text/plain text/html application/javascript application/x-javascript' \
-    us.gcr.io/broad-dsp-gcr-public/openidc-terra-proxy:v0.1.10
+    us.gcr.io/broad-dsp-gcr-public/openidc-terra-proxy:v0.1.17
 
-    docker cp config/server.crt leonardo-proxy:/etc/ssl/certs/server.crt
-    docker cp config/server.key leonardo-proxy:/etc/ssl/private/server.key
-    docker cp config/ca-bundle.crt leonardo-proxy:/etc/ssl/certs/ca-bundle.crt
-    docker cp config/oauth2.conf leonardo-proxy:/etc/apache2/mods-enabled/oauth2.conf
-    docker cp config/site.conf leonardo-proxy:/etc/apache2/sites-available/site.conf
+    docker cp ${SECRETS_DIR}/server.crt leonardo-proxy:/etc/ssl/certs/server.crt
+    docker cp ${SECRETS_DIR}/server.key leonardo-proxy:/etc/ssl/private/server.key
+    docker cp ${SECRETS_DIR}/oauth2.conf leonardo-proxy:/etc/apache2/mods-enabled/oauth2.conf
+    docker cp ${SECRETS_DIR}/site.conf leonardo-proxy:/etc/apache2/sites-available/site.conf
 
     echo "Starting sqlproxy..."
     docker start sqlproxy
