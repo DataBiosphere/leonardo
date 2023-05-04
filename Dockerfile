@@ -2,7 +2,7 @@
 #   1. Build the Helm client Go lib
 #   2. Deploy Leonardo pointing to the Go lib
 
-FROM golang:1.14.6-stretch AS helm-go-lib-builder
+FROM golang:1.20 AS helm-go-lib-builder
 
 # TODO Consider moving repo set-up to the build script to make CI versioning easier
 RUN mkdir /helm-go-lib-build && \
