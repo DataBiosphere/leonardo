@@ -65,6 +65,13 @@ kubectl -n terra-dev get configmap leonardo-oauth2-configmap -o 'go-template={{i
 # Local dev uses a macOS-specific docker replacement hostname for locahost, so replace all instances in the proxy config.
 kubectl -n terra-dev get configmap leonardo-site-configmap -o 'go-template={{index .data "site.conf"}}' | sed 's/localhost/host\.docker\.internal/g' > ${SERVICE_OUTPUT_LOCATION}/site.conf
 
-
 kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{index .data "tls.crt"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/server.crt
 kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{index .data "tls.key"}}' | base64 --decode > ${SERVICE_OUTPUT_LOCATION}/server.key
+
+CONFIG_DIR=$(git rev-parse --show-toplevel)/config
+rm -rf "${CONFIG_DIR}"
+cp -r "${SERVICE_OUTPUT_LOCATION}" "${CONFIG_DIR}"
+
+{
+echo B2C_APPLICATION_ID=$(kubectl -n terra-dev get secret leonardo-proxy-b2c-secrets -o 'go-template={{ index .data "application-id" }}' | base64 --decode)
+} > ${SERVICE_OUTPUT_LOCATION}/proxy.env
