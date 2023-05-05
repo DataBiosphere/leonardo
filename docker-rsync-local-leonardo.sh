@@ -50,7 +50,6 @@ run_rsync ()  {
         --filter='+ /http/src/***' \
         --filter='+ /core/' \
         --filter='+ /core/src/***' \
-        --filter='+ /config/***' \
         --filter='+ /docker/***' \
         --filter='+ /jupyter-docker/***' \
         --filter='+ /project/***' \
