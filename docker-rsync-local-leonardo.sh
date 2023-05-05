@@ -32,6 +32,7 @@ trap clean_up EXIT HUP INT QUIT PIPE TERM 0 20
 echo "Creating shared volumes if they don't exist..."
 docker volume create --name leonardo-shared-source
 docker volume create --name jar-cache
+docker volume create --name coursier-cache
 
 SECRETS_DIR="$(git rev-parse --show-toplevel)/rendered"
 
@@ -82,6 +83,7 @@ start_server () {
     docker create -it --name leonardo-sbt \
     -v leonardo-shared-source:/app -w /app \
     -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
+    -v coursier-cache:/home/sbtuser/.cache \
     -p 25050:5050 -p 8080:8080 -p 9000:9000 \
     --network=fc-leonardo \
     --env-file="env/local.env" \
