@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, StorageContainerResponse, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -44,10 +45,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage],
+                 allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
                  wsmDao: WsmDao[IO] = wsmDao,
                  dateAccessedQueue: Queue[IO, UpdateDateAccessMessage] = QueueFactory.makeDateAccessedQueue()
   ) =
-    new RuntimeV2ServiceInterp[IO](serviceConfig, allowListAuthProvider, wsmDao, mockSamDAO, queue, dateAccessedQueue)
+    new RuntimeV2ServiceInterp[IO](serviceConfig, allowlistAuthProvider, wsmDao, mockSamDAO, queue, dateAccessedQueue)
 
   // need to set previous runtime to deleted status before creating next to avoid exception
   def setRuntimetoDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[(Long)] =
@@ -65,6 +67,15 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val runtimeV2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    allowListAuthProvider,
+                                   new MockWsmDAO,
+                                   mockSamDAO,
+                                   QueueFactory.makePublisherQueue(),
+                                   QueueFactory.makeDateAccessedQueue()
+    )
+
+  val runtimeV2Service2 =
+    new RuntimeV2ServiceInterp[IO](serviceConfig,
+                                   allowListAuthProvider2,
                                    new MockWsmDAO,
                                    mockSamDAO,
                                    QueueFactory.makePublisherQueue(),
@@ -95,7 +106,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
-    val azureService = makeInterp(publisherQueue, wsmDao)
+    val azureService = makeInterp(publisherQueue, wsmDao = wsmDao)
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
@@ -373,7 +384,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
-    val azureService = makeInterp(publisherQueue, wsmDao)
+    val azureService = makeInterp(publisherQueue, wsmDao = wsmDao)
 
     azureService
       .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
@@ -433,7 +444,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
-    val azureService = makeInterp(publisherQueue, wsmDao)
+    val azureService = makeInterp(publisherQueue, wsmDao = wsmDao)
 
     azureService
       .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
@@ -530,6 +541,46 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "not get a runtime if the user loses access to workspace" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allowlisted
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue, allowListAuthProvider)
+    val azureService2 = makeInterp(publisherQueue, allowListAuthProvider2)
+
+    val res = for {
+      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq
+        )
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      cluster = clusterOpt.get
+      getResponse <- azureService2.getRuntime(userInfo, runtimeName, workspaceId).attempt
+    } yield {
+      val exception = getResponse.swap.toOption.get
+      exception.asInstanceOf[RuntimeNotFoundException].msg shouldBe "permission denied"
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "publish start a runtime message properly" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("user1@example.com"), 0)
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -555,6 +606,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to start a runtime if permission denied" in isolatedDbTest {
+    // User is runtime creator, but does not have access ot the workspace
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
     val workspaceId = WorkspaceId(UUID.randomUUID())
 

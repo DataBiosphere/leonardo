@@ -18,7 +18,8 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[IO]) extends LeoAuthProvider[IO] {
 
-  val allowlist = config.as[Set[String]]("whitelist").map(_.toLowerCase)
+  val allowlist = config.as[Set[String]]("allowlist").map(_.toLowerCase)
+
 
   protected def checkAllowlist(userInfo: UserInfo): IO[Boolean] =
     IO.pure(allowlist contains userInfo.userEmail.value.toLowerCase)
