@@ -88,7 +88,7 @@ start_server () {
     --env-file="rendered/secrets.env" \
     -e HOSTNAME=$HOSTNAME \
     -e SBT_OPTS='-Xmx4G -Xms4G -Xss2M -XX:+UseG1GC' \
-    -e JAVA_OPTS='-DXmx4G -DXms4G -DXss2M -Dsun.net.spi.nameservice.provider.1=default -Dsun.net.spi.nameservice.provider.2=dns,Jupyter -Djna.library.path=/helm-go-lib-build' \
+    -e JAVA_OPTS='-DXmx4G -DXms4G -DXss2M -Dsun.net.spi.nameservice.provider.1=default -Dsun.net.spi.nameservice.provider.2=dns,Jupyter -Djna.library.path=/helm-go-lib-build -Dconfig.resource=leo.conf' \
     hseeberger/scala-sbt:17.0.2_1.6.2_3.1.1 \
     sbt http/run
 
