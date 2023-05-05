@@ -82,7 +82,7 @@ start_server () {
     docker create -it --name leonardo-sbt \
     -v leonardo-shared-source:/app -w /app \
     -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
-    -p 25050:5050 -p 8080:8080 \
+    -p 25050:5050 -p 8080:8080 -p 9000:9000 \
     --network=fc-leonardo \
     --env-file="env/local.env" \
     --env-file="rendered/secrets.env" \
@@ -108,6 +108,7 @@ start_server () {
     docker create --name leonardo-proxy \
     --restart "always" \
     --network=fc-leonardo \
+    --env-file="rendered/proxy.env" \
     -p 20080:80 -p 30443:443 \
     us.gcr.io/broad-dsp-gcr-public/openidc-terra-proxy:v0.1.17
 
