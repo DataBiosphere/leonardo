@@ -1041,7 +1041,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "list apps belonging to different users" in isolatedDbTest {
-    // Make apps belonging to different users than the calling user
+    // Make apps belonging to different users than the calling user and with different access scopes
     val res = for {
       savedCluster <- IO(makeKubeCluster(1).save())
       savedNodepool1 <- IO(makeNodepool(1, savedCluster.id).save())
@@ -1052,11 +1052,23 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       app2 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user2@example.com"))(makeApp(2, savedNodepool2.id))
       _ <- IO(app2.save())
 
+      savedNodepool3 <- IO(makeNodepool(3, savedCluster.id).save())
+      app3 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user3@example.com"))(
+        makeApp(3, savedNodepool3.id, appAccessScope = AppAccessScope.WorkspaceShared)
+      )
+      _ <- IO(app3.save())
+
+      savedNodepool4 <- IO(makeNodepool(4, savedCluster.id).save())
+      app4 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user4@example.com"))(
+        makeApp(4, savedNodepool4.id, appAccessScope = AppAccessScope.UserPrivate)
+      )
+      _ <- IO(app4.save())
+
       listResponse <- appServiceInterp.listApp(userInfo, None, Map.empty)
     } yield
     // Since the calling user is allowlisted in the auth provider, it should return
     // the apps belonging to other users.
-    listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
+    listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName, app3.appName, app4.appName)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
