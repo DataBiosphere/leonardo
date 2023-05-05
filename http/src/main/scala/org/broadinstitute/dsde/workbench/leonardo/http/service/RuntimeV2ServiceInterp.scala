@@ -430,6 +430,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       userInfo,
       WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.internalId)))
     )
+
     hasPermission = hasWorkspacePermission && hasResourcePermission
 
     _ <- F

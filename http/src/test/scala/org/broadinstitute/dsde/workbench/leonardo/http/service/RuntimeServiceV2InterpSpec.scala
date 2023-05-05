@@ -531,7 +531,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "publish start a runtime message properly" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("user1@example.com"), 0)
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val publisherQueue = QueueFactory.makePublisherQueue()
@@ -563,7 +563,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         makeCluster(0)
           .copy(status = RuntimeStatus.Running,
                 workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = WorkbenchEmail("otherUser"))
+                auditInfo = auditInfo.copy(creator = WorkbenchEmail("email"))
           )
           .save()
       )
@@ -595,7 +595,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to start a runtime when runtime is not in startable statuses" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("user1@example.com"), 0)
 
     val res = for {
       runtime <- IO(
@@ -618,7 +618,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "publish stop a runtime message properly" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("user1@example.com"), 0)
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val publisherQueue = QueueFactory.makePublisherQueue()
@@ -650,7 +650,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         makeCluster(0)
           .copy(status = RuntimeStatus.Running,
                 workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = WorkbenchEmail("otherUser"))
+                auditInfo = auditInfo.copy(creator = WorkbenchEmail("email"))
           )
           .save()
       )
@@ -682,7 +682,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to stop a runtime when runtime is not in startable statuses" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("user1@example.com"), 0)
 
     val res = for {
       runtime <- IO(
