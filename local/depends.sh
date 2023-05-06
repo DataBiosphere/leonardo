@@ -74,22 +74,6 @@ build_helm_golib() {
 	cd "${_cwd}"
 }
 
-get_file() {
-	local _type="${1}"
-	local _secret="${2}"
-	local _file_name="${3}"
-	local _output="${4}"
-	sh -c "kubectl -n terra-dev get "${_type}" "${_secret}" -o 'go-template={{ index .data \"${_file_name}\" | base64decode }}'" > "${_output}/${_file_name}"
-}
-
-get_file_s() {
-	get_file secret "$@"
-}
-
-get_file_cm() {
-	get_file configmap "$@"
-}
-
 render_configs() {
 	local _out_dir="${1}"
 
@@ -124,8 +108,12 @@ render_configs() {
 		{{- end }}
 	{{- end }}
 {{- end }}' | \
-	sed '/^VALID_HOSTS/s/leonardo\.dsde-dev\.broadinstitute\.org$/local\.dsde-dev\.broadinstitute\.org:30433/' \
+	sed '/^VALID_HOSTS/s/leonardo\.dsde-dev\.broadinstitute\.org$/local\.dsde-dev\.broadinstitute\.org:30433/' | \
+	sed '/^JAVA_TOOL_OPTIONS/d' \
 		> "${_out_dir}/k8s-clear.env"
+
+	cat "${_out_dir}/k8s-secrets.env" > "${_out_dir}/sbt.env"
+	cat "${_out_dir}/k8s-clear.env" >> "${_out_dir}/sbt.env"
 
 	# Get CloudSQL proxy env vars
 	{
@@ -134,14 +122,24 @@ render_configs() {
 	echo CLOUDSQL_INSTANCE="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.name | base64decode }}')";
 	} > "${_out_dir}/sqlproxy.env"
 
-	get_file_s leonardo-sa-secret leonardo-account.json "${_out_dir}"
-	get_file_s leonardo-sa-secret leonardo-account.pem "${_out_dir}"
-	get_file_s leonardo-sa-secret leonardo-account.json "${_out_dir}"
-	get_file_s leonardo-application-secret jupyter-server.crt "${_out_dir}"
-	get_file_s leonardo-application-secret jupyter-server.key "${_out_dir}"
-	get_file_s leonardo-application-secret leo-client.p12 "${_out_dir}"
-	get_file_s leonardo-application-secret rootCA.key "${_out_dir}"
-	get_file_s leonardo-application-secret rootCA.pem "${_out_dir}"
+	kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{ index .data "leonardo-account.json" | base64decode }}' > ${_out_dir}/leonardo-account.json
+	kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{ index .data "leonardo-account.pem" | base64decode }}' > ${_out_dir}/leonardo-account.pem
+	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "jupyter-server.crt" | base64decode }}' > ${_out_dir}/jupyter-server.crt
+	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "jupyter-server.key" | base64decode }}' > ${_out_dir}/jupyter-server.key
+	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "leo-client.p12" | base64decode }}' > ${_out_dir}/leo-client.p12
+	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "rootCA.key" | base64decode }}' > ${_out_dir}/rootCA.key
+	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "rootCA.pem" | base64decode }}' > ${_out_dir}/rootCA.pem
+
+	kubectl -n terra-dev get configmap leonardo-oauth2-configmap -o 'go-template={{index .data "oauth2.conf"}}' > ${_out_dir}/oauth2.conf
+	# Local dev uses a macOS-specific docker replacement hostname for locahost, so replace all instances in the proxy config.
+	kubectl -n terra-dev get configmap leonardo-site-configmap -o 'go-template={{index .data "site.conf"}}' | sed 's/localhost/host\.docker\.internal/g' > ${_out_dir}/site.conf
+
+	kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{ index .data "tls.crt" | base64decode }}' > ${_out_dir}/server.crt
+	kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{ index .data "tls.key" | base64decode }}' > ${_out_dir}/server.key
+
+	{
+	echo B2C_APPLICATION_ID=$(kubectl -n terra-dev get secret leonardo-proxy-b2c-secrets -o 'go-template={{ index .data "application-id" }}' | base64 --decode)
+	} > ${_out_dir}/proxy.env
 }
 
 BUILD_HELM_GOLIB=false
