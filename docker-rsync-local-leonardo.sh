@@ -34,7 +34,7 @@ docker volume create --name leonardo-shared-source
 docker volume create --name jar-cache
 docker volume create --name coursier-cache
 
-SECRETS_DIR="$(git rev-parse --show-toplevel)/rendered"
+SECRETS_DIR="$(git rev-parse --show-toplevel)/http/src/main/resources/rendered"
 
 echo "Launching rsync container..."
 docker run -d \
@@ -86,7 +86,7 @@ start_server () {
     -p 25050:5050 -p 8080:8080 -p 9000:9000 \
     --network=fc-leonardo \
     --env-file="env/local.env" \
-    --env-file="rendered/secrets.env" \
+    --env-file="${SECRETS_DIR}/sbt.env" \
     -e HOSTNAME=$HOSTNAME \
     -e SBT_OPTS='-Xmx4G -Xms4G -Xss2M -XX:+UseG1GC' \
     -e JAVA_OPTS='-DXmx4G -DXms4G -DXss2M -Dsun.net.spi.nameservice.provider.1=default -Dsun.net.spi.nameservice.provider.2=dns,Jupyter -Djna.library.path=/helm-go-lib-build -Dconfig.resource=leo.conf' \
@@ -109,7 +109,7 @@ start_server () {
     docker create --name leonardo-proxy \
     --restart "always" \
     --network=fc-leonardo \
-    --env-file="rendered/proxy.env" \
+    --env-file="${SECRETS_DIR}/proxy.env" \
     -p 20080:80 -p 30443:443 \
     us.gcr.io/broad-dsp-gcr-public/openidc-terra-proxy:v0.1.17
 
