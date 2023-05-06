@@ -31,10 +31,14 @@ ask_and_run() {
 		return 1
 	fi
 
-	# Check if the dir already exists,
-	# and if so, give the user prompt.
+	# Check if the dir already exists, and if so, give the user prompt.
 	if [ -d "${_tmp_dir}" ]; then
-		read -p "${_prompt} [${_yes_no_str}] " _proceed
+		# If the user wants auto default values, just print the
+		# default behavior and move on, otherwise ask.
+		if ! ${USE_PROMPT_DEFAULTS}; then
+			read -p "${_prompt} [${_yes_no_str}] " _proceed
+		fi
+
 		_proceed=${_proceed:-${_default_answer}}
 		if [ "${_proceed}" = "y" ] || [ "${_proceed}" = "Y" ]; then
 			rm -rf "${_tmp_dir}"
@@ -71,10 +75,19 @@ build_helm_golib() {
 }
 
 get_file() {
-	local _secret="${1}"
-	local _file_name="${2}"
-	local _output="${3}"
-	kubectl -n terra-dev get secret "${_secret}" -o 'go-template={{ index .data "${_file_name}" | base64decode }}' > "${_output}"
+	local _type="${1}"
+	local _secret="${2}"
+	local _file_name="${3}"
+	local _output="${4}"
+	sh -c "kubectl -n terra-dev get "${_type}" "${_secret}" -o 'go-template={{ index .data \"${_file_name}\" | base64decode }}'" > "${_output}/${_file_name}"
+}
+
+get_file_s() {
+	get_file secret "$@"
+}
+
+get_file_cm() {
+	get_file configmap "$@"
 }
 
 render_configs() {
@@ -104,7 +117,9 @@ render_configs() {
 	{{- range $container := $pod.spec.containers }}
 		{{- if (eq $container.name "leonardo-backend") }}
 			{{- range $var := $container.env }}
-				{{- printf "%s=%s\n" $var.name $var.value }}
+				{{- if (and $var.name $var.value) }}
+					{{- printf "%s=%s\n" $var.name $var.value }}
+				{{- end }}
 			{{- end }}
 		{{- end }}
 	{{- end }}
@@ -112,24 +127,40 @@ render_configs() {
 	sed '/^VALID_HOSTS/s/leonardo\.dsde-dev\.broadinstitute\.org$/local\.dsde-dev\.broadinstitute\.org:30433/' \
 		> "${_out_dir}/k8s-clear.env"
 
-	get_file leonardo-sa-secret leonardo-account.json "${_out_dir}/leonardo-account.json"
+	# Get CloudSQL proxy env vars
+	{
+	echo GOOGLE_PROJECT="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.project | base64decode }}')";
+	echo CLOUDSQL_ZONE="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.region | base64decode }}')";
+	echo CLOUDSQL_INSTANCE="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.name | base64decode }}')";
+	} > "${_out_dir}/sqlproxy.env"
+
+	get_file_s leonardo-sa-secret leonardo-account.json "${_out_dir}"
+	get_file_s leonardo-sa-secret leonardo-account.pem "${_out_dir}"
+	get_file_s leonardo-sa-secret leonardo-account.json "${_out_dir}"
+	get_file_s leonardo-application-secret jupyter-server.crt "${_out_dir}"
+	get_file_s leonardo-application-secret jupyter-server.key "${_out_dir}"
+	get_file_s leonardo-application-secret leo-client.p12 "${_out_dir}"
+	get_file_s leonardo-application-secret rootCA.key "${_out_dir}"
+	get_file_s leonardo-application-secret rootCA.pem "${_out_dir}"
 }
 
 BUILD_HELM_GOLIB=false
 RENDER_CONFIGS=false
-PRINT_HELP=false
+USE_PROMPT_DEFAULTS=false
 
 HELP_TEXT=$(cat <<EOF
+ ${0} [command] [flags]
  Build helm Go library and/or render resources from kubernetes.
- ${0} [command]
 
  Commands:
    helm: Build the Golang helm library.
    configs:  Render application resource files from kubernetes.
-   -h | --help: print help text.
+ Flags:
+   -y | --yes: Use default values instead of prompting for input.
+   -h | --help: Print this help message.
  Examples:
    1. Build the helm Go library and render resources.
-      $ ${0}
+      $ ${0} -y
    2. Only build the helm Go library
       $ ${0} helm
    3. Only render resources from kubernetes.
@@ -137,6 +168,12 @@ HELP_TEXT=$(cat <<EOF
 EOF
 )
 
+print_help() {
+	echo -e "${HELP_TEXT}"
+    exit 0
+}
+
+# If no command or flags are specified, ask about everything.
 if [ -z "${1}" ]; then
     BUILD_HELM_GOLIB=true
     RENDER_CONFIGS=true
@@ -145,13 +182,26 @@ fi
 while [ "${1}" != "" ]; do
     case ${1} in
         helm)
+			if ${RENDER_CONFIGS}; then
+				echo "Error: You can specify up to one action at a time."
+				print_help
+			fi
             BUILD_HELM_GOLIB=true
+            USE_PROMPT_DEFAULTS=true # Individual commands default to Y
             ;;
         configs)
+			if ${BUILD_HELM_GOLIB}; then
+				echo "Error: You can specify up to one action at a time."
+				print_help
+			fi
 			RENDER_CONFIGS=true
+			USE_PROMPT_DEFAULTS=true # Individual commands default to Y
+			;;
+		-y | --yes)
+			USE_PROMPT_DEFAULTS=true
 			;;
         -h | --help)
-            PRINT_HELP=true
+            print_help
             ;;
         *)
             echo "Unrecognized argument '${1}'."
@@ -162,14 +212,16 @@ while [ "${1}" != "" ]; do
     shift
 done
 
-if ${PRINT_HELP}; then
-    echo -e "${HELP_TEXT}"
-    exit 0
+# If no commands were specified but -d|--default was given,
+# do both helm and config commands, but with default answers.
+if ${USE_PROMPT_DEFAULTS} && ! ${BUILD_HELM_GOLIB} && ! ${RENDER_CONFIGS}; then
+	BUILD_HELM_GOLIB=true
+	RENDER_CONFIGS=true
 fi
 
 if ${BUILD_HELM_GOLIB}; then
 	ask_and_run \
-		"Rebuild Helm Go library?" "N" \
+		"Rebuild Helm Go library?" "Y" \
 		"build_helm_golib" \
 		"${LOCAL_DIR}/helm-scala-sdk/out"
 fi
