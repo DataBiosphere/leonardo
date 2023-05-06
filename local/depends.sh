@@ -112,7 +112,7 @@ render_configs() {
 	sed '/^VALID_HOSTS/s/leonardo\.dsde-dev\.broadinstitute\.org$/local\.dsde-dev\.broadinstitute\.org:30433/' \
 		> "${_out_dir}/k8s-clear.env"
 
-	# get_file leonardo-sa-secret leonardo-account.json "${_out_dir}/leonardo-account.json"
+	get_file leonardo-sa-secret leonardo-account.json "${_out_dir}/leonardo-account.json"
 }
 
 BUILD_HELM_GOLIB=false
