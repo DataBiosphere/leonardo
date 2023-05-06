@@ -42,3 +42,5 @@ test-reports/
 
 http/src/main/resources/application.conf
 http/src/main/resources/application.conf.example
+
+http/src/main/resources/rendered/
