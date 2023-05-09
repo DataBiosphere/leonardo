@@ -20,7 +20,6 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   val allowlist = config.as[Set[String]]("allowlist").map(_.toLowerCase)
 
-
   protected def checkAllowlist(userInfo: UserInfo): IO[Boolean] =
     IO.pure(allowlist contains userInfo.userEmail.value.toLowerCase)
 
@@ -152,5 +151,12 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def filterWorkspaceReader(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
-  ): IO[Set[WorkspaceResourceSamResourceId]] = IO.pure(resources.toList.toSet)
+  ): IO[Set[WorkspaceResourceSamResourceId]] = for {
+    filteredResources <- resources.toList.traverseFilter { resource =>
+      isUserWorkspaceReader(resource, userInfo).map {
+        case true  => Some(resource)
+        case false => None
+      }
+    }
+  } yield filteredResources.toSet
 }

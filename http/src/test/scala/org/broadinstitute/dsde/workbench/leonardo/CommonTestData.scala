@@ -146,7 +146,7 @@ object CommonTestData {
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = Config.applicationConfig
   val allowlistAuthConfig = config.getConfig("auth.allowlistProviderConfig")
-  val allowlistAuthConfig2 = config.getConfig("auth.allowlistProviderConfig")
+  val allowlistAuthConfig2 = config.getConfig("auth.allowlistProviderConfig2")
   val allowlist = config.as[Set[String]]("auth.allowlistProviderConfig.allowlist").map(_.toLowerCase)
   val allowlist2 = config.as[Set[String]]("auth.allowlistProviderConfig2.allowlist").map(_.toLowerCase)
   // Let's not use this pattern and directly use `Config.???` going forward :)

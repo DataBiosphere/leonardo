@@ -496,37 +496,21 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         if (creatorOnly.isDefined) {
           F.pure(runtimes)
         } else {
-          val (runtimesUserIsCreator, runtimesUserIsNotCreator) =
-            runtimes.partition(_.auditInfo.creator == userInfo.userEmail)
-
-          val (runtimesUserIsCreatorWithWorkspaceId, runtimesUserIsCreatorWithoutWorkspaceId) =
-            runtimesUserIsCreator
-              .partition(_.workspaceId.isDefined)
-
-          val runtimesUserIsCreatorWithWorkspaceSamIds = NonEmptyList
-            .fromList(
-              runtimesUserIsCreatorWithWorkspaceId.flatMap(runtime =>
-                runtime.workspaceId match {
-                  case Some(id) => List((runtime, WorkspaceResourceSamResourceId(id)))
-                  case None     => List.empty
-                }
-              )
-            )
 
           // Here, we optimize the SAM lookups based on whether we will need to use the google project fallback
           // IF (workspaceId) EXISTS we need WSM resource ID sam lookup + workspaceId Fallback
           // ELSE we need googleProject fallback
-          val (runtimesUserIsNotCreatorWithWorkspaceId, runtimesUserIsNotCreatorWithoutWorkspaceId) =
-            runtimesUserIsNotCreator
+          val (runtimesUserWithWorkspaceId, runtimesUserWithoutWorkspaceId) =
+            runtimes
               .partition(_.workspaceId.isDefined)
 
           // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
           // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
 
-          // -----------   Filter runtimes that's in runtimesUserIsNotCreatorWithWorkspaceId   -----------
-          val runtimesUserIsNotCreatorWithWorkspaceSamIds = NonEmptyList
+          // -----------   Filter runtimes that's in runtimesUserWithWorkspaceId   -----------
+          val runtimesUserWithWorkspaceSamIds = NonEmptyList
             .fromList(
-              runtimesUserIsNotCreatorWithWorkspaceId.flatMap(runtime =>
+              runtimesUserWithWorkspaceId.flatMap(runtime =>
                 runtime.workspaceId match {
                   case Some(id) => List((runtime, WorkspaceResourceSamResourceId(id)))
                   case None     => List.empty
@@ -534,8 +518,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
             )
           for {
-            // If user is creator for the runtime, then we check if they still have access to the workspace
-            runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId <- runtimesUserIsCreatorWithWorkspaceSamIds
+            // We check if the user has access to the workspace
+            runtimesUserWithWorkspaceIdAndSamResourceId <- runtimesUserWithWorkspaceSamIds
               .traverse(workspaces =>
                 authProvider.filterWorkspaceReader(
                   workspaces.map(_._2),
@@ -544,39 +528,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
               .map(_.getOrElse(Set.empty))
 
-            samUserVisibleRuntimesUserIsCreatorWithWorkspace =
-              runtimesUserIsCreatorWithWorkspaceId.mapFilter { runtime =>
+            samVisibleRuntimesUserWithWorkspaceId =
+              runtimesUserWithWorkspaceId.mapFilter { runtime =>
                 if (
-                  runtimesUserIsCreatorWithWorkspaceIdAndSamResourceId
+                  runtimesUserWithWorkspaceIdAndSamResourceId
                     .exists(workspaceSamId => workspaceSamId.workspaceId == runtime.workspaceId.get)
                 ) {
                   Some(runtime)
                 } else None
               }
 
-            // If user is not creator for the runtime, then we check if they're workspace owner
-            runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId <- runtimesUserIsNotCreatorWithWorkspaceSamIds
-              .traverse(workspaces =>
-                authProvider.filterWorkspaceOwner(
-                  workspaces.map(_._2),
-                  userInfo
-                )
-              )
-              .map(_.getOrElse(Set.empty))
-
-            samUserVisibleRuntimesUserIsNotCreatorWithWorkspace =
-              runtimesUserIsNotCreatorWithWorkspaceId.mapFilter { runtime =>
-                if (
-                  runtimesUserIsNotCreatorWithWorkspaceIdAndSamResourceId
-                    .exists(workspaceSamId => workspaceSamId.workspaceId == runtime.workspaceId.get)
-                ) {
-                  Some(runtime)
-                } else None
-              }
-
-            // -----------   Filter runtimes that's in runtimesUserIsNotCreatorWithoutWorkspaceId   -----------
+            // -----------   Filter runtimes that's in runtimesUserWithoutWorkspaceId   -----------
             // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
-            runtimesAndProjects = runtimesUserIsNotCreatorWithoutWorkspaceId
+            runtimesAndProjects = runtimesUserWithoutWorkspaceId
               .mapFilter { case rt =>
                 rt.cloudContext match {
                   case CloudContext.Gcp(googleProject) =>
@@ -604,14 +568,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 }
               case None => List.empty
             }
+
           } yield
-          // runtimesUserIsCreatorWithoutWorkspaceId: runtime user is creator, legacy V1 without workspace
-          // samUserVisibleRuntimesUserIsCreatorWithWorkspace: runtimes user is creator and has access to workspace
-          // samUserVisibleRuntimesUserIsNotCreatorWithWorkspace: runtimes user is not creator, but it's visible by checking with Sam directly.
-          //                                                      Note here we don't need to check workspace level permission because for WSM created resources, permissions
-          //                                                      built hierarchically. So by asking Sam if user can read a runtime will implicitly check user's permission at workspace level
-          // samVisibleRuntimesWithoutWorkspaceId: runtimes user is not creator, but user can view the runtime according to Sam
-          runtimesUserIsCreatorWithoutWorkspaceId ++ samUserVisibleRuntimesUserIsCreatorWithWorkspace ++ samUserVisibleRuntimesUserIsNotCreatorWithWorkspace ++ samVisibleRuntimesWithoutWorkspaceId
+          // samVisibleRuntimesUserWithWorkspaceId: User has access to both the runtime and the parent workspace (need to check in case the user lost workspace access after runtime creation for instance)
+          // samVisibleRuntimesWithoutWorkspaceId: Legacy runtimes created on GCP that have o associated workspace ID and we fallback on google project-level permissions
+          samVisibleRuntimesUserWithWorkspaceId ++ samVisibleRuntimesWithoutWorkspaceId
         }
       // We authenticate actions on resources. If there are no visible runtimes,
       // we need to check if user should be able to see the empty list.
