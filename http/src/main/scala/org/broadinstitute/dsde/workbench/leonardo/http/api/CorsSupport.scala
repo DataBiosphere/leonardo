@@ -2,9 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.http.scaladsl.server.Directives._
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
@@ -13,19 +11,11 @@ import com.typesafe.scalalogging.LazyLogging
 
 class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig)
     extends LazyLogging {
-  def corsHandler(r: Route) =
-    validateOrigin {
-      addAccessControlHeaders {
-        preflightRequestHandler ~ r
-      }
+
+  def corsHandler(r: Route): Route = validateOrigin {
+    addAccessControlHeaders {
+      r
     }
-  // TODO proxy routes only?
-  // This handles preflight OPTIONS requests.
-  private def preflightRequestHandler: Route = options {
-    complete(
-      HttpResponse(StatusCodes.NoContent)
-        .withHeaders(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
-    )
   }
 
   // Ensure the request Origin is included in our referrer allowlist.

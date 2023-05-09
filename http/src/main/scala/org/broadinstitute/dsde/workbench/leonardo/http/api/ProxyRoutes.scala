@@ -4,8 +4,10 @@ package api
 
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
+import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
@@ -35,10 +37,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
         extractAppContext(Some(span), request.uri.toString()) { implicit ctx =>
           // Note that the "notebooks" path prefix is deprecated
           pathPrefix("proxy" | "notebooks") {
-
-            // corsSupport.corsHandler {
-
-            refererHandler {
+            preflightRequestHandler ~ refererHandler {
               // "apps" proxy routes
               pathPrefix("google" / "v1" / "apps") {
                 pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
@@ -124,8 +123,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     }
                   }
                 }
-            }
-            // }
+           }
           }
         }
       }
@@ -271,6 +269,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
+
+  // This handles preflight OPTIONS requests.
+  private[api] val preflightRequestHandler: Route = options {
+    complete(
+      HttpResponse(StatusCodes.NoContent)
+        .withHeaders(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
+    )
+  }
 
   private[api] def refererHandler: Directive0 =
     if (refererConfig.enabled) {

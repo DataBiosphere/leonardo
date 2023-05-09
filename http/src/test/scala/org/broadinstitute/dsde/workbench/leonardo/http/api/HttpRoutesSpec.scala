@@ -80,6 +80,7 @@ class HttpRoutesSpec
 
   "RuntimeRoutes" should "create runtime id1" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`,
                   defaultCreateRuntimeRequest.asJson.spaces2
       ) ~> routes.route ~> check {
@@ -100,6 +101,7 @@ class HttpRoutesSpec
     }
 
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
@@ -107,6 +109,7 @@ class HttpRoutesSpec
 
   it should "create a runtime with default parameters" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -115,9 +118,8 @@ class HttpRoutesSpec
 
   it should s"reject create a cluster if cluster name is invalid" in {
     val invalidClusterName = "MyCluster"
-    Post(s"/api/google/v1/runtimes/googleProject1/$invalidClusterName",
-         defaultCreateRuntimeRequest.asJson.spaces2
-    ) ~> httpRoutes.route ~> check {
+    Post(s"/api/google/v1/runtimes/googleProject1/$invalidClusterName", defaultCreateRuntimeRequest.asJson.spaces2)
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       val expectedResponse =
         """Invalid name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names"""
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String shouldBe expectedResponse
@@ -127,7 +129,8 @@ class HttpRoutesSpec
   }
 
   it should "get a runtime" in {
-    Get("/api/google/v1/runtimes/googleProject/runtime1") ~> routes.route ~> check {
+    Get("/api/google/v1/runtimes/googleProject/runtime1")
+      .addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetRuntimeResponse].id shouldBe CommonTestData.testCluster.id
       validateRawCookie(header("Set-Cookie"))
@@ -135,13 +138,15 @@ class HttpRoutesSpec
   }
 
   it should "return 404 when getting a non-existent runtime" in {
-    Get("/api/google/v1/runtimes/googleProject/runtime-non-existent") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes/googleProject/runtime-non-existent")
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
   it should "list runtimes with a project" in {
-    Get("/api/google/v1/runtimes/googleProject") ~> routes.route ~> check {
+    Get("/api/google/v1/runtimes/googleProject")
+      .addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
       validateRawCookie(header("Set-Cookie"))
@@ -149,7 +154,8 @@ class HttpRoutesSpec
   }
 
   it should "list runtimes without a project" in {
-    Get("/api/google/v1/runtimes") ~> routes.route ~> check {
+    Get("/api/google/v1/runtimes")
+      .addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       val response = responseAs[Vector[ListRuntimeResponse2]]
       response.map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
@@ -178,13 +184,12 @@ class HttpRoutesSpec
       )
 
     for (i <- 1 to 10)
-      Post(s"/api/google/v1/runtimes/${googleProject}/${clusterName}-$i",
-           runtimesWithLabels(i).asJson
-      ) ~> httpRoutes.route ~> check {
+      Post(s"/api/google/v1/runtimes/${googleProject}/${clusterName}-$i", runtimesWithLabels(i).asJson)
+        .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
 
-    Get("/api/google/v1/runtimes?label6=value6") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?label6=value6").addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -207,7 +212,7 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get("/api/google/v1/runtimes?_labels=label4%3Dvalue4") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?_labels=label4%3Dvalue4").addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -230,13 +235,13 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get("/api/google/v1/runtimes?_labels=bad") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?_labels=bad").addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
     }
   }
 
   it should "list runtimes with parameters" in {
-    Get("/api/google/v1/runtimes?project=foo&creator=bar") ~> routes.route ~> check {
+    Get("/api/google/v1/runtimes?project=foo&creator=bar").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
       validateRawCookie(header("Set-Cookie"))
@@ -244,7 +249,7 @@ class HttpRoutesSpec
   }
 
   it should "delete a runtime" in {
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -260,7 +265,9 @@ class HttpRoutesSpec
         deleteRuntimeRequest shouldBe expectedDeleteRuntime
       }
     }
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=true") ~> fakeRoutes(
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=true").addHeader(
+      Origin(validOrigin)
+    ) ~> fakeRoutes(
       runtimeService
     ).route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -269,7 +276,9 @@ class HttpRoutesSpec
   }
 
   it should "return 404 when deleting a non-existent runtime" in {
-    Delete("/api/google/v1/runtimes/googleProject/runtime-non-existent") ~> httpRoutes.route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject/runtime-non-existent").addHeader(
+      Origin(validOrigin)
+    ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
@@ -284,7 +293,9 @@ class HttpRoutesSpec
         deleteRuntimeRequest shouldBe expectedDeleteRuntime
       }
     }
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=false") ~> fakeRoutes(
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=false").addHeader(
+      Origin(validOrigin)
+    ) ~> fakeRoutes(
       runtimeService
     ).route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -303,7 +314,9 @@ class HttpRoutesSpec
         deleteRuntimeRequest shouldBe expectedDeleteRuntime
       }
     }
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> fakeRoutes(runtimeService).route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1").addHeader(Origin(validOrigin)) ~> fakeRoutes(
+      runtimeService
+    ).route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -319,34 +332,44 @@ class HttpRoutesSpec
         deleteDisk shouldBe false
       }
     }
-    Delete("/api/google/v1/apps/googleProject1/app1") ~> fakeRoutes(kubernetesService).route ~> check {
+    Delete("/api/google/v1/apps/googleProject1/app1").addHeader(Origin(validOrigin)) ~> fakeRoutes(
+      kubernetesService
+    ).route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "stop a runtime" in {
-    Post("/api/google/v1/runtimes/googleProject1/runtime1/stop") ~> routes.route ~> check {
+    Post("/api/google/v1/runtimes/googleProject1/runtime1/stop").addHeader(
+      Origin(validOrigin)
+    ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "return 404 when stopping a non-existent runtime" in {
-    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/stop") ~> httpRoutes.route ~> check {
+    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/stop").addHeader(
+      Origin(validOrigin)
+    ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
   it should "start a runtime" in {
-    Post("/api/google/v1/runtimes/googleProject1/runtime1/start") ~> routes.route ~> check {
+    Post("/api/google/v1/runtimes/googleProject1/runtime1/start").addHeader(
+      Origin(validOrigin)
+    ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "return 404 when starting a non-existent runtime" in {
-    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/start") ~> httpRoutes.route ~> check {
+    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/start").addHeader(
+      Origin(validOrigin)
+    ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
@@ -361,6 +384,7 @@ class HttpRoutesSpec
       Set.empty
     )
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, request.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -369,6 +393,7 @@ class HttpRoutesSpec
 
   it should "update a runtime with default parameters" in {
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -385,6 +410,7 @@ class HttpRoutesSpec
                            Set.empty
       )
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
       status shouldBe StatusCodes.BadRequest
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
@@ -399,6 +425,7 @@ class HttpRoutesSpec
                            Set.empty
       )
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, oneWorker.asJson.spaces2) ~> routes.route ~> check {
       status shouldBe StatusCodes.BadRequest
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
@@ -408,6 +435,7 @@ class HttpRoutesSpec
 
   "RuntimeRoutesV2" should "create azure runtime" in {
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`,
                   defaultCreateAzureRuntimeReq.asJson.spaces2
       ) ~> routes.route ~> check {
@@ -418,6 +446,7 @@ class HttpRoutesSpec
 
   it should "reject azure runtime with invalid workspaceId" in {
     Post(s"/api/v2/runtimes/invalidWorkspaceId/azure/azureruntime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`,
                   defaultCreateAzureRuntimeReq.asJson.spaces2
       ) ~> routes.route ~> check {
@@ -430,6 +459,7 @@ class HttpRoutesSpec
 
   it should "reject azure runtime with invalid runtimeName" in {
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/invalidRuntime")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`,
                   defaultCreateAzureRuntimeReq.asJson.spaces2
       ) ~> routes.route ~> check {
@@ -441,7 +471,8 @@ class HttpRoutesSpec
   }
 
   it should "get an azure runtime" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> routes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
+      .addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetRuntimeResponse].clusterName shouldBe RuntimeName("azureruntime1")
       validateRawCookie(header("Set-Cookie"))
@@ -449,25 +480,28 @@ class HttpRoutesSpec
   }
 
   it should "404 on get azure runtime when it does not exist" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/fakeruntime") ~> httpRoutes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/fakeruntime")
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
   it should "delete an azure runtime" in {
-    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> routes.route ~> check {
+    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
+      .addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
   }
 
   it should "404 on delete azure runtime when it does not exist" in {
-    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> httpRoutes.route ~> check {
+    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
   it should "list runtimes v2 with a workspace" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}") ~> routes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListRuntimeResponse2]].map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
       validateRawCookie(header("Set-Cookie"))
@@ -475,7 +509,7 @@ class HttpRoutesSpec
   }
 
   it should "list runtimes v2 without a workspace or cloudContext" in {
-    Get("/api/v2/runtimes") ~> routes.route ~> check {
+    Get("/api/v2/runtimes").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       val response = responseAs[Vector[ListRuntimeResponse2]]
       response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
@@ -484,7 +518,8 @@ class HttpRoutesSpec
   }
 
   it should "list runtimes v2 with a workspace and cloud context" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure") ~> routes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure")
+      .addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       val response = responseAs[Vector[ListRuntimeResponse2]]
       response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
@@ -506,9 +541,8 @@ class HttpRoutesSpec
           azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName(s"azureDisk-$i"))
         )
 
-    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-1",
-         runtimesWithLabels(1).asJson
-    ) ~> httpRoutes.route ~> check {
+    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-1", runtimesWithLabels(1).asJson)
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
 
@@ -525,15 +559,14 @@ class HttpRoutesSpec
       .transaction
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-2",
-         runtimesWithLabels(2).asJson
-    ) ~> httpRoutes.route ~> check {
+    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-2", runtimesWithLabels(2).asJson)
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
 
     Get(
       s"/api/v2/runtimes/${workspaceId.value.toString}/azure?label1=value1&includeDeleted=true"
-    ) ~> httpRoutes.route ~> check {
+    ).addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -554,7 +587,8 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=label2%3Dvalue2") ~> httpRoutes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=label2%3Dvalue2")
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -576,13 +610,15 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=bad") ~> httpRoutes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=bad")
+      .addHeader(Origin(validOrigin)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
     }
   }
 
   it should "list runtimes v2 with parameters" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?project=foo&creator=bar") ~> routes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?project=foo&creator=bar")
+      .addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListRuntimeResponse2]].map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
       validateRawCookie(header("Set-Cookie"))
@@ -599,6 +635,7 @@ class HttpRoutesSpec
       None
     )
     Post("/api/google/v1/disks/googleProject1/disk1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, diskCreateRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -607,6 +644,7 @@ class HttpRoutesSpec
 
   it should "create a disk with default parameters" in {
     Post("/api/google/v1/disks/googleProject1/disk1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -614,7 +652,7 @@ class HttpRoutesSpec
   }
 
   it should "get a disk" in {
-    Get("/api/google/v1/disks/googleProject/disk1") ~> routes.route ~> check {
+    Get("/api/google/v1/disks/googleProject/disk1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetPersistentDiskResponse].name shouldBe CommonTestData.diskName
       validateRawCookie(header("Set-Cookie"))
@@ -622,7 +660,7 @@ class HttpRoutesSpec
   }
 
   it should "list all disks" in {
-    Get("/api/google/v1/disks") ~> routes.route ~> check {
+    Get("/api/google/v1/disks").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
       validateRawCookie(header("Set-Cookie"))
@@ -630,7 +668,7 @@ class HttpRoutesSpec
   }
 
   it should "list all disks within a project" in {
-    Get("/api/google/v1/disks/googleProject") ~> routes.route ~> check {
+    Get("/api/google/v1/disks/googleProject").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
       validateRawCookie(header("Set-Cookie"))
@@ -638,7 +676,7 @@ class HttpRoutesSpec
   }
 
   it should "list disks with parameters" in {
-    Get("/api/google/v1/disks?project=foo&creator=bar") ~> routes.route ~> check {
+    Get("/api/google/v1/disks?project=foo&creator=bar").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
       validateRawCookie(header("Set-Cookie"))
@@ -646,7 +684,7 @@ class HttpRoutesSpec
   }
 
   it should "delete a disk" in {
-    Delete("/api/google/v1/disks/googleProject1/disk1") ~> routes.route ~> check {
+    Delete("/api/google/v1/disks/googleProject1/disk1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -657,14 +695,16 @@ class HttpRoutesSpec
       Map("foo" -> "bar"),
       DiskSize(1024)
     )
-    Patch("/api/google/v1/disks/googleProject1/disk1", request.asJson) ~> routes.route ~> check {
+    Patch("/api/google/v1/disks/googleProject1/disk1", request.asJson).addHeader(
+      Origin(validOrigin)
+    ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "get a disk v2" in {
-    Get(s"/api/v2/disks/-1") ~> routes.route ~> check {
+    Get(s"/api/v2/disks/-1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetPersistentDiskV2Response].name shouldBe CommonTestData.diskName
       validateRawCookie(header("Set-Cookie"))
@@ -672,14 +712,14 @@ class HttpRoutesSpec
   }
 
   it should "delete a disk v2" in {
-    Delete(s"/api/v2/disks/-1") ~> routes.route ~> check {
+    Delete(s"/api/v2/disks/-1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "reject get a disk if id is invalid" in {
-    Get(s"/api/v2/disks/diskid") ~> routes.route ~> check {
+    Get(s"/api/v2/disks/diskid").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       val expectedResponse =
         """Invalid workspace id workspaceId, workspace id must be a valid UUID"""
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String.contains(expectedResponse)
@@ -688,37 +728,39 @@ class HttpRoutesSpec
   }
 
   "HttpRoutes" should "not handle unrecognized routes" in {
-    Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
+    Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled").addHeader(
+      Origin(validOrigin)
+    ) ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
-    Get("/api/google/v1/badruntime/googleProject1/runtime1") ~> routes.route ~> check {
+    Get("/api/google/v1/badruntime/googleProject1/runtime1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
-    Get("/api/google/v2/runtime/googleProject1/runtime1") ~> routes.route ~> check {
+    Get("/api/google/v2/runtime/googleProject1/runtime1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
-    Post("/api/google/v1/runtime/googleProject1/runtime1") ~> routes.route ~> check {
+    Post("/api/google/v1/runtime/googleProject1/runtime1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
-    Post("/api/google/v1/disk/googleProject1/disk1") ~> routes.route ~> check {
+    Post("/api/google/v1/disk/googleProject1/disk1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
-    Get("/api/google/v1/disks/googleProject1/disk1/foo") ~> routes.route ~> check {
+    Get("/api/google/v1/disks/googleProject1/disk1/foo").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
-    Get(s"/api/disks/v2/${workspaceId.value.toString}/disk1") ~> routes.route ~> check {
+    Get(s"/api/disks/v2/${workspaceId.value.toString}/disk1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
@@ -727,6 +769,7 @@ class HttpRoutesSpec
 
   "Kubernetes Routes" should "create an app" in {
     Post("/api/google/v1/apps/googleProject1/app1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, createAppRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -734,7 +777,7 @@ class HttpRoutesSpec
   }
 
   it should "list apps with project" in {
-    Get("/api/google/v1/apps/googleProject1") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/googleProject1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
       val response = responseAs[Vector[ListAppResponse]]
@@ -743,21 +786,23 @@ class HttpRoutesSpec
   }
 
   it should "list apps with no project" in {
-    Get("/api/google/v1/apps/") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "list apps with labels" in {
-    Get("/api/google/v1/apps?project=foo&creator=bar&includeDeleted=true") ~> routes.route ~> check {
+    Get("/api/google/v1/apps?project=foo&creator=bar&includeDeleted=true").addHeader(
+      Origin(validOrigin)
+    ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "get app" in {
-    Get("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/googleProject1/app1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
       responseAs[GetAppResponse] shouldBe getAppResponse
@@ -765,20 +810,21 @@ class HttpRoutesSpec
   }
 
   it should "delete app" in {
-    Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
+    Delete("/api/google/v1/apps/googleProject1/app1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "validate app name" in {
-    Get("/api/google/v1/apps/googleProject1/1badApp") ~> routes.route ~> check {
+    Get("/api/google/v1/apps/googleProject1/1badApp").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status.intValue shouldBe 400
     }
   }
 
   it should "validate create app request" in {
     Post("/api/google/v1/apps/googleProject1/app1")
+      .addHeader(Origin(validOrigin))
       .withEntity(
         ContentTypes.`application/json`,
         createAppRequest
@@ -795,14 +841,14 @@ class HttpRoutesSpec
   }
 
   it should "stop an app" in {
-    Post("/api/google/v1/apps/googleProject1/app1/stop") ~> routes.route ~> check {
+    Post("/api/google/v1/apps/googleProject1/app1/stop").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
   it should "start an app" in {
-    Post("/api/google/v1/apps/googleProject1/app1/start") ~> routes.route ~> check {
+    Post("/api/google/v1/apps/googleProject1/app1/start").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -810,6 +856,7 @@ class HttpRoutesSpec
 
   it should "create an app V2" in {
     Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`,
                   createAppRequest.copy(accessScope = Some(AppAccessScope.WorkspaceShared)).asJson.spaces2
       ) ~> routes.route ~> check {
@@ -819,7 +866,7 @@ class HttpRoutesSpec
   }
 
   it should "list apps v2 with project" in {
-    Get(s"/api/apps/v2/${workspaceId.value.toString}") ~> routes.route ~> check {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
       val response = responseAs[Vector[ListAppResponse]]
@@ -828,7 +875,7 @@ class HttpRoutesSpec
   }
 
   it should "get app V2" in {
-    Get(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+    Get(s"/api/apps/v2/${workspaceId.value.toString}/app1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
       responseAs[GetAppResponse] shouldBe getAppResponse
@@ -836,7 +883,7 @@ class HttpRoutesSpec
   }
 
   it should "delete app V2" in {
-    Delete(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
+    Delete(s"/api/apps/v2/${workspaceId.value.toString}/app1").addHeader(Origin(validOrigin)) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -844,6 +891,7 @@ class HttpRoutesSpec
 
   it should "validate create appV2 request" in {
     Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
+      .addHeader(Origin(validOrigin))
       .withEntity(
         ContentTypes.`application/json`,
         createAppRequest
