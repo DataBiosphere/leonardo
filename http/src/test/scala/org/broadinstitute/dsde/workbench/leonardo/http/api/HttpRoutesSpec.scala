@@ -67,7 +67,7 @@ class HttpRoutesSpec
       new MockRuntimeV2Interp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      RefererConfig(Set("https://bvdp-saturn-dev.appspot.com/"), true)
+      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
     )
 
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>

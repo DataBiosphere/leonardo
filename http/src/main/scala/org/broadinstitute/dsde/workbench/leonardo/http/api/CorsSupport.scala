@@ -19,6 +19,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
         preflightRequestHandler ~ r
       }
     }
+  // TODO proxy routes only?
   // This handles preflight OPTIONS requests.
   private def preflightRequestHandler: Route = options {
     complete(
@@ -33,7 +34,8 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
       pass
     else {
       def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
-        .map(uri => HttpOrigin("http", Host(uri)))
+        .map(uri => if (uri.last == '/') uri.slice(0, uri.length - 1) else uri)
+        .map(host => HttpOrigin("http", Host(host)))
       checkSameOrigin(HttpOriginRange(validOrigins.toSeq: _*))
     }
 
@@ -51,6 +53,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
           h.isNot(`Access-Control-Allow-Origin`.lowercaseName) && h.isNot("content-security-policy")
         } ++
           allowOrigin ++
+          // TODO do the rest of these apply to all routes or proxy only?
           Seq(
             `Access-Control-Allow-Credentials`(true),
             `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),

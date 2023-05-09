@@ -683,9 +683,9 @@ class ProxyRoutesSpec
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Origin(invalidOrigin))
       .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {
-        handled shouldBe false
-        status shouldEqual StatusCodes.Forbidden
-      }
+      handled shouldBe false
+      status shouldEqual StatusCodes.Forbidden
+    }
   }
 
   it should "handle wildcards in referer allow list" in {
