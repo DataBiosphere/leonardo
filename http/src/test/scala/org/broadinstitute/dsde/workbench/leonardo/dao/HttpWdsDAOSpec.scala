@@ -3,10 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import io.circe.parser._
-import org.broadinstitute.dsde.workbench.leonardo.{AppType, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpWdsDAO.statusDecoder
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.{AppType, LeonardoTestSuite}
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
@@ -14,7 +13,7 @@ import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite with TestComponent {
+class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   "HttpWdsDAO" should "decode wds status endpoint response successfully" in {
     val response =
       """

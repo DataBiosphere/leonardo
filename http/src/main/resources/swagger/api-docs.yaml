@@ -2810,6 +2810,7 @@ components:
         - CUSTOM
         - GALAXY
         - WDS
+        - HAIL_BATCH
     AppStatus:
       type: string
       enum:
@@ -3071,7 +3072,7 @@ components:
       description: ""
       required:
         - id
-        - googleProject
+        - cloudContext
         - zone
         - name
         - status
@@ -3084,9 +3085,8 @@ components:
         id:
           type: integer
           description: Internal Leonardo ID of the persistent disk
-        googleProject:
-          type: string
-          description: The google project used to create the persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
         zone:
           type: string
           description: The google zone in which the persistent disk was created

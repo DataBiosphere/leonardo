@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   CoaAppConfig,
+  HailBatchAppConfig,
   HttpWsmDaoConfig,
   PersistentDiskConfig,
   WdsAppConfig
@@ -28,7 +29,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.8")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.9")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -72,7 +73,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/1b7690cde14132d6478d5c014341a01b557c6132/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:8fe77a0",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:decc8b0",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -80,7 +81,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.220"),
+          ChartVersion("0.2.232"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -89,18 +90,31 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
-          instrumentationEnabled = false
+          instrumentationEnabled = false,
+          enabled = true
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.3.0"),
+          ChartVersion("0.7.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
           List(
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
           ),
-          instrumentationEnabled = false
+          instrumentationEnabled = false,
+          enabled = true
+        ),
+        HailBatchAppConfig(
+          ChartName("/leonardo/hail-batch-terra-azure"),
+          ChartVersion("0.1.8"),
+          ReleaseNameSuffix("hail-rls"),
+          NamespaceNameSuffix("hail-ns"),
+          KsaName("hail-ksa"),
+          List(
+            ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          false
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),

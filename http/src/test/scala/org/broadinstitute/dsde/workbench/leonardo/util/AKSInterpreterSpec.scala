@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.net.URL
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
@@ -15,7 +14,6 @@ import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.models._
 import org.broadinstitute.dsde.workbench.azure._
-import org.mockito.ArgumentMatchers
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
@@ -34,11 +32,13 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.Uri
+import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.{verify, when}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
+import java.net.URL
 import java.nio.file.Files
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -50,13 +50,15 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.terraAppSetupChart,
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.wdsAppConfig,
+    ConfigReader.appConfig.azure.hailBatchAppConfig,
     ConfigReader.appConfig.azure.aadPodIdentityConfig,
     ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
     appMonitorConfig,
     ConfigReader.appConfig.azure.wsm,
     ConfigReader.appConfig.drs,
-    new URL("https://leo-dummy-url.org")
+    new URL("https://leo-dummy-url.org"),
+    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage
   )
 
   val mockSamDAO = setUpMockSamDAO
@@ -64,6 +66,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockHailBatchDAO = setUpMockHailBatchDAO
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
@@ -80,7 +83,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCromwellDAO,
     mockCbasDAO,
     mockCbasUiDAO,
-    mockWdsDAO
+    mockWdsDAO,
+    mockHailBatchDAO
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -144,7 +148,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       storageContainer,
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
-      "coa",
       None,
       petUserInfo.accessToken.token
     )
@@ -190,7 +193,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
-      "wds",
       None,
       petUserInfo.accessToken.token
     )
@@ -210,6 +212,57 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
   }
 
+  it should "build coa override values with sourceWorkspaceId" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val sourceWorkspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildCromwellChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources,
+      Uri.unsafeFromString("https://relay.com/app"),
+      Some(setUpMockIdentity),
+      storageContainer,
+      BatchAccountKey("batchKey"),
+      "applicationInsightsConnectionString",
+      Some(sourceWorkspaceId),
+      petUserInfo.accessToken.token
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.batchAccountKey=batchKey," +
+      "config.batchAccountName=batch," +
+      "config.batchNodesSubnetId=subnet1," +
+      s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "relay.path=https://relay.com/app," +
+      "persistence.storageResourceGroup=mrg," +
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      "persistence.leoAppInstanceName=app," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
+      "cbas.enabled=true," +
+      "cbasUI.enabled=true," +
+      "wds.enabled=true," +
+      "cromwell.enabled=true," +
+      "fullnameOverride=coa-rel-1," +
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
+
+  }
+
   it should "build wds override values with sourceWorkspaceId" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
     val sourceWorkspaceId = WorkspaceId(UUID.randomUUID)
@@ -222,7 +275,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       lzResources,
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
-      "wds",
       Some(sourceWorkspaceId),
       petUserInfo.accessToken.token
     )
@@ -242,6 +294,31 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
 
+  }
+
+  it should "build hail batch override values" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildHailBatchChartOverrideValues(AppName("app"),
+                                                                workspaceId,
+                                                                lzResources,
+                                                                Some(setUpMockIdentity),
+                                                                storageContainer,
+                                                                "relay.com",
+                                                                RelayHybridConnectionName("app")
+    )
+    overrides.asString shouldBe
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+      s"persistence.workspaceManager.storageContainerUrl=https://${lzResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}," +
+      "persistence.leoAppName=app," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      s"relay.domain=relay.com," +
+      "relay.subpath=/app"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
@@ -297,7 +374,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
@@ -312,7 +389,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCromwellDAO,
         mockCbasDAO,
         mockCbasUiDAO,
-        mockWdsDAO
+        mockWdsDAO,
+        mockHailBatchDAO
       ) {
         override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
 
@@ -402,7 +480,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockCromwellDAO,
       mockCbasDAO,
       mockCbasUiDAO,
-      mockWdsDAO
+      mockWdsDAO,
+      mockHailBatchDAO
     ) {
       override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
 
@@ -659,6 +738,17 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       wds.getStatus(any, any, any)(any)
     } thenReturn IO.pure(true)
     wds
+  }
+
+  private def setUpMockHailBatchDAO: HailBatchDAO[IO] = {
+    val batch = mock[HailBatchDAO[IO]]
+    when {
+      batch.getStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    when {
+      batch.getDriverStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+    batch
   }
 
 }

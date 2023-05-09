@@ -270,7 +270,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
-      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v1")
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
     } yield res
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
@@ -435,7 +435,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
       .transaction
 
-    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, "v2")
+    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
   } yield res
 
   override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
@@ -1031,13 +1031,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       // Validate app type
       gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
-        case (Galaxy, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.galaxyAppConfig)
-        case (Custom, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.customAppConfig)
-        case (Cromwell, CloudProvider.Gcp)   => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (Cromwell, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.coaAppConfig)
-        case (Wds, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.wdsAppConfig)
-        case _ => Left(AppTypeNotSupportedExecption(cloudContext.cloudProvider, req.appType, ctx.traceId))
+        case (Galaxy, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
+        case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
+        case _ => Left(AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId))
       }
+
+      // Check if app type is enabled
+      _ <- Either.cond(gkeAppConfig.enabled, (), AppTypeNotEnabledException(req.appType, ctx.traceId))
 
       // check the labels do not contain forbidden keys
       labels <-
@@ -1140,19 +1144,29 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
-                                        userInfo: UserInfo,
-                                        labels: List[String],
-                                        apiVersion: String
-  )(implicit
-    as: Ask[F, AppContext]
+  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster], userInfo: UserInfo, labels: List[String])(
+    implicit as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] = for {
     _ <- as.ask
     samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
-    samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
-      authProvider.filterUserVisible(apps, userInfo)
+    // Partition apps by shared vs. private access scope and make a separate Sam call for each, then re-combine them.
+    // The reason we do this shared vs. private app access scope is represented by different Sam resource types/actions,
+    // and therefore needs different decoders to process the result list.
+    partition = samResources
+      .map(sr => sr.copy(accessScope = sr.accessScope.orElse(Some(AppAccessScope.UserPrivate))))
+      .partition(_.accessScope == Some(AppAccessScope.WorkspaceShared))
+    samVisibleSharedAppsOpt <- NonEmptyList.fromList(partition._1).traverse { apps =>
+      authProvider.filterUserVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
     }
-
+    samVisiblePrivateAppsOpt <- NonEmptyList.fromList(partition._2).traverse { apps =>
+      authProvider.filterUserVisible(apps, userInfo)(implicitly, appSamIdDecoder, implicitly)
+    }
+    samVisibleAppsOpt = (samVisiblePrivateAppsOpt, samVisibleSharedAppsOpt) match {
+      case (Some(a), Some(b)) => Some(a ++ b)
+      case (Some(a), None)    => Some(a)
+      case (None, Some(b))    => Some(b)
+      case (None, None)       => None
+    }
     res = samVisibleAppsOpt match {
       case None => Vector.empty
       case Some(samVisibleApps) =>
@@ -1167,8 +1181,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                   n.copy(apps = n.apps.filter { a =>
                     // Making the assumption that users will always be able to access apps that they create
                     // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                    samVisibleAppsSet
-                      .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
+                    val sr =
+                      a.samResourceId.copy(accessScope = a.appAccessScope.orElse(Some(AppAccessScope.UserPrivate)))
+                    samVisibleAppsSet.contains(sr) || a.auditInfo.creator == userInfo.userEmail
                   })
                 }
                 .filterNot(_.apps.isEmpty)
@@ -1315,16 +1330,23 @@ case class AppMachineConfigNotSupportedException(traceId: TraceId)
       traceId = Some(traceId)
     )
 
-case class AppTypeNotSupportedExecption(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
+case class AppTypeNotSupportedOnCloudException(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
     extends LeoException(
       s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
-      StatusCodes.BadRequest,
+      StatusCodes.Conflict,
       traceId = Some(traceId)
     )
 
 case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App with type ${appType.toString} cannot be launched with shared access scope. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
+    extends LeoException(
+      s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

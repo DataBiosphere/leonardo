@@ -9,7 +9,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
 import com.google.api.gax.longrunning.OperationFuture
-import com.google.cloud.compute.v1.{Instance, Operation}
+import com.google.cloud.compute.v1.{Instance, MachineType, Operation}
 import com.google.cloud.dataproc.v1.ClusterOperationMetadata
 import com.google.protobuf.Empty
 import kotlin.NotImplementedError
@@ -188,7 +188,31 @@ class DataprocInterpreterSpec
     )
   }
 
-  it should "calculate cluster resource constraints" in isolatedDbTest {
+  it should "calculate cluster resource constraints and software config for high-mem cluster" in isolatedDbTest {
+    val highMemGoogleComputeService = new FakeGoogleComputeService {
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[MachineType]] =
+        IO.pure(Some(MachineType.newBuilder().setName("pass").setMemoryMb(104 * 1024).setGuestCpus(4).build()))
+    }
+
+    def dataprocInterpHighMem(computeService: GoogleComputeService[IO] = highMemGoogleComputeService,
+                              dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService,
+                              googleDirectoryDao: GoogleDirectoryDAO = mockGoogleDirectoryDAO
+    ) =
+      new DataprocInterpreter[IO](
+        Config.dataprocInterpreterConfig,
+        bucketHelper,
+        vpcInterp,
+        dataprocCluster,
+        computeService,
+        MockGoogleDiskService,
+        googleDirectoryDao,
+        mockGoogleIamDAO,
+        mockGoogleResourceService,
+        MockWelderDAO
+      )
+
     val runtimeConfig = RuntimeConfig.DataprocConfig(0,
                                                      MachineTypeName("n1-standard-4"),
                                                      DiskSize(500),
@@ -201,15 +225,63 @@ class DataprocInterpreterSpec
                                                      true,
                                                      false
     )
-    val resourceConstraints = dataprocInterp()
-      .getClusterResourceContraints(testClusterClusterProjectAndName,
-                                    runtimeConfig.machineType,
-                                    RegionName("us-central1")
+    val resourceConstraints = dataprocInterpHighMem()
+      .getDataprocRuntimeResourceContraints(testClusterClusterProjectAndName,
+                                            runtimeConfig.machineType,
+                                            RegionName("us-central1")
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m
-    resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(768)
+    val dataProcSoftwareConfig = dataprocInterp().getSoftwareConfig(
+      GoogleProject("MyGoogleProject"),
+      RuntimeName("MyRuntimeName"),
+      runtimeConfig,
+      resourceConstraints
+    )
+
+    val propertyMap = dataProcSoftwareConfig.getPropertiesMap()
+    val sparkMemoryConfigRatio = dataprocConfig.sparkMemoryConfigRatio.getOrElse(0.8)
+    resourceConstraints.totalMachineMemory shouldBe MemorySize.fromGb(104)
+    resourceConstraints.memoryLimit shouldBe MemorySize(
+      (MemorySize.fromGb(104).bytes * (1 - sparkMemoryConfigRatio)).toLong
+    )
+    propertyMap.get(
+      "spark:spark.driver.memory"
+    ) shouldBe ((resourceConstraints.totalMachineMemory.bytes - resourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes) + "m"
+
+  }
+
+  it should "create correct softwareConfig - minimum runtime memory 4gb" in isolatedDbTest {
+    val runtimeConfig = RuntimeConfig.DataprocConfig(0,
+                                                     MachineTypeName("n1-highmem-64"),
+                                                     DiskSize(500),
+                                                     None,
+                                                     None,
+                                                     None,
+                                                     None,
+                                                     Map.empty[String, String],
+                                                     RegionName("us-central1"),
+                                                     true,
+                                                     false
+    )
+    val resourceConstraints = dataprocInterp()
+      .getDataprocRuntimeResourceContraints(testClusterClusterProjectAndName,
+                                            runtimeConfig.machineType,
+                                            RegionName("us-central1")
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val dataProcSoftwareConfig = dataprocInterp().getSoftwareConfig(
+      GoogleProject("MyGoogleProject"),
+      RuntimeName("MyRuntimeName"),
+      runtimeConfig,
+      resourceConstraints
+    )
+
+    val propertyMap = dataProcSoftwareConfig.getPropertiesMap()
+
+    resourceConstraints.memoryLimit shouldBe MemorySize.fromGb(4)
+    propertyMap.get("spark:spark.driver.memory") shouldBe (MemorySize.fromGb(3.5).bytes / MemorySize.mbInBytes) + "m"
   }
 
   it should "don't error if runtime is already deleted" in isolatedDbTest {

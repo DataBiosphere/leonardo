@@ -2,7 +2,7 @@
 #   1. Build the Helm client Go lib
 #   2. Deploy Leonardo pointing to the Go lib
 
-FROM golang:1.14.6-stretch AS helm-go-lib-builder
+FROM golang:1.20 AS helm-go-lib-builder
 
 # TODO Consider moving repo set-up to the build script to make CI versioning easier
 RUN mkdir /helm-go-lib-build && \
@@ -29,9 +29,9 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.223
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.223
-ENV WDS_CHART_VERSION 0.3.0
+ENV CROMWELL_CHART_VERSION 0.2.232
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.232
+ENV WDS_CHART_VERSION 0.7.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.8
 
 RUN mkdir /leonardo

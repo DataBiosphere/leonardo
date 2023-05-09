@@ -24,6 +24,7 @@ sealed trait KubernetesAppConfig {
   def serviceAccountName: ServiceAccountName
   def chart: Chart = Chart(chartName, chartVersion)
   def kubernetesServices: List[KubernetesService]
+  def enabled: Boolean
 }
 
 final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
@@ -37,7 +38,8 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  orchUrl: GalaxyOrchUrl,
                                  drsUrl: GalaxyDrsUrl,
                                  minMemoryGb: Int,
-                                 minNumOfCpus: Int
+                                 minNumOfCpus: Int,
+                                 enabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
@@ -48,7 +50,8 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    releaseNameSuffix: ReleaseNameSuffix,
                                    services: List[ServiceConfig],
                                    serviceAccountName: ServiceAccountName,
-                                   dbPassword: DbPassword
+                                   dbPassword: DbPassword,
+                                   enabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
@@ -60,7 +63,8 @@ final case class CustomAppConfig(chartName: ChartName,
                                  releaseNameSuffix: ReleaseNameSuffix,
                                  namespaceNameSuffix: NamespaceNameSuffix,
                                  serviceAccountName: ServiceAccountName,
-                                 customApplicationAllowList: CustomApplicationAllowListConfig
+                                 customApplicationAllowList: CustomApplicationAllowListConfig,
+                                 enabled: Boolean
 ) extends KubernetesAppConfig {
   // Not known at config. Generated at runtime.
   override lazy val kubernetesServices: List[KubernetesService] = List.empty
@@ -72,7 +76,8 @@ final case class CoaAppConfig(chartName: ChartName,
                               namespaceNameSuffix: NamespaceNameSuffix,
                               ksaName: KsaName,
                               services: List[ServiceConfig],
-                              instrumentationEnabled: Boolean
+                              instrumentationEnabled: Boolean,
+                              enabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
@@ -92,11 +97,23 @@ final case class WdsAppConfig(chartName: ChartName,
                               namespaceNameSuffix: NamespaceNameSuffix,
                               ksaName: KsaName,
                               services: List[ServiceConfig],
-                              instrumentationEnabled: Boolean
+                              instrumentationEnabled: Boolean,
+                              enabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
-  def coaServices: Set[CoaService] = Set(Wds)
+}
+
+final case class HailBatchAppConfig(chartName: ChartName,
+                                    chartVersion: ChartVersion,
+                                    releaseNameSuffix: ReleaseNameSuffix,
+                                    namespaceNameSuffix: NamespaceNameSuffix,
+                                    ksaName: KsaName,
+                                    services: List[ServiceConfig],
+                                    enabled: Boolean
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
 }
 
 sealed trait CoaService
