@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
+import akka.http.scaladsl.model.headers.Origin
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
@@ -39,6 +40,7 @@ class HttpRoutesSpec
     with TestLeoRoutes {
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
+  val validOrigin = "http://example.com"
 
   val routes =
     new HttpRoutes(
@@ -67,7 +69,7 @@ class HttpRoutesSpec
       new MockRuntimeV2Interp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
+      RefererConfig(Set("example.com", "bvdp-saturn-dev.appspot.com/"), true)
     )
 
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
@@ -91,6 +93,7 @@ class HttpRoutesSpec
       Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "random"), Map.empty, Map.empty, Map.empty))
     )
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
       status shouldEqual StatusCodes.BadRequest
       responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe true
