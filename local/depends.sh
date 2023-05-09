@@ -138,7 +138,7 @@ render_configs() {
 		 /^VALID_HOSTS/d
 		 s/^/export /g
 		 s/=/="/;s/$/"/' \
-		"${_out_dir}/sbt.env.sh" > "${_out_dir}/sbt.env.sh"
+		"${_out_dir}/sbt.env" > "${_out_dir}/sbt.env.sh"
 
 	# Get CloudSQL proxy env vars
 	{
