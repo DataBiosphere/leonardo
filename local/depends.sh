@@ -93,7 +93,7 @@ render_configs() {
 		{{- $v | base64decode }}
 	{{- end }}
 	{{- "\n" }}
-{{- end }}' > "${_out_dir}/k8s-secrets.env"
+{{- end }}' > "${_out_dir}/k8s.env"
 
 	# Get non-secret backend env vars
 	kubectl -n terra-dev get pods -o go-template='
@@ -108,12 +108,12 @@ render_configs() {
 		{{- end }}
 	{{- end }}
 {{- end }}' | \
-	sed '/^VALID_HOSTS/s/leonardo\.dsde-dev\.broadinstitute\.org$/local\.dsde-dev\.broadinstitute\.org:30433/' | \
-	sed '/^JAVA_TOOL_OPTIONS/d' \
-		> "${_out_dir}/k8s-clear.env"
+	sed '/^VALID_HOSTS/s/leonardo\.dsde-dev\.broadinstitute\.org$/local\.dsde-dev\.broadinstitute\.org:30443/' | \
+	sed '/^JAVA_TOOL_OPTIONS/d' | \
+	sed '/^JAVA_OPTS/d' >> "${_out_dir}/k8s.env"
 
-	cat "${_out_dir}/k8s-secrets.env" > "${_out_dir}/sbt.env"
-	cat "${_out_dir}/k8s-clear.env" >> "${_out_dir}/sbt.env"
+	# Replace k8s env vars with local overrides
+	sort -u -t '=' -k 1,1 "${REPO_ROOT}/env/local.env" "${_out_dir}/k8s.env" | grep -v '^$\|^\s*\#' | sort  > "${_out_dir}/sbt.env"
 
 	# Get CloudSQL proxy env vars
 	{
@@ -151,10 +151,10 @@ HELP_TEXT=$(cat <<EOF
  Build helm Go library and/or render resources from kubernetes.
 
  Commands:
-   helm: Build the Golang helm library.
-   configs:  Render application resource files from kubernetes.
+   helm:    Build the Golang helm library.
+   configs: Render application resource files from kubernetes.
  Flags:
-   -y | --yes: Use default values instead of prompting for input.
+   -y | --yes:  Use default values instead of prompting for input.
    -h | --help: Print this help message.
  Examples:
    1. Build the helm Go library and render resources.
@@ -210,7 +210,7 @@ while [ "${1}" != "" ]; do
     shift
 done
 
-# If no commands were specified but -d|--default was given,
+# If no commands were specified but -y|--yes was given,
 # do both helm and config commands, but with default answers.
 if ${USE_PROMPT_DEFAULTS} && ! ${BUILD_HELM_GOLIB} && ! ${RENDER_CONFIGS}; then
 	BUILD_HELM_GOLIB=true
