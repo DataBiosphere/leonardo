@@ -99,11 +99,6 @@ render_configs() {
 {{- end }}' > "${_out_dir}/k8s.env"
 
 	# Get non-secret backend env vars
-	# Remove FRAME_ANCESTORS.* as they're not needed and shell vars can't
-	# have dots in their names
-	# Remove VALID_HOSTS.* as only one is needed (added in overrides as an
-	# sbt env var) and shell vars can't have dots in their names
-	# Remove any JVM options from the k8s env as local ones will always differ.
 	kubectl -n terra-dev get pods -o go-template='
 {{- range $pod := .items }}
 	{{- range $container := $pod.spec.containers }}
@@ -115,28 +110,31 @@ render_configs() {
 			{{- end }}
 		{{- end }}
 	{{- end }}
-{{- end }}' | \
-	sed '/^FRAME_ANCESTORS/d
-		 /^VALID_HOSTS/d
-		 /^JAVA_TOOL_OPTIONS/d
-		 /^JAVA_OPTS/d' >> "${_out_dir}/k8s.env"
+{{- end }}' >> "${_out_dir}/k8s.env"
+
+	# Remove comments and empty lines from unset.env
+	grep -v '^$\|^\s*\#' "${LOCAL_DIR}/unset.env" | \
+	sed '/^$/d' > "${_out_dir}/unset.env"
+
+	# Remove vars from k8s.env using what's listed in unset.env
+	local _unset_sed_cmd=""
+	while read env_var; do
+		_unset_sed_cmd="${_unset_sed_cmd}/^${env_var}/d;"
+	done < "${_out_dir}/unset.env"
+	cat "${_out_dir}/k8s.env" | sed "${_unset_sed_cmd}" > "${_out_dir}/k8s-unset.env"
 
 	# Replace k8s env vars with local overrides
 	# Ignore empty lines and comment lines
 	# Remove empty lines
 	# Alphabetize everything
-	sort -u -t '=' -k 1,1 "${LOCAL_DIR}/overrides.env" "${_out_dir}/k8s.env" | \
+	sort -u -t '=' -k 1,1 "${LOCAL_DIR}/overrides.env" "${_out_dir}/k8s-unset.env" | \
 	grep -v '^$\|^\s*\#' | \
 	sed '/^$/d' | \
 	sort > "${_out_dir}/sbt.env"
 
-	# Remove all FRAME_ANCESTORS and VALID_HOSTS bc shells
-	# don't like vars with '.' in the name
 	# Create source-able env file (i.e. add "export ...")
 	# Quote all values bc this is for shells
-	sed '/^FRAME_ANCESTORS/d
-		 /^VALID_HOSTS/d
-		 s/^/export /g
+	sed 's/^/export /g
 		 s/=/="/;s/$/"/' \
 		"${_out_dir}/sbt.env" > "${_out_dir}/sbt.env.sh"
 
