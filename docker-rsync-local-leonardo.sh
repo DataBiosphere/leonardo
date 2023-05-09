@@ -30,6 +30,7 @@ trap clean_up EXIT HUP INT QUIT PIPE TERM 0 20
 echo "Creating shared volumes if they don't exist..."
 docker volume create --name jar-cache
 docker volume create --name coursier-cache
+docker volume create --name helm-lib-build
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SECRETS_DIR="${REPO_ROOT}/http/src/main/resources/rendered"
@@ -49,13 +50,14 @@ start_server () {
 
     echo "Creating helm docker container..."
     docker build -t helm-lib - < $HELM_SCALA_SDK_DIR/Dockerfile
-    docker create --name leonardo-helm-lib -v /build \
+    docker create --name leonardo-helm-lib -v helm-lib-build:/build \
     helm-lib
 
     echo "Creating SBT docker container..."
     docker create -it --name leonardo-sbt -w /app \
     -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
     -v coursier-cache:/home/sbtuser/.cache \
+    -v helm-lib-build:/helm-go-lib-build \
     -v "${REPO_ROOT}:/app" \
     -p 25050:5050 -p 8080:8080 -p 9000:9000 \
     --network=fc-leonardo \
@@ -72,9 +74,6 @@ start_server () {
     docker cp ${SECRETS_DIR}/leo-client.p12 leonardo-sbt:/etc/leo-client.p12
     docker cp ${SECRETS_DIR}/rootCA.key leonardo-sbt:/etc/rootCA.key
     docker cp ${SECRETS_DIR}/rootCA.pem leonardo-sbt:/etc/rootCA.pem
-    docker cp /etc/localtime leonardo-sbt:/etc/localtime
-    docker cp leonardo-helm-lib:/build /tmp
-    docker cp /tmp/build/ leonardo-sbt:/helm-go-lib-build
 
     echo "Creating proxy..."
     docker create --name leonardo-proxy \
