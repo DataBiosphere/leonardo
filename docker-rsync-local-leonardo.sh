@@ -13,55 +13,27 @@ fi
 
 if [ -a ./.docker-rsync-local.pid ]; then
     echo "Looks like clean-up wasn't completed, doing it now..."
-    docker rm -f leonardo-rsync-container leonardo-proxy leonardo-sbt sqlproxy
+    docker rm -f leonardo-proxy leonardo-sbt sqlproxy
     docker network rm fc-leonardo
     pkill -P $(< "./.docker-rsync-local.pid")
-    rm ./.docker-rsync-local.pid
 fi
 
 clean_up () {
     echo
     echo "Cleaning up after myself..."
-    docker rm -f leonardo-rsync-container leonardo-proxy sqlproxy leonardo-helm-lib leonardo-sbt
+    docker rm -f leonardo-proxy sqlproxy leonardo-helm-lib leonardo-sbt
     docker network rm fc-leonardo
     pkill -P $$
-    rm ./.docker-rsync-local.pid
 }
 trap clean_up EXIT HUP INT QUIT PIPE TERM 0 20
 
 echo "Creating shared volumes if they don't exist..."
-docker volume create --name leonardo-shared-source
 docker volume create --name jar-cache
 docker volume create --name coursier-cache
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SECRETS_DIR="${REPO_ROOT}/http/src/main/resources/rendered"
 HELMLIB_BUILD_DIR="${REPO_ROOT}/local/helm-scala-sdk/out"
-
-echo "Launching rsync container..."
-docker run -d \
-    --name leonardo-rsync-container \
-    -v leonardo-shared-source:/working \
-    -e DAEMON=docker \
-    tjamet/rsync
-
-run_rsync ()  {
-    rsync --blocking-io -azl --delete -e "docker exec -i" . leonardo-rsync-container:working \
-        --filter='+ /build.sbt' \
-        --filter='+ /http/' \
-        --filter='+ /http/src/***' \
-        --filter='+ /core/' \
-        --filter='+ /core/src/***' \
-        --filter='+ /docker/***' \
-        --filter='+ /jupyter-docker/***' \
-        --filter='+ /project/***' \
-        --filter='+ /.git/***' \
-        --filter='- *'
-}
-echo "Performing initial file sync..."
-run_rsync
-fswatch -o . | while read f; do run_rsync; done &
-echo $$ > ./.docker-rsync-local.pid
 
 start_server () {
     docker network create fc-leonardo
@@ -81,10 +53,10 @@ start_server () {
     helm-lib
 
     echo "Creating SBT docker container..."
-    docker create -it --name leonardo-sbt \
-    -v leonardo-shared-source:/app -w /app \
+    docker create -it --name leonardo-sbt -w /app \
     -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
     -v coursier-cache:/home/sbtuser/.cache \
+    -v "${REPO_ROOT}:/app" \
     -p 25050:5050 -p 8080:8080 -p 9000:9000 \
     --network=fc-leonardo \
     --env-file="${SECRETS_DIR}/sbt.env" \
