@@ -99,7 +99,10 @@ render_configs() {
 {{- end }}' > "${_out_dir}/k8s.env"
 
 	# Get non-secret backend env vars
-	# Swap leonardo.dsde-dev.broadinstitute.org for local.dsde-dev.broadinstitute.org
+	# Remove FRAME_ANCESTORS.* as they're not needed and shell vars can't
+	# have dots in their names
+	# Remove VALID_HOSTS.* as only one is needed (added in overrides as an
+	# sbt env var) and shell vars can't have dots in their names
 	# Remove any JVM options from the k8s env as local ones will always differ.
 	kubectl -n terra-dev get pods -o go-template='
 {{- range $pod := .items }}
@@ -113,15 +116,29 @@ render_configs() {
 		{{- end }}
 	{{- end }}
 {{- end }}' | \
-	sed '/^VALID_HOSTS/s/leonardo\.dsde-dev\.broadinstitute\.org$/local\.dsde-dev\.broadinstitute\.org:30443/' | \
-	sed '/^JAVA_TOOL_OPTIONS/d' | \
-	sed '/^JAVA_OPTS/d' >> "${_out_dir}/k8s.env"
+	sed '/^FRAME_ANCESTORS/d
+		 /^VALID_HOSTS/d
+		 /^JAVA_TOOL_OPTIONS/d
+		 /^JAVA_OPTS/d' >> "${_out_dir}/k8s.env"
 
 	# Replace k8s env vars with local overrides
-	# Alphabetize everything
+	# Ignore empty lines and comment lines
 	# Remove empty lines
+	# Alphabetize everything
 	sort -u -t '=' -k 1,1 "${LOCAL_DIR}/overrides.env" "${_out_dir}/k8s.env" | \
-	grep -v '^$\|^\s*\#' | sort | sed '/^$/d' > "${_out_dir}/sbt.env"
+	grep -v '^$\|^\s*\#' | \
+	sed '/^$/d' | \
+	sort > "${_out_dir}/sbt.env"
+
+	# Remove all FRAME_ANCESTORS and VALID_HOSTS bc shells
+	# don't like vars with '.' in the name
+	# Create source-able env file (i.e. add "export ...")
+	# Quote all values bc this is for shells
+	sed '/^FRAME_ANCESTORS/d
+		 /^VALID_HOSTS/d
+		 s/^/export /g
+		 s/=/="/;s/$/"/' \
+		"${_out_dir}/sbt.env.sh" > "${_out_dir}/sbt.env.sh"
 
 	# Get CloudSQL proxy env vars
 	{
