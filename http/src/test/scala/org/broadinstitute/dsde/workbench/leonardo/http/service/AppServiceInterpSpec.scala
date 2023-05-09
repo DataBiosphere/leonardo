@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -69,34 +69,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
       )
   }
-  val appServiceInterp = new LeoAppServiceInterp[IO](
-    appServiceConfig,
-    allowListAuthProvider,
-    serviceAccountProvider,
-    QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService,
-    FakeGoogleResourceService,
-    gkeCustomAppConfig,
-    wsmDao,
-    samDao
-  )
-  val gcpWorkspaceAppServiceInterp = new LeoAppServiceInterp[IO](
-    appServiceConfig,
-    allowListAuthProvider,
-    serviceAccountProvider,
-    QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService,
-    FakeGoogleResourceService,
-    gkeCustomAppConfig,
-    gcpWsmDao,
-    samDao
-  )
 
   // used when we care about queue state
-  def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
+  def makeInterp(queue: Queue[IO, LeoPubsubMessage],
+                 allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
+                 wsmDao: WsmDao[IO] = wsmDao
+  ) =
     new LeoAppServiceInterp[IO](
       appServiceConfig,
-      allowListAuthProvider,
+      allowlistAuthProvider,
       serviceAccountProvider,
       queue,
       FakeGoogleComputeService,
@@ -106,18 +87,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       samDao
     )
 
-  def makeGcpWorkspaceInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      allowListAuthProvider,
-      serviceAccountProvider,
-      queue,
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
-      gkeCustomAppConfig,
-      gcpWsmDao,
-      samDao
-    )
+  val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
+  val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
     val project = GoogleProject("project1")
@@ -1600,7 +1571,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
 
     kubeServiceInterp
       .createAppV2(userInfo, workspaceId, appName, appReq)
@@ -1662,7 +1633,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "V2 GCP - delete a gcp app V2, update status appropriately, and queue a message" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
@@ -1707,6 +1678,24 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.appId shouldBe app.id
     deleteAppMessage.workspaceId shouldBe workspaceId
     deleteAppMessage.diskId shouldBe None
+  }
+
+  it should "V2 GCP - fail to delete an app when creator has lost workspace permission" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
+    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+      .deleteAppV2(userInfo, workspaceId, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "V2 Azure - delete an Azure app V2, update status appropriately, and queue a message" in isolatedDbTest {
@@ -1758,6 +1747,24 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.diskId shouldBe None
   }
 
+  it should "V2 Azure - fail to delete an app when creator has lost workspace permission" in isolatedDbTest {
+    val appName = AppName("app1")
+    val appReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
+
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2)
+    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+      .deleteAppV2(userInfo, workspaceId, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "V2 GCP - list apps V2 should return apps for workspace" in isolatedDbTest {
     val appName1 = AppName("app1")
     val diskName1 = DiskName("newDiskName1")
@@ -1805,6 +1812,36 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .listAppV2(userInfo, workspaceId3, Map())
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listProject3Apps.length shouldBe 1
+  }
+
+  it should "V2 GCP - list apps V2 should fail to return apps for workspace if creator lost workspace access" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val diskName1 = DiskName("newDiskName1")
+    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        diskConfig = Some(createDiskConfig1)
+    )
+    gcpWorkspaceAppServiceInterp
+      .createAppV2(userInfo, workspaceId, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    val listProject1Apps =
+      gcpWorkspaceAppServiceInterp
+        .listAppV2(userInfo, workspaceId, Map())
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    listProject1Apps.length shouldBe 1
+    listProject1Apps.map(_.appName) should contain(appName1)
+
+    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
+    azureService2
+      .listAppV2(userInfo, workspaceId, Map())
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .length shouldBe 0
   }
 
   it should "V2 Azure - list apps V2 should return apps for workspace" in isolatedDbTest {
@@ -1855,6 +1892,36 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     listProject3Apps.length shouldBe 1
   }
 
+  it should "V2 Azure - list apps V2 should fail to return apps for workspace if creator lost workspace access" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        kubernetesRuntimeConfig = None,
+                                        appType = AppType.Cromwell,
+                                        diskConfig = None
+    )
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    val listProject1Apps =
+      appServiceInterp
+        .listAppV2(userInfo, workspaceId, Map())
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    listProject1Apps.length shouldBe 1
+    listProject1Apps.map(_.appName) should contain(appName1)
+
+    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2)
+    azureService2
+      .listAppV2(userInfo, workspaceId, Map())
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .length shouldBe 0
+  }
+
   it should "V2 GCP - get app" in isolatedDbTest {
     val appName1 = AppName("app1")
     val diskName1 = DiskName("newDiskName1")
@@ -1889,17 +1956,29 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .createAppV2(userInfo, workspaceId3, appName3, appReq3)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
+    // New service where the userInfo is not part of the allowlist and therefore not a workspace reader
+    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
+
     val getApp1 =
       appServiceInterp.getAppV2(userInfo, workspaceId, appName1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp1.diskName shouldBe Some(diskName1)
+    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+      .getAppV2(userInfo, workspaceId, appName1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val getApp2 =
       appServiceInterp.getAppV2(userInfo, workspaceId, appName2).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp2.diskName shouldBe Some(diskName2)
+    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+      .getAppV2(userInfo, workspaceId, appName2)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val getApp3 =
       appServiceInterp.getAppV2(userInfo, workspaceId3, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp3.diskName shouldBe Some(diskName3)
+    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+      .getAppV2(userInfo, workspaceId, appName3)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "V2 GCP - error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
@@ -1919,7 +1998,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
     val res = kubeServiceInterp
       .createAppV2(userInfo, workspaceId, galaxyAppName, galaxyAppReq)
       .attempt
@@ -1999,7 +2078,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "V2 GCP - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeGcpWorkspaceInterp(publisherQueue)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
 
     val appName = AppName("app1")
     val appName2 = AppName("app2")

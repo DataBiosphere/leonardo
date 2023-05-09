@@ -436,7 +436,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .transaction
 
     res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
-  } yield res
+    // Make sure that the user still has access to the resource parent workspace
+    resWithWorkspace <- res.traverseFilter { resource =>
+      authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo).map {
+        case true  => Some(resource)
+        case false => None
+      }
+    }
+  } yield resWithWorkspace
 
   override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
     as: Ask[F, AppContext]

@@ -1000,7 +1000,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "fail to delete a runtime when creator has no workspace permission" in isolatedDbTest {
+  it should "fail to delete a runtime when creator has lost workspace permission" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
