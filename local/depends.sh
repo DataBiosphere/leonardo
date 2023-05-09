@@ -118,7 +118,10 @@ render_configs() {
 	sed '/^JAVA_OPTS/d' >> "${_out_dir}/k8s.env"
 
 	# Replace k8s env vars with local overrides
-	sort -u -t '=' -k 1,1 "${REPO_ROOT}/env/local.env" "${_out_dir}/k8s.env" | grep -v '^$\|^\s*\#' | sort  > "${_out_dir}/sbt.env"
+	# Alphabetize everything
+	# Remove empty lines
+	sort -u -t '=' -k 1,1 "${LOCAL_DIR}/overrides.env" "${_out_dir}/k8s.env" | \
+	grep -v '^$\|^\s*\#' | sort | sed '/^$/d' > "${_out_dir}/sbt.env"
 
 	# Get CloudSQL proxy env vars
 	{
