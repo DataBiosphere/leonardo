@@ -11,12 +11,10 @@ if [ -z ${HELM_SCALA_SDK_DIR+x} ]; then
   exit 1
 fi
 
-if [ -a ./.docker-rsync-local.pid ]; then
-    echo "Looks like clean-up wasn't completed, doing it now..."
-    docker rm -f leonardo-proxy leonardo-sbt sqlproxy
-    docker network rm fc-leonardo
-    pkill -P $(< "./.docker-rsync-local.pid")
-fi
+docker rm -f leonardo-proxy sqlproxy leonardo-helm-lib leonardo-sbt
+docker network rm fc-leonardo
+docker network rm fc-leonardo
+pkill -P $$
 
 clean_up () {
     echo
@@ -25,7 +23,7 @@ clean_up () {
     docker network rm fc-leonardo
     pkill -P $$
 }
-trap clean_up EXIT HUP INT QUIT PIPE TERM 0 20
+# trap clean_up EXIT HUP INT QUIT PIPE TERM 0 20
 
 echo "Creating shared volumes if they don't exist..."
 docker volume create --name jar-cache
@@ -43,15 +41,16 @@ start_server () {
     docker create --name sqlproxy \
     --restart "always" \
     --network="fc-leonardo" \
+    -p 3306:3306 \
     --env-file="${SECRETS_DIR}/sqlproxy.env" \
     broadinstitute/cloudsqlproxy:1.11_20180808
 
     docker cp ${SECRETS_DIR}/leonardo-account.json sqlproxy:/etc/sqlproxy-service-account.json
 
-    echo "Creating helm docker container..."
-    docker build -t helm-lib - < $HELM_SCALA_SDK_DIR/Dockerfile
-    docker create --name leonardo-helm-lib -v helm-lib-build:/build \
-    helm-lib
+    # echo "Creating helm docker container..."
+    # docker build -t helm-lib - < $HELM_SCALA_SDK_DIR/Dockerfile
+    # docker create --name leonardo-helm-lib -v helm-lib-build:/build \
+    # helm-lib
 
     echo "Creating SBT docker container..."
     docker create -it --name leonardo-sbt -w /app \
@@ -92,8 +91,8 @@ start_server () {
     docker start sqlproxy
     echo "Starting proxy..."
     docker start leonardo-proxy
-    echo "Starting SBT..."
-    docker start -ai leonardo-sbt
+    # echo "Starting SBT..."
+    # docker start -ai leonardo-sbt
 }
 start_server
 
