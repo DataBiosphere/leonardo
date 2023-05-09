@@ -51,6 +51,8 @@ final case class AadPodIdentityConfig(namespace: Namespace,
 
 final case class DrsConfig(url: String)
 
+final case class TdrConfig(url: String)
+
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
 final case class AppConfig(
@@ -59,5 +61,6 @@ final case class AppConfig(
   azure: AzureConfig,
   oidc: OidcAuthConfig,
   drs: DrsConfig,
-  metrics: LeoMetricsMonitorConfig
+  metrics: LeoMetricsMonitorConfig,
+  tdr: TdrConfig
 )
