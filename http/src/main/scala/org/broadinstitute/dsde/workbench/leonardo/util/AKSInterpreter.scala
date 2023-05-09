@@ -36,7 +36,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -426,8 +426,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                 cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
               case CbasUI =>
                 cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-              case Wds =>
-                wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
               case Cromwell =>
                 cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
             }
