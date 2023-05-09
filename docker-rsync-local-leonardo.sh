@@ -34,7 +34,9 @@ docker volume create --name leonardo-shared-source
 docker volume create --name jar-cache
 docker volume create --name coursier-cache
 
-SECRETS_DIR="$(git rev-parse --show-toplevel)/http/src/main/resources/rendered"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SECRETS_DIR="${REPO_ROOT}/http/src/main/resources/rendered"
+HELMLIB_BUILD_DIR="${REPO_ROOT}/local/helm-scala-sdk/out"
 
 echo "Launching rsync container..."
 docker run -d \
@@ -87,7 +89,6 @@ start_server () {
     --network=fc-leonardo \
     --env-file="${SECRETS_DIR}/sbt.env" \
     -e HOSTNAME=$HOSTNAME \
-    -e SBT_OPTS='-Xmx4G -Xms4G -Xss2M -XX:+UseG1GC' \
     hseeberger/scala-sbt:17.0.2_1.6.2_3.1.1 \
     sbt http/run
 
