@@ -55,6 +55,7 @@ ask_and_run() {
 	eval "${_func}" "${_tmp_dir}"
 }
 
+# Build the Go helm library locally
 build_helm_golib() {
 	local _build_dir="${1}"
 
@@ -74,6 +75,8 @@ build_helm_golib() {
 	cd "${_cwd}"
 }
 
+# Pull config files and env vars from k8s and adapt and override them
+# for local development
 render_configs() {
 	local _out_dir="${1}"
 
@@ -96,6 +99,8 @@ render_configs() {
 {{- end }}' > "${_out_dir}/k8s.env"
 
 	# Get non-secret backend env vars
+	# Swap leonardo.dsde-dev.broadinstitute.org for local.dsde-dev.broadinstitute.org
+	# Remove any JVM options from the k8s env as local ones will always differ.
 	kubectl -n terra-dev get pods -o go-template='
 {{- range $pod := .items }}
 	{{- range $container := $pod.spec.containers }}
@@ -122,6 +127,7 @@ render_configs() {
 	echo CLOUDSQL_INSTANCE="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.name | base64decode }}')";
 	} > "${_out_dir}/sqlproxy.env"
 
+	# Tunneling certs
 	kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{ index .data "leonardo-account.json" | base64decode }}' > ${_out_dir}/leonardo-account.json
 	kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{ index .data "leonardo-account.pem" | base64decode }}' > ${_out_dir}/leonardo-account.pem
 	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "jupyter-server.crt" | base64decode }}' > ${_out_dir}/jupyter-server.crt
@@ -130,13 +136,16 @@ render_configs() {
 	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "rootCA.key" | base64decode }}' > ${_out_dir}/rootCA.key
 	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "rootCA.pem" | base64decode }}' > ${_out_dir}/rootCA.pem
 
+	# OAuth and proxy configs
 	kubectl -n terra-dev get configmap leonardo-oauth2-configmap -o 'go-template={{index .data "oauth2.conf"}}' > ${_out_dir}/oauth2.conf
 	# Local dev uses a macOS-specific docker replacement hostname for locahost, so replace all instances in the proxy config.
 	kubectl -n terra-dev get configmap leonardo-site-configmap -o 'go-template={{index .data "site.conf"}}' | sed 's/localhost/host\.docker\.internal/g' > ${_out_dir}/site.conf
 
+	# local.dsde-dev.broadinstitute.org cert
 	kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{ index .data "tls.crt" | base64decode }}' > ${_out_dir}/server.crt
 	kubectl -n local-dev get secrets local-dev-cert -o 'go-template={{ index .data "tls.key" | base64decode }}' > ${_out_dir}/server.key
 
+	# Get proxy env vars
 	{
 	echo B2C_APPLICATION_ID=$(kubectl -n terra-dev get secret leonardo-proxy-b2c-secrets -o 'go-template={{ index .data "application-id" }}' | base64 --decode)
 	} > ${_out_dir}/proxy.env
