@@ -71,7 +71,7 @@ build_helm_golib() {
 	else
 		echo "Building Helm Go library from branch '${_branch}' (${_commit})"
 	fi
-	go build -o "${_build_dir}/libhelm.so" -buildmode=c-shared main.go
+	go build -o "${_build_dir}/libhelm.dylib" -buildmode=c-shared main.go
 	cd "${_cwd}"
 }
 
@@ -131,6 +131,10 @@ render_configs() {
 	grep -v '^$\|^\s*\#' | \
 	sed '/^$/d' | \
 	sort > "${_out_dir}/sbt.env"
+
+	echo "Pubsub info:"
+	grep 'TOPIC_NAME' "${_out_dir}/sbt.env"
+	grep 'NON_LEO_SUBSCRIPTION_NAME' "${_out_dir}/sbt.env"
 
 	# Create source-able env file (i.e. add "export ...")
 	# Quote all values bc this is for shells
