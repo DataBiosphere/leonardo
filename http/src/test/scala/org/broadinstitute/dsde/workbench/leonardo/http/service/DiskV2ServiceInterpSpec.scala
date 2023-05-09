@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
@@ -22,22 +23,19 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val wsmDao = new MockWsmDAO
 
-  private def makeDiskV2Service(queue: Queue[IO, LeoPubsubMessage], wsmDao: WsmDao[IO] = wsmDao) =
+  private def makeDiskV2Service(queue: Queue[IO, LeoPubsubMessage],
+                                allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
+                                wsmDao: WsmDao[IO] = wsmDao
+  ) =
     new DiskV2ServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk.copy(),
-      allowListAuthProvider,
+      allowlistAuthProvider,
       wsmDao,
       mockSamDAO,
       queue
     )
 
-  val diskV2Service =
-    new DiskV2ServiceInterp[IO](ConfigReader.appConfig.persistentDisk.copy(),
-                                allowListAuthProvider,
-                                new MockWsmDAO,
-                                mockSamDAO,
-                                QueueFactory.makePublisherQueue()
-    )
+  val diskV2Service = makeDiskV2Service(QueueFactory.makePublisherQueue(), wsmDao = new MockWsmDAO)
 
   it should "get a disk" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -99,6 +97,28 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       pd <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
       getResponse <- diskV2Service
+        .getDisk(
+          userInfo,
+          pd.id
+        )
+        .attempt
+    } yield getResponse shouldBe Left(DiskNotFoundByIdException(pd.id, ctx.traceId))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail with DiskNotFound if creator loses workspace access" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val diskV2service2 = makeDiskV2Service(publisherQueue, allowListAuthProvider2)
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is the disk creator, but NOT allow-listed in allowListAuthProvider2
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      pd <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+      getResponse <- diskV2service2
         .getDisk(
           userInfo,
           pd.id
@@ -220,6 +240,31 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(
       DiskWithoutWorkspaceException(disk.id, ctx.traceId)
+    )
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a disk if its creator lost access to the workspace" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val diskV2service2 = makeDiskV2Service(publisherQueue, allowListAuthProvider2)
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is the disk creator, but NOT allow-listed in allowListAuthProvider2
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+      _ <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), disk.id, azureRegion)
+        )
+      )
+      err <- diskV2service2.deleteDisk(userInfo, disk.id).attempt
+    } yield err shouldBe Left(
+      DiskNotFoundByIdException(disk.id, ctx.traceId)
     )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
