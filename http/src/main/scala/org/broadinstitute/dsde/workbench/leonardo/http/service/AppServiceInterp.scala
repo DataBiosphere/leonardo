@@ -1034,6 +1034,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case (Galaxy, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.galaxyAppConfig)
         case (Custom, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.customAppConfig)
         case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (RStudio, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.rstudioAppConfig)
         case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
         case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
         case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
@@ -1209,7 +1210,8 @@ object LeoAppServiceInterp {
                                  galaxyDiskConfig: GalaxyDiskConfig,
                                  diskConfig: PersistentDiskConfig,
                                  cromwellAppConfig: CromwellAppConfig,
-                                 customAppConfig: CustomAppConfig
+                                 customAppConfig: CustomAppConfig,
+                                 rstudioAppConfig: RStudioAppConfig
   )
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {

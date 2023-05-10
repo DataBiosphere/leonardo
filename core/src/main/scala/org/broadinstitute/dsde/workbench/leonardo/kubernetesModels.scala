@@ -326,6 +326,10 @@ object AppType {
     override def toString: String = "HAIL_BATCH"
   }
 
+  case object RStudio extends AppType {
+    override def toString: String = "RSTUDIO"
+  }
+
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
@@ -342,7 +346,7 @@ object AppType {
     appType match {
       case Galaxy                     => FormattedBy.Galaxy
       case Custom                     => FormattedBy.Custom
-      case Cromwell | Wds | HailBatch => FormattedBy.Cromwell
+      case Cromwell | Wds | HailBatch | RStudio => FormattedBy.Cromwell
     }
 }
 

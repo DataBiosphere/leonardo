@@ -2811,6 +2811,7 @@ components:
         - GALAXY
         - WDS
         - HAIL_BATCH
+        - RSTUDIO
     AppStatus:
       type: string
       enum:

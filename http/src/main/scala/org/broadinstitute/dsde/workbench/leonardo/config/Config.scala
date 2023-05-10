@@ -685,6 +685,18 @@ object Config {
     )
   }
 
+  implicit private val rstudioAppConfigReader: ValueReader[RStudioAppConfig] = ValueReader.relative { config =>
+    RStudioAppConfig(
+      config.as[ChartName]("chartName"),
+      config.as[ChartVersion]("chartVersion"),
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      config.as[ReleaseNameSuffix]("releaseNameSuffix"),
+      config.as[List[ServiceConfig]]("services"),
+      config.as[ServiceAccountName]("serviceAccountName"),
+      config.as[Boolean]("enabled")
+    )
+  }
+
   implicit private val releaseNameReader: ValueReader[Release] = stringValueReader.map(Release)
   implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
   implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
@@ -724,6 +736,7 @@ object Config {
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
+  val gkeRStudioAppConfig = config.as[RStudioAppConfig]("gke.rstudioApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
 
@@ -746,7 +759,8 @@ object Config {
     gkeGalaxyDiskConfig,
     ConfigReader.appConfig.persistentDisk,
     gkeCromwellAppConfig,
-    gkeCustomAppConfig
+    gkeCustomAppConfig,
+    gkeRStudioAppConfig
   )
 
   val appServiceConfig = AppServiceConfig(
@@ -854,6 +868,7 @@ object Config {
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
+      gkeRStudioAppConfig,
       appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,

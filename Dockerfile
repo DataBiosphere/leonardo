@@ -33,6 +33,7 @@ ENV CROMWELL_CHART_VERSION 0.2.232
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.232
 ENV WDS_CHART_VERSION 0.7.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.8
+# TODO ENV RSTUDIO_CHART_VERSION x.x.x
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -45,6 +46,7 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
     rm get_helm.sh
 
 # Add the repos containing nginx and galaxy charts
+# TODO add repo containing RStudio chart if not in terra-app-charts
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
@@ -59,6 +61,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
+# TODO pull the RSTudio chart version and untar
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \

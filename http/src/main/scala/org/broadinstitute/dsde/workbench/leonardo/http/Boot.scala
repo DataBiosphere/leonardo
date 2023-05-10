@@ -287,7 +287,8 @@ object Boot extends IOApp {
             appDependencies.cbasDAO,
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
-            appDependencies.samDAO
+            appDependencies.samDAO,
+            appDependencies.rstudioAppDAO
           )
 
           List(
@@ -405,6 +406,8 @@ object Boot extends IOApp {
       rstudioDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_rstudio_client"), false).map(
         client => new HttpRStudioDAO(runtimeDnsCache, client)
       )
+      rstudioAppDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_rstudio_app_client"), false)
+        .map(client => new HttpRStudioAppDAO(client))
       appDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_app_client"), false).map(client =>
         new HttpAppDAO(kubernetesDnsCache, client)
       )
@@ -633,6 +636,7 @@ object Boot extends IOApp {
 
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
+        bucketHelper,
         vpcInterp,
         googleDependencies.gkeService,
         kubeService,
@@ -758,7 +762,8 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         cromwellDao,
-        hailBatchDao
+        hailBatchDao,
+        rstudioAppDao
       )
     }
 
@@ -879,5 +884,6 @@ final case class AppDependencies[F[_]](
   cbasDAO: CbasDAO[F],
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
-  hailBatchDAO: HailBatchDAO[F]
+  hailBatchDAO: HailBatchDAO[F],
+  rstudioAppDAO: RStudioAppDAO[F]
 )

@@ -41,7 +41,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundExcept
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
@@ -53,6 +53,7 @@ import scala.jdk.CollectionConverters._
 
 class GKEInterpreter[F[_]](
   config: GKEInterpreterConfig,
+  bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
   gkeService: org.broadinstitute.dsde.workbench.google2.GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
@@ -441,6 +442,19 @@ class GKEInterpreter[F[_]](
             gsa,
             app.customEnvironmentVariables
           )
+        case AppType.RStudio =>
+          installRStudioApp(
+            helmAuthContext,
+            app.appName,
+            app.release,
+            dbCluster,
+            dbApp.nodepool.nodepoolName,
+            namespaceName,
+            nfsDisk,
+            ksaName,
+            gsa,
+            app.auditInfo.creator
+          )
         case AppType.Custom =>
           installCustomApp(
             app.id,
@@ -504,6 +518,7 @@ class GKEInterpreter[F[_]](
                 }
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
+        case AppType.RStudio  => F.unit // TODO grab the pv and pvc
         case AppType.Custom   => F.unit
         case _ =>
           F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
@@ -1194,6 +1209,95 @@ class GKEInterpreter[F[_]](
     } yield ()
   }
 
+  private[util] def installRStudioApp(
+    helmAuthContext: AuthContext,
+    appName: AppName,
+    release: Release,
+    cluster: KubernetesCluster,
+    nodepoolName: NodepoolName,
+    namespaceName: NamespaceName,
+    disk: PersistentDisk,
+    ksaName: ServiceAccountName,
+    gsa: WorkbenchEmail,
+    userEmail: WorkbenchEmail
+  )(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    // TODO: Use the chart from the database instead of re-looking it up in config:
+    val chart = config.RStudioAppConfig.chart
+
+    for {
+      ctx <- ev.ask
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Installing helm chart for RStudio app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+      )
+
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
+        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+      )
+
+      // Create the staging bucket to be used by Welder
+      stagingBucketName = generateUniqueBucketName("leostaging-" + appName.value)
+
+      _ <- bucketHelper
+        .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
+        .compile
+        .drain
+
+      chartValues = buildRStudioAppChartOverrideValuesString(appName,
+                                                             cluster,
+                                                             nodepoolName,
+                                                             namespaceName,
+                                                             disk,
+                                                             ksaName,
+                                                             userEmail,
+                                                             stagingBucketName
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
+
+      // Invoke helm
+      helmInstall = helmClient
+        .installChart(
+          release,
+          chart.name,
+          chart.version,
+          org.broadinstitute.dsp.Values(chartValues.mkString(",")),
+          false
+        )
+        .run(helmAuthContext)
+
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      retryConfig = RetryPredicates.retryAllConfig
+      _ <- tracedRetryF(retryConfig)(
+        helmInstall,
+        s"helm install for RSTUDIO app ${appName.value} in project ${cluster.cloudContext.asString}"
+      ).compile.lastOrError
+
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
+        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+      )
+      // Poll the app until it starts up
+      last <- streamFUntilDone(
+        config.RStudioAppConfig.services
+          .map(_.name)
+          .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
+        config.monitorConfig.createApp.maxAttempts,
+        config.monitorConfig.createApp.interval
+      ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
+
+      _ <-
+        if (!last.isDone) {
+          val msg =
+            s"RStudio app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+          logger.error(ctx.loggingCtx)(msg) >>
+            F.raiseError[Unit](AppCreationException(msg))
+        } else F.unit
+
+    } yield ()
+  }
+
   private[util] def installCustomApp(appId: AppId,
                                      appName: AppName,
                                      release: Release,
@@ -1596,6 +1700,59 @@ class GKEInterpreter[F[_]](
     ) ++ configs ++ galaxyRestoreSettings
   }
 
+  private[util] def buildRStudioAppChartOverrideValuesString(
+    appName: AppName,
+    cluster: KubernetesCluster,
+    nodepoolName: NodepoolName,
+    namespaceName: NamespaceName,
+    disk: PersistentDisk,
+    ksaName: ServiceAccountName,
+    userEmail: WorkbenchEmail,
+    stagingBucket: GcsBucketName
+  ): List[String] = {
+    val proxyPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
+    val leoProxyhost = config.proxyConfig.getProxyServerHostName
+
+    val rewriteTarget = "$2"
+    val ingress = List(
+      raw"""ingress.enabled=true""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-pass-certificate-to-upstream=true""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-verify-client=on""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-verify-depth=1""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/ssl-redirect=true""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
+      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""ingress.hosts[0].paths[0]=${proxyPath}${"(/|$)(.*)"}""",
+      raw"""ingress.tls[0].secretName=tls-secret""",
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
+    )
+
+    val welder = List(
+      raw"""welder.extraEnv.name=GOOGLE_PROJECT""",
+      raw"""welder.extraEnv.value=${cluster.cloudContext.asString}""",
+      raw"""welder.extraEnv.name=STAGING_BUCKET""",
+      raw"""welder.extraEnv.value=${stagingBucket.value}""",
+      raw"""welder.extraEnv.name=CLUSTER_NAME""",
+      raw"""welder.extraEnv.value=${cluster.clusterName.value}""",
+      raw"""welder.extraEnv.name=OWNER_EMAIL""",
+      raw"""welder.extraEnv.value=${userEmail.value}"""
+    )
+
+    List(
+      // Node selector
+      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      // Persistence
+      raw"""persistence.size=${disk.size.gb.toString}G""",
+      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
+      // Service Account
+      raw"""serviceAccount.name=${ksaName.value}"""
+    ) ++ ingress ++ welder
+  }
+
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
 
@@ -1733,6 +1890,7 @@ final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
                                       customAppConfig: CustomAppConfig,
+                                      RStudioAppConfig: RStudioAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,

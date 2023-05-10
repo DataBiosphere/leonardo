@@ -30,7 +30,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               cbasDAO: CbasDAO[F],
                               cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
-                              samDAO: SamDAO[F]
+                              samDAO: SamDAO[F],
+                              rstudioAppDAO: RStudioAppDAO[F]
 )(implicit
   F: Async[F],
   dbRef: DbReference[F],
@@ -161,6 +162,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                   case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cbas-ui")  => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("rstudio")  => rstudioAppDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case s =>
                     logger.warn(ctx.loggingCtx)(
                       s"Unexpected app service encountered during health checks: ${s.value}"
