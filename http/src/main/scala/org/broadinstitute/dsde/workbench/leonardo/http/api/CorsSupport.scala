@@ -45,7 +45,6 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
           h.isNot(`Access-Control-Allow-Origin`.lowercaseName) && h.isNot("content-security-policy")
         } ++
           allowOrigin ++
-          // TODO do the rest of these apply to all routes or proxy only?
           Seq(
             `Access-Control-Allow-Credentials`(true),
             `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),
