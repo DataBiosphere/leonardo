@@ -56,7 +56,83 @@ $ git clone https://github.com/DataBiosphere/leonardo.git
 $ cd leonardo
 ```
 
-The instructions to run Leo locally are maintained in this [confluence article](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/104399223/Callisto+Developer+Handbook#CallistoDeveloperHandbook-RunningLeoLocally). It may ask you to make an account, but no permissions are required to view.
+### Running Leo Locally
+
+#### Setup
+Install gcloud using Homebrew:
+```
+brew install --cask google-cloud-sdk
+```
+Update the helm-scala-sdk submodule:
+```
+git submodule init && git submodule update
+```
+
+#### VPN
+You must be connected to the VPN if working remotely.
+
+#### Dependencies
+Leo needs a copy of the Go Helm library and secrets, files, and env vars stored in k8s.
+
+To build the Go Helm library and get k8s resources, run:
+```
+./local/depends.sh -y
+```
+To only build the Go Helm library, run:
+```
+./local/depends.sh helm
+```
+To only get k8s resources, run:
+```
+./local/depends.sh configs
+```
+
+#### Overrides
+By adding entries to ./local/overrides.env, you can override the value of any variable from k8s.
+
+#### Unsetting
+By adding entries to ./local/unset.env, you can remove variables from k8s. Applied after retrieving
+variables from k8s and before applying overrides.
+
+#### Host alias
+If you haven't already, add `127.0.0.1       local.dsde-dev.broadinstitute.org` to `/etc/hosts`:
+```
+sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hosts"
+```
+
+#### Run proxies
+To run the CloudSQL and Apache proxies, run:
+```
+./local/proxies.sh start
+```
+You can also stop them:
+```
+./local/proxies.sh stop
+```
+Or restart them:
+```
+./local/proxies.sh restart
+```
+
+#### Run Leo
+Export required env vars as created by `depends.sh`:
+```
+. ./http/src/main/resources/rendered/sbt.env.sh
+```
+Call the sbt `http/run` target:
+```
+sbt http/run
+```
+Or start an sbt shell and go from there:
+```
+sbt
+```
+
+#### Cleanup
+When you're done, stop sbt (e.g. using Ctrl+C) and stop the proxies:
+```
+./local/proxies.sh stop
+```
 
 ### Run Leonardo unit tests
 
