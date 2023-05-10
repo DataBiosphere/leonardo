@@ -3,16 +3,11 @@
 stop() {
     echo "Stopping proxies..."
     docker rm -f leonardo-proxy sqlproxy
-    echo "Deleting network..."
-    docker network rm fc-leonardo
-    pkill -P $$
 }
 
 SECRETS_DIR="$(git rev-parse --show-toplevel)/http/src/main/resources/rendered"
 
 start() {
-    docker network create fc-leonardo
-
     echo "Creating Google sqlproxy container..."
     docker create --name sqlproxy \
     --restart "always" \
