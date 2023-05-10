@@ -71,6 +71,16 @@ git submodule init && git submodule update
 #### VPN
 You must be connected to the VPN if working remotely.
 
+#### CloudSQL proxy settings
+The CloudSQL proxy container uses a few environment variables. The following vars are pulled from Leo in dev in kubernetes:
+* GOOGLE_PROJECT (e.g. "broad-dsde-dev")
+* CLOUDSQL_ZONE (e.g. "us-central1")
+
+In order to develop locally, you *must* make a copy of the dev database and run
+```
+export CLOUDSQL_INSTANCE=<your cloned db name>
+```
+
 #### Dependencies
 Leo needs a copy of the Go Helm library and secrets, files, and env vars stored in k8s.
 
