@@ -80,6 +80,7 @@ In order to develop locally, you *must* make a copy of the dev database and run
 ```
 export CLOUDSQL_INSTANCE=<your cloned db name>
 ```
+You can add more vars for the CloudSQL proxy container by editing `./local/sqlproxy.env`.
 
 #### Dependencies
 Leo needs a copy of the Go Helm library and secrets, files, and env vars stored in k8s.
