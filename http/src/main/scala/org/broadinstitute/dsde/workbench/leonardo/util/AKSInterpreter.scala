@@ -36,7 +36,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell, Wds}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -426,8 +426,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                 cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
               case CbasUI =>
                 cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-              case Wds =>
-                wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
               case Cromwell =>
                 cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
             }
@@ -509,8 +507,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      applicationInsightsConnectionString: String,
                                                      sourceWorkspaceId: Option[WorkspaceId],
                                                      userAccessToken: String
-  ): Values = {
-    val valuesList =
+  ): Values =
+    Values(
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -549,23 +547,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // Enabled services configs
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
         raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
-        raw"wds.enabled=${config.coaAppConfig.coaServices.contains(Wds)}", // TODO remove after WDS chart migration
         raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
-
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}"
-      )
-
-    val updatedLs = sourceWorkspaceId match { // TODO remove after WDS chart migration
-      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => valuesList
-    }
-    Values(updatedLs.mkString(","))
-  }
+      ).mkString(",")
+    )
 
   private[util] def buildWdsChartOverrideValues(release: Release,
                                                 appName: AppName,
