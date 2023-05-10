@@ -143,6 +143,12 @@ Or start an sbt shell and go from there:
 sbt
 ```
 
+#### Connecting to the MySQL database via the CloudSQL proxy
+Once you've rendered the configs, started the CloudSQL proxy, and sourced the env vars required to run Leo, you can connect to your database with:
+```
+./local/proxies.sh dbconnect
+```
+
 #### Cleanup
 When you're done, stop sbt (e.g. using Ctrl+C) and stop the proxies:
 ```
