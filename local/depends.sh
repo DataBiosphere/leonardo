@@ -4,8 +4,9 @@
 # Stop immediately on any non-zero exit codes.
 set -e
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+export REPO_ROOT="$(git rev-parse --show-toplevel)"
 LOCAL_DIR="${REPO_ROOT}/local"
+export RENDER_DIR="${REPO_ROOT}/http/src/main/resources/rendered"
 
 # Try to create a temp dir and prompt the user with a msg
 # if it already exists, then run a function after, if desired.
@@ -123,11 +124,14 @@ render_configs() {
 	done < "${_out_dir}/unset.env"
 	cat "${_out_dir}/k8s.env" | sed "${_unset_sed_cmd}" > "${_out_dir}/k8s-unset.env"
 
+	# Render overrides template using current env
+	envsubst < "${LOCAL_DIR}/overrides.env" > "${_out_dir}/overrides.env"
+
 	# Replace k8s env vars with local overrides
 	# Ignore empty lines and comment lines
 	# Remove empty lines
 	# Alphabetize everything
-	sort -u -t '=' -k 1,1 "${LOCAL_DIR}/overrides.env" "${_out_dir}/k8s-unset.env" | \
+	sort -u -t '=' -k 1,1 "${_out_dir}/overrides.env" "${_out_dir}/k8s-unset.env" | \
 	grep -v '^$\|^\s*\#' | \
 	sed '/^$/d' | \
 	sort > "${_out_dir}/sbt.env"
@@ -251,13 +255,11 @@ fi
 if ${BUILD_HELM_GOLIB}; then
 	ask_and_run \
 		"Rebuild Helm Go library?" "Y" \
-		"build_helm_golib" \
-		"${LOCAL_DIR}/helm-scala-sdk/out"
+		"build_helm_golib" "${LOCAL_DIR}/helm-scala-sdk/out"
 fi
 
 if ${RENDER_CONFIGS}; then
 	ask_and_run \
 		"Re-render configs?" "Y" \
-		"render_configs" \
-		"${REPO_ROOT}/http/src/main/resources/rendered"
+		"render_configs" "${RENDER_DIR}"
 fi
