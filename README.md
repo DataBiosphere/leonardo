@@ -88,10 +88,10 @@ To only get k8s resources, run:
 ```
 
 #### Overrides
-By adding entries to ./local/overrides.env, you can override the value of any variable from k8s.
+By adding entries to `./local/overrides.env`, you can override the value of any variable from k8s.
 
 #### Unsetting
-By adding entries to ./local/unset.env, you can remove variables from k8s. Applied after retrieving
+By adding entries to `./local/unset.env`, you can remove variables from k8s. Applied after retrieving
 variables from k8s and before applying overrides.
 
 #### Host alias
@@ -115,7 +115,7 @@ Or restart them:
 ```
 
 #### Run Leo
-Export required env vars as created by `depends.sh`:
+Export required env vars as created by `./local/depends.sh`:
 ```
 . ./http/src/main/resources/rendered/sbt.env.sh
 ```
