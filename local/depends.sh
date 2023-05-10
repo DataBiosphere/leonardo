@@ -180,6 +180,10 @@ render_configs() {
 	sed '/^$/d' | \
 	sort > "${_out_dir}/sbt.env"
 
+	# Create an IntelliJ-specific env file that includes the VALID_HOSTS which shells hate
+	cp "${_out_dir}/sbt.env" "${_out_dir}/intellij.env"
+	echo "VALID_HOSTS.0=local.dsde-dev.broadinstitute.org" >> "${_out_dir}/intellij.env"
+
 	echo "Pubsub info:"
 	echo -n -e '\t' # Whitespace for readability.
 	grep 'TOPIC_NAME' "${_out_dir}/sbt.env"
