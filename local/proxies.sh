@@ -27,7 +27,7 @@ start() {
     docker create --name leonardo-proxy \
     --restart "always" \
     --env-file="${SECRETS_DIR}/proxy.env" \
-    -p 20080:80 -p 30443:443 \
+    -p 20080:80 -p 443:443 \
     us.gcr.io/broad-dsp-gcr-public/openidc-terra-proxy:v0.1.17
 
     echo "Copying files to proxy container..."
