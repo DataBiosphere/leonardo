@@ -3,12 +3,10 @@ package http
 package api
 
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.server.Directive0
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Directive0, Route}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 
 class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig)
     extends LazyLogging {
