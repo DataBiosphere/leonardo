@@ -181,7 +181,9 @@ render_configs() {
 	sort > "${_out_dir}/sbt.env"
 
 	echo "Pubsub info:"
+	echo -n -e '\t' # Whitespace for readability.
 	grep 'TOPIC_NAME' "${_out_dir}/sbt.env"
+	echo -n -e '\t'
 	grep 'NON_LEO_SUBSCRIPTION_NAME' "${_out_dir}/sbt.env"
 
 	# Create source-able env file (i.e. add "export ...")
@@ -190,8 +192,12 @@ render_configs() {
 		 s/=/="/;s/$/"/' \
 		"${_out_dir}/sbt.env" > "${_out_dir}/sbt.env.sh"
 
+	# Remove comments and empty lines
 	# Render sqlproxy template using current env
-	envsubst < "${LOCAL_DIR}/sqlproxy.env" > "${_out_dir}/sqlproxy.env"
+	grep -v '^$\|^\s*\#' "${LOCAL_DIR}/sqlproxy.env" | \
+	sed '/^$/d' | \
+	envsubst \
+		> "${_out_dir}/sqlproxy.env"
 
 	echo "CloudSQL db name: ${CLOUDSQL_INSTANCE}"
 
