@@ -5,8 +5,9 @@
 set -e
 
 export REPO_ROOT="$(git rev-parse --show-toplevel)"
-LOCAL_DIR="${REPO_ROOT}/local"
+export LOCAL_DIR="${REPO_ROOT}/local"
 export RENDER_DIR="${REPO_ROOT}/http/src/main/resources/rendered"
+export HELM_BUILD_DIR="${LOCAL_DIR}/helm-scala-sdk/out"
 
 # Try to create a temp dir and prompt the user with a msg
 # if it already exists, then run a function after, if desired.
@@ -83,7 +84,38 @@ render_configs() {
 
 	local _cluster=terra-dev
 	echo "Configuring access to ${_cluster}..."
+	echo "(Note: VPN is required when working remotely)"
 	gcloud container clusters get-credentials --zone us-central1-a --project broad-dsde-dev ${_cluster}
+
+	# Get CloudSQL proxy GOOGLE_PROJECT and CLOUDSQL_ZONE from dev as defaults,
+	# CLOUDSQL_INSTANCE must be set by the user in their environment.
+	local _csp_gproj="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.project | base64decode }}')"
+	local _csp_zone="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.region | base64decode }}')"
+	local _csp_dev_instance="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.name | base64decode }}')"
+
+	# Check for CloudSQL proxy env settings, tell user to set if missing.
+	if [ -z "${CLOUDSQL_INSTANCE}" ]; then
+		echo "ERROR: CLOUDSQL_INSTANCE is unset.
+	This is used for the CloudSQL proxy environment. There is no default.
+	To set it, run \`export CLOUDSQL_INSTANCE=...\` in this shell, or set it in your shell rc file."
+		return 1
+	elif [ "${CLOUDSQL_INSTANCE}" = "${_csp_dev_instance}" ]; then
+		echo "ERROR: CLOUDSQL_INSTANCE is set to the dev database, which is forbidden.
+	If you need to work with it, use other tools."
+		return 1
+	fi
+	if [ -z "${GOOGLE_PROJECT}" ]; then
+		echo "WARN: GOOGLE_PROJECT is unset.
+	This is used for the CloudSQL proxy environment. The default is ${_csp_gproj}.
+	To override, run \`export GOOGLE_PROJECT=...\` in this shell, or set it in your shell rc file."
+		export GOOGLE_PROJECT="${_csp_gproj}"
+	fi
+	if [ -z "${CLOUDSQL_ZONE}" ]; then
+		echo "WARN: CLOUDSQL_ZONE is unset.
+	This is used for the CloudSQL proxy environment. The default is ${_csp_zone}.
+	To override, run \`export CLOUDSQL_ZONE=...\` in this shell, or set it in your shell rc file."
+		export CLOUDSQL_ZONE="${_csp_zone}"
+	fi
 
 	echo "Copying resources from kubernetes..."
 
@@ -146,12 +178,10 @@ render_configs() {
 		 s/=/="/;s/$/"/' \
 		"${_out_dir}/sbt.env" > "${_out_dir}/sbt.env.sh"
 
-	# Get CloudSQL proxy env vars
-	{
-	echo GOOGLE_PROJECT="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.project | base64decode }}')";
-	echo CLOUDSQL_ZONE="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.region | base64decode }}')";
-	echo CLOUDSQL_INSTANCE="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.name | base64decode }}')";
-	} > "${_out_dir}/sqlproxy.env"
+	# Render sqlproxy template using current env
+	envsubst < "${LOCAL_DIR}/sqlproxy.env" > "${_out_dir}/sqlproxy.env"
+
+	echo "CloudSQL db name: ${CLOUDSQL_INSTANCE}"
 
 	# Tunneling certs
 	kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{ index .data "leonardo-account.json" | base64decode }}' > ${_out_dir}/leonardo-account.json
@@ -208,12 +238,20 @@ print_help() {
 
 # If no command or flags are specified, ask about everything.
 if [ -z "${1}" ]; then
+	RENDER_CONFIGS=true
     BUILD_HELM_GOLIB=true
-    RENDER_CONFIGS=true
 fi
 
 while [ "${1}" != "" ]; do
     case ${1} in
+		configs)
+			if ${BUILD_HELM_GOLIB}; then
+				echo "Error: You can specify up to one action at a time."
+				print_help
+			fi
+			RENDER_CONFIGS=true
+			USE_PROMPT_DEFAULTS=true # Individual commands default to Y
+			;;
         helm)
 			if ${RENDER_CONFIGS}; then
 				echo "Error: You can specify up to one action at a time."
@@ -222,14 +260,6 @@ while [ "${1}" != "" ]; do
             BUILD_HELM_GOLIB=true
             USE_PROMPT_DEFAULTS=true # Individual commands default to Y
             ;;
-        configs)
-			if ${BUILD_HELM_GOLIB}; then
-				echo "Error: You can specify up to one action at a time."
-				print_help
-			fi
-			RENDER_CONFIGS=true
-			USE_PROMPT_DEFAULTS=true # Individual commands default to Y
-			;;
 		-y | --yes)
 			USE_PROMPT_DEFAULTS=true
 			;;
@@ -247,19 +277,19 @@ done
 
 # If no commands were specified but -y|--yes was given,
 # do both helm and config commands, but with default answers.
-if ${USE_PROMPT_DEFAULTS} && ! ${BUILD_HELM_GOLIB} && ! ${RENDER_CONFIGS}; then
-	BUILD_HELM_GOLIB=true
+if ${USE_PROMPT_DEFAULTS} && ! ${RENDER_CONFIGS} && ! ${BUILD_HELM_GOLIB}; then
 	RENDER_CONFIGS=true
-fi
-
-if ${BUILD_HELM_GOLIB}; then
-	ask_and_run \
-		"Rebuild Helm Go library?" "Y" \
-		"build_helm_golib" "${LOCAL_DIR}/helm-scala-sdk/out"
+	BUILD_HELM_GOLIB=true
 fi
 
 if ${RENDER_CONFIGS}; then
 	ask_and_run \
 		"Re-render configs?" "Y" \
 		"render_configs" "${RENDER_DIR}"
+fi
+
+if ${BUILD_HELM_GOLIB}; then
+	ask_and_run \
+		"Rebuild Helm Go library?" "Y" \
+		"build_helm_golib" "${HELM_BUILD_DIR}"
 fi
