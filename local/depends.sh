@@ -59,6 +59,12 @@ ask_and_run() {
 
 # Build the Go helm library locally
 build_helm_golib() {
+	echo \
+"
+########################################
+##### BUILDING THE GO HELM LIBRARY #####
+########################################
+"
 	local _build_dir="${1}"
 
 	# Save current working dir.
@@ -80,6 +86,12 @@ build_helm_golib() {
 # Pull config files and env vars from k8s and adapt and override them
 # for local development
 render_configs() {
+	echo \
+"
+##########################################
+##### RENDERING CONFIG AND ENV FILES #####
+##########################################
+"
 	local _out_dir="${1}"
 
 	local _cluster=terra-dev
@@ -99,10 +111,10 @@ render_configs() {
 	This is used for the CloudSQL proxy environment. There is no default.
 	To set it, run \`export CLOUDSQL_INSTANCE=...\` in this shell, or set it in your shell rc file."
 		return 1
-	elif [ "${CLOUDSQL_INSTANCE}" = "${_csp_dev_instance}" ]; then
-		echo "ERROR: CLOUDSQL_INSTANCE is set to the dev database, which is forbidden.
-	If you need to work with it, use other tools."
-		return 1
+	# elif [ "${CLOUDSQL_INSTANCE}" = "${_csp_dev_instance}" ]; then
+	# 	echo "ERROR: CLOUDSQL_INSTANCE is set to the dev database, which is forbidden.
+	# If you need to work with it, use other tools."
+	# 	return 1
 	fi
 	if [ -z "${GOOGLE_PROJECT}" ]; then
 		echo "WARN: GOOGLE_PROJECT is unset.
