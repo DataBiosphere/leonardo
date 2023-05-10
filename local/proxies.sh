@@ -42,14 +42,43 @@ start() {
     docker start leonardo-proxy
 }
 
+dbconnect() {
+    # Check for mysql
+    if ! command -v mysql &> /dev/null; then
+        echo "ERROR: mysql not found. Install with \`brew install mysql\`."
+        exit 1
+    fi
+
+    # Check for CloudSQL proxy container.
+    local _csp_search=$(docker container ls --format "{{.Names}}" | grep leonardo-proxy)
+    if [ "${_csp_search}" = "" ]; then
+        echo "ERROR: The CloudSQL proxy isn't running. Use \`${0} start\` to start the proxies."
+        exit 1
+    fi
+
+    # Check for env vars
+    if [ -z "${DB_USER}" ]; then
+        echo "ERROR: Missing required env var DB_USER."
+        echo "See README.md for how to render (\"Dependencies\") and source env vars (\"Run Leo\")."
+        exit 1
+    elif [ -z "${DB_PASSWORD}" ]; then
+        echo "ERROR: Missing required env var DB_PASSWORD."
+        echo "See README.md for how to render (\"Dependencies\") and source env vars (\"Run Leo\")."
+        exit 1
+    fi
+
+    mysql -u ${DB_USER} -p${DB_PASSWORD} --host 127.0.0.1 --port 3306
+}
+
 HELP_TEXT=$(cat <<EOF
  ${0} [command] [flags]
  Manage the CloudSQL and Apache proxies.
 
  Commands:
-   start:   Start the CloudSQL and Apache proxies.
-   stop:    Stop the CloudSQL and Apache proxies.
-   restart: Restart the CloudSQL and Apache proxies.
+   start:     Start the CloudSQL and Apache proxies.
+   stop:      Stop the CloudSQL and Apache proxies.
+   restart:   Restart the CloudSQL and Apache proxies.
+   dbconnect: Connect to the CloudSQL proxied MySQL db.
  Flags:
    -h | --help: Print this help message.
 EOF
@@ -90,6 +119,14 @@ while [ "${1}" != "" ]; do
             fi
             COMMAND="restart"
             ;;
+        dbconnect)
+            echo ${COMMAND}
+            if [ ! -z ${COMMAND} ]; then
+                echo "Error: You can specify up to one action at a time."
+                print_help
+            fi
+            COMMAND="dbconnect"
+            ;;
         -h|--help)
             print_help
             ;;
@@ -112,5 +149,8 @@ case ${COMMAND} in
     restart)
         stop
         start
+        ;;
+    dbconnect)
+        dbconnect
         ;;
 esac
