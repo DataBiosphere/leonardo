@@ -3,24 +3,27 @@ package http
 package api
 
 import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
-import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
+import akka.http.scaladsl.model.headers.HttpCookiePair
+import akka.http.scaladsl.model.headers.`Set-Cookie`
+import akka.http.scaladsl.testkit.RouteTestTimeout
+import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import com.github.benmanes.caffeine.cache.Caffeine
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDirectoryDAO
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
+import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.dns.{
-  KubernetesDnsCache,
-  KubernetesDnsCacheKey,
-  RuntimeDnsCache,
-  RuntimeDnsCacheKey
-}
+import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCacheKey
+import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCacheKey
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -28,7 +31,8 @@ import org.scalactic.source.Position
 import org.scalatest.concurrent.PatienceConfiguration.Interval
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.time.{Seconds, Span}
+import org.scalatest.time.Seconds
+import org.scalatest.time.Span
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
 
@@ -36,6 +40,7 @@ import java.io.ByteArrayInputStream
 import java.time.Instant
 import scala.concurrent.duration._
 import scala.util.matching.Regex
+
 trait TestLeoRoutes {
   this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
   implicit val timeout = RouteTestTimeout(20 seconds)
@@ -201,6 +206,21 @@ trait TestLeoRoutes {
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
+    )
+
+  val httpRoutesWithWildcardReferer =
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      runtimeService,
+      MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
+      leoKubernetesService,
+      runtimev2Service,
+      userInfoDirectives,
+      contentSecurityPolicy,
+      RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
     )
 
   val timedHttpRoutes =

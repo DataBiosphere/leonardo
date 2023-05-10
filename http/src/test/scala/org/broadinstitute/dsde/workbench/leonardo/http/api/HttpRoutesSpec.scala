@@ -2,8 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
+import akka.http.scaladsl.model.ContentTypes
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.Origin
-import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.Ask
@@ -11,19 +12,29 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import org.broadinstitute.dsde.workbench.azure.ManagedResourceGroupName
+import org.broadinstitute.dsde.workbench.azure.SubscriptionId
+import org.broadinstitute.dsde.workbench.azure.TenantId
+import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.RegionName
+import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeServiceDbQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.model.ErrorReport
+import org.broadinstitute.dsde.workbench.model.ErrorReportSource
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, UserInfo}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -57,28 +68,13 @@ class HttpRoutesSpec
       refererConfig
     )
 
-  val routesWithStrictRefererConfig =
-    new HttpRoutes(
-      openIdConnectionConfiguration,
-      statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
-      MockDiskV2ServiceInterp,
-      MockAppService,
-      new MockRuntimeV2Interp,
-      timedUserInfoDirectives,
-      contentSecurityPolicy,
-      RefererConfig(Set("example.com", "bvdp-saturn-dev.appspot.com/"), true)
-    )
-
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
     for {
       message <- h.downField("message").as[String]
     } yield ErrorReport(message)(ErrorReportSource("leonardo"))
   }
 
-  "RuntimeRoutes" should "create runtime id1" in {
+  "RuntimeRoutes" should "create runtime" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .addHeader(Origin(validOrigin))
       .withEntity(ContentTypes.`application/json`,
@@ -90,19 +86,29 @@ class HttpRoutesSpec
   }
 
   it should "reject if saturn-iframe-extension is invalid" in {
-    val req = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
-      Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "random"), Map.empty, Map.empty, Map.empty))
+    val invalidReq = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
+      Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "BAD"), Map.empty, Map.empty, Map.empty))
+    )
+    val validReq = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
+      Some(
+        UserJupyterExtensionConfig(
+          Map("saturn-iframe-extension" -> s"${validOrigin.replace("http", "https")}/jupyter-iframe-extension.js"),
+          Map.empty,
+          Map.empty,
+          Map.empty
+        )
+      )
     )
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .addHeader(Origin(validOrigin))
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
+      .withEntity(ContentTypes.`application/json`, invalidReq.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
       responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe true
     }
 
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .addHeader(Origin(validOrigin))
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      .withEntity(ContentTypes.`application/json`, validReq.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
   }

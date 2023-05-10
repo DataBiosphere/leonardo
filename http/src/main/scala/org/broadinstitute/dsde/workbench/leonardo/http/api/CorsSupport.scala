@@ -3,11 +3,12 @@ package http
 package api
 
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.server.{Directive0, Route}
+import akka.http.scaladsl.server.Directive0
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import com.typesafe.scalalogging.LazyLogging
 
 class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig)
     extends LazyLogging {
@@ -20,9 +21,9 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
 
   // Ensure the request Origin is included in our referrer allowlist.
   private def validateOrigin: Directive0 =
-    if (!refererConfig.enabled || refererConfig.validHosts.contains("*"))
+    if (!refererConfig.enabled || refererConfig.validHosts.contains("*")) {
       pass
-    else {
+    } else {
       def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
         .map(uri => if (uri.last == '/') uri.slice(0, uri.length - 1) else uri)
         .map(host => HttpOrigin("http", Host(host)))
@@ -32,7 +33,8 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
   // This directive adds access control headers to normal responses
   private def addAccessControlHeaders: Directive0 =
     optionalHeaderValueByType(Origin) map {
-      case Some(origin) => Seq(`Access-Control-Allow-Origin`(origin.value), RawHeader("Vary", Origin.name))
+      case Some(origin) =>
+        Seq(`Access-Control-Allow-Origin`(origin.value), RawHeader("Vary", Origin.name))
       case None =>
         Seq(`Access-Control-Allow-Origin`.*)
     } flatMap { allowOrigin =>

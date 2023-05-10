@@ -2,16 +2,22 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import akka.event.{Logging, LoggingAdapter}
+import akka.event.Logging
+import akka.event.LoggingAdapter
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.model.HttpResponse
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
+import akka.http.scaladsl.server.Directive0
+import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RouteResult.Complete
-import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
-import akka.http.scaladsl.server.{Directive0, Directive1, Route}
+import akka.http.scaladsl.server.directives.DebuggingDirectives
+import akka.http.scaladsl.server.directives.LogEntry
+import akka.http.scaladsl.server.directives.LoggingMagnet
 import akka.stream.Materializer
 import cats.effect.IO
 import cats.mtl.Ask
@@ -23,8 +29,9 @@ import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
+import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(implicit
@@ -123,7 +130,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     }
                   }
                 }
-           }
+            }
           }
         }
       }
@@ -163,7 +170,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
         onSuccess(
           proxyService.getCachedUserInfoFromToken(token, false).unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
         )
-      case None => failWith(AuthenticationError())
+      case None =>
+        failWith(AuthenticationError())
     }
 
   /**
