@@ -63,6 +63,10 @@ Install gcloud using Homebrew:
 ```
 brew install --cask google-cloud-sdk
 ```
+Install Go using Homebrew:
+```
+brew install go
+```
 Update the helm-scala-sdk submodule:
 ```
 git submodule init && git submodule update
