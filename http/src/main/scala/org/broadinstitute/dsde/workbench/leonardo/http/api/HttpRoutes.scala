@@ -112,13 +112,26 @@ class HttpRoutes(
   val route: Route =
     logRequestResult {
       Route.seal(
-        corsSupport.corsHandler {
-          oidcConfig
-            .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ proxyRoutes.route ~ statusRoutes.route ~
-            pathPrefix("api") {
-              runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes
-            }
-        }
+        concat(
+          oidcConfig.swaggerRoutes("swagger/api-docs.yaml"),
+          oidcConfig.oauth2Routes,
+          corsSupport.corsHandler {
+            concat(
+              proxyRoutes.route,
+              statusRoutes.route,
+              pathPrefix("api") {
+                concat(
+                  runtimeRoutes.routes,
+                  runtimeV2Routes.routes,
+                  diskRoutes.routes,
+                  kubernetesRoutes.routes,
+                  appV2Routes.routes,
+                  diskV2Routes.routes
+                )
+              }
+            )
+          }
+        )
       )
     }
 }
