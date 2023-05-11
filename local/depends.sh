@@ -185,7 +185,7 @@ render_configs() {
 	echo "VALID_HOSTS.0=local.dsde-dev.broadinstitute.org" >> "${_out_dir}/intellij.env"
 
 	echo "IntelliJ info:"
-	echo -e "\tSet JVM options on the Application config to: $(grep JAVA_OPTS "${_out_dir}/intellij.env" | cut -d'=' -f2)"
+	echo -e "\tSet JVM options on the Application config to: $(grep JAVA_OPTS "${_out_dir}/intellij.env" | sed 's/JAVA_OPTS=//')"
 	echo -e "\tUse the following file for EnvFile: ${_out_dir}/intellij.env"
 
 	echo "Pubsub info:"
