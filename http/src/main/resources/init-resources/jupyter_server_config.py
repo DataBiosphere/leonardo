@@ -5,4 +5,5 @@ c.ServerApp.port=8888
 c.ServerApp.token=''
 c.ServerApp.ip=''
 c.ServerApp.allow_origin="*"
+c.ServerApp.disable_check_xsrf=True
 # c.ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager
