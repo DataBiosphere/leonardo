@@ -115,10 +115,11 @@ class HttpRoutes(
         concat(
           oidcConfig.swaggerRoutes("swagger/api-docs.yaml"),
           oidcConfig.oauth2Routes,
+          statusRoutes.route,
           corsSupport.corsHandler {
+            // TODO handle cors rejections here
             concat(
               proxyRoutes.route,
-              statusRoutes.route,
               pathPrefix("api") {
                 concat(
                   runtimeRoutes.routes,
