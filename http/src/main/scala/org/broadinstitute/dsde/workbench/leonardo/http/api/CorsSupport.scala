@@ -15,9 +15,12 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
 
   def corsHandler(r: Route): Route =
     addAccessControlHeaders {
-      preflightRequestHandler ~ validateOrigin {
-        r
-      }
+      concat (
+        preflightRequestHandler,
+        validateOrigin {
+          r
+        }
+      )
     }
 
   // This handles preflight OPTIONS requests.

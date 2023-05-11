@@ -109,6 +109,23 @@ class HttpRoutes(
       )
       .result()
 
+  val corsRejectionHandler: RejectionHandler =
+    RejectionHandler
+      .newBuilder()
+      .handle {
+        case InvalidOriginRejection(allowedOrigins) =>
+          complete(
+            HttpResponse(StatusCodes.BadRequest,
+                         entity = s"Invalid origin header; accepted origins are ${allowedOrigins.toString}"
+            )
+          )
+        case MissingHeaderRejection(headerName) =>
+          complete(HttpResponse(StatusCodes.BadRequest, entity = s"Missing required HTTP header: ${headerName}"))
+      }
+      .result()
+
+  private val handleFailures: Directive0 = handleRejections(corsRejectionHandler) & handleExceptions(myExceptionHandler)
+
   val route: Route =
     logRequestResult {
       Route.seal(
@@ -117,20 +134,21 @@ class HttpRoutes(
           oidcConfig.oauth2Routes,
           statusRoutes.route,
           corsSupport.corsHandler {
-            // TODO handle cors rejections here
-            concat(
-              proxyRoutes.route,
-              pathPrefix("api") {
-                concat(
-                  runtimeRoutes.routes,
-                  runtimeV2Routes.routes,
-                  diskRoutes.routes,
-                  kubernetesRoutes.routes,
-                  appV2Routes.routes,
-                  diskV2Routes.routes
-                )
-              }
-            )
+            handleFailures {
+              concat(
+                proxyRoutes.route,
+                pathPrefix("api") {
+                  concat(
+                    runtimeRoutes.routes,
+                    runtimeV2Routes.routes,
+                    diskRoutes.routes,
+                    kubernetesRoutes.routes,
+                    appV2Routes.routes,
+                    diskV2Routes.routes
+                  )
+                }
+              )
+            }
           }
         )
       )
