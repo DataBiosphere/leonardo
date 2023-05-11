@@ -113,12 +113,14 @@ class HttpRoutes(
     RejectionHandler
       .newBuilder()
       .handle {
+        // From checkSameOrigin failure
         case InvalidOriginRejection(allowedOrigins) =>
           complete(
             HttpResponse(StatusCodes.BadRequest,
                          entity = s"Invalid origin header; accepted origins are ${allowedOrigins.toString}"
             )
           )
+        // From checkSameOrigin failure
         case MissingHeaderRejection(headerName) =>
           complete(HttpResponse(StatusCodes.BadRequest, entity = s"Missing required HTTP header: ${headerName}"))
       }
