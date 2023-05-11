@@ -143,6 +143,31 @@ Or start an sbt shell and go from there:
 sbt
 ```
 
+#### Verify that local Leo is running
+[Status endpoint:
+https://local.dsde-dev.broadinstitute.org/status](https://local.dsde-dev.broadinstitute.org/status)
+
+[Swagger page:
+https://local.dsde-dev.broadinstitute.org](https://local.dsde-dev.broadinstitute.org)
+
+#### Debugging in IntelliJ
+1. Install the [EnvFile plugin](https://plugins.jetbrains.com/plugin/7861-envfile)
+2. Install the [Scala plugin](https://plugins.jetbrains.com/plugin/1347-scala)
+3. Set up a new `Application` run configuration in IntelliJ:
+
+(You may need to use the "Modify options" dropdown to unlock options like "Environment variables", "EnvFile", and "Add VM options")
+![Run configuration](screenshots/intellij_local_leo_run.png)
+4. Determine your Java home
+
+The above configuration will fail to run properly due to missing `JAVA_HOME` in the environment. Unfortunately, IntelliJ doesn't propagate this to the running app. To figure out what it is, first run the new configuration, and scroll back up to the top of the output. The first line should look like:
+![Run output](screenshots/intellij_local_leo_run_output_java_home.png)
+Which means that `JAVA_HOME` should be set to `/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home`.
+
+Now you can go back into the run configuration and add it to the "Environment variables" section:
+![Environment variables dialog](screenshots/intellij_local_leo_run_env_var_java_home.png)
+![Run configuration fixed](screenshots/intellij_local_leo_run_fixed.png)
+5. Run it!
+
 #### Connecting to the MySQL database via the CloudSQL proxy
 Once you've rendered the configs, started the CloudSQL proxy, and sourced the env vars required to run Leo, you can connect to your database with:
 ```
