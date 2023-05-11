@@ -14,15 +14,14 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
     extends LazyLogging {
 
   def corsHandler(r: Route): Route =
-      addAccessControlHeaders {
-        preflightRequestHandler ~ validateOrigin {
-          r
-        }
+    addAccessControlHeaders {
+      preflightRequestHandler ~ validateOrigin {
+        r
       }
     }
 
   // This handles preflight OPTIONS requests.
-  private val preflightRequestHandler: Route =
+  private def preflightRequestHandler: Route =
     options {
       complete(
         HttpResponse(StatusCodes.NoContent)
