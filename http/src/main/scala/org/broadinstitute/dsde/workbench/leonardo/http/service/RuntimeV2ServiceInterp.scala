@@ -250,19 +250,20 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
 
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
       runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
 
-      // If user is creator of the runtime, they should definitely be able to see the runtime if they still have access to the workspace.
-      hasPermission <-
-        if (runtime.auditInfo.creator == userInfo.userEmail)
-          authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
-        else {
-          checkSamPermission(
-            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
-            userInfo,
-            WsmResourceAction.Read
-          ).map(_._1)
-        }
+      hasPermission <- checkSamPermission(
+        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+        userInfo,
+        WsmResourceAction.Read
+      ).map(_._1)
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
         .raiseError[Unit](
@@ -288,6 +289,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
       _ <- F
@@ -311,11 +319,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // This is non-fatal, as we still want to allow users to clean up the db record if they have permission.
       // We must check if they have permission other ways if we did not get an ID back from WSM though
       hasPermission <-
-        if (runtime.auditInfo.creator == userInfo.userEmail)
-          authProvider.isUserWorkspaceReader(
-            WorkspaceResourceSamResourceId(workspaceId),
-            userInfo
-          )
+        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else
           authProvider
             .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
@@ -359,6 +363,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
       // We should not list runtimes that are already in a `Deleted` status
       runtimes <- RuntimeServiceDbQueries
         .listRuntimesForWorkspace(Map.empty, List(RuntimeStatus.Deleted), None, Some(workspaceId), None)
@@ -386,20 +395,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
-
       hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
         WorkspaceResourceSamResourceId(workspaceId),
         userInfo
       )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
 
       hasResourcePermission <- checkSamPermission(
         WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
         userInfo,
         WsmResourceAction.Write
       ).map(_._1)
-
-      hasPermission = hasWorkspacePermission && hasResourcePermission
 
       _ <- ctx.span.traverse(s =>
         F.delay(s.addAnnotation("Done auth call for update date accessed runtime permission"))
@@ -408,7 +416,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .raiseError[Unit](
           RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
         )
-        .whenA(!hasPermission)
+        .whenA(!hasResourcePermission)
 
       _ <- dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, runtime.cloudContext, ctx.now)) >>
         log.info(s"Queued message to update dateAccessed for runtime ${runtime.cloudContext}/$runtimeName")
@@ -418,12 +426,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
-    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
-
     hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
       WorkspaceResourceSamResourceId(workspaceId),
       userInfo
     )
+    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
     hasResourcePermission <- checkPermission(
       runtime.auditInfo.creator,
@@ -431,13 +440,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.internalId)))
     )
 
-    hasPermission = hasWorkspacePermission && hasResourcePermission
-
     _ <- F
       .raiseError[Unit](
         RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
       )
-      .whenA(!hasPermission)
+      .whenA(!hasResourcePermission)
     _ <-
       if (runtime.status.isStartable) F.unit
       else
@@ -450,25 +457,26 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
-    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
     hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
       WorkspaceResourceSamResourceId(workspaceId),
       userInfo
     )
+    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
     hasResourcePermission <- checkPermission(
       runtime.auditInfo.creator,
       userInfo,
       WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.internalId)))
     )
-    hasPermission = hasWorkspacePermission && hasResourcePermission
 
     _ <- F
       .raiseError[Unit](
         RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
       )
-      .whenA(!hasPermission)
+      .whenA(!hasResourcePermission)
     _ <-
       if (runtime.status.isStoppable) F.unit
       else

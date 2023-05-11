@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
@@ -86,7 +87,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail with DiskNotFound if user doesn't have permission" in isolatedDbTest {
+  it should "fail with ForbiddenError if user doesn't have permission" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskV2Service = makeDiskV2Service(publisherQueue)
     val userInfo =
@@ -102,7 +103,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
           pd.id
         )
         .attempt
-    } yield getResponse shouldBe Left(DiskNotFoundByIdException(pd.id, ctx.traceId))
+    } yield getResponse shouldBe Left(ForbiddenError(WorkbenchEmail("stranger@example.com")))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -124,7 +125,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
           pd.id
         )
         .attempt
-    } yield getResponse shouldBe Left(DiskNotFoundByIdException(pd.id, ctx.traceId))
+    } yield getResponse shouldBe Left(ForbiddenError(WorkbenchEmail("user1@example.com")))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -264,7 +265,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       )
       err <- diskV2service2.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(
-      DiskNotFoundByIdException(disk.id, ctx.traceId)
+      ForbiddenError(WorkbenchEmail("user1@example.com"))
     )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

@@ -51,20 +51,20 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         userInfo
       )
 
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
       hasDiskPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
         diskResp.samResource,
         PersistentDiskAction.ReadPersistentDisk,
         userInfo
       )
 
-      hasPermission = hasWorkspacePermission && hasDiskPermission
-
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure disk permission")))
       _ <- F
         .raiseError[Unit](
           DiskNotFoundByIdException(diskId, ctx.traceId)
         )
-        .whenA(!hasPermission)
+        .whenA(!hasDiskPermission)
 
     } yield diskResp
 
@@ -88,12 +88,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         WorkspaceResourceSamResourceId(workspaceId),
         userInfo
       )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       // check read permission first
       listOfPermissions <- authProvider.getActions(disk.samResource, userInfo)
       hasReadPermission = listOfPermissions.toSet.contains(
         PersistentDiskAction.ReadPersistentDisk
-      ) && hasWorkspacePermission
+      )
       _ <- F
         .raiseError[Unit](DiskNotFoundByIdException(diskId, ctx.traceId))
         .whenA(!hasReadPermission)
@@ -107,7 +108,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // check delete permission
       hasDeletePermission = listOfPermissions.toSet.contains(
         PersistentDiskAction.DeletePersistentDisk
-      ) && hasWorkspacePermission
+      )
       _ <- F
         .raiseError[Unit](ForbiddenError(userInfo.userEmail))
         .whenA(!hasDeletePermission)

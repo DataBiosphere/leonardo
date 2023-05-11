@@ -575,7 +575,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- azureService.getRuntime(badUserInfo, runtimeName, workspaceId)
     } yield ()
 
-    the[RuntimeNotFoundException] thrownBy {
+    the[ForbiddenError] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -614,7 +614,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- azureService2.getRuntime(userInfo, runtimeName, workspaceId)
     } yield ()
 
-    the[RuntimeNotFoundException] thrownBy {
+    the[ForbiddenError] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -662,14 +662,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .attempt
     } yield {
       val exception = r.swap.toOption.get
-      exception.getMessage shouldBe s"Runtime Gcp/dsp-leo-test/${runtime.runtimeName.asString} not found"
-      exception.asInstanceOf[RuntimeNotFoundException].msg shouldBe "permission denied"
+      exception.getMessage shouldBe s"email is unauthorized. If you have proper permissions to use the workspace, make sure you are also added to the billing account"
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to start a runtime when runtime doesn't exist in DB" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("user1@example.com"), 0)
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -749,14 +748,13 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .attempt
     } yield {
       val exception = r.swap.toOption.get
-      exception.getMessage shouldBe s"Runtime Gcp/dsp-leo-test/${runtime.runtimeName.asString} not found"
-      exception.asInstanceOf[RuntimeNotFoundException].msg shouldBe "permission denied"
+      exception.getMessage shouldBe s"email is unauthorized. If you have proper permissions to use the workspace, make sure you are also added to the billing account"
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to stop a runtime when runtime doesn't exist in DB" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("user1@example.com"), 0)
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
@@ -995,7 +993,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- azureService.deleteRuntime(badUserInfo, runtimeName, workspaceId, true)
     } yield ()
 
-    the[RuntimeNotFoundException] thrownBy {
+    the[ForbiddenError] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -1037,7 +1035,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- azureService2.deleteRuntime(userInfo, runtimeName, workspaceId, true)
     } yield ()
 
-    the[RuntimeNotFoundException] thrownBy {
+    the[ForbiddenError] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -1652,7 +1650,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- azureService2.updateDateAccessed(userInfo, workspaceId, runtimeName)
     } yield ()
 
-    the[RuntimeNotFoundException] thrownBy {
+    the[ForbiddenError] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }

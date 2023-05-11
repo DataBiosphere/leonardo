@@ -1693,7 +1693,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
     val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
-    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+    a[ForbiddenError] should be thrownBy azureService2
       .deleteAppV2(userInfo, workspaceId, appName, true)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1760,7 +1760,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
     val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2)
-    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+    a[ForbiddenError] should be thrownBy azureService2
       .deleteAppV2(userInfo, workspaceId, appName, true)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1838,10 +1838,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     listProject1Apps.map(_.appName) should contain(appName1)
 
     val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
-    azureService2
+    a[ForbiddenError] should be thrownBy azureService2
       .listAppV2(userInfo, workspaceId, Map())
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .length shouldBe 0
   }
 
   it should "V2 Azure - list apps V2 should return apps for workspace" in isolatedDbTest {
@@ -1916,10 +1915,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     listProject1Apps.map(_.appName) should contain(appName1)
 
     val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2)
-    azureService2
+    a[ForbiddenError] should be thrownBy azureService2
       .listAppV2(userInfo, workspaceId, Map())
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .length shouldBe 0
   }
 
   it should "V2 GCP - get app" in isolatedDbTest {
@@ -1962,22 +1960,22 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val getApp1 =
       appServiceInterp.getAppV2(userInfo, workspaceId, appName1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp1.diskName shouldBe Some(diskName1)
-    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+    a[ForbiddenError] should be thrownBy azureService2
       .getAppV2(userInfo, workspaceId, appName1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val getApp2 =
       appServiceInterp.getAppV2(userInfo, workspaceId, appName2).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp2.diskName shouldBe Some(diskName2)
-    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
+    a[ForbiddenError] should be thrownBy azureService2
       .getAppV2(userInfo, workspaceId, appName2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val getApp3 =
       appServiceInterp.getAppV2(userInfo, workspaceId3, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp3.diskName shouldBe Some(diskName3)
-    a[AppNotFoundByWorkspaceIdException] should be thrownBy azureService2
-      .getAppV2(userInfo, workspaceId, appName3)
+    a[ForbiddenError] should be thrownBy azureService2
+      .getAppV2(userInfo, workspaceId3, appName3)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
