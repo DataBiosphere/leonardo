@@ -4,13 +4,12 @@ package api
 
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
-import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.model.{DateTime, HttpMethods, HttpRequest, StatusCodes}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
+import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.stream.Materializer
 import cats.effect.IO
 import cats.mtl.Ask
@@ -22,8 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(implicit
@@ -36,7 +35,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
         extractAppContext(Some(span), request.uri.toString()) { implicit ctx =>
           // Note that the "notebooks" path prefix is deprecated
           pathPrefix("proxy" | "notebooks") {
-            preflightRequestHandler ~ refererHandler {
+            refererHandler {
               // "apps" proxy routes
               pathPrefix("google" / "v1" / "apps") {
                 pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
@@ -269,14 +268,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
-
-  // This handles preflight OPTIONS requests.
-  private[api] val preflightRequestHandler: Route = options {
-    complete(
-      HttpResponse(StatusCodes.NoContent)
-        .withHeaders(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
-    )
-  }
 
   private[api] def refererHandler: Directive0 =
     if (refererConfig.enabled) {
