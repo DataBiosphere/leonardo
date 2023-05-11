@@ -4,6 +4,7 @@ package http
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   CoaAppConfig,
+  HailBatchAppConfig,
   HttpWsmDaoConfig,
   PersistentDiskConfig,
   WdsAppConfig
@@ -29,6 +30,7 @@ final case class AzureConfig(
   appRegistration: AzureAppRegistrationConfig,
   coaAppConfig: CoaAppConfig,
   wdsAppConfig: WdsAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
   allowedSharedApps: List[String]
 )
@@ -49,6 +51,8 @@ final case class AadPodIdentityConfig(namespace: Namespace,
 
 final case class DrsConfig(url: String)
 
+final case class TdrConfig(url: String)
+
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
 final case class AppConfig(
@@ -57,5 +61,6 @@ final case class AppConfig(
   azure: AzureConfig,
   oidc: OidcAuthConfig,
   drs: DrsConfig,
-  metrics: LeoMetricsMonitorConfig
+  metrics: LeoMetricsMonitorConfig,
+  tdr: TdrConfig
 )

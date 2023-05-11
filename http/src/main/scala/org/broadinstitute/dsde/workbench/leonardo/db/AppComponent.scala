@@ -40,7 +40,8 @@ final case class AppRecord(id: AppId,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
                            descriptorPath: Option[Uri],
-                           extraArgs: Option[List[String]]
+                           extraArgs: Option[List[String]],
+                           sourceWorkspaceId: Option[WorkspaceId]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -66,7 +67,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
   def descriptorPath = column[Option[Uri]]("descriptorPath", O.Length(1024))
   def extraArgs = column[Option[List[String]]]("extraArgs")
-
+  def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
   def * =
     (
       id,
@@ -89,7 +90,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       diskId,
       customEnvironmentVariables,
       descriptorPath,
-      extraArgs
+      extraArgs,
+      sourceWorkspaceId
     ) <> (AppRecord.tupled, AppRecord.unapply)
 }
 
@@ -129,7 +131,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       errors,
       app.customEnvironmentVariables.getOrElse(Map.empty),
       app.descriptorPath,
-      app.extraArgs.getOrElse(List.empty)
+      app.extraArgs.getOrElse(List.empty),
+      app.sourceWorkspaceId
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -204,7 +207,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,
-        if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs)
+        if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
+        saveApp.app.sourceWorkspaceId
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)

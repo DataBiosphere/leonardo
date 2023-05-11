@@ -97,7 +97,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "publisher": "microsoft-dsvm",
          |      "offer": "ubuntu-2004",
          |      "sku": "2004-gen2",
-         |      "version": "22.04.27"
+         |      "version": "23.01.06"
          |    },
          |    "customScriptExtension": {
          |      "name": "vm-custom-script-extension",
@@ -107,7 +107,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/96317439a7104e4da0d2ca8b994d809b2341da75/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/1b7690cde14132d6478d5c014341a01b557c6132/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",

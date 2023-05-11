@@ -1041,7 +1041,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "list apps belonging to different users" in isolatedDbTest {
-    // Make apps belonging to different users than the calling user
+    // Make apps belonging to different users than the calling user and with different access scopes
     val res = for {
       savedCluster <- IO(makeKubeCluster(1).save())
       savedNodepool1 <- IO(makeNodepool(1, savedCluster.id).save())
@@ -1052,11 +1052,23 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       app2 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user2@example.com"))(makeApp(2, savedNodepool2.id))
       _ <- IO(app2.save())
 
+      savedNodepool3 <- IO(makeNodepool(3, savedCluster.id).save())
+      app3 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user3@example.com"))(
+        makeApp(3, savedNodepool3.id, appAccessScope = AppAccessScope.WorkspaceShared)
+      )
+      _ <- IO(app3.save())
+
+      savedNodepool4 <- IO(makeNodepool(4, savedCluster.id).save())
+      app4 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user4@example.com"))(
+        makeApp(4, savedNodepool4.id, appAccessScope = AppAccessScope.UserPrivate)
+      )
+      _ <- IO(app4.save())
+
       listResponse <- appServiceInterp.listApp(userInfo, None, Map.empty)
     } yield
     // Since the calling user is allowlisted in the auth provider, it should return
     // the apps belonging to other users.
-    listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
+    listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName, app3.appName, app4.appName)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1201,7 +1213,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1241,7 +1254,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1283,7 +1297,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1324,7 +1339,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1362,7 +1378,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1406,7 +1423,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1450,7 +1468,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         ReleaseNameSuffix(""),
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
-        customApplicationAllowList
+        customApplicationAllowList,
+        true
       ),
       wsmDao,
       samDao
@@ -1507,7 +1526,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "V2 Azure - create an app V2" in isolatedDbTest {
     val appName = AppName("app1")
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace",
+                            "RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}"
+    )
     val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
                                        appType = AppType.Cromwell,
                                        diskConfig = None,
@@ -2110,6 +2131,19 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     messages shouldBe List.empty
+  }
+
+  it should "fail to create a V2 app if it is disabled" in {
+    val appName = AppName("app1")
+    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.HailBatch, diskConfig = None)
+
+    val thrown = the[AppTypeNotEnabledException] thrownBy {
+      appServiceInterp
+        .createAppV2(userInfo, workspaceId, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+
+    thrown.appType shouldBe AppType.HailBatch
   }
 
   private def withLeoPublisher(
