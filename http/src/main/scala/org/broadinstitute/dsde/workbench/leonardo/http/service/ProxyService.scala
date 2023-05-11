@@ -552,6 +552,7 @@ class ProxyService(
 
   private val HeadersToFilter = Set(
     "Host",
+    "Origin",
     "Timeout-Access",
     "Sec-WebSocket-Accept",
     "Sec-WebSocket-Version",

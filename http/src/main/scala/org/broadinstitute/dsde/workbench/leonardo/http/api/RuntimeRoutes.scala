@@ -12,17 +12,17 @@ import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import RuntimeRoutesCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}
 import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.duration._

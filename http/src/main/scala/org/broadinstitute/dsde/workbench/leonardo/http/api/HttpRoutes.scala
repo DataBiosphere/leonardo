@@ -40,7 +40,7 @@ class HttpRoutes(
   refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val statusRoutes = new StatusRoutes(statusService)
-  private val corsSupport = new CorsSupport(contentSecurityPolicy)
+  private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
   private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
@@ -112,11 +112,26 @@ class HttpRoutes(
   val route: Route =
     logRequestResult {
       Route.seal(
-        oidcConfig
-          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ proxyRoutes.route ~ statusRoutes.route ~
-          pathPrefix("api") {
-            runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes
+        concat(
+          oidcConfig.swaggerRoutes("swagger/api-docs.yaml"),
+          oidcConfig.oauth2Routes,
+          corsSupport.corsHandler {
+            concat(
+              proxyRoutes.route,
+              statusRoutes.route,
+              pathPrefix("api") {
+                concat(
+                  runtimeRoutes.routes,
+                  runtimeV2Routes.routes,
+                  diskRoutes.routes,
+                  kubernetesRoutes.routes,
+                  appV2Routes.routes,
+                  diskV2Routes.routes
+                )
+              }
+            )
           }
+        )
       )
     }
 }
