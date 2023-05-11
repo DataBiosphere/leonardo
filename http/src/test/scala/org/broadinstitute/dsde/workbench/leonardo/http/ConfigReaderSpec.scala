@@ -81,14 +81,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.231"),
+          ChartVersion("0.2.236"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
           List(
             ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
-            ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,
@@ -135,7 +134,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
       ),
-      LeoMetricsMonitorConfig(true, 5 minutes, true)
+      LeoMetricsMonitorConfig(true, 5 minutes, true),
+      TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
     )
 
     config shouldBe expectedConfig

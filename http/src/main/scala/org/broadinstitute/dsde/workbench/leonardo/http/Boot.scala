@@ -659,7 +659,8 @@ object Boot extends IOApp {
           ConfigReader.appConfig.azure.wsm,
           ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
-          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+          ConfigReader.appConfig.tdr
         ),
         helmClient,
         azureBatchService,

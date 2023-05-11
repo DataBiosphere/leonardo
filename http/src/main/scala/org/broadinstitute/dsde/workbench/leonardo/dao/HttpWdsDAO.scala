@@ -39,10 +39,7 @@ class HttpWdsDAO[F[_]](httpClient: Client[F])(implicit
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter("wds/status")
-      wdsStatusUri: Uri = appType match {
-        case AppType.Wds => baseUri / "status"
-        case _           => baseUri / "wds" / "status" // TODO cromwell check remove after WDS chart migration
-      }
+      wdsStatusUri = baseUri / "status"
       res <- httpClient.expectOr[WdsStatusCheckResponse](
         Request[F](
           method = Method.GET,
