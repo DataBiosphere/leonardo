@@ -111,10 +111,10 @@ render_configs() {
 	This is used for the CloudSQL proxy environment. There is no default.
 	To set it, run \`export CLOUDSQL_INSTANCE=...\` in this shell, or set it in your shell rc file."
 		return 1
-	# elif [ "${CLOUDSQL_INSTANCE}" = "${_csp_dev_instance}" ]; then
-	# 	echo "ERROR: CLOUDSQL_INSTANCE is set to the dev database, which is forbidden.
-	# If you need to work with it, use other tools."
-	# 	return 1
+	elif [ "${CLOUDSQL_INSTANCE}" = "${_csp_dev_instance}" ]; then
+		echo "ERROR: CLOUDSQL_INSTANCE is set to the dev database, which is forbidden.
+	If you need to work with it, use other tools."
+		return 1
 	fi
 	if [ -z "${GOOGLE_PROJECT}" ]; then
 		echo "WARN: GOOGLE_PROJECT is unset.
