@@ -82,7 +82,9 @@ The CloudSQL proxy container uses a few environment variables. The following var
 
 In order to develop locally, you *must* make a copy of the dev database and run
 ```
-export CLOUDSQL_INSTANCE=<your cloned db name>
+export CLOUDSQL_INSTANCE=<your cloned db name> # for Leo and CloudSQL proxy
+export DB_USER=<db username> # for Leo only, not CloudSQL proxy
+export DB_PASSWORD=<db password> # for Leo only, not CloudSQL proxy
 ```
 You can add more vars for the CloudSQL proxy container by editing `./local/sqlproxy.env`.
 
@@ -103,10 +105,10 @@ To only get k8s resources, run:
 ```
 
 #### Overrides
-By adding entries to `./local/overrides.env`, you can override the value of any variable from k8s.
+By adding entries to `./local/overrides.env`, you can override the value of any variable from k8s for Leo.
 
 #### Unsetting
-By adding entries to `./local/unset.env`, you can remove variables from k8s. Applied after retrieving
+By adding entries to `./local/unset.env`, you can remove variables from k8s for Leo. Applied after retrieving
 variables from k8s and before applying overrides.
 
 #### Host alias
@@ -142,6 +144,24 @@ Or start an sbt shell and go from there:
 ```
 sbt
 ```
+
+#### Architecture issues
+If you get an error like
+```
+Exception in thread "io-compute-6" java.lang.UnsatisfiedLinkError: Unable to load library 'helm':
+...
+(mach-o file, but is an incompatible architecture (have 'arm64', need 'x86_64')), 
+...
+```
+You are probably on an M1 (arm64) running an amd64 (x86_64) version of Java. You can verify by first finding and setting your `JAVA_HOME` (e.g. with `which java` or jenv if present) and then checking the output of
+```
+file "${JAVA_HOME}/bin/java
+```
+It should read something like
+```
+/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home/bin/java: Mach-O 64-bit executable arm64
+```
+Note the **Mach-O 64-bit executable arm64**. Otherwise, install an arm64 version of Java and try again. [Adoptium](https://adoptium.net/) should work fine.
 
 #### Verify that local Leo is running
 [Status endpoint:

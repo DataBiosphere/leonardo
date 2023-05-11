@@ -116,14 +116,24 @@ render_configs() {
 	If you need to work with it, use other tools."
 		return 1
 	fi
+	if [ -z "${DB_USER}" ]; then
+		echo "ERROR: DB_USER is unset.
+	This is used to authenticate to the database. There is no default."
+		return 1
+	fi
+	if [ -z "${DB_PASSWORD}" ]; then
+		echo "ERROR: DB_PASSWORD is unset.
+	This is used to authenticate to the database. There is no default."
+		return 1
+	fi
 	if [ -z "${GOOGLE_PROJECT}" ]; then
-		echo "WARN: GOOGLE_PROJECT is unset.
+		echo "INFO: GOOGLE_PROJECT is unset.
 	This is used for the CloudSQL proxy environment. The default is ${_csp_gproj}.
 	To override, run \`export GOOGLE_PROJECT=...\` in this shell, or set it in your shell rc file."
 		export GOOGLE_PROJECT="${_csp_gproj}"
 	fi
 	if [ -z "${CLOUDSQL_ZONE}" ]; then
-		echo "WARN: CLOUDSQL_ZONE is unset.
+		echo "INFO: CLOUDSQL_ZONE is unset.
 	This is used for the CloudSQL proxy environment. The default is ${_csp_zone}.
 	To override, run \`export CLOUDSQL_ZONE=...\` in this shell, or set it in your shell rc file."
 		export CLOUDSQL_ZONE="${_csp_zone}"
