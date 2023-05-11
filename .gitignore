@@ -26,7 +26,6 @@ failure_screenshots/
 *.pyc
 __pycache__
 .DS_Store
-rendered/
 
 # Automation exclusions
 automation/chrome/
