@@ -4,8 +4,9 @@ package api
 
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
+import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{DateTime, HttpMethods, HttpRequest, StatusCodes}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
@@ -36,28 +37,77 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
           // Note that the "notebooks" path prefix is deprecated
           pathPrefix("proxy" | "notebooks") {
             refererHandler {
-              // "apps" proxy routes
-              pathPrefix("google" / "v1" / "apps") {
-                pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
-                  (googleProject, appName, serviceName) =>
-                    extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
-                      logRequestResultForMetrics(userInfo) {
-                        complete {
-                          proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
+              preflightRequestHandler {
+                // "apps" proxy routes
+                pathPrefix("google" / "v1" / "apps") {
+                  pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
+                    (googleProject, appName, serviceName) =>
+                      extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
+                        logRequestResultForMetrics(userInfo) {
+                          complete {
+                            proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
+                          }
+                        }
+                      }
+                  }
+                } ~ pathPrefix("v2" / "runtimes") {
+                  pathPrefix(workspaceIdSegment / "azure" / runtimeNameSegment) { (workspaceId, runtimeName) =>
+                    path("jupyterlab") {
+                      failWith(new NotImplementedError)
+                    }
+                  }
+                } ~
+                  // "runtimes" proxy routes
+                  pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
+                    // Note the setCookie route exists at the top-level /proxy/setCookie as well
+                    path("setCookie") {
+                      extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
+                        get {
+                          val cookieDirective = userInfoOpt match {
+                            case Some(userInfo) => CookieSupport.setTokenCookie(userInfo)
+                            case None           => CookieSupport.unsetTokenCookie()
+                          }
+                          cookieDirective {
+                            complete {
+                              setCookieHandler(userInfoOpt)
+                            }
+                          }
+                        }
+                      }
+                    } ~
+                      pathPrefix("jupyter" / "terminals") {
+                        pathSuffix(terminalNameSegment) { terminalName =>
+                          extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
+                            logRequestResultForMetrics(userInfo) {
+                              complete {
+                                openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
+                              }
+                            }
+                          }
+                        }
+                      } ~
+                      extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
+                        logRequestResultForMetrics(userInfo) {
+                          // Proxy logic handled by the ProxyService class
+                          // Note ProxyService calls the LeoAuthProvider internally
+                          complete {
+                            proxyRuntimeHandler(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
+                          }
+                        }
+                      }
+                  } ~
+                  // Top-level routes
+                  path("invalidateToken") {
+                    get {
+                      extractUserInfoOptWithUserEnabledCheck(implicitly) { userInfoOpt =>
+                        CookieSupport.unsetTokenCookie() {
+                          complete {
+                            invalidateTokenHandler(userInfoOpt)
+                          }
                         }
                       }
                     }
-                }
-              } ~ pathPrefix("v2" / "runtimes") {
-                pathPrefix(workspaceIdSegment / "azure" / runtimeNameSegment) { (workspaceId, runtimeName) =>
-                  path("jupyterlab") {
-                    failWith(new NotImplementedError)
-                  }
-                }
-              } ~
-                // "runtimes" proxy routes
-                pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
-                  // Note the setCookie route exists at the top-level /proxy/setCookie as well
+                  } ~
                   path("setCookie") {
                     extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
                       get {
@@ -72,55 +122,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                         }
                       }
                     }
-                  } ~
-                    pathPrefix("jupyter" / "terminals") {
-                      pathSuffix(terminalNameSegment) { terminalName =>
-                        extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
-                          logRequestResultForMetrics(userInfo) {
-                            complete {
-                              openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
-                            }
-                          }
-                        }
-                      }
-                    } ~
-                    extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
-                      logRequestResultForMetrics(userInfo) {
-                        // Proxy logic handled by the ProxyService class
-                        // Note ProxyService calls the LeoAuthProvider internally
-                        complete {
-                          proxyRuntimeHandler(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
-                        }
-                      }
-                    }
-                } ~
-                // Top-level routes
-                path("invalidateToken") {
-                  get {
-                    extractUserInfoOptWithUserEnabledCheck(implicitly) { userInfoOpt =>
-                      CookieSupport.unsetTokenCookie() {
-                        complete {
-                          invalidateTokenHandler(userInfoOpt)
-                        }
-                      }
-                    }
                   }
-                } ~
-                path("setCookie") {
-                  extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
-                    get {
-                      val cookieDirective = userInfoOpt match {
-                        case Some(userInfo) => CookieSupport.setTokenCookie(userInfo)
-                        case None           => CookieSupport.unsetTokenCookie()
-                      }
-                      cookieDirective {
-                        complete {
-                          setCookieHandler(userInfoOpt)
-                        }
-                      }
-                    }
-                  }
-                }
+              }
             }
           }
         }
@@ -268,6 +271,15 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
+
+  // This handles preflight OPTIONS requests.
+  private[api] def preflightRequestHandler(r: Route): Route =
+    options {
+      complete(
+        HttpResponse(StatusCodes.NoContent)
+          .withHeaders(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
+      )
+    } ~ r
 
   private[api] def refererHandler: Directive0 =
     if (refererConfig.enabled) {

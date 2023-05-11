@@ -2,9 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route}
 import com.typesafe.scalalogging.LazyLogging
@@ -15,21 +13,9 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
 
   def corsHandler(r: Route): Route =
     addAccessControlHeaders {
-      concat (
-        preflightRequestHandler,
-        validateOrigin {
-          r
-        }
-      )
-    }
-
-  // This handles preflight OPTIONS requests.
-  private def preflightRequestHandler: Route =
-    options {
-      complete(
-        HttpResponse(StatusCodes.NoContent)
-          .withHeaders(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
-      )
+      validateOrigin {
+        r
+      }
     }
 
   // Ensure the request Origin is included in our referrer allowlist.
