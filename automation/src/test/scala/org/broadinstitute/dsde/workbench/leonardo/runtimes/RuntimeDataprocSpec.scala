@@ -255,7 +255,7 @@ class RuntimeDataprocSpec
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(130)),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(130)),
+          Some(DiskSize(150)),
           None,
           None,
           Map.empty,
