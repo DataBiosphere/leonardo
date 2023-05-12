@@ -116,11 +116,6 @@ render_configs() {
 	If you need to work with it, use other tools."
 		return 1
 	fi
-	if [ -z "${DB_USER}" ]; then
-		echo "ERROR: DB_USER is unset.
-	This is used to authenticate to the database. There is no default."
-		return 1
-	fi
 	if [ -z "${DB_PASSWORD}" ]; then
 		echo "ERROR: DB_PASSWORD is unset.
 	This is used to authenticate to the database. There is no default."

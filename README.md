@@ -67,6 +67,11 @@ Install Go using Homebrew:
 ```
 brew install go
 ```
+Note: Ensure that you are running go>=1.20 by running
+```
+go version
+```
+
 Update the helm-scala-sdk submodule:
 ```
 git submodule init && git submodule update
@@ -79,6 +84,12 @@ You must be connected to the VPN if working remotely.
 The CloudSQL proxy container uses a few environment variables. The following vars are pulled from Leo in dev in kubernetes:
 * GOOGLE_PROJECT (e.g. "broad-dsde-dev")
 * CLOUDSQL_ZONE (e.g. "us-central1")
+* DB_PASSWORD (e.g. "leonardo")
+If you are ok with these defaults, do nothing, otherwise run:
+```
+export GOOGLE_PROJECT=my-project-name
+```
+And change the var name and value as desired.
 
 In order to develop locally, you *must* make a copy of the dev database and run
 ```
@@ -129,6 +140,18 @@ You can also stop them:
 Or restart them:
 ```
 ./local/proxies.sh restart
+```
+If the CloudSQL proxy fails to start with an error like:
+```
+Bind for 0.0.0.0:3306 failed: port is already allocated
+```
+Run this to find the PID of the process using that port:
+```
+sudo lsof -i tcp:3306
+```
+And then kill that process:
+```
+sudo kill -TERM <pid>
 ```
 
 #### Run Leo
