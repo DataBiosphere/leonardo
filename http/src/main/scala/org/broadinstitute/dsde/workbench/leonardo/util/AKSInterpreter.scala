@@ -590,7 +590,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"sam.url=${config.samConfig.server}",
 
         // workspace manager
-        raw"workspacemanager.url=${config.wsmConfig.uri}",
+        raw"workspacemanager.url=${config.wsmConfig.uri.renderString}",
 
         // general configs
         raw"fullnameOverride=wds-${release.asString}",
