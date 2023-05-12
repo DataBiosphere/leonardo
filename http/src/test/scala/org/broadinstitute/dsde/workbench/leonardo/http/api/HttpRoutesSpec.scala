@@ -67,7 +67,7 @@ class HttpRoutesSpec
       new MockRuntimeV2Interp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      RefererConfig(Set("https://bvdp-saturn-dev.appspot.com/"), true)
+      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
     )
 
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
@@ -90,6 +90,17 @@ class HttpRoutesSpec
     val req = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
       Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "random"), Map.empty, Map.empty, Map.empty))
     )
+    val validReq = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
+      Some(
+        UserJupyterExtensionConfig(
+          Map("saturn-iframe-extension" -> s"https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"),
+          Map.empty,
+          Map.empty,
+          Map.empty
+        )
+      )
+    )
+
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
       status shouldEqual StatusCodes.BadRequest
@@ -97,7 +108,14 @@ class HttpRoutesSpec
     }
 
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      .withEntity(ContentTypes.`application/json`,
+                  validReq.asJson.spaces2
+      ) ~> routesWithStrictRefererConfig.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> httpRoutesWithWildcardReferer.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
   }
