@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig) {
   def corsHandler(r: Route) =
     addAccessControlHeaders {
-      checkSameOrigin(getValidOriginRange) {
+      handleOrigin {
         preflightRequestHandler ~ r
       }
     }
@@ -25,12 +25,17 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
     )
   }
 
-  private val getValidOriginRange: HttpOriginRange.Default = {
+  private val handleOrigin: Directive0 =
+    if (!refererConfig.enabled || refererConfig.validHosts.contains("*")) pass
+    else checkSameOrigin(getValidOriginRange)
+
+  private def getValidOriginRange: HttpOriginRange.Default = {
     def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
       .map(uri => if (uri.last == '/') uri.slice(0, uri.length - 1) else uri)
       .flatMap { uriString =>
         Set(HttpOrigin(s"http://${uriString}"), HttpOrigin(s"https://${uriString}"))
       }
+
     HttpOriginRange(validOrigins.toSeq: _*)
   }
 

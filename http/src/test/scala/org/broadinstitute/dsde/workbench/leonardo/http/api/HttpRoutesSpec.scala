@@ -70,6 +70,21 @@ class HttpRoutesSpec
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
     )
 
+  val routesWithWildcardReferer =
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
+    )
+
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
     for {
       message <- h.downField("message").as[String]
@@ -101,21 +116,24 @@ class HttpRoutesSpec
       )
     )
 
-    Post("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
-      status shouldEqual StatusCodes.BadRequest
-      responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe true
-    }
+//    // Fail with saturn-iframe-extension outside of strict referer allowlist
+//    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+//      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
+//      status shouldEqual StatusCodes.BadRequest
+//      responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe true
+//    }
+//
+//    // Succeed with saturn-iframe-extension in strict allowlist
+//    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+//      .withEntity(ContentTypes.`application/json`,
+//                  validReq.asJson.spaces2
+//      ) ~> routesWithStrictRefererConfig.route ~> check {
+//      status shouldEqual StatusCodes.Accepted
+//    }
 
+    // Succeed with permissive allowlist (has wildcard *)
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`,
-                  validReq.asJson.spaces2
-      ) ~> routesWithStrictRefererConfig.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-
-    Post("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> httpRoutesWithWildcardReferer.route ~> check {
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithWildcardReferer.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
   }

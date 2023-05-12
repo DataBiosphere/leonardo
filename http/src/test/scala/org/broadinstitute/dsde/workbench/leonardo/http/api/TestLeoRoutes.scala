@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RefererConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -201,21 +201,6 @@ trait TestLeoRoutes {
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
-    )
-
-  val httpRoutesWithWildcardReferer =
-    new HttpRoutes(
-      openIdConnectionConfiguration,
-      statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
-      MockDiskV2ServiceInterp,
-      leoKubernetesService,
-      runtimev2Service,
-      userInfoDirectives,
-      contentSecurityPolicy,
-      RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
     )
 
   val timedHttpRoutes =
