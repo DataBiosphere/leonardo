@@ -2,17 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
-import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.server.{Directive0, Route}
+import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
-import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
+import akka.http.scaladsl.server.{Directive0, Route}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 
-class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
+class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig) {
   def corsHandler(r: Route) =
     addAccessControlHeaders {
-      preflightRequestHandler ~ r
+      checkSameOrigin(getValidOriginRange) {
+        preflightRequestHandler ~ r
+      }
     }
 
   // This handles preflight OPTIONS requests.
@@ -23,12 +25,18 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
     )
   }
 
+  private val getValidOriginRange: HttpOriginRange.Default = {
+    def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
+      .map(uri => if (uri.last == '/') uri.slice(0, uri.length - 1) else uri)
+      .flatMap { uriString =>
+        Set(HttpOrigin(s"http://${uriString}"), HttpOrigin(s"https://${uriString}"))
+      }
+    HttpOriginRange(validOrigins.toSeq: _*)
+  }
+
   // This directive adds access control headers to normal responses
   private def addAccessControlHeaders: Directive0 =
-    optionalHeaderValueByType(Origin) map {
-      case Some(origin) => `Access-Control-Allow-Origin`(origin.value)
-      case None         => `Access-Control-Allow-Origin`.*
-    } flatMap { allowOrigin =>
+    headerValueByType(Origin) flatMap { origin =>
       mapResponseHeaders { headers =>
         // Filter out the Access-Control-Allow-Origin set by Jupyter so we don't have duplicate headers
         // (causes issues on some browsers). See https://github.com/DataBiosphere/leonardo/issues/272
@@ -36,7 +44,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
           h.isNot(`Access-Control-Allow-Origin`.lowercaseName) && h.isNot("content-security-policy")
         } ++
           Seq(
-            allowOrigin,
+            `Access-Control-Allow-Origin`(origin.value),
             `Access-Control-Allow-Credentials`(true),
             `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),
             `Access-Control-Max-Age`(1728000),
@@ -46,5 +54,4 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
           )
       }
     }
-
 }
