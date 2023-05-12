@@ -53,9 +53,9 @@ dbconnect() {
 
     # Check for env vars
     if [ -z "${DB_USER}" ]; then
-        echo "ERROR: Missing required env var DB_USER."
+        echo "INFO: Missing required env var DB_USER. Using 'leonardo'."
         echo "See README.md for how to render (\"Dependencies\") and source env vars (\"Run Leo\")."
-        exit 1
+        export DB_USER=leonardo
     elif [ -z "${DB_PASSWORD}" ]; then
         echo "ERROR: Missing required env var DB_PASSWORD."
         echo "See README.md for how to render (\"Dependencies\") and source env vars (\"Run Leo\")."
