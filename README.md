@@ -225,7 +225,8 @@ Open `Environment variables` (labeled "2" above) and uncheck `Include system env
 ![ScalaTest template env vars](screenshots/intellij_local_leo_test_edit_templates_scalatest_env_vars_uncheck.png)
 2. Change Scala compiler options in IntelliJ settings
 
-IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select the `http` module. Then either uncheck `Enable warnings` or remove `-Xfatal-warnings`.
+IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select the **each** module. Then either uncheck `Enable warnings`.
+
 **NOTE: These changes may revert when you reload the sbt project!** Repeat this step to fix tests complaining about warnings that have been turned into errors.
 ![Scalac options](screenshots/intellij_local_leo_test_scalac_options.png)
 3. Make sure the local MySQL server is running by following the instructions in [Run Leonardo unit tests](#run-leonardo-unit-tests).
