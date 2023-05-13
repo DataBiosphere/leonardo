@@ -214,6 +214,7 @@ Now you can go back into the run configuration and add it to the "Environment va
 #### Run Tests in IntelliJ
 In order to use the GUI elements to run tests, some runtime configuration template changes are needed:
 1. Set default ScalaTest runtime configuration options in `Run > Edit Configurations`
+
 First, open the template settings:
 ![Runtime configurations dialog](screenshots/intellij_local_leo_test_edit_templates.png)
 Then, go to `ScalaTest`:
@@ -223,6 +224,7 @@ Open `VM Options` (labeled "1" above) and add the `JAVA_OPTS` from [Run Leonardo
 Open `Environment variables` (labeled "2" above) and uncheck `Include system environment variables`:
 ![ScalaTest template env vars](screenshots/intellij_local_leo_test_edit_templates_scalatest_env_vars_uncheck.png)
 2. Change Scala compiler options in IntelliJ settings
+
 IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select the `http` module. Then either uncheck `Enable warnings` or remove `-Xfatal-warnings`.
 **NOTE: These changes may revert when you reload the sbt project!** Repeat this step to fix tests complaining about warnings that have been turned into errors.
 ![Scalac options](screenshots/intellij_local_leo_test_scalac_options.png)
@@ -230,6 +232,7 @@ IntelliJ isn't smart enough to set compiler flags differently between the source
 4. Find a test to run and click on the green arrow next to the test to run it normally or using the debugger:
 ![Test run pop-up](screenshots/intellij_local_leo_test_run.png)
 5. Run it!
+
 You should see something like
 ![Test run results](screenshots/intellij_local_leo_test_run_output.png)
 
