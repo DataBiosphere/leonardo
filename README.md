@@ -225,7 +225,7 @@ Open `Environment variables` (labeled "2" above) and uncheck `Include system env
 ![ScalaTest template env vars](screenshots/intellij_local_leo_test_edit_templates_scalatest_env_vars_uncheck.png)
 2. Change Scala compiler options in IntelliJ settings
 
-IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select the **each** module. Then either uncheck `Enable warnings`.
+IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select the **each** module. Then uncheck `Enable warnings`.
 
 **NOTE: These changes may revert when you reload the sbt project!** Repeat this step to fix tests complaining about warnings that have been turned into errors.
 If you get errors after compilation but before the tests run, try deleting your test Runtime Configuration, running `git clean -xfd -e .idea` to clean project files, redoing dependencies/configs, restarting IntelliJ, and redoing the above steps before rerunning tests. 
