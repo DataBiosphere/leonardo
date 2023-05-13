@@ -173,7 +173,7 @@ If you get an error like
 ```
 Exception in thread "io-compute-6" java.lang.UnsatisfiedLinkError: Unable to load library 'helm':
 ...
-(mach-o file, but is an incompatible architecture (have 'arm64', need 'x86_64')), 
+(mach-o file, but is an incompatible architecture (have 'arm64', need 'x86_64')),
 ...
 ```
 You are probably on an M1 (arm64) running an amd64 (x86_64) version of Java. You can verify by first finding and setting your `JAVA_HOME` (e.g. with `which java` or jenv if present) and then checking the output of
@@ -225,10 +225,10 @@ Open `Environment variables` (labeled "2" above) and uncheck `Include system env
 ![ScalaTest template env vars](screenshots/intellij_local_leo_test_edit_templates_scalatest_env_vars_uncheck.png)
 2. Change Scala compiler options in IntelliJ settings
 
-IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select the **each** module. Then uncheck `Enable warnings`.
+IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select **each** module. Then uncheck `Enable warnings`.
 
 **NOTE: These changes may revert when you reload the sbt project!** Repeat this step to fix tests complaining about warnings that have been turned into errors.
-If you get errors after compilation but before the tests run, try deleting your test Runtime Configuration, running `git clean -xfd -e .idea` to clean project files, redoing dependencies/configs, restarting IntelliJ, and redoing the above steps before rerunning tests. 
+If you get errors after compilation but before the tests run, try deleting your test Runtime Configuration, running `git clean -xfd -e .idea` to clean project files, redoing dependencies/configs, restarting IntelliJ, and redoing the above steps before rerunning tests.
 ![Scalac options](screenshots/intellij_local_leo_test_scalac_options.png)
 3. Make sure the local MySQL server is running by following the instructions in [Run Leonardo unit tests](#run-leonardo-unit-tests).
 4. Find a test to run and click on the green arrow next to the test to run it normally or using the debugger:
