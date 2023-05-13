@@ -196,7 +196,7 @@ https://local.dsde-dev.broadinstitute.org](https://local.dsde-dev.broadinstitute
 #### Debugging in IntelliJ
 1. Install the [EnvFile plugin](https://plugins.jetbrains.com/plugin/7861-envfile)
 2. Install the [Scala plugin](https://plugins.jetbrains.com/plugin/1347-scala)
-3. Set up a new `Application` run configuration in IntelliJ:
+3. Set up a new `Application` run configuration in `Run > Edit Configurations`:
 
 (You may need to use the "Modify options" dropdown to unlock options like "Environment variables", "EnvFile", and "Add VM options")
 ![Run configuration](screenshots/intellij_local_leo_run.png)
@@ -210,6 +210,29 @@ Now you can go back into the run configuration and add it to the "Environment va
 ![Environment variables dialog](screenshots/intellij_local_leo_run_env_var_java_home.png)
 ![Run configuration fixed](screenshots/intellij_local_leo_run_fixed.png)
 5. Run it!
+
+#### Run Tests in IntelliJ
+In order to use the GUI elements to run tests, some runtime configuration template changes are needed:
+1. Set default ScalaTest runtime configuration options in `Run > Edit Configurations`
+First, open the template settings:
+![Runtime configurations dialog](screenshots/intellij_local_leo_test_edit_templates.png)
+Then, go to `ScalaTest`:
+![ScalaTest template settings](screenshots/intellij_local_leo_test_edit_templates_scalatest.png)
+Open `VM Options` (labeled "1" above) and add the `JAVA_OPTS` from [Run Leonardo unit tests](#run-leonardo-unit-tests), which should end up looking like:
+![ScalaTest template JVM options](screenshots/intellij_local_leo_test_edit_templates_scalatest_java_opts_filled.png)
+Open `Environment variables` (labeled "2" above) and uncheck `Include system environment variables`:
+![ScalaTest template env vars](screenshots/intellij_local_leo_test_edit_templates_scalatest_env_vars_uncheck.png)
+2. Change Scala compiler options in IntelliJ settings
+IntelliJ isn't smart enough to set compiler flags differently between the source and test targets. To hack around this, open `Settings > Build, Execution, Deployment > Compier > Scala Compiler` and select the `http` module. Then either uncheck `Enable warnings` or remove `-Xfatal-warnings`.
+**NOTE: These changes may revert when you reload the sbt project!** Repeat this step to fix tests complaining about warnings that have been turned into errors.
+![Scalac options](screenshots/intellij_local_leo_test_scalac_options.png)
+3. Make sure the local MySQL server is running by following the instructions in [Run Leonardo unit tests](#run-leonardo-unit-tests).
+4. Find a test to run and click on the green arrow next to the test to run it normally or using the debugger:
+![Test run pop-up](screenshots/intellij_local_leo_test_run.png)
+5. Run it!
+You should see something like
+![Test run results](screenshots/intellij_local_leo_test_run_output.png)
+
 
 #### Connecting to the MySQL database via the CloudSQL proxy
 Once you've rendered the configs, started the CloudSQL proxy, and sourced the env vars required to run Leo, you can connect to your database with:
