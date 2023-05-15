@@ -23,9 +23,10 @@ We use JIRA instead of the issues page on Github. If you would like to see what 
 ## Java client library
 for sbt:
 
-```libraryDependencies += "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "0.1-<git hash>"```
+```libraryDependencies += "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-<git hash>"```
 
 where ```<git hash>``` is the first 7 characters of the commit hash of the HEAD of develop
+you can find our releases on [artifactory](https://broadinstitute.jfrog.io/ui/native/libs-release-local;build.timestamp=1679578230/org/broadinstitute/dsde/workbench/leonardo-client_2.11/)
 
 Example Scala Usage:
 ```

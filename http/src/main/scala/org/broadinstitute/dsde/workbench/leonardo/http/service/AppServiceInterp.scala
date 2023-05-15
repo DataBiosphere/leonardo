@@ -429,14 +429,22 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
     as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] = for {
-    paramMap <- F.fromEither(processListParameters(params))
-    allClusters <- KubernetesServiceDbQueries
-      .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
-      .transaction
+  ): F[Vector[ListAppResponse]] =
+    for {
+      // Make sure that the user still has access to the resource parent workspace
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-    res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
-  } yield res
+      paramMap <- F.fromEither(processListParameters(params))
+      allClusters <- KubernetesServiceDbQueries
+        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+        .transaction
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
+
+    } yield res
 
   override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
     as: Ask[F, AppContext]
@@ -448,12 +456,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         appOpt,
         AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
       )
-      hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
-                                                                               AppAction.GetAppStatus,
-                                                                               userInfo
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+      hasResourcePermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
+                                                                                       AppAction.GetAppStatus,
+                                                                                       userInfo
       )
       _ <-
-        if (hasPermission) F.unit
+        if (hasResourcePermission) F.unit
         else
           log.info(ctx.loggingCtx)(
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
@@ -641,6 +655,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] = for {
+    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
+    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
     ctx <- as.ask
     appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
     appResult <- F.fromOption(
@@ -654,6 +671,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
+    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
+    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
     allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
     apps = allClusters
       .flatMap(_.nodepools)
@@ -688,7 +708,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
     // throw 403 if no DeleteApp permission
     hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
-    _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+    _ <-
+      if (hasDeletePermission) F.unit
+      else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
     canDelete = AppStatus.deletableStatuses.contains(app.status)
     _ <-
