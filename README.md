@@ -85,7 +85,7 @@ You must be connected to the VPN if working remotely.
 The CloudSQL proxy container uses a few environment variables. The following vars are pulled from Leo in dev in kubernetes:
 * GOOGLE_PROJECT (e.g. "broad-dsde-dev")
 * CLOUDSQL_ZONE (e.g. "us-central1")
-* DB_PASSWORD (e.g. "leonardo")
+* DB_USER (e.g. "leonardo")
 If you are ok with these defaults, do nothing, otherwise run:
 ```
 export GOOGLE_PROJECT=my-project-name
