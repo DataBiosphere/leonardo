@@ -50,6 +50,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
         } ++
           Seq(
             `Access-Control-Allow-Origin`(origin.value),
+            RawHeader("Vary", Origin.name),
             `Access-Control-Allow-Credentials`(true),
             `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),
             `Access-Control-Max-Age`(1728000),
