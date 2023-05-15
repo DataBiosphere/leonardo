@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
 
+// TODO here too?
 object Lab extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl

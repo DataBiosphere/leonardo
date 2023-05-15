@@ -779,6 +779,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       refererHeader <- ProxyRedirectClient.genRefererHeader()
+      // todo origin too?
       authHeader <- authorization
       _ <- client
         .run(
