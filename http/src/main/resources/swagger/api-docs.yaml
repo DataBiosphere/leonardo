@@ -2113,8 +2113,6 @@ paths:
   ## Proxy API ##
 
   "/proxy/{googleProject}/{runtimeName}/jupyter":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: Access Jupyter (if installed) on a Leonardo runtime
       description: >
@@ -2172,8 +2170,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/jupyter/lab":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: Access Jupyter Lab (if installed) on a Leonardo runtime
       description: >
@@ -2231,8 +2227,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/rstudio":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: Access RStudio (if installed) on a Leonardo runtime
       description: >
@@ -2290,8 +2284,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/google/v1/apps/{googleProject}/{appName}/{serviceName}":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: Access an app if the app and service name exists
       description: >
@@ -2355,8 +2347,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/setCookie":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: Sets a browser cookie needed to authorize connections to a Leonardo runtime
       description: >
@@ -2386,8 +2376,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/invalidateToken":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: Invalidates a token
       description: >
@@ -2409,8 +2397,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/setCookie":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       deprecated: true
       summary: (Deprecated) Sets a browser cookie needed to authorize connections to a Leonardo runtime
@@ -2459,8 +2445,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/yarn":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: YARN Resource Manager
       description: >
@@ -2516,8 +2500,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/jobhistory":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: MapReduce Job History
       description: >
@@ -2573,8 +2555,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/apphistory":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: YARN Application Timeline
       description: >
@@ -2630,8 +2610,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/sparkhistory":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: Spark History Server
       description: >
@@ -2687,8 +2665,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
   "/proxy/{googleProject}/{runtimeName}/hdfs":
-    parameters:
-      - $ref: '#/components/parameters/originHeader'
     get:
       summary: HDFS NameNode
       description: >
@@ -2749,16 +2725,6 @@ paths:
 ##########################################################################################
 
 components:
-  parameters:
-    originHeader:
-      - in: header
-        name: Origin
-        schema:
-          type: string
-          enum:
-            - "https://example.com" # how do I make this render the current host?
-        required: true
-        description: The Origin header
   requestBodies:
     CreateRuntimeRequest:
       content:
@@ -2824,6 +2790,7 @@ components:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
+
   securitySchemes:
     oidc:
       type: oauth2
