@@ -27,8 +27,13 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
     )
   }
 
+  /** Whether to allow any Origin header value or to restrict to the allowlist.
+   * Enable strict mode by either removing the wildcard (*) from
+   * refererConfig.validHosts or setting refererConfig.originStrict to true.  */
+  private val isOriginStrict: Boolean = !refererConfig.validHosts.contains("*") || refererConfig.originStrict
+
   private val handleOrigin: Directive0 =
-    if (!refererConfig.enabled /* || refererConfig.validHosts.contains("*")*/ ) pass
+    if (!refererConfig.enabled || !isOriginStrict) pass
     else
       optionalHeaderValueByType(Origin) flatMap {
         case Some(origin) =>
