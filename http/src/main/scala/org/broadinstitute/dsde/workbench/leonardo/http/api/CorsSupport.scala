@@ -7,9 +7,11 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route}
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 
-class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig) {
+class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig)
+    extends LazyLogging {
   def corsHandler(r: Route) =
     addAccessControlHeaders {
       handleOrigin {
@@ -27,7 +29,15 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
 
   private val handleOrigin: Directive0 =
     if (!refererConfig.enabled || refererConfig.validHosts.contains("*")) pass
-    else checkSameOrigin(getValidOriginRange)
+    else
+      optionalHeaderValueByType(Origin) flatMap {
+        case Some(origin) =>
+          logger.info(s"CorsSupport | Request origin detected: ${origin}. Checking validity")
+          checkSameOrigin(getValidOriginRange)
+        case None =>
+          logger.info(s"CorsSupport | Request origin not provided. Permitting")
+          pass
+      }
 
   private def getValidOriginRange: HttpOriginRange.Default = {
     def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
