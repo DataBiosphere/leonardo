@@ -22,8 +22,13 @@ case object Python3 extends NotebookKernel {
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with Python 3']"
 }
 
+case object Python3Ipykernel extends NotebookKernel {
+  def string: String = "Python 3 (ipykernel)"
+  override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with Python 3 (ipykernel)']"
+}
+
 case object PySpark2 extends NotebookKernel {
-  def string: String = "PySpark 2"
+  def string: String = "PySpark 2"◊
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with PySpark 2']"
 }
 
