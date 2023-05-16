@@ -41,7 +41,10 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
 
   // This directive adds access control headers to normal responses
   private def addAccessControlHeaders: Directive0 =
-    headerValueByType(Origin) flatMap { origin =>
+    optionalHeaderValueByType(Origin) map {
+      case Some(origin) => `Access-Control-Allow-Origin`(origin.value)
+      case None         => `Access-Control-Allow-Origin`.*
+    } flatMap { allowOriginHeader =>
       mapResponseHeaders { headers =>
         // Filter out the Access-Control-Allow-Origin set by Jupyter so we don't have duplicate headers
         // (causes issues on some browsers). See https://github.com/DataBiosphere/leonardo/issues/272
@@ -49,7 +52,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
           h.isNot(`Access-Control-Allow-Origin`.lowercaseName) && h.isNot("content-security-policy")
         } ++
           Seq(
-            `Access-Control-Allow-Origin`(origin.value),
+            allowOriginHeader,
             RawHeader("Vary", Origin.name),
             `Access-Control-Allow-Credentials`(true),
             `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),
