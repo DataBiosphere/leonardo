@@ -6,7 +6,6 @@ import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.server.RejectionHandler
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
@@ -38,78 +37,30 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
           pathPrefix("proxy" | "notebooks") {
 
             corsSupport.corsHandler {
-              handleRejections(RejectionHandler.default) {
-                refererHandler {
-                  // "apps" proxy routes
-                  pathPrefix("google" / "v1" / "apps") {
-                    pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
-                      (googleProject, appName, serviceName) =>
-                        extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
-                          logRequestResultForMetrics(userInfo) {
-                            complete {
-                              proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
-                            }
-                          }
-                        }
-                    }
-                  } ~ pathPrefix("v2" / "runtimes") {
-                    pathPrefix(workspaceIdSegment / "azure" / runtimeNameSegment) { (workspaceId, runtimeName) =>
-                      path("jupyterlab") {
-                        failWith(new NotImplementedError)
-                      }
-                    }
-                  } ~
-                    // "runtimes" proxy routes
-                    pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
-                      // Note the setCookie route exists at the top-level /proxy/setCookie as well
-                      path("setCookie") {
-                        extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
-                          get {
-                            val cookieDirective = userInfoOpt match {
-                              case Some(userInfo) => CookieSupport.setTokenCookie(userInfo)
-                              case None           => CookieSupport.unsetTokenCookie()
-                            }
-                            cookieDirective {
-                              complete {
-                                setCookieHandler(userInfoOpt)
-                              }
-                            }
-                          }
-                        }
-                      } ~
-                        pathPrefix("jupyter" / "terminals") {
-                          pathSuffix(terminalNameSegment) { terminalName =>
-                            extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
-                              logRequestResultForMetrics(userInfo) {
-                                complete {
-                                  openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
-                                }
-                              }
-                            }
-                          }
-                        } ~
-                        extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
-                          logRequestResultForMetrics(userInfo) {
-                            // Proxy logic handled by the ProxyService class
-                            // Note ProxyService calls the LeoAuthProvider internally
-                            complete {
-                              proxyRuntimeHandler(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
-                            }
-                          }
-                        }
-                    } ~
-                    // Top-level routes
-                    path("invalidateToken") {
-                      get {
-                        extractUserInfoOptWithUserEnabledCheck(implicitly) { userInfoOpt =>
-                          CookieSupport.unsetTokenCookie() {
-                            complete {
-                              invalidateTokenHandler(userInfoOpt)
-                            }
+
+              refererHandler {
+                // "apps" proxy routes
+                pathPrefix("google" / "v1" / "apps") {
+                  pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
+                    (googleProject, appName, serviceName) =>
+                      extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
+                        logRequestResultForMetrics(userInfo) {
+                          complete {
+                            proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
                           }
                         }
                       }
-                    } ~
+                  }
+                } ~ pathPrefix("v2" / "runtimes") {
+                  pathPrefix(workspaceIdSegment / "azure" / runtimeNameSegment) { (workspaceId, runtimeName) =>
+                    path("jupyterlab") {
+                      failWith(new NotImplementedError)
+                    }
+                  }
+                } ~
+                  // "runtimes" proxy routes
+                  pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
+                    // Note the setCookie route exists at the top-level /proxy/setCookie as well
                     path("setCookie") {
                       extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
                         get {
@@ -124,8 +75,55 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                           }
                         }
                       }
+                    } ~
+                      pathPrefix("jupyter" / "terminals") {
+                        pathSuffix(terminalNameSegment) { terminalName =>
+                          extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
+                            logRequestResultForMetrics(userInfo) {
+                              complete {
+                                openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
+                              }
+                            }
+                          }
+                        }
+                      } ~
+                      extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
+                        logRequestResultForMetrics(userInfo) {
+                          // Proxy logic handled by the ProxyService class
+                          // Note ProxyService calls the LeoAuthProvider internally
+                          complete {
+                            proxyRuntimeHandler(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
+                          }
+                        }
+                      }
+                  } ~
+                  // Top-level routes
+                  path("invalidateToken") {
+                    get {
+                      extractUserInfoOptWithUserEnabledCheck(implicitly) { userInfoOpt =>
+                        CookieSupport.unsetTokenCookie() {
+                          complete {
+                            invalidateTokenHandler(userInfoOpt)
+                          }
+                        }
+                      }
                     }
-                }
+                  } ~
+                  path("setCookie") {
+                    extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
+                      get {
+                        val cookieDirective = userInfoOpt match {
+                          case Some(userInfo) => CookieSupport.setTokenCookie(userInfo)
+                          case None           => CookieSupport.unsetTokenCookie()
+                        }
+                        cookieDirective {
+                          complete {
+                            setCookieHandler(userInfoOpt)
+                          }
+                        }
+                      }
+                    }
+                  }
               }
             }
           }
