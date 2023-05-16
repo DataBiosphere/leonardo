@@ -28,7 +28,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
   }
 
   private val handleOrigin: Directive0 =
-    if (!refererConfig.enabled || refererConfig.validHosts.contains("*")) pass
+    if (!refererConfig.enabled /* || refererConfig.validHosts.contains("*")*/ ) pass
     else
       optionalHeaderValueByType(Origin) flatMap {
         case Some(origin) =>
@@ -41,6 +41,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
 
   private def getValidOriginRange: HttpOriginRange.Default = {
     def validOrigins: Set[HttpOrigin] = refererConfig.validHosts
+      .filter(_ != "*")
       .map(uri => if (uri.last == '/') uri.slice(0, uri.length - 1) else uri)
       .flatMap { uriString =>
         Set(HttpOrigin(s"http://${uriString}"), HttpOrigin(s"https://${uriString}"))
