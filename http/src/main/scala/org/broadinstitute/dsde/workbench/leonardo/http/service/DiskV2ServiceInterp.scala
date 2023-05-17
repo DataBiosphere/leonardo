@@ -8,7 +8,10 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  PersistentDiskSamResourceId,
+  WorkspaceResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -40,23 +43,28 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .getGetPersistentDiskResponseV2(diskId, ctx.traceId)
         .transaction
 
-      // If user is creator of the disk, they should definitely be able to see the disk.
-      hasPermission <-
-        if (diskResp.auditInfo.creator == userInfo.userEmail) F.pure(true)
-        else {
-          authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
-            diskResp.samResource,
-            PersistentDiskAction.ReadPersistentDisk,
-            userInfo
-          )
-        }
+      // check that workspaceId is not null
+      workspaceId <- F.fromOption(diskResp.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
+
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+      hasDiskPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
+        diskResp.samResource,
+        PersistentDiskAction.ReadPersistentDisk,
+        userInfo
+      )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure disk permission")))
       _ <- F
         .raiseError[Unit](
           DiskNotFoundByIdException(diskId, ctx.traceId)
         )
-        .whenA(!hasPermission)
+        .whenA(!hasDiskPermission)
 
     } yield diskResp
 
@@ -73,9 +81,20 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         F.pure
       )
 
+      // check that workspaceId is not null
+      workspaceId <- F.fromOption(disk.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
+
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
       // check read permission first
       listOfPermissions <- authProvider.getActions(disk.samResource, userInfo)
-      hasReadPermission = listOfPermissions.toSet.contains(PersistentDiskAction.ReadPersistentDisk)
+      hasReadPermission = listOfPermissions.toSet.contains(
+        PersistentDiskAction.ReadPersistentDisk
+      )
       _ <- F
         .raiseError[Unit](DiskNotFoundByIdException(diskId, ctx.traceId))
         .whenA(!hasReadPermission)
@@ -87,15 +106,14 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         )
 
       // check delete permission
-      hasDeletePermission = listOfPermissions.toSet.contains(PersistentDiskAction.DeletePersistentDisk)
+      hasDeletePermission = listOfPermissions.toSet.contains(
+        PersistentDiskAction.DeletePersistentDisk
+      )
       _ <- F
         .raiseError[Unit](ForbiddenError(userInfo.userEmail))
         .whenA(!hasDeletePermission)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure disk permission")))
-
-      // check that workspaceId is not null
-      workspaceId <- F.fromOption(disk.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
 
       // check that disk isn't attached to a runtime
       isAttached <- persistentDiskQuery.isDiskAttached(diskId).transaction

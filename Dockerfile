@@ -29,9 +29,9 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.232
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.232
-ENV WDS_CHART_VERSION 0.7.0
+ENV CROMWELL_CHART_VERSION 0.2.237
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.237
+ENV WDS_CHART_VERSION 0.13.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.8
 # TODO ENV RSTUDIO_CHART_VERSION x.x.x
 
@@ -71,7 +71,7 @@ RUN cd /leonardo && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
-    helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
+#     helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools

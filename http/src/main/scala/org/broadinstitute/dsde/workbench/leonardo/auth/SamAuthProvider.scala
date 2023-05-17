@@ -194,6 +194,30 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield roles.contains(SamRole.Owner)
   }
 
+  def filterWorkspaceReader(
+    resources: NonEmptyList[WorkspaceResourceSamResourceId],
+    userInfo: UserInfo
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[WorkspaceResourceSamResourceId]] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      workspacePolicies <- samDao
+        .getResourcePolicies[WorkspaceResourceSamResourceId](authHeader, SamResourceType.Workspace)
+      readingWorkspaces = workspacePolicies.map(_._1)
+    } yield readingWorkspaces.toSet
+  }
+
+  def isUserWorkspaceReader(
+    workspaceResource: WorkspaceResourceSamResourceId,
+    userInfo: UserInfo
+  )(implicit ev: Ask[F, TraceId]): F[Boolean] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      roles <- samDao.getResourceRoles(authHeader, workspaceResource)
+    } yield roles.nonEmpty
+  }
+
   override def notifyResourceCreated[R](
     samResource: R,
     creatorEmail: WorkbenchEmail,
