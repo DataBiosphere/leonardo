@@ -17,7 +17,7 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   "NotebookAoUSpec" - {
     "should have wondershaper installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3Ipykernel) { notebookPage =>
           val result = notebookPage.executeCell("!command -v wondershaper")
           result shouldBe defined
           result.get should include("/usr/local/sbin/wondershaper")
@@ -27,7 +27,7 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     "should have Pandas automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3Ipykernel) { notebookPage =>
           notebookPage.executeCell("import pandas") should (be(None) or be(
             Some("Matplotlib is building the font cache; this may take a moment.")
           ))
