@@ -3377,7 +3377,7 @@ components:
         imageUri:
           type: string
           description: The azure identifier for the vm image uri. Optional, there is an intelligent default. Note this must be in the same region specified in the request Ex, /subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0
-        customEnvironmentVariabales:
+        customEnvironmentVariables:
           type: object
           description: an optional set of key value pairs for environment variables to be injected into the VM
         disk:
