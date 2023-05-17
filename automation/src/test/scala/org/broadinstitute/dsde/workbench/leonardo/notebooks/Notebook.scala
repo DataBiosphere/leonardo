@@ -17,7 +17,6 @@ import org.openqa.selenium.WebDriver
 
 import java.io.File
 
-// TODO here?
 /**
  * Leonardo API service client.
  */

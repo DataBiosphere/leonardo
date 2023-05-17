@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks.WelderJsonCodec._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, _}
 import org.broadinstitute.dsde.workbench.service.RestClient
 
-// TODO jic
 /**
  * Welder API service client.
  */
