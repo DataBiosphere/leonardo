@@ -7,11 +7,9 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route}
-import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 
-class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig)
-    extends LazyLogging {
+class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig) {
   def corsHandler(r: Route) =
     addAccessControlHeaders {
       handleOrigin {
@@ -37,10 +35,8 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
     else
       optionalHeaderValueByType(Origin) flatMap {
         case Some(origin) =>
-          logger.info(s"CorsSupport | Request origin detected: ${origin}. Checking validity")
           checkSameOrigin(getValidOriginRange)
         case None =>
-          logger.info(s"CorsSupport | Request origin not provided. Permitting")
           pass
       }
 
