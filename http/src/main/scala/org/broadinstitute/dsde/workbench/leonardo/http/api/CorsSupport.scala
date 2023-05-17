@@ -34,7 +34,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
     if (!refererConfig.enabled || !isOriginStrict) pass
     else
       optionalHeaderValueByType(Origin) flatMap {
-        case Some(origin) =>
+        case Some(_) =>
           checkSameOrigin(getValidOriginRange)
         case None =>
           pass
