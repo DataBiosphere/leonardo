@@ -208,6 +208,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
@@ -240,6 +241,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +

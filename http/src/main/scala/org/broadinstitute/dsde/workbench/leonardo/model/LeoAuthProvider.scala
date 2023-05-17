@@ -183,6 +183,14 @@ trait LeoAuthProvider[F[_]] {
   )(implicit
     ev: Ask[F, TraceId]
   ): F[Set[WorkspaceResourceSamResourceId]]
+
+  def filterWorkspaceReader(
+    resources: NonEmptyList[WorkspaceResourceSamResourceId],
+    userInfo: UserInfo
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[WorkspaceResourceSamResourceId]]
+
   // Creates a resource in Sam
   def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     sr: SamResource[R],
@@ -214,6 +222,11 @@ trait LeoAuthProvider[F[_]] {
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
 
   def isUserWorkspaceOwner(
+    workspaceResource: WorkspaceResourceSamResourceId,
+    userInfo: UserInfo
+  )(implicit ev: Ask[F, TraceId]): F[Boolean]
+
+  def isUserWorkspaceReader(
     workspaceResource: WorkspaceResourceSamResourceId,
     userInfo: UserInfo
   )(implicit ev: Ask[F, TraceId]): F[Boolean]
