@@ -23,7 +23,7 @@ class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererCon
     .newBuilder()
     .handle { case InvalidOriginRejection(_) =>
       headerValueByType(Origin) { badOrigin =>
-        complete(StatusCodes.Forbidden, s"Invalid Origin header ${badOrigin}")
+        complete(StatusCodes.Forbidden, s"Invalid Origin header ${badOrigin.value}")
       }
     }
     .result()
