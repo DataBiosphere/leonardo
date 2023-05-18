@@ -6,16 +6,27 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Route}
+import akka.http.scaladsl.server.{Directive0, InvalidOriginRejection, RejectionHandler, Route}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 
 class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig, refererConfig: RefererConfig) {
   def corsHandler(r: Route) =
-    addAccessControlHeaders {
+    handleRejections(invalidOriginRejectionHandler) {
       handleOrigin {
-        preflightRequestHandler ~ r
+        addAccessControlHeaders {
+          preflightRequestHandler ~ r
+        }
       }
     }
+
+  private val invalidOriginRejectionHandler = RejectionHandler
+    .newBuilder()
+    .handle { case InvalidOriginRejection(_) =>
+      headerValueByType(Origin) { badOrigin =>
+        complete(StatusCodes.Forbidden, s"Invalid Origin header ${badOrigin}")
+      }
+    }
+    .result()
 
   // This handles preflight OPTIONS requests.
   private def preflightRequestHandler: Route = options {
