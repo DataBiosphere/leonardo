@@ -81,7 +81,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.237"),
+          ChartVersion("0.2.239"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -107,7 +107,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
-          ChartVersion("0.1.8"),
+          ChartVersion("0.1.9"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),

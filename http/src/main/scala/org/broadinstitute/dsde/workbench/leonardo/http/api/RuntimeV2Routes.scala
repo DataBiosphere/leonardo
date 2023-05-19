@@ -19,7 +19,7 @@ import JsonCodec._
 import RuntimeRoutesCodec._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
-class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
+class RuntimeV2Routes(saturnIframeExtensionHostConfig: RefererConfig,
                       runtimeV2Service: RuntimeV2Service[IO],
                       userInfoDirectives: UserInfoDirectives
 )(implicit
@@ -27,7 +27,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
 ) {
   // See https://github.com/DataBiosphere/terra-ui/blob/ef88f396a61383ee08beb65a37af7cae9476cc20/src/libs/ajax.js#L1358
   private val allValidSaturnIframeExtensions =
-    saturnIframeExtentionHostConfig.validHosts.map(s => s"https://${s}/jupyter-iframe-extension.js")
+    saturnIframeExtensionHostConfig.validHosts.map(s => s"https://${s}/jupyter-iframe-extension.js")
 
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>

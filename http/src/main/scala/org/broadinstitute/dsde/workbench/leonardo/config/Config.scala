@@ -273,7 +273,8 @@ object Config {
     ValueReader.relative { config =>
       RefererConfig(
         config.as[Set[String]]("validHosts"),
-        config.as[Boolean]("enabled")
+        config.as[Boolean]("enabled"),
+        config.as[Boolean]("originStrict")
       )
     }
 
