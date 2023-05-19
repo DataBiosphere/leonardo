@@ -518,7 +518,7 @@ class GKEInterpreter[F[_]](
                 }
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
-        case AppType.RStudio  => F.unit // TODO grab the pv and pvc
+        case AppType.RStudio  => F.unit
         case AppType.Custom   => F.unit
         case _ =>
           F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
@@ -1221,7 +1221,6 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    // TODO: Use the chart from the database instead of re-looking it up in config:
     val chart = config.RStudioAppConfig.chart
 
     for {

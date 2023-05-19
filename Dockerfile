@@ -33,7 +33,7 @@ ENV CROMWELL_CHART_VERSION 0.2.237
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.237
 ENV WDS_CHART_VERSION 0.13.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.8
-# TODO ENV RSTUDIO_CHART_VERSION x.x.x
+ENV RSTUDIO_CHART_VERSION 0.1.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -45,15 +45,14 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
     ./get_helm.sh --version v3.11.2 && \
     rm get_helm.sh
 
-# Add the repos containing nginx and galaxy charts
-# TODO add repo containing RStudio chart if not in terra-app-charts
+# Add the repos containing nginx, galaxy, setup apps, custom apps, cromwell and ao charts
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
-    helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
+    helm repo add aou-rstudio-chart https://storage.googleapis.com/terra-app-helm/aou-rstudio-chart && \
     helm repo update
 
 
@@ -71,6 +70,7 @@ RUN cd /leonardo && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
+    helm pull aou-rstudio-chart/aou-rstudio-chart --version $RSTUDIO_CHART_VERSION --untar && \
 #     helm pull oci://us-docker.pkg.dev/hail-vdc/terra-dev-public/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
     cd /
 
