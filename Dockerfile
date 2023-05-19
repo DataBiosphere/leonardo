@@ -61,7 +61,6 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
-# TODO pull the RSTudio chart version and untar
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \

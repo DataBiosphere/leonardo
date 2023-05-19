@@ -1273,10 +1273,6 @@ class GKEInterpreter[F[_]](
         s"helm install for RSTUDIO app ${appName.value} in project ${cluster.cloudContext.asString}"
       ).compile.lastOrError
 
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
-        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
-      )
       // Poll the app until it starts up
       last <- streamFUntilDone(
         config.RStudioAppConfig.services
