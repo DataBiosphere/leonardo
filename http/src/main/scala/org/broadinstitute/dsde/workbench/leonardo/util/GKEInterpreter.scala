@@ -32,7 +32,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   PvName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -400,6 +400,7 @@ class GKEInterpreter[F[_]](
       galaxyRestore: Option[GalaxyRestore] = appRestore.flatMap {
         case a: GalaxyRestore   => Some(a)
         case _: CromwellRestore => None
+        case _: RStudioRestore  => None
       }
 
       // helm install and wait
@@ -703,6 +704,8 @@ class GKEInterpreter[F[_]](
       appRestore: Option[GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
         case a: GalaxyRestore   => Some(a)
         case _: CromwellRestore => None
+        case _: RStudioRestore  => None
+
       }
       _ <- appRestore.traverse { restore =>
         for {
