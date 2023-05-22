@@ -10,7 +10,6 @@ object Dependencies {
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.16"
   val http4sVersion = "1.0.0-M39"
-  val scalaTestV = "3.2.16"
   val slickV = "3.4.1"
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
@@ -60,6 +59,8 @@ object Dependencies {
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
+
+  val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.3"
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.7"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
@@ -143,6 +144,7 @@ object Dependencies {
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
   val coreDependencies = List(
+    jose4j,
     workbenchOauth2,
     workbenchOauth2Tests,
     scalaTest,
