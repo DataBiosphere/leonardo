@@ -16,4 +16,4 @@ jobs:
     steps:
       - name: combine-prs
         id: combine-prs
-        uses: github/combine-prs@vX.X.X # where X.X.X is the latest version
+        uses: github/combine-prs@v3.1.1
