@@ -396,14 +396,14 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
-      """welder.extraEnv.name=GOOGLE_PROJECT,""" +
-      """welder.extraEnv.value=dsp-leo-test1,""" +
-      """welder.extraEnv.name=STAGING_BUCKET,""" +
-      """welder.extraEnv.value=test-staging-bucket,""" +
-      """welder.extraEnv.name=CLUSTER_NAME,""" +
-      """welder.extraEnv.value=kubecluster1,""" +
-      """welder.extraEnv.name=OWNER_EMAIL,""" +
-      """welder.extraEnv.value=user2@example.com"""
+      """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
+      """welder.extraEnv[0].value=dsp-leo-test1,""" +
+      """welder.extraEnv[1].name=STAGING_BUCKET,""" +
+      """welder.extraEnv[1].value=test-staging-bucket,""" +
+      """welder.extraEnv[2].name=CLUSTER_NAME,""" +
+      """welder.extraEnv[2].value=kubecluster1,""" +
+      """welder.extraEnv[3].name=OWNER_EMAIL,""" +
+      """welder.extraEnv[3].value=user2@example.com"""
   }
 
   it should "check if a pod is done" in {

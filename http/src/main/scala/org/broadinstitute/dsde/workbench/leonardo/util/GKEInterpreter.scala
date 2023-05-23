@@ -1736,14 +1736,14 @@ class GKEInterpreter[F[_]](
     )
 
     val welder = List(
-      raw"""welder.extraEnv.name=GOOGLE_PROJECT""",
-      raw"""welder.extraEnv.value=${cluster.cloudContext.asString}""",
-      raw"""welder.extraEnv.name=STAGING_BUCKET""",
-      raw"""welder.extraEnv.value=${stagingBucket.value}""",
-      raw"""welder.extraEnv.name=CLUSTER_NAME""",
-      raw"""welder.extraEnv.value=${cluster.clusterName.value}""",
-      raw"""welder.extraEnv.name=OWNER_EMAIL""",
-      raw"""welder.extraEnv.value=${userEmail.value}"""
+      raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",
+      raw"""welder.extraEnv[0].value=${cluster.cloudContext.asString}""",
+      raw"""welder.extraEnv[1].name=STAGING_BUCKET""",
+      raw"""welder.extraEnv[1].value=${stagingBucket.value}""",
+      raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
+      raw"""welder.extraEnv[2].value=${cluster.clusterName.value}""",
+      raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
+      raw"""welder.extraEnv[3].value=${userEmail.value}"""
     )
 
     List(
