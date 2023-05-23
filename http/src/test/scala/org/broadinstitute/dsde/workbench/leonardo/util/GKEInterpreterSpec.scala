@@ -385,7 +385,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
-      """ingress.enabled=true,""" + """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-pass-certificate-to-upstream=true,""" +
+      """ingress.enabled=true,""" + """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-pass-certificate-to-upstream="true",""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-verify-client=on,""" + """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-verify-depth=1,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/ssl-redirect=true,""" +
