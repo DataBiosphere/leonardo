@@ -443,7 +443,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app"
+    res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app"
   }
 
   it should "error creating an app with an existing used disk when WORKSPACE_NAME is not specified" in isolatedDbTest {
