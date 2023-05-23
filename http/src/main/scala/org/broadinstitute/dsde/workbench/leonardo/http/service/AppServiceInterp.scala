@@ -886,22 +886,24 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                     )
                 }
               } yield lastUsed.some
-            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
+            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
+                (Some(FormattedBy.RStudio), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
               )
             case (None, _) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException(
-                  "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app",
+                  "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app",
                   traceId = Some(ctx.traceId)
                 )
               )
             case (_, _) =>
               F.raiseError[Option[LastUsedApp]](
-                DiskAlreadyFormattedError(diskResult.disk.formattedBy.get,
-                                          s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
-                                          ctx.traceId
+                DiskAlreadyFormattedError(
+                  diskResult.disk.formattedBy.get,
+                  s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString} or ${FormattedBy.RStudio.asString}",
+                  ctx.traceId
                 )
               )
           }

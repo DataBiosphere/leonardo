@@ -520,7 +520,7 @@ class GKEInterpreter[F[_]](
                 }
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
-        case AppType.RStudio  => F.unit
+        case AppType.RStudio  => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
         case AppType.Custom   => F.unit
         case _ =>
           F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
