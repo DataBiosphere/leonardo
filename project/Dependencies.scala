@@ -9,7 +9,7 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.16"
-  val http4sVersion = "1.0.0-M39"
+  val http4sVersion = "1.0.0-M38"
   val slickV = "3.4.1"
   val guavaV = "31.1-jre"
   val monocleV = "2.1.0"
@@ -77,7 +77,7 @@ object Dependencies {
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.55.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
-  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-16" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
+  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
@@ -127,7 +127,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.22.0"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.15" % Test // brought in for FakeStorageInterpreter
 
