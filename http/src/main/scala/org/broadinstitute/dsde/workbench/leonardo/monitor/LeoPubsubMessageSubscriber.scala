@@ -136,7 +136,11 @@ class LeoPubsubMessageSubscriber[F[_]](
       res <- messageResponder(event.msg)
         .timeout(config.timeout)
         .attempt // set timeout to 55 seconds because subscriber's ack deadline is 1 minute
+
       ctx <- appContext.ask
+
+      _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
+
       _ <- res match {
         case Left(e) =>
           e match {
