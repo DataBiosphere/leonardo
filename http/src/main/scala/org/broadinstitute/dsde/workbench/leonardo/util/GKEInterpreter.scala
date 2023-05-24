@@ -1714,27 +1714,19 @@ class GKEInterpreter[F[_]](
     userEmail: WorkbenchEmail,
     stagingBucket: GcsBucketName
   ): List[String] = {
-    val proxyPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
-
-//    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-pass-certificate-to-upstream="true"""",
-//    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-verify-client=on"""
-//    ,
-//    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-verify-depth="1""""
-//    ,
-//    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/ssl-redirect="true""""
-//    ,
-//    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret"""
 
     val rewriteTarget = "$2"
     val ingress = List(
       raw"""ingress.enabled=true""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.hosts[0].paths[0]=${proxyPath}${"(/|$)(.*)"}""",
+      raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
     )
