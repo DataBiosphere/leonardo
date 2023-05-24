@@ -1725,11 +1725,11 @@ class GKEInterpreter[F[_]](
 //    ,
 //    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/ssl-redirect="true""""
 //    ,
+    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
 
     val rewriteTarget = "$2"
     val ingress = List(
       raw"""ingress.enabled=true""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
