@@ -414,7 +414,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
     for {
       ctx <- ev.ask
-
       auth <- samDAO.getLeoAuthToken
       getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId), auth)
 
@@ -461,9 +460,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           case WsmJobStatus.Succeeded =>
             val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
-
             for {
-              _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), ctx.now).transaction
+              now <- nowInstant
+              _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(
                 isJupyterUp,
@@ -477,7 +476,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.interval,
                 s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
-              _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
+              _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), now).transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
             } yield ()
         }
