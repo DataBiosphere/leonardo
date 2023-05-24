@@ -287,8 +287,7 @@ object Boot extends IOApp {
             appDependencies.cbasDAO,
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
-            appDependencies.samDAO,
-            appDependencies.rstudioAppDAO
+            appDependencies.samDAO
           )
 
           List(
@@ -760,8 +759,7 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         cromwellDao,
-        hailBatchDao,
-        rstudioAppDao
+        hailBatchDao
       )
     }
 
@@ -882,6 +880,5 @@ final case class AppDependencies[F[_]](
   cbasDAO: CbasDAO[F],
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
-  hailBatchDAO: HailBatchDAO[F],
-  rstudioAppDAO: RStudioAppDAO[F]
+  hailBatchDAO: HailBatchDAO[F]
 )

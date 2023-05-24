@@ -73,7 +73,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val jupyterDAO = setUpMockJupyterDAO
   val rstudioDAO = setUpMockRStudioDAO
   val welderDAO = setUpMockWelderDAO
-  val rstudioappDAO = setUpMockRStudioAppDAO
 
   // Test object
   implicit val clusterToolToToolDao =
@@ -87,8 +86,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     cbasDAO,
     cbasUiDAO,
     cromwellDAO,
-    samDAO,
-    rstudioappDAO
+    samDAO
   )
 
   "LeoMetricsMonitor" should "count apps by status" in {
@@ -255,8 +253,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       cbasDAO,
       cbasUiDAO,
       cromwellDAO,
-      samDAO,
-      rstudioappDAO
+      samDAO
     )
     val test =
       azureDisabledMetricsMonitor
@@ -479,11 +476,4 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     welder
   }
 
-  private def setUpMockRStudioAppDAO: RStudioAppDAO[IO] = {
-    val rstudioApp = mock[RStudioAppDAO[IO]]
-    when {
-      rstudioApp.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    rstudioApp
-  }
 }
