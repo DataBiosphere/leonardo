@@ -1725,7 +1725,7 @@ class GKEInterpreter[F[_]](
 //    ,
 //    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/ssl-redirect="true""""
 //    ,
-    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
+//    raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret"""
 
     val rewriteTarget = "$2"
     val ingress = List(
