@@ -391,7 +391,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
       """ingress.hosts[0].host=1455694897.jupyter.firecloud.org,""" +
-      """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
+      """ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
+      """ingress.hosts[0].paths[0].backend.service.name=aou-rstudio,""" +
+      """ingress.hosts[0].paths[0].backend.service.port.number=8787,""" +
+      """ingress.hosts[0].paths[1].path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.hosts[0].paths[1].backend.service.name=aou-rstudio-welder,""" +
+      """ingress.hosts[0].paths[1].backend.service.port.number=8080,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +

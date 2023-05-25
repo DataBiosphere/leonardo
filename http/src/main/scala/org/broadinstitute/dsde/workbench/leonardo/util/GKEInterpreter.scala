@@ -1714,7 +1714,8 @@ class GKEInterpreter[F[_]](
     userEmail: WorkbenchEmail,
     stagingBucket: GcsBucketName
   ): List[String] = {
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
+    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
+    val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
 
@@ -1726,7 +1727,12 @@ class GKEInterpreter[F[_]](
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.hosts[0].paths[0].path=${rstudioIngressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.hosts[0].paths[0].backend.service.name=aou-rstudio""",
+      raw"""ingress.hosts[0].paths[0].backend.service.port.number=8787""",
+      raw"""ingress.hosts[0].paths[1].path=${welderIngressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.hosts[0].paths[1].backend.service.name=aou-rstudio-welder""",
+      raw"""ingress.hosts[0].paths[1].backend.service.port.number=8080""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
     )
