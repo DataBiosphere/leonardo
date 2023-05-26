@@ -50,6 +50,7 @@ import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
+import scala.sys.process._
 
 class GKEInterpreter[F[_]](
   config: GKEInterpreterConfig,
@@ -1224,7 +1225,7 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val chart = config.RStudioAppConfig.chart
+    val chart = config.rStudioAppConfig.chart
 
     for {
       ctx <- ev.ask
@@ -1257,6 +1258,11 @@ class GKEInterpreter[F[_]](
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
+      _ <- F.delay("rm -rf /leonardo/aou-rstudio-chart" !!)
+      _ <- F.delay(
+        "helm pull aou-rstudio-chart/aou-rstudio-chart --version 0.1.0 --untar --untardir /leonardo" !!
+      )
+
       // Invoke helm
       helmInstall = helmClient
         .installChart(
@@ -1278,7 +1284,7 @@ class GKEInterpreter[F[_]](
 
       // Poll the app until it starts up
       last <- streamFUntilDone(
-        config.RStudioAppConfig.services
+        config.rStudioAppConfig.services
           .map(_.name)
           .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
@@ -1722,11 +1728,7 @@ class GKEInterpreter[F[_]](
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
       raw"""ingress.hosts[0].paths[0].path=${rstudioIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.hosts[0].paths[0].backend.service.name=aou-rstudio""",
-      raw"""ingress.hosts[0].paths[0].backend.service.port.number=8787""",
       raw"""ingress.hosts[0].paths[1].path=${welderIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.hosts[0].paths[1].backend.service.name=aou-rstudio-welder""",
-      raw"""ingress.hosts[0].paths[1].backend.service.port.number=8080""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
     )
@@ -1737,7 +1739,7 @@ class GKEInterpreter[F[_]](
       raw"""welder.extraEnv[1].name=STAGING_BUCKET""",
       raw"""welder.extraEnv[1].value=${stagingBucket.value}""",
       raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
-      raw"""welder.extraEnv[2].value=${cluster.clusterName.value}""",
+      raw"""welder.extraEnv[2].value=${appName.value}""",
       raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
       raw"""welder.extraEnv[3].value=${userEmail.value}"""
     )
@@ -1890,7 +1892,7 @@ final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
                                       customAppConfig: CustomAppConfig,
-                                      RStudioAppConfig: RStudioAppConfig,
+                                      rStudioAppConfig: RStudioAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,

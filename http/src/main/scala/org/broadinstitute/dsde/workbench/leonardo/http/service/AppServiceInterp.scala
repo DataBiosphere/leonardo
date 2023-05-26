@@ -891,6 +891,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
               )
+            case (Some(FormattedBy.Custom), _) =>
+              F.raiseError[Option[LastUsedApp]](
+                new LeoException(
+                  "Custom app disk reattachment is not supported",
+                  traceId = Some(ctx.traceId)
+                )
+              )
             case (None, _) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException(
