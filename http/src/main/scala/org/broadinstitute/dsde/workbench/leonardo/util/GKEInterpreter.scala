@@ -1726,9 +1726,9 @@ class GKEInterpreter[F[_]](
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.hosts[0].paths[0].path=${rstudioIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.hosts[0].paths[1].path=${welderIngressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.host=${k8sProxyHost}""",
+      raw"""ingress.rstudio.path=${rstudioIngressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
     )

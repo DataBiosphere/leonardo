@@ -390,9 +390,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-      """ingress.hosts[0].host=1455694897.jupyter.firecloud.org,""" +
-      """ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
-      """ingress.hosts[0].paths[1].path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.host=1455694897.jupyter.firecloud.org,""" +
+      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
+      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
@@ -400,7 +400,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """welder.extraEnv[1].name=STAGING_BUCKET,""" +
       """welder.extraEnv[1].value=test-staging-bucket,""" +
       """welder.extraEnv[2].name=CLUSTER_NAME,""" +
-      """welder.extraEnv[2].value=kubecluster1,""" +
+      """welder.extraEnv[2].value=app1,""" +
       """welder.extraEnv[3].name=OWNER_EMAIL,""" +
       """welder.extraEnv[3].value=user2@example.com"""
   }
