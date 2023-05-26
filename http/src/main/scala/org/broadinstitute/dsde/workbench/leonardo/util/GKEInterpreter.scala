@@ -50,7 +50,6 @@ import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
-import scala.sys.process._
 
 class GKEInterpreter[F[_]](
   config: GKEInterpreterConfig,
@@ -1257,11 +1256,6 @@ class GKEInterpreter[F[_]](
                                                              stagingBucketName
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
-
-      _ <- F.delay("rm -rf /leonardo/aou-rstudio-chart" !!)
-      _ <- F.delay(
-        "helm pull aou-rstudio-chart/aou-rstudio-chart --version 0.1.0 --untar --untardir /leonardo" !!
-      )
 
       // Invoke helm
       helmInstall = helmClient
