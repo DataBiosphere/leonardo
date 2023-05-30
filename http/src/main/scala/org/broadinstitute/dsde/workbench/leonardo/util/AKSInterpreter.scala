@@ -55,6 +55,7 @@ import java.net.URL
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
+import scala.sys.process._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
@@ -267,6 +268,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               params.storageContainer,
               AppCreationException("Storage container required for Hail Batch app", Some(ctx.traceId))
             )
+            _ <- F.delay("rm -rf /leonardo/hail-batch-terra-azure" !!)
+            _ <- F.delay(
+              "helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version 0.1.9 --untar --untardir /leonardo" !!
+            )
             _ <- helmClient
               .installChart(
                 app.release,
@@ -441,7 +446,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             .sequence
             .map(_.forall(identity))
         case AppType.Wds =>
-          wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
+          wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         case AppType.HailBatch =>
           hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         case _ => F.raiseError[Boolean](AppCreationException(s"App type ${appType} not supported on Azure"))
