@@ -126,6 +126,10 @@ object FormattedBy extends Enum[FormattedBy] {
   final case object Cromwell extends FormattedBy {
     override def asString: String = "CROMWELL"
   }
+
+  final case object RStudio extends FormattedBy {
+    override def asString: String = "RSTUDIO"
+  }
 }
 
 final case class PvcId(asString: String) extends AnyVal
@@ -140,6 +144,9 @@ object AppRestore {
 
   // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
   final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore
+
+  // information needed for reconnecting a disk used previously by RStudio app to another RStudio app
+  final case class RStudioRestore(lastUsedBy: AppId) extends AppRestore
 }
 
 final case class DiskLink(asString: String) extends AnyVal
