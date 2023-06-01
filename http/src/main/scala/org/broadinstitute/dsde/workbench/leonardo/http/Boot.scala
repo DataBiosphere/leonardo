@@ -633,6 +633,7 @@ object Boot extends IOApp {
 
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
+        bucketHelper,
         vpcInterp,
         googleDependencies.gkeService,
         kubeService,

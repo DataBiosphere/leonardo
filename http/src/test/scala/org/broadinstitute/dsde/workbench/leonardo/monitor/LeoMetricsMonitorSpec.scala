@@ -92,7 +92,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   "LeoMetricsMonitor" should "count apps by status" in {
     val test = leoMetricsMonitor.countAppsByDbStatus(allApps)
     // 5 apps
-    test.size shouldBe 5
+    test.size shouldBe 6
     // Cromwell on Azure
     test.get(
       AppStatusMetric(CloudProvider.Azure,
@@ -118,6 +118,10 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     // Cromwell on GCP on AoU
     test.get(
       AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.AoU, None, cromwellChart)
+    ) shouldBe Some(1)
+    // RStudio on GCP on AoU
+    test.get(
+      AppStatusMetric(CloudProvider.Gcp, AppType.RStudio, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart)
     ) shouldBe Some(1)
   }
 
@@ -308,7 +312,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                      chart: Chart,
                      isAou: Boolean,
                      isCromwell: Boolean,
-                     isGalaxy: Boolean
+                     isGalaxy: Boolean,
+                     isRstudio: Boolean
   ): KubernetesCluster = {
     val cluster = if (isAzure) makeAzureCluster(1) else makeKubeCluster(1)
     val clusterWithAsyncFields = cluster.copy(asyncFields =
@@ -327,7 +332,10 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       labels = if (isAou) Map(Config.uiConfig.allOfUsLabel -> "true") else Map(Config.uiConfig.terraLabel -> "true")
     )
     val services =
-      if (isCromwell) List("cbas", "cbas-ui", "cromwell") else if (isGalaxy) List("galaxy") else List("custom")
+      if (isCromwell) List("cbas", "cbas-ui", "cromwell")
+      else if (isGalaxy) List("galaxy")
+      else if (isRstudio) List("rstudio")
+      else List("custom")
     val appWithServices = app.copy(appResources = app.appResources.copy(services = services.map(genService)))
     clusterWithAsyncFields.copy(nodepools = List(nodepool.copy(apps = List(appWithServices))))
   }
@@ -336,23 +344,28 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     KubernetesService(ServiceId(-1), ServiceConfig(ServiceName(name), KubernetesServiceKindName("ClusterIP")))
 
   private def cromwellAppAzure: KubernetesCluster =
-    genApp(true, AppType.Cromwell, cromwellOnAzureChart, false, true, false)
+    genApp(true, AppType.Cromwell, cromwellOnAzureChart, false, true, false, false)
       .copy(cloudContext = CloudContext.Azure(azureContext))
   private def cromwellAppGcp: KubernetesCluster =
-    genApp(false, AppType.Cromwell, cromwellChart, false, true, false)
+    genApp(false, AppType.Cromwell, cromwellChart, false, true, false, false)
   private def galaxyAppGcp: KubernetesCluster =
-    genApp(false, AppType.Galaxy, galaxyChart, false, false, true)
+    genApp(false, AppType.Galaxy, galaxyChart, false, false, true, false)
   private def customAppGcp: KubernetesCluster =
-    genApp(false, AppType.Custom, customChart, false, false, false)
+    genApp(false, AppType.Custom, customChart, false, false, false, false)
   private def cromwellAppGcpAou: KubernetesCluster =
-    genApp(false, AppType.Cromwell, cromwellChart, true, true, false)
+    genApp(false, AppType.Cromwell, cromwellChart, true, true, false, false)
+
+  private def rstudioAppGcpAou: KubernetesCluster =
+    genApp(false, AppType.RStudio, rstudioChart, true, false, false, true)
 
   private def cromwellChart = Chart.fromString("cromwell-0.0.1").get
   private def cromwellOnAzureChart = Chart.fromString("cromwell-on-azure-0.0.1").get
   private def galaxyChart = Chart.fromString("galaxy-0.0.1").get
   private def customChart = Chart.fromString("custom-0.0.1").get
+  private def rstudioChart = Chart.fromString("rstudio-0.0.1").get
 
-  private def allApps = List(cromwellAppAzure, cromwellAppGcp, galaxyAppGcp, customAppGcp, cromwellAppGcpAou)
+  private def allApps =
+    List(cromwellAppAzure, cromwellAppGcp, galaxyAppGcp, customAppGcp, cromwellAppGcpAou, rstudioAppGcpAou)
 
   private def genRuntime(isJupyter: Boolean, isAou: Boolean, isGcp: Boolean): RuntimeMetrics =
     RuntimeMetrics(
@@ -462,4 +475,5 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     } thenReturn IO.pure(true)
     welder
   }
+
 }

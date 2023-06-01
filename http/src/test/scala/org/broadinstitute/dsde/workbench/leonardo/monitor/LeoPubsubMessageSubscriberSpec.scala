@@ -1235,6 +1235,7 @@ class LeoPubsubMessageSubscriberSpec
     }
     val gkeInter = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       mockKubernetesService,
@@ -1399,6 +1400,7 @@ class LeoPubsubMessageSubscriberSpec
     }
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       mockKubernetesService,
@@ -1542,6 +1544,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       mockGKEService,
       new MockKubernetesService(PodStatus.Succeeded),
@@ -1644,6 +1647,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       new MockKubernetesService(),
@@ -2004,6 +2008,7 @@ class LeoPubsubMessageSubscriberSpec
   ): GKEInterpreter[IO] =
     new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       new MockKubernetesService(PodStatus.Succeeded, appRelease = appRelease),

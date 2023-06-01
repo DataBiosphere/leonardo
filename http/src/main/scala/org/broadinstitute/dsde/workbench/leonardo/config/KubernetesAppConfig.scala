@@ -116,6 +116,17 @@ final case class HailBatchAppConfig(chartName: ChartName,
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 }
 
+final case class RStudioAppConfig(chartName: ChartName,
+                                  chartVersion: ChartVersion,
+                                  namespaceNameSuffix: NamespaceNameSuffix,
+                                  releaseNameSuffix: ReleaseNameSuffix,
+                                  services: List[ServiceConfig],
+                                  serviceAccountName: ServiceAccountName,
+                                  enabled: Boolean
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+}
+
 sealed trait CoaService
 object CoaService {
   final case object Cbas extends CoaService
