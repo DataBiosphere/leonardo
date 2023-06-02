@@ -388,10 +388,10 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """ingress.enabled=true,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio(/|$)(.*),""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
-      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
+      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio(/|$)(.*),""" +
       """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
