@@ -392,7 +392,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio(/|$)(.*),""" +
-      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder(/|$)(.*),""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +

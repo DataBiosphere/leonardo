@@ -16,7 +16,7 @@ class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], cli
     Proxy.getAppTargetHost[F](kubernetesDnsCache, CloudContext.Gcp(googleProject), appName) flatMap {
       case HostReady(targetHost, _, _) =>
         val serviceUrl = serviceName match {
-          case ServiceName("welder-service") =>
+          case ServiceName("welder") =>
             s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/status/"
           case _ =>
             s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
