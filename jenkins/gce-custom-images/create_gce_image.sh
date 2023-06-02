@@ -57,7 +57,7 @@ docker run --rm -v "$SOURCE_DIR":/gce-custom-images \
   -project $GOOGLE_PROJECT \
   -zone $ZONE \
   -gcs_path $GCE_IMAGE_BUCKET \
-  -default_timeout 90m \
+  -default_timeout 60m \
   -oauth /gce-custom-images/application_default_credentials.json \
   -var:base_image "$BASE_IMAGE" \
   -var:output_image "$OUTPUT_IMAGE_NAME" \
