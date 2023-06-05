@@ -211,7 +211,7 @@ docker run -d --restart always --network host --name listener \
 --env LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_PATHCONTAINS="welder" \
 --env LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_TARGETHOST="http://${RELAY_TARGET_HOST}:8081" \
 --env LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_REMOVEFROMPATH="\$hc-name/welder" \
---env LOGGING_LEVEL_ROOT=INFO \
+--env LOGGING_LEVEL_ROOT=DEBUG \
 $LISTENER_DOCKER_IMAGE
 
 docker run -d --restart always --network host --name welder \
