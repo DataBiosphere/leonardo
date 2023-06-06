@@ -633,6 +633,7 @@ object Boot extends IOApp {
 
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
+        bucketHelper,
         vpcInterp,
         googleDependencies.gkeService,
         kubeService,
@@ -686,7 +687,8 @@ object Boot extends IOApp {
         jupyterDao,
         azureRelay,
         azureVmService,
-        aksAlg
+        aksAlg,
+        refererConfig
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
