@@ -549,7 +549,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
         raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
-        raw"dockstore.uri=${config.coaAppConfig.dockstoreUri}",
+        raw"dockstore.url=${config.coaAppConfig.dockstoreBaseUrl}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}",
