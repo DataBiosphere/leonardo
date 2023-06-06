@@ -200,7 +200,8 @@ object Boot extends IOApp {
         appDependencies.wsmDAO,
         appDependencies.samDAO,
         appDependencies.publisherQueue,
-        appDependencies.dateAccessedUpdaterQueue
+        appDependencies.dateAccessedUpdaterQueue,
+        appDependencies.wsmClientProvider
       )
 
       val httpRoutes = new HttpRoutes(
@@ -418,6 +419,8 @@ object Boot extends IOApp {
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
+
+      wsmClientProvider = new HttpWorkspaceManagerClientProvider(ConfigReader.appConfig.azure.wsm.uri)
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
@@ -759,7 +762,8 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         cromwellDao,
-        hailBatchDao
+        hailBatchDao,
+        wsmClientProvider
       )
     }
 
@@ -880,5 +884,6 @@ final case class AppDependencies[F[_]](
   cbasDAO: CbasDAO[F],
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
-  hailBatchDAO: HailBatchDAO[F]
+  hailBatchDAO: HailBatchDAO[F],
+  wsmClientProvider: HttpWorkspaceManagerClientProvider
 )

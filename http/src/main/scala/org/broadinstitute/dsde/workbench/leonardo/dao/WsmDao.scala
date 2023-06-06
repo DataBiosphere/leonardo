@@ -77,6 +77,14 @@ trait WsmDao[F[_]] {
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
+
+//  def getWorkspaceControlledVM(workspaceId: WorkspaceId,
+//                               resourceId: WsmControlledResourceId,
+//                               authorization: Authorization
+//  )(implicit
+//    ev: Ask[F, AppContext]
+//  ): F[Option[GetVmResponse]]
+
 }
 
 final case class StorageContainerRequest(storageContainerName: ContainerName)
@@ -155,6 +163,17 @@ final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetCreateVmJobResult(vm: Option[WsmVm], jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetDeleteJobResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+
+//final case class GetVmResponse(workspaceId: WorkspaceId,
+//                               resourceId: WsmControlledResourceId,
+//                               name: ControlledResourceName,
+//                               description: ControlledResourceDescription,
+//                               resourceType: WsmResourceType,
+//                               createdBy: WorkbenchEmail,
+//                               lastUpdatedBy: WorkbenchEmail,
+//                               lastUpdatedDate: ZonedDateTime,
+//                               state: WsmResourceState
+//)
 
 sealed trait ResourceAttributes extends Serializable with Product
 object ResourceAttributes {
@@ -293,6 +312,66 @@ object ManagedBy {
   def stringToObject: Map[String, ManagedBy] = values.map(v => v.toString -> v).toMap
 }
 // End Common Controlled resource models
+//
+//sealed trait WsmResourceType extends Product with Serializable {
+//  def asString: String
+//}
+//
+//// TODO: (LM) verify that this works correctly and make decoder
+//object WsmResourceType {
+//
+//  val stringToWsmResourceType: Map[String, WsmResourceType] =
+//    sealerate.collect[WsmResourceType].map(p => (p.asString, p)).toMap
+//
+//  case object AZURE_DISK extends WsmResourceType {
+//    val asString: String = "AZURE_DISK"
+//  }
+//
+//  case object AZURE_VM extends WsmResourceType {
+//    val asString: String = "AZURE_VM"
+//  }
+//
+//  case object AZURE_STORAGE_CONTAINER extends WsmResourceType {
+//    val asString: String = "AZURE_STORAGE_CONTAINER"
+//  }
+//
+//  case object AZURE_BATCH_POOL extends WsmResourceType {
+//    val asString: String = "AZURE_BATCH_POOL"
+//  }
+//
+//  case object TERRA_WORKSPACE extends WsmResourceType {
+//    val asString: String = "TERRA_WORKSPACE"
+//  }
+//}
+//
+//sealed abstract class WsmResourceState
+//
+//// BROKEN, CREATING, DELETING, READY, UPDATING
+//object WsmResourceState {
+//  case object Broken extends WsmResourceState {
+//    override def toString: String = "BROKEN"
+//  }
+//
+//  case object Creating extends WsmResourceState {
+//    override def toString: String = "CREATING"
+//  }
+//
+//  case object Deleting extends WsmResourceState {
+//    override def toString: String = "DELETING"
+//  }
+//
+//  case object Ready extends WsmResourceState {
+//    override def toString: String = "READY"
+//  }
+//
+//  case object Updating extends WsmResourceState {
+//    override def toString: String = "UPDATING"
+//  }
+//
+//  def values: Set[WsmResourceState] = sealerate.values[WsmResourceState]
+//
+//  def stringToObject: Map[String, WsmResourceState] = values.map(v => v.toString -> v).toMap
+//}
 
 object WsmDecoders {
   implicit val createDiskResponseDecoder: Decoder[CreateDiskResponse] = Decoder.instance { c =>

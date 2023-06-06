@@ -13,7 +13,12 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResour
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, StorageContainerResponse, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  HttpWorkspaceManagerClientProvider,
+  MockWsmDAO,
+  StorageContainerResponse,
+  WsmDao
+}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -27,11 +32,12 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val serviceConfig = RuntimeServiceConfig(
     Config.proxyConfig.proxyUrlBase,
     imageConfig,
@@ -42,6 +48,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   )
 
   val wsmDao = new MockWsmDAO
+  val wsmClientProvider = mock[HttpWorkspaceManagerClientProvider]
 
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage],
@@ -49,7 +56,14 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                  wsmDao: WsmDao[IO] = wsmDao,
                  dateAccessedQueue: Queue[IO, UpdateDateAccessMessage] = QueueFactory.makeDateAccessedQueue()
   ) =
-    new RuntimeV2ServiceInterp[IO](serviceConfig, allowlistAuthProvider, wsmDao, mockSamDAO, queue, dateAccessedQueue)
+    new RuntimeV2ServiceInterp[IO](serviceConfig,
+                                   allowlistAuthProvider,
+                                   wsmDao,
+                                   mockSamDAO,
+                                   queue,
+                                   dateAccessedQueue,
+                                   wsmClientProvider
+    )
 
   // need to set previous runtime to deleted status before creating next to avoid exception
   def setRuntimetoDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[(Long)] =
@@ -65,21 +79,25 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     } yield runtime.id
 
   val runtimeV2Service =
-    new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   allowListAuthProvider,
-                                   new MockWsmDAO,
-                                   mockSamDAO,
-                                   QueueFactory.makePublisherQueue(),
-                                   QueueFactory.makeDateAccessedQueue()
+    new RuntimeV2ServiceInterp[IO](
+      serviceConfig,
+      allowListAuthProvider,
+      new MockWsmDAO,
+      mockSamDAO,
+      QueueFactory.makePublisherQueue(),
+      QueueFactory.makeDateAccessedQueue(),
+      wsmClientProvider
     )
 
   val runtimeV2Service2 =
-    new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   allowListAuthProvider2,
-                                   new MockWsmDAO,
-                                   mockSamDAO,
-                                   QueueFactory.makePublisherQueue(),
-                                   QueueFactory.makeDateAccessedQueue()
+    new RuntimeV2ServiceInterp[IO](
+      serviceConfig,
+      allowListAuthProvider2,
+      new MockWsmDAO,
+      mockSamDAO,
+      QueueFactory.makePublisherQueue(),
+      QueueFactory.makeDateAccessedQueue(),
+      wsmClientProvider
     )
 
   it should "submit a create azure runtime message properly" in isolatedDbTest {

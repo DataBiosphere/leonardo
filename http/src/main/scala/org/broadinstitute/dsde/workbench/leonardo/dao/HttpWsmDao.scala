@@ -367,6 +367,29 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         StorageContainerResponse(rr.name, r.metadata.resourceId)
     }.headOption
   } yield res
+//
+//  override def getWorkspaceControlledVM(workspaceId: WorkspaceId,
+//                                        wsmControlledResourceId: WsmControlledResourceId,
+//                                        authorization: Authorization
+//  )(implicit
+//    ev: Ask[F, AppContext]
+//  ): F[Option[GetVmResponse]] =
+//    for {
+//      ctx <- ev.ask
+//      res <- httpClient.expectOr[GetVmResponse](
+//        Request[F](
+//          method = Method.GET,
+//          uri = config.uri
+//            .withPath(
+//              Uri.Path
+//                .unsafeFromString(
+//                  s"/api/workspaces/v1/${workspaceId.value.toString}/resources/controlled/azure/vm/${wsmControlledResourceId.value}"
+//                )
+//            ),
+//          headers = headers(authorization, ctx.traceId, false)
+//        )
+//      )(onError)
+//    } yield res
 
   private def getWorkspaceResourceHelper(workspaceId: WorkspaceId,
                                          authorization: Authorization,

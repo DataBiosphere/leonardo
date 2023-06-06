@@ -17,6 +17,11 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
 
+  // to add WSM client
+  val workSpaceManagerV = "0.254.754-SNAPSHOT"
+  val jakartaActivationV = "1.2.1"
+  val jerseyV = "2.32"
+
   private val workbenchLibsHash = "01a11c3"
   val serviceTestV = s"2.1-$workbenchLibsHash"
   val workbenchModelV = s"0.17-$workbenchLibsHash"
@@ -143,6 +148,8 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
+  val workspaceManager: ModuleID = "bio.terra" % "workspace-manager-client" % workSpaceManagerV exclude("com.sun.activation", "jakarta.activation")
+
   val coreDependencies = List(
     jose4j,
     workbenchOauth2,
@@ -170,7 +177,8 @@ object Dependencies {
     scalaTestScalaCheck,
     workbenchAzure,
     workbenchAzureTest,
-    logbackClassic
+    logbackClassic,
+    workspaceManager
   )
 
   val httpDependencies = Seq(
@@ -234,5 +242,29 @@ object Dependencies {
     http4sEmberServer,
     http4sCirce,
     scalaTest
+  )
+
+  val wsmDependencies: List[ModuleID] = List(
+    "bio.terra" % "workspace-manager-client" % "0.254.452-SNAPSHOT"
+      exclude("com.sun.activation", "jakarta.activation"),
+    /*
+    1. WSM is looking for the rs-api under javax.*.
+    Jersey 3.x switched to jakarta.ws.rs-api 3.x. If one uses jakarta's rs-api, 3.x will automatically evict 2.x.
+    However, jakarta's rs-api 2.x provides packages javax.* while 3.x provides jakarta.* instead.
+     - https://javadoc.io/doc/jakarta.ws.rs/jakarta.ws.rs-api/2.1.6/javax/ws/rs/package-summary.html
+     - https://javadoc.io/doc/jakarta.ws.rs/jakarta.ws.rs-api/3.1.0/jakarta.ws.rs/module-summary.html
+    TODO: Perhaps coordinate with the WSM team to use the jakarta 3.x rs-api and jakarta.* instead of javax.*.
+    2. Use the exact version of jersey that WSM is using.
+    Jersey libraries cannot be mixed and matched as the various modules cannot be mixed and matched.
+    For example jersey-client 2.32 is not compatible with jersey-common 2.37.
+    If needed one may also explicitly enumerate the list of jersey artifacts and explicitly set the versions similar to
+    catsDepeendencies, akkaHttpDependencies, etc.
+     - https://broadinstitute.jfrog.io/ui/repos/tree/PomView/libs-snapshot-local/bio/terra/workspace-manager-client/0.254.452-SNAPSHOT/workspace-manager-client-0.254.452-20221114.190249-1.pom
+     - https://github.com/eclipse-ee4j/jersey/blob/2.32/core-client/src/main/java/org/glassfish/jersey/client/ClientExecutorProvidersConfigurator.java#L139
+     - https://github.com/eclipse-ee4j/jersey/blob/2.37/core-client/src/main/java/org/glassfish/jersey/client/ClientExecutorProvidersConfigurator.java#L136-L137
+     */
+    "org.glassfish.jersey.inject" % "jersey-hk2" % jerseyV
+      exclude("com.sun.activation", "jakarta.activation"),
+    "jakarta.activation" % "jakarta.activation-api" % jakartaActivationV,
   )
 }

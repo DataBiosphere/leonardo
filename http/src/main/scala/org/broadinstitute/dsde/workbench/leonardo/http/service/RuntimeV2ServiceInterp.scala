@@ -36,13 +36,15 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success, Try}
 
 class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
                                              samDAO: SamDAO[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
-                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage]
+                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage],
+                                             wsmClientProvider: HttpWorkspaceManagerClientProvider
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -314,10 +316,36 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       // We only update IP to properly after the VM is created in WSM. Hence, if IP is not defined, we don't need to pass the VM resourceId
       // to back leo, where it'll trigger a WSM call to delete the VM
-      wsmVMResourceSamId = runtime.hostIp.map(_ => WsmControlledResourceId(UUID.fromString(runtime.internalId)))
-      // If there's no controlled resource record, that means we created the DB record in front leo but failed somewhere in back leo (possibly in polling WSM)
-      // This is non-fatal, as we still want to allow users to clean up the db record if they have permission.
-      // We must check if they have permission other ways if we did not get an ID back from WSM though
+
+//      val wsmAuthToken: Try[String] = overrideWsmAuthToken match {
+//        case Some(t) => Success(t)
+//        case None => AzureCredentials.getAccessToken(None).toTry
+//      }
+
+      // get wsm api
+      wsmClient = wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
+
+      // get WSM VM resource
+      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
+      _ = println(s"here: ${wsmResourceId}")
+
+      // if the vm is found in WSM and has a deletable state, broken or ready,
+      // (BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
+      // then the resourceId is passed to back leo to make the delete call to WSM
+      wsmVMResourceSamId = Try(wsmClient.getAzureVm(workspaceId.value, wsmResourceId.value)) match {
+        case Success(result) =>
+          val vmState = result.getMetadata.getState.getValue
+          log.info(
+            s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
+          )
+          if (List("BROKEN", "READY").contains(vmState))
+            Some(wsmResourceId)
+          else None
+        case Failure(e) =>
+          log.info(s"No wsm record found for runtime ${runtimeName.asString}, ${e.getMessage}")
+          None
+      }
+
       hasPermission <-
         if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else

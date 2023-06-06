@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, 
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.duration._
 
@@ -36,7 +37,8 @@ class HttpRoutesSpec
     with ScalaFutures
     with Matchers
     with TestComponent
-    with TestLeoRoutes {
+    with TestLeoRoutes
+    with MockitoSugar {
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
 
