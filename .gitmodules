@@ -3,4 +3,4 @@
 	url = https://github.com/GoogleCloudPlatform/dataproc-custom-images.git
 [submodule "local/helm-scala-sdk"]
 	path = local/helm-scala-sdk
-	url = git@github.com:broadinstitute/helm-scala-sdk.git
+	url = https://github.com/broadinstitute/helm-scala-sdk.git
