@@ -4,7 +4,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Ser
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.{Chart, DbPassword, GalaxyDrsUrl, GalaxyOrchUrl, KsaName, KubernetesService, NamespaceNameSuffix, ReleaseNameSuffix, ServiceConfig, ServiceId}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
-
 import java.net.URL
 
 sealed trait KubernetesAppConfig {
@@ -69,7 +68,7 @@ final case class CoaAppConfig(chartName: ChartName,
                               services: List[ServiceConfig],
                               instrumentationEnabled: Boolean,
                               enabled: Boolean,
-                              dockstoreUri: URL
+                              dockstoreBaseUrl: URL
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
