@@ -2811,6 +2811,7 @@ components:
         - GALAXY
         - WDS
         - HAIL_BATCH
+        - RSTUDIO
     AppStatus:
       type: string
       enum:
@@ -3165,6 +3166,7 @@ components:
             - GCE
             - CROMWELL
             - CUSTOM
+            - RSTUDIO
           description: App that formatted disk, missing if unformatted
 
     GetPersistentDiskV2Response:
@@ -3227,6 +3229,7 @@ components:
             - GCE
             - CROMWELL
             - CUSTOM
+            - RSTUDIO
           description: App that formatted disk, missing if unformatted
 
     InstanceKey:

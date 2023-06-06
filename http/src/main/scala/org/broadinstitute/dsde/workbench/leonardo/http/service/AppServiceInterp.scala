@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
@@ -866,7 +866,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
-                (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
+                (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) |
+                (Some(FormattedBy.RStudio), Some(RStudioRestore(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
                 lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
@@ -885,30 +886,31 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                     )
                 }
               } yield lastUsed.some
-            case (Some(FormattedBy.Galaxy), Some(CromwellRestore(_))) =>
-              F.raiseError[Option[LastUsedApp]](
-                DiskAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
-              )
-            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _))) =>
-              F.raiseError[Option[LastUsedApp]](
-                DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
-              )
-            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
-              F.raiseError[Option[LastUsedApp]](
-                DiskAlreadyFormattedError(diskResult.disk.formattedBy.get,
-                                          s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
-                                          ctx.traceId
-                )
-              )
-            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
+            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
+                (Some(FormattedBy.RStudio), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
+              )
+            case (Some(FormattedBy.Custom), _) =>
+              F.raiseError[Option[LastUsedApp]](
+                new LeoException(
+                  "Custom app disk reattachment is not supported",
+                  traceId = Some(ctx.traceId)
+                )
               )
             case (None, _) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException(
-                  "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app",
+                  "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app",
                   traceId = Some(ctx.traceId)
+                )
+              )
+            case (_, _) =>
+              F.raiseError[Option[LastUsedApp]](
+                DiskAlreadyFormattedError(
+                  diskResult.disk.formattedBy.get,
+                  s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString} or ${FormattedBy.RStudio.asString}",
+                  ctx.traceId
                 )
               )
           }
@@ -1056,6 +1058,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case (Galaxy, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.galaxyAppConfig)
         case (Custom, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.customAppConfig)
         case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (RStudio, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.rstudioAppConfig)
         case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
         case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
         case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
@@ -1231,7 +1234,8 @@ object LeoAppServiceInterp {
                                  galaxyDiskConfig: GalaxyDiskConfig,
                                  diskConfig: PersistentDiskConfig,
                                  cromwellAppConfig: CromwellAppConfig,
-                                 customAppConfig: CustomAppConfig
+                                 customAppConfig: CustomAppConfig,
+                                 rstudioAppConfig: RStudioAppConfig
   )
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {

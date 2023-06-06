@@ -11,7 +11,7 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
@@ -42,7 +42,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   jupyterDAO: JupyterDAO[F],
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F],
-  aksAlgebra: AKSAlgebra[F]
+  aksAlgebra: AKSAlgebra[F],
+  refererConfig: RefererConfig
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
 
@@ -144,7 +145,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.workspaceName,
           wsStorageContainerUrl,
           applicationConfig.leoUrlBase,
-          params.runtime.runtimeName.asString
+          params.runtime.runtimeName.asString,
+          s"'${refererConfig.validHosts.mkString("','")}'"
         )
 
         val cmdToExecute =
@@ -414,7 +416,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
     for {
       ctx <- ev.ask
-
       auth <- samDAO.getLeoAuthToken
       getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId), auth)
 
@@ -461,9 +462,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           case WsmJobStatus.Succeeded =>
             val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
-
             for {
-              _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), ctx.now).transaction
+              now <- nowInstant
+              _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(
                 isJupyterUp,
@@ -477,7 +478,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.interval,
                 s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
-              _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
+              _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), now).transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
             } yield ()
         }
