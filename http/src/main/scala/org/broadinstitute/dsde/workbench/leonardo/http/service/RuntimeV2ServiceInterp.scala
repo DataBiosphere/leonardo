@@ -314,14 +314,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
       }
 
-      // We only update IP to properly after the VM is created in WSM. Hence, if IP is not defined, we don't need to pass the VM resourceId
-      // to back leo, where it'll trigger a WSM call to delete the VM
-
-//      val wsmAuthToken: Try[String] = overrideWsmAuthToken match {
-//        case Some(t) => Success(t)
-//        case None => AzureCredentials.getAccessToken(None).toTry
-//      }
-
       // get wsm api
       wsmClient = wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
 
