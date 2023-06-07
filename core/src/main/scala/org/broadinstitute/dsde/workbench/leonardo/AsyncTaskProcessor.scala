@@ -32,7 +32,7 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
       tags = Map("taskName" -> task.taskName)
       _ <- recordLatency("asyncTaskLatency", latency, tags)
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
-        s"Executing task with latency of ${latency.toSeconds} seconds"
+        s"Executing task ${task.taskName} with latency of ${latency.toSeconds} seconds"
       )
       _ <- task.op.handleErrorWith { case err =>
         task.errorHandler.traverse(cb => cb(err)) >> logger.error(Map("traceId" -> task.traceId.asString), err)(
