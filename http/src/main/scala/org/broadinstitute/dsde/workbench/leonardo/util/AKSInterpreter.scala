@@ -491,9 +491,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"""relaylistener.validHosts=${validHosts.mkString(",")}""",
         // general configs
-        raw"fullnameOverride=setup-${release.asString}"
+        raw"fullnameOverride=setup-${release.asString}",
+        raw"""relaylistener.validHosts=${validHosts.mkString(",")}"""
       ).mkString(",")
     )
   }
