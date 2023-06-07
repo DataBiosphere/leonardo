@@ -157,8 +157,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             app.appType,
             params.workspaceId,
             app.appName,
-            refererConfig.validHosts + params.landingZoneResources.relayNamespace.value
-              .concat(".servicebus.windows.net")
+            refererConfig.validHosts + relayDomain
           ),
           true
         )
@@ -492,7 +491,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"""relaylistener.validHosts=[${validHosts.mkString("','")}]'""",
+        raw"""relaylistener.validHosts=${validHosts.mkString(",")}""",
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")
