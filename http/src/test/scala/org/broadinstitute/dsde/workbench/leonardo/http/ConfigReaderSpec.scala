@@ -123,7 +123,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List("WDS")
+        List("WDS"),
+        TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
@@ -134,8 +135,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
       ),
-      LeoMetricsMonitorConfig(true, 5 minutes, true),
-      TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
+      LeoMetricsMonitorConfig(true, 5 minutes, true)
     )
 
     config shouldBe expectedConfig
