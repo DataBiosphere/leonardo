@@ -37,6 +37,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -155,7 +156,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             relayPrimaryKey,
             app.appType,
             params.workspaceId,
-            app.appName
+            app.appName,
+            refererConfig.validHosts + params.landingZoneResources.relayNamespace.value
+              .concat(".servicebus.windows.net")
           ),
           true
         )
@@ -454,7 +457,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   relayPrimaryKey: PrimaryKey,
                                                   appType: AppType,
                                                   workspaceId: WorkspaceId,
-                                                  appName: AppName
+                                                  appName: AppName,
+                                                  validHosts: Set[String]
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
@@ -488,7 +492,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-
+        raw"""relaylistener.validHosts={${validHosts.mkString("','")}}'""",
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")
