@@ -155,6 +155,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         refererConfig.validHosts + relayDomain
       )
 
+      _ = println(s"Setup chart values for app ${params.appName.value} are ${values.asString}")
+
       _ <- logger.info(ctx.loggingCtx)(
         s"Setup chart values for app ${params.appName.value} are ${values.asString}"
       )
@@ -499,7 +501,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
         // general configs
         raw"fullnameOverride=setup-${release.asString}",
-        raw"""relaylistener.validHosts=[${validHosts.mkString(",")}]"""
+        raw"""relaylistener.validHosts={${validHosts.mkString(",")}}"""
       ).mkString(",")
     )
   }
