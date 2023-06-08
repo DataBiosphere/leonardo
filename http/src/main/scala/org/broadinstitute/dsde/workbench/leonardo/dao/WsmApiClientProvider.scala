@@ -11,11 +11,11 @@ import org.http4s.Uri
  * Based on `org/broadinstitute/dsde/rawls/dataaccess/workspacemanager/WorkspaceManagerApiClientProvider.scala`
  *
  */
-trait WorkspaceManagerApiClientProvider {
+trait WsmApiClientProvider {
   def getControlledAzureResourceApi(token: String): ControlledAzureResourceApi
 }
 
-class HttpWorkspaceManagerClientProvider(baseWorkspaceManagerUrl: Uri) extends WorkspaceManagerApiClientProvider {
+class HttpWsmClientProvider(baseWorkspaceManagerUrl: Uri) extends WsmApiClientProvider {
   private def getApiClient: ApiClient = {
     val client: ApiClient = new ApiClient()
     client.setBasePath(baseWorkspaceManagerUrl.renderString)

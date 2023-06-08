@@ -44,7 +44,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              samDAO: SamDAO[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
                                              dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage],
-                                             wsmClientProvider: HttpWorkspaceManagerClientProvider
+                                             wsmClientProvider: WsmApiClientProvider
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -305,7 +305,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           RuntimeCannotBeDeletedException(runtime.cloudContext, runtime.runtimeName, runtime.status)
         )
 
-      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction // TODO (LM)
+      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
       diskId <- diskIdOpt match {
         case Some(value) => F.pure(value)
         case _ =>
@@ -315,30 +315,25 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
 
       // get wsm api
-      wsmClient = wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
-
-      // get WSM VM resource
+      wsmAzureResourceApi = wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
       wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
-      _ = println(s"here: ${wsmResourceId}")
 
-      // if the vm is found in WSM and has a deletable state, broken or ready,
-      // (BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
+      // if the vm is found in WSM and has a deletable state,
       // then the resourceId is passed to back leo to make the delete call to WSM
-      wsmVMResourceSamId = Try(wsmClient.getAzureVm(workspaceId.value, wsmResourceId.value)) match {
+      // (state can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
+      wsmVMResourceSamId = Try(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value)) match {
         case Success(result) =>
           val vmState = result.getMetadata.getState.getValue
           log.info(
-            s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
-          )
-          println(
             s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
           )
           if (List("BROKEN", "READY").contains(vmState))
             Some(wsmResourceId)
           else None
         case Failure(e) =>
-          log.info(s"No wsm record found for runtime ${runtimeName.asString}, ${e.getMessage}")
-          println(s"No wsm record found for runtime ${runtimeName.asString}, ${e.getMessage}")
+          log.info(
+            s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm, ${e.getMessage}"
+          )
           None
       }
 
