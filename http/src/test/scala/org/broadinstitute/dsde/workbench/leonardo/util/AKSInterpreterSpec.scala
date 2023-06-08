@@ -59,7 +59,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.drs,
     new URL("https://leo-dummy-url.org"),
     ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-    ConfigReader.appConfig.tdr
+    ConfigReader.appConfig.azure.tdr
   )
 
   val mockSamDAO = setUpMockSamDAO
