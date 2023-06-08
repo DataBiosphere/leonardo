@@ -486,7 +486,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     if (validHosts.contains("*")) {
       formattedValidHosts = "[\"*\"]"
     } else {
-      formattedValidHosts = s"[\"${refererConfig.validHosts.mkString("\",\"")}\"]"
+      formattedValidHosts = s"{\"${refererConfig.validHosts.mkString("\",\"")}\"}"
     }
 
     Values(
