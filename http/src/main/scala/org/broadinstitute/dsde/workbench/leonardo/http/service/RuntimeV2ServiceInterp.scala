@@ -224,7 +224,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
-              diskId,
+              Some(diskId),
               landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
@@ -305,7 +305,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           RuntimeCannotBeDeletedException(runtime.cloudContext, runtime.runtimeName, runtime.status)
         )
 
-      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
+      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction // TODO (LM)
       diskId <- diskIdOpt match {
         case Some(value) => F.pure(value)
         case _ =>
@@ -330,11 +330,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           log.info(
             s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
           )
+          println(
+            s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
+          )
           if (List("BROKEN", "READY").contains(vmState))
             Some(wsmResourceId)
           else None
         case Failure(e) =>
           log.info(s"No wsm record found for runtime ${runtimeName.asString}, ${e.getMessage}")
+          println(s"No wsm record found for runtime ${runtimeName.asString}, ${e.getMessage}")
           None
       }
 

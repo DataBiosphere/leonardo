@@ -575,7 +575,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed))
         .update((destroyedDate, RuntimeStatus.Deleted, None, destroyedDate)): DBIO[Int]
       rid <- findByIdQuery(id).result.head.map[RuntimeConfigId](_.runtimeConfigId): DBIO[RuntimeConfigId]
-      _ <- RuntimeConfigQueries.updatePersistentDiskId(rid, None, destroyedDate): DBIO[Int]
+      _ <- RuntimeConfigQueries.updatePersistentDiskId(rid, None, destroyedDate): DBIO[Int] // TODO (LM) don't update to None
     } yield ()
 
   def markDeleted(cloudContext: CloudContext,

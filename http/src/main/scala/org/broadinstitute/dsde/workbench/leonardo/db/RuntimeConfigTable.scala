@@ -173,7 +173,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              None,
              None,
-             Some(r.persistentDiskId),
+             r.persistentDiskId,
              None,
              // TODO: should this be generalized to a type above regionName?
              Some(RegionName(r.region.toString)),
@@ -259,9 +259,7 @@ object RuntimeConfigTable {
       case CloudService.AzureVm =>
         RuntimeConfig.AzureConfig(
           machineType,
-          persistentDiskId.getOrElse(
-            throw new SQLDataException("persistentDiskId field should not be null for Azure.")
-          ),
+          persistentDiskId,
           Region.fromName(
             region.getOrElse(throw new SQLDataException("region field should not be null for Azure.")).value
           )

@@ -153,7 +153,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       azureRuntimeConfig = runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig]
       fullClusterOpt <- clusterQuery.getClusterById(cluster.id).transaction
 
-      diskOpt <- persistentDiskQuery.getById(azureRuntimeConfig.persistentDiskId).transaction
+      diskOpt <- persistentDiskQuery.getById(azureRuntimeConfig.persistentDiskId.get).transaction
       disk = diskOpt.get
     } yield {
       r shouldBe Right(CreateRuntimeResponse(context.traceId))
@@ -853,7 +853,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster.runtimeConfigId).transaction
       diskOpt <- persistentDiskQuery
-        .getById(runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .getById(runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId.get)
         .transaction
       disk = diskOpt.get
     } yield {
@@ -953,7 +953,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster.runtimeConfigId).transaction
       diskOpt <- persistentDiskQuery
-        .getById(runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .getById(runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId.get)
         .transaction
       disk = diskOpt.get
     } yield {
@@ -1148,10 +1148,10 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       runtimeConfig_3 <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster_3.runtimeConfigId).transaction
 
       diskOpt_2 <- persistentDiskQuery
-        .getById(runtimeConfig_2.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .getById(runtimeConfig_2.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId.get)
         .transaction
       diskOpt_3 <- persistentDiskQuery
-        .getById(runtimeConfig_3.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId)
+        .getById(runtimeConfig_3.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId.get)
         .transaction
 
       disk_2 = diskOpt_2.get
