@@ -142,23 +142,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
+      values = buildSetupChartOverrideValues(
+        app.release,
+        app.samResourceId,
+        ksaName,
+        params.landingZoneResources.relayNamespace,
+        hcName,
+        relayPrimaryKey,
+        app.appType,
+        params.workspaceId,
+        app.appName,
+        refererConfig.validHosts + relayDomain
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Setup chart values for app ${params.appName.value} are ${values.asString}"
+      )
+
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(
-            app.release,
-            app.samResourceId,
-            ksaName,
-            params.landingZoneResources.relayNamespace,
-            hcName,
-            relayPrimaryKey,
-            app.appType,
-            params.workspaceId,
-            app.appName,
-            refererConfig.validHosts + relayDomain
-          ),
+          values,
           true
         )
         .run(authContext)
