@@ -142,6 +142,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
+      _ = println(s"referrerConfig valid hosts is: ${refererConfig.validHosts.mkString(",")}")
+
       values = buildSetupChartOverrideValues(
         app.release,
         app.samResourceId,
@@ -484,7 +486,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     if (validHosts.contains("*")) {
       formattedValidHosts = "\"*\""
     } else {
-      formattedValidHosts = validHosts.mkString(",")
+      formattedValidHosts = s"'${refererConfig.validHosts.mkString("','")}'"
     }
 
     Values(
