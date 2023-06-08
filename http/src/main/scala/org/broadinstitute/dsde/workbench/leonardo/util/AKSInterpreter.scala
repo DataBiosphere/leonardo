@@ -493,7 +493,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
         // general configs
         raw"fullnameOverride=setup-${release.asString}",
-        raw"""relaylistener.validHosts=${validHosts.mkString(",")}"""
+        raw"""relaylistener.validHosts=[${validHosts.mkString(",")}]"""
       ).mkString(",")
     )
   }
