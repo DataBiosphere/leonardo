@@ -77,7 +77,6 @@ trait WsmDao[F[_]] {
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
-
 }
 
 final case class StorageContainerRequest(storageContainerName: ContainerName)
