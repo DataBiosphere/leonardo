@@ -752,7 +752,7 @@ class AzurePubsubHandlerSpec
           AzureRuntimeCreationError(
             runtime.id,
             workspaceId,
-            s"WSMResource:${resourceId} not found for disk id:${disk.id.value}",
+            s"WSMResource:${resourceId.value} not found for disk id:${disk.id.value}",
             true
           )
         )
