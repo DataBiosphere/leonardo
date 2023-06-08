@@ -480,6 +480,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // strip the entity path.
     val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
 
+    var formattedValidHosts = ""
+    if (validHosts.contains("*")) {
+      formattedValidHosts = "\"*\""
+    } else {
+      formattedValidHosts = validHosts.mkString(",")
+    }
+
     Values(
       List(
         raw"cloud=azure",
@@ -501,7 +508,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
         // general configs
         raw"fullnameOverride=setup-${release.asString}",
-        raw"""relaylistener.validHosts={${validHosts.mkString(",")}}"""
+        raw"relaylistener.validHosts=$formattedValidHosts"
       ).mkString(",")
     )
   }
