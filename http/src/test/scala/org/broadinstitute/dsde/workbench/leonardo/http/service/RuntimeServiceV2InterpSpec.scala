@@ -54,7 +54,18 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   )
 
   val wsmDao = new MockWsmDAO
-  val wsmClientProvider = new MockWsmClientProvider
+
+  // set up wsm to return an deletable vm state
+  val state = State.READY
+  val resourceMetaData = new ResourceMetadata()
+  resourceMetaData.setState(state)
+  val azureVmResource = new AzureVmResource()
+  azureVmResource.setMetadata(resourceMetaData)
+
+  val wsmResourceApi = mock[ControlledAzureResourceApi]
+  when(wsmResourceApi.getAzureVm(any(), any())).thenReturn(azureVmResource)
+
+  val wsmClientProvider = new MockWsmClientProvider(wsmResourceApi)
 
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage],
@@ -826,19 +837,8 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    // set up wsm to return an deletable vm state
-    val state = State.READY
-    val resourceMetaData = new ResourceMetadata()
-    resourceMetaData.setState(state)
-    val azureVmResource = new AzureVmResource()
-    azureVmResource.setMetadata(resourceMetaData)
-
-    val wsmResourceApi = mock[ControlledAzureResourceApi]
-    when(wsmResourceApi.getAzureVm(any(), any())).thenReturn(azureVmResource)
-
-    val wsmClientProvider = new MockWsmClientProvider(wsmResourceApi)
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
+    val azureService = makeInterp(publisherQueue)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -1094,13 +1094,10 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           defaultCreateAzureRuntimeReq
         )
       _ <- publisherQueue.tryTake // clean out create msg
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
-      preDeleteClusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      preDeleteCluster = preDeleteClusterOpt.get
+      preDeleteCluster <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
+
+      wsmResourceId = WsmControlledResourceId(UUID.fromString(preDeleteCluster.internalId))
+
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
 
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, false)
@@ -1124,7 +1121,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         DeleteAzureRuntimeMessage(preDeleteCluster.id,
                                   None,
                                   workspaceId,
-                                  None,
+                                  Some(wsmResourceId),
                                   landingZoneResources,
                                   Some(context.traceId)
         )
@@ -1268,27 +1265,19 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       _ <- publisherQueue.tryTakeN(Some(3)) // clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
-      preDeleteClusterOpt_1 <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_1)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      preDeleteClusterOpt_2 <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_2)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      preDeleteClusterOpt_3 <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_3)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      preDeleteCluster_1 = preDeleteClusterOpt_1.get
+      preDeleteCluster_1 <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName_1).transaction
+
+      preDeleteCluster_2 <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName_2).transaction
+
+      preDeleteCluster_3 <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName_3).transaction
+
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Deleted, context.now).transaction
-      preDeleteCluster_2 = preDeleteClusterOpt_2.get
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_2.id, RuntimeStatus.Running, context.now).transaction
-      preDeleteCluster_3 = preDeleteClusterOpt_3.get
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_3.id, RuntimeStatus.Error, context.now).transaction
+
+      wsmResourceId_1 = WsmControlledResourceId(UUID.fromString(preDeleteCluster_1.internalId))
+      wsmResourceId_2 = WsmControlledResourceId(UUID.fromString(preDeleteCluster_2.internalId))
+      wsmResourceId_3 = WsmControlledResourceId(UUID.fromString(preDeleteCluster_3.internalId))
 
       _ <- azureService.deleteAllRuntimes(userInfo, workspaceId, true)
 
@@ -1327,14 +1316,14 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         DeleteAzureRuntimeMessage(preDeleteCluster_2.id,
                                   Some(disk_2.id),
                                   workspaceId,
-                                  None,
+                                  Some(wsmResourceId_2),
                                   landingZoneResources,
                                   Some(context.traceId)
         ),
         DeleteAzureRuntimeMessage(preDeleteCluster_3.id,
                                   Some(disk_3.id),
                                   workspaceId,
-                                  None,
+                                  Some(wsmResourceId_3),
                                   landingZoneResources,
                                   Some(context.traceId)
         )
