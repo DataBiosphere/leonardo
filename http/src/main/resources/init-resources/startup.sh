@@ -253,9 +253,11 @@ function validateCert() {
   certFileDirectory=$1
   ## This helps when we need to rotate certs.
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+  echo "notafter ${notAfter}"
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
   if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
+    echo "in if block for notAfter"
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
