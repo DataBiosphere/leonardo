@@ -70,10 +70,10 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/61f9ad246382ade9a5242e4c6f899633876767f7/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:decc8b0",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:48a3a7b",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -81,7 +81,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.244"),
+          ChartVersion("0.2.257"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -95,7 +95,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.19.0"),
+          ChartVersion("0.20.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -123,7 +123,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List("WDS")
+        List("WDS"),
+        TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
@@ -134,8 +135,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"
       ),
-      LeoMetricsMonitorConfig(true, 5 minutes, true),
-      TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
+      LeoMetricsMonitorConfig(true, 5 minutes, true)
     )
 
     config shouldBe expectedConfig
