@@ -486,7 +486,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     if (validHosts.contains("*")) {
       formattedValidHosts = "[\"*\"]"
     } else {
-      formattedValidHosts = s"{${refererConfig.validHosts.map(host => s""""$host"""").mkString(",")}}"
+//      formattedValidHosts = refererConfig.validHosts.mkString(",")
+      formattedValidHosts = "terra.nathan.bee.envs-terra.bio, terra.ebaldo2.bee.envs-terra.bio"
     }
 
     Values(
