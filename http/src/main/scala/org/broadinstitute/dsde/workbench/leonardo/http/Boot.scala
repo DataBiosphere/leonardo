@@ -664,7 +664,7 @@ object Boot extends IOApp {
           ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.tdr
+          ConfigReader.appConfig.azure.tdr
         ),
         helmClient,
         azureBatchService,
@@ -690,7 +690,8 @@ object Boot extends IOApp {
         jupyterDao,
         azureRelay,
         azureVmService,
-        aksAlg
+        aksAlg,
+        refererConfig
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)

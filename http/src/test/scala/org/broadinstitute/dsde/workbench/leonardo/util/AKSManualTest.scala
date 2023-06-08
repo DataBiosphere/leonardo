@@ -155,7 +155,7 @@ object AKSManualTest {
       ConfigReader.appConfig.drs,
       new URL("https://leo-dummy-url.org"),
       ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-      ConfigReader.appConfig.tdr
+      ConfigReader.appConfig.azure.tdr
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
