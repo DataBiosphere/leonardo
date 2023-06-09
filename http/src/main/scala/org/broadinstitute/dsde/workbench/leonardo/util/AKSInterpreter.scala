@@ -154,7 +154,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app.appType,
         params.workspaceId,
         app.appName,
-        refererConfig.validHosts + relayDomain
+        (refererConfig.validHosts + relayDomain).toSeq
       )
 
       _ = println(s"Setup chart values for app ${params.appName.value} are ${values.asString}")
@@ -467,7 +467,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   appType: AppType,
                                                   workspaceId: WorkspaceId,
                                                   appName: AppName,
-                                                  validHosts: Set[String]
+                                                  validHosts: Seq[String]
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
@@ -509,7 +509,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"""relaylistener.validHosts="${validHosts.mkString("\\,")}""",
+        raw"relaylistener.validHosts_1=${validHosts(0)}",
+        raw"relaylistener.validHosts_2=${validHosts(1)}",
+        raw"relaylistener.validHosts_3=${validHosts(2)}",
+        raw"relaylistener.validHosts_4=${validHosts(3)}",
 
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
