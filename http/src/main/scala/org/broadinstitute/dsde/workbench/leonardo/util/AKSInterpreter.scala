@@ -509,10 +509,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"relaylistener.validHosts_1=${validHosts(0)}",
-        raw"relaylistener.validHosts_2=${validHosts(1)}",
-        raw"relaylistener.validHosts_3=${validHosts(2)}",
-        raw"relaylistener.validHosts_4=${validHosts(3)}",
+        raw"relaylistener.validHosts.1=${validHosts(0)}",
+        raw"relaylistener.validHosts.2=${validHosts(1)}",
+        raw"relaylistener.validHosts.3=${validHosts(2)}",
+        raw"relaylistener.validHosts.4=${validHosts(3)}",
 
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
