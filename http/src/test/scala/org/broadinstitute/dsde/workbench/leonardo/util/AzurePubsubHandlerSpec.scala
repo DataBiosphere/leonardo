@@ -1269,8 +1269,7 @@ class AzurePubsubHandlerSpec
       new MockJupyterDAO(),
       relayService,
       azureVmService,
-      aksAlg,
-      refererConfig
+      aksAlg
     )
 
 }

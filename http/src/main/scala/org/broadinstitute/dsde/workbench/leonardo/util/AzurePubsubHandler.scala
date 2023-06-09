@@ -11,7 +11,7 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
@@ -42,8 +42,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   jupyterDAO: JupyterDAO[F],
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F],
-  aksAlgebra: AKSAlgebra[F],
-  refererConfig: RefererConfig
+  aksAlgebra: AKSAlgebra[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
 
@@ -145,8 +144,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.workspaceName,
           wsStorageContainerUrl,
           applicationConfig.leoUrlBase,
-          params.runtime.runtimeName.asString,
-          s"'${refererConfig.validHosts.mkString("','")}'"
+          params.runtime.runtimeName.asString
         )
 
         val cmdToExecute =
