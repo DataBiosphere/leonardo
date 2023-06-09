@@ -10,12 +10,7 @@ import com.azure.core.management.AzureEnvironment
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{
-  ResourceIdentityType,
-  VirtualMachineIdentityUserAssignedIdentities,
-  VirtualMachineScaleSetIdentity,
-  VirtualMachineScaleSetUpdate
-}
+import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import io.kubernetes.client.openapi.ApiClient
@@ -28,13 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNam
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
-import org.broadinstitute.dsde.workbench.google2.{
-  autoClosableResourceF,
-  recoverF,
-  streamFUntilDone,
-  streamUntilDoneOrTimeout,
-  tracedRetryF
-}
+import org.broadinstitute.dsde.workbench.google2.{autoClosableResourceF, recoverF, streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -67,17 +56,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F],
                            hailBatchDao: HailBatchDAO[F]
-)(implicit
-  executionContext: ExecutionContext,
-  logger: StructuredLogger[F],
-  dbRef: DbReference[F],
-  F: Async[F]
-) extends AKSAlgebra[F] {
+                          )(implicit
+                            executionContext: ExecutionContext,
+                            logger: StructuredLogger[F],
+                            dbRef: DbReference[F],
+                            F: Async[F]
+                          ) extends AKSAlgebra[F] {
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
+
   implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
   private[util] def isPodDone(podStatus: PodStatus): Boolean =
     podStatus == PodStatus.Failed || podStatus == PodStatus.Succeeded
+
   implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
     (ps: List[PodStatus]) => ps.forall(isPodDone)
 
@@ -94,11 +85,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .getFullAppById(CloudContext.Azure(params.cloudContext), params.appId)
         .transaction
       dbApp <- F.fromOption(dbAppOpt,
-                            AppNotFoundException(CloudContext.Azure(params.cloudContext),
-                                                 params.appName,
-                                                 ctx.traceId,
-                                                 "No active app found in DB"
-                            )
+        AppNotFoundException(CloudContext.Azure(params.cloudContext),
+          params.appName,
+          ctx.traceId,
+          "No active app found in DB"
+        )
       )
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
@@ -134,8 +125,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
       relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                                       hcName,
-                                                                       params.cloudContext
+        hcName,
+        params.cloudContext
       )
       relayDomain = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
       relayEndpoint = s"https://${relayDomain}/"
@@ -197,7 +188,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           for {
             // Get the batch account key
             batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-                                                              params.cloudContext
+              params.cloudContext
             )
             batchAccountKey = batchAccount.getKeys().primary
 
@@ -379,9 +370,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
       fa = namespaceExists(client, kubernetesNamespace).map(exists => !exists)
       _ <- streamUntilDoneOrTimeout(fa,
-                                    config.appMonitorConfig.deleteApp.maxAttempts,
-                                    config.appMonitorConfig.deleteApp.initialDelay,
-                                    "delete namespace timed out"
+        config.appMonitorConfig.deleteApp.maxAttempts,
+        config.appMonitorConfig.deleteApp.initialDelay,
+        "delete namespace timed out"
       )
 
       // Delete the Sam resource
@@ -390,7 +381,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- tokenOpt match {
         case Some(token) =>
           samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                        Authorization(Credentials.Token(AuthScheme.Bearer, token))
+            Authorization(Credentials.Token(AuthScheme.Bearer, token))
           )
         case None =>
           logger.warn(
@@ -409,7 +400,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   }
 
   private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri, appType: AppType)(implicit
-    ev: Ask[F, AppContext]
+                                                                                                    ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
       ctx <- ev.ask
@@ -455,10 +446,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   appType: AppType,
                                                   workspaceId: WorkspaceId,
                                                   appName: AppName
-  ): Values = {
+                                                 ): Values = {
     val relayTargetHost = appType match {
-      case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
+      case AppType.Cromwell => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.Wds => s"http://wds-${release.asString}-wds-svc:8080"
       case AppType.HailBatch => "http://batch:8080"
       case AppType.Galaxy | AppType.Custom | AppType.RStudio =>
         F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
@@ -507,7 +498,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      applicationInsightsConnectionString: String,
                                                      sourceWorkspaceId: Option[WorkspaceId],
                                                      userAccessToken: String
-  ): Values =
+                                                    ): Values =
     Values(
       List(
         // azure resources configs
@@ -568,7 +559,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 applicationInsightsConnectionString: String,
                                                 sourceWorkspaceId: Option[WorkspaceId],
                                                 userAccessToken: String
-  ): Values = {
+                                               ): Values = {
     val valuesList =
       List(
         // azure resources configs
@@ -606,7 +597,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
     val updatedLs = sourceWorkspaceId match {
       case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => valuesList
+      case None => valuesList
     }
     Values(updatedLs.mkString(","))
   }
@@ -618,7 +609,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                       storageContainer: StorageContainerResponse,
                                                       relayDomain: String,
                                                       hcName: RelayHybridConnectionName
-  ): Values =
+                                                     ): Values =
     Values(
       List(
         raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
@@ -641,7 +632,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,
                                      petManagedIdentity: Identity
-  )(implicit ev: Ask[F, AppContext]): F[Unit] = for {
+                                    )(implicit ev: Ask[F, AppContext]): F[Unit] = for {
     // Resolve the cluster in Azure
     cluster <- azureContainerService.getCluster(clusterName, cloudContext)
 
@@ -705,7 +696,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def getHelmAuthContext(clusterName: AKSClusterName,
                                        cloudContext: AzureCloudContext,
                                        namespaceName: NamespaceName
-  )(implicit ev: Ask[F, AppContext]): F[AuthContext] =
+                                      )(implicit ev: Ask[F, AppContext]): F[AuthContext] =
     for {
       ctx <- ev.ask
 
@@ -717,7 +708,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
       caCertFile <- writeTempFile(s"aks_ca_cert_${now.toEpochMilli}",
-                                  Base64.getDecoder.decode(credentials.certificate.value)
+        Base64.getDecoder.decode(credentials.certificate.value)
       )
 
       authContext = AuthContext(
@@ -728,8 +719,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Helm auth context for cluster ${clusterName.value} in cloud context ${cloudContext.asString}: ${authContext
-            .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))}"
+        s"Helm auth context for cluster ${clusterName.value} in cloud context ${cloudContext.asString}: ${
+          authContext
+            .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))
+        }"
       )
 
     } yield authContext
@@ -769,7 +762,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   }
 
   private def deleteNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
+                                                                                 ev: Ask[F, TraceId]
   ): F[Unit] = {
     val delete = for {
       traceId <- ev.ask
@@ -788,7 +781,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           ).void
             .recoverWith {
               case e: com.google.gson.JsonSyntaxException
-                  if e.getMessage.contains("Expected a string but was BEGIN_OBJECT") =>
+                if e.getMessage.contains("Expected a string but was BEGIN_OBJECT") =>
                 logger.error(e)("Ignore response parsing error")
             } // see https://github.com/kubernetes-client/java/wiki/6.-Known-Issues#1-exception-on-deleting-resources-javalangillegalstateexception-expected-a-string-but-was-begin_object
           ,
@@ -811,7 +804,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   }
 
   private def listPodStatus(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
+                                                                               ev: Ask[F, TraceId]
   ): F[List[PodStatus]] =
     for {
       traceId <- ev.ask
@@ -855,7 +848,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   }
 
   private def namespaceExists(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
+                                                                                 ev: Ask[F, TraceId]
   ): F[Boolean] =
     for {
       traceId <- ev.ask
@@ -882,17 +875,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 }
 
 final case class AKSInterpreterConfig(
-  terraAppSetupChartConfig: TerraAppSetupChartConfig,
-  coaAppConfig: CoaAppConfig,
-  wdsAppConfig: WdsAppConfig,
-  hailBatchAppConfig: HailBatchAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig,
-  appRegistrationConfig: AzureAppRegistrationConfig,
-  samConfig: SamConfig,
-  appMonitorConfig: AppMonitorConfig,
-  wsmConfig: HttpWsmDaoConfig,
-  drsConfig: DrsConfig,
-  leoUrlBase: URL,
-  listenerImage: String,
-  tdr: TdrConfig
-)
+                                       terraAppSetupChartConfig: TerraAppSetupChartConfig,
+                                       coaAppConfig: CoaAppConfig,
+                                       wdsAppConfig: WdsAppConfig,
+                                       hailBatchAppConfig: HailBatchAppConfig,
+                                       aadPodIdentityConfig: AadPodIdentityConfig,
+                                       appRegistrationConfig: AzureAppRegistrationConfig,
+                                       samConfig: SamConfig,
+                                       appMonitorConfig: AppMonitorConfig,
+                                       wsmConfig: HttpWsmDaoConfig,
+                                       drsConfig: DrsConfig,
+                                       leoUrlBase: URL,
+                                       listenerImage: String,
+                                       tdr: TdrConfig
+                                     )
