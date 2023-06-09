@@ -256,7 +256,7 @@ function validateCert() {
   echo "notafter ${notAfter}"
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-  if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
+  if [[ "$notAfter" != *"notAfter=Jun  7"* ]] ; then
     echo "in if block for notAfter"
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
