@@ -482,13 +482,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // strip the entity path.
     val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
 
-    var formattedValidHosts = ""
-    if (validHosts.contains("*")) {
-      formattedValidHosts = "[\"*\"]"
-    } else {
-//      formattedValidHosts = refererConfig.validHosts.mkString(",")
-      formattedValidHosts = "terra.nathan.bee.envs-terra.bio, terra.ebaldo2.bee.envs-terra.bio"
-    }
+//    var formattedValidHosts = ""
+//    if (validHosts.contains("*")) {
+//      formattedValidHosts = "[\"*\"]"
+//    } else {
+////      formattedValidHosts = refererConfig.validHosts.mkString(",")
+//      formattedValidHosts = "terra.nathan.bee.envs-terra.bio, terra.ebaldo2.bee.envs-terra.bio"
+//    }
 
     Values(
       List(
@@ -509,9 +509,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
+        raw"""relaylistener.validHosts="${validHosts.mkString(",")}"""",
+
         // general configs
-        raw"fullnameOverride=setup-${release.asString}",
-        raw"relaylistener.validHosts=$formattedValidHosts"
+        raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")
     )
   }
