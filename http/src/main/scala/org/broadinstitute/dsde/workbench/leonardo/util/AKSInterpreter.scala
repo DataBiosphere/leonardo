@@ -482,14 +482,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // strip the entity path.
     val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
 
-//    var formattedValidHosts = ""
-//    if (validHosts.contains("*")) {
-//      formattedValidHosts = "[\"*\"]"
-//    } else {
-////      formattedValidHosts = refererConfig.validHosts.mkString(",")
-//      formattedValidHosts = "terra.nathan.bee.envs-terra.bio, terra.ebaldo2.bee.envs-terra.bio"
-//    }
-
     Values(
       List(
         raw"cloud=azure",
@@ -509,10 +501,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"relaylistener.validHosts.1=${validHosts(0)}",
-        raw"relaylistener.validHosts.2=${validHosts(1)}",
-        raw"relaylistener.validHosts.3=${validHosts(2)}",
-        raw"relaylistener.validHosts.4=${validHosts(3)}",
+        raw"relaylistener.validHosts[0]=${validHosts(0)}",
+        raw"relaylistener.validHosts[1]=${validHosts(1)}",
+        raw"relaylistener.validHosts[2]=${validHosts(2)}",
+        raw"relaylistener.validHosts[3]=${validHosts(3)}",
 
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
