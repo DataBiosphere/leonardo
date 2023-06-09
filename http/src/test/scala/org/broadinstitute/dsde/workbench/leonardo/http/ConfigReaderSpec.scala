@@ -4,18 +4,8 @@ package http
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  CoaAppConfig,
-  HailBatchAppConfig,
-  HttpWsmDaoConfig,
-  PersistentDiskConfig,
-  WdsAppConfig
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AzureRuntimeDefaults,
-  CustomScriptExtensionConfig,
-  VMCredential
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HailBatchAppConfig, HttpWsmDaoConfig, PersistentDiskConfig, WdsAppConfig}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeDefaults, CustomScriptExtensionConfig, VMCredential}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp._
@@ -23,6 +13,7 @@ import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+import java.net.URL
 import scala.concurrent.duration._
 
 class ConfigReaderSpec extends AnyFlatSpec with Matchers {
@@ -91,7 +82,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,
-          enabled = true
+          enabled = true,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/")
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
