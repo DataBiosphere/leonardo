@@ -124,7 +124,6 @@ SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
 SERVER_APP_ALLOW_ORIGIN="*"
 HCVAR='\$hc'
 SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${HCVAR}/${RELAY_CONNECTION_NAME}"
-SERVER_APP_WEBSOCKET_HOST="${RELAY_NAME}.servicebus.windows.net"
 
 # Relay listener configuration
 RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${RELAY_CONNECTION_POLICY_KEY};EntityPath=${RELAY_CONNECTION_NAME}"
@@ -132,7 +131,6 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 # Relay listener configuration - setDateAccessed listener
 LEONARDO_URL="${18:-dummy}"
 RUNTIME_NAME="${19:-dummy}"
-VALID_HOSTS="${20:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
 # Log in script output for debugging purposes.
@@ -159,7 +157,6 @@ echo "SERVER_APP_WEBSOCKET_URL = ${SERVER_APP_WEBSOCKET_URL}"
 echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}"
 echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
-echo "VALID_HOSTS = ${VALID_HOSTS}"
 
 # Install relevant libraries
 
@@ -193,38 +190,11 @@ sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://ra
 sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.10/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/0ea6d2ebd7fcae7072e01e1c2f2d178390a276b0/terra-jupyter-base/custom/jupyter_delocalize.py"
 sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
 
-echo "------ Jupyter ------"
-echo "Starting Jupyter with command..."
-
-echo "sudo runuser -l $VM_JUP_USER -c \"/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log\"" >/dev/null 2>&1&
 
 sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
 
 # Store Jupyter Server parameters for reboot processes
 sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log' >/dev/null 2>&1&") | crontab -
-
-echo "------ Listener version: ${LISTENER_DOCKER_IMAGE} ------"
-echo "    Starting listener with command..."
-
-echo "docker run -d --restart always --network host --name listener \
--e LISTENER_RELAYCONNECTIONSTRING=\"$RELAY_CONNECTIONSTRING\" \
--e LISTENER_RELAYCONNECTIONNAME=\"$RELAY_CONNECTION_NAME\" \
--e LISTENER_REQUESTINSPECTORS_0=\"samChecker\" \
--e LISTENER_REQUESTINSPECTORS_1=\"setDateAccessed\" \
--e LISTENER_SAMINSPECTORPROPERTIES_SAMRESOURCEID=\"$SAMRESOURCEID\" \
--e LISTENER_SAMINSPECTORPROPERTIES_SAMURL=\"$SAMURL\" \
--e LISTENER_SETDATEACCESSEDINSPECTORPROPERTIES_SERVICEHOST=\"$LEONARDO_URL\" \
--e LISTENER_SETDATEACCESSEDINSPECTORPROPERTIES_WORKSPACEID=\"$WORKSPACE_ID\" \
--e LISTENER_SETDATEACCESSEDINSPECTORPROPERTIES_CALLWINDOWINSECONDS=\"$DATEACCESSED_SLEEP_SECONDS\" \
--e LISTENER_SETDATEACCESSEDINSPECTORPROPERTIES_RUNTIMENAME=\"$RUNTIME_NAME\" \
--e LISTENER_CORSSUPPORTPROPERTIES_CONTENTSECURITYPOLICY=\"$(cat $CONTENTSECURITYPOLICY_FILE)\" \
--e LISTENER_CORSSUPPORTPROPERTIES_VALIDHOSTS=\"${VALID_HOSTS},${SERVER_APP_WEBSOCKET_HOST}\" \
--e LISTENER_TARGETPROPERTIES_TARGETHOST=\"http://$RELAY_TARGET_HOST:8888\" \
--e LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_PATHCONTAINS=welder \
--e LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_TARGETHOST=http://$RELAY_TARGET_HOST:8081 \
--e LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_REMOVEFROMPATH=\"\$hc-name/welder\" \
--e LOGGING_LEVEL_ROOT=INFO \
-$LISTENER_DOCKER_IMAGE"
 
 #Run docker container with Relay Listener
 docker run -d --restart always --network host --name listener \
@@ -239,32 +209,12 @@ docker run -d --restart always --network host --name listener \
 --env LISTENER_SETDATEACCESSEDINSPECTORPROPERTIES_CALLWINDOWINSECONDS=$DATEACCESSED_SLEEP_SECONDS \
 --env LISTENER_SETDATEACCESSEDINSPECTORPROPERTIES_RUNTIMENAME=$RUNTIME_NAME \
 --env LISTENER_CORSSUPPORTPROPERTIES_CONTENTSECURITYPOLICY="$(cat $CONTENTSECURITYPOLICY_FILE)" \
---env LISTENER_CORSSUPPORTPROPERTIES_VALIDHOSTS="${VALID_HOSTS},${SERVER_APP_WEBSOCKET_HOST}" \
 --env LISTENER_TARGETPROPERTIES_TARGETHOST="http://${RELAY_TARGET_HOST}:8888" \
 --env LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_PATHCONTAINS="welder" \
 --env LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_TARGETHOST="http://${RELAY_TARGET_HOST}:8081" \
 --env LISTENER_TARGETPROPERTIES_TARGETROUTINGRULES_0_REMOVEFROMPATH="\$hc-name/welder" \
 --env LOGGING_LEVEL_ROOT=INFO \
 $LISTENER_DOCKER_IMAGE
-
-echo "------ Listener done ------"
-
-echo "------ Welder version: ${WELDER_WELDER_DOCKER_IMAGE} ------"
-echo "    Starting Welder with command...."
-
-echo "docker run -d --restart always --network host --name welder \
-     --volume \"/home/${VM_JUP_USER}\":\"/work\" \
-     -e WSM_URL=$WELDER_WSM_URL \
-     -e PORT=8081 \
-     -e WORKSPACE_ID=$WORKSPACE_ID \
-     -e STORAGE_CONTAINER_RESOURCE_ID=$WORKSPACE_STORAGE_CONTAINER_ID \
-     -e STAGING_STORAGE_CONTAINER_RESOURCE_ID=$WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID \
-     -e OWNER_EMAIL=\"$WELDER_OWNER_EMAIL\" \
-     -e CLOUD_PROVIDER=\"azure\" \
-     -e LOCKING_ENABLED=false \
-     -e STAGING_BUCKET=\"$WELDER_STAGING_BUCKET\" \
-     -e SHOULD_BACKGROUND_SYNC=\"false\" \
-     $WELDER_WELDER_DOCKER_IMAGE"
 
 docker run -d --restart always --network host --name welder \
 --volume "/home/${VM_JUP_USER}":"/work" \
