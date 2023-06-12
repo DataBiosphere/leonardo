@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.{
   LandingZoneResources,
   LeonardoTestSuite,
-  LogAnalyticsWorkspaceName,
   StorageAccountName,
   WorkspaceId,
   WsmControlledResourceId,
@@ -138,10 +137,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       RelayNamespace("lznamespace"),
       StorageAccountName("lzstorage"),
       NetworkName("lzvnet"),
-      LogAnalyticsWorkspaceName("lzloganalytics"),
       SubnetworkName("batchsub"),
       SubnetworkName("akssub"),
-      SubnetworkName("computesub"),
       com.azure.core.management.Region.US_EAST,
       ApplicationInsightsName("lzappinsights")
     )

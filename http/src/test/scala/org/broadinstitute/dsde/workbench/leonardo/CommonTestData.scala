@@ -565,10 +565,8 @@ object CommonTestData {
     RelayNamespace("lznamespace"),
     StorageAccountName("lzstorage"),
     NetworkName("lzvnet"),
-    LogAnalyticsWorkspaceName("lzloganalytics"),
     SubnetworkName("batchsub"),
     SubnetworkName("akssub"),
-    SubnetworkName("computesub"),
     azureRegion,
     ApplicationInsightsName("lzappinsights")
   )

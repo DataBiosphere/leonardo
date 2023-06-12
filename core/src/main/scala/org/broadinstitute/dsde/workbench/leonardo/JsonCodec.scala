@@ -673,8 +673,6 @@ object JsonCodec {
   implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.decodeString.map(RelayNamespace)
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
   implicit val postgresNameDecoder: Decoder[PostgresName] = Decoder.decodeString.map(PostgresName)
-  implicit val logAnalyticsWorkspaceNameDecoder: Decoder[LogAnalyticsWorkspaceName] =
-    Decoder.decodeString.map(LogAnalyticsWorkspaceName)
 
   implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
   implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
@@ -743,7 +741,6 @@ object JsonCodec {
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
   implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
   implicit val postgresNameEncoder: Encoder[PostgresName] = Encoder.encodeString.contramap(_.value)
-  implicit val logAnalyticsWorkspaceName: Encoder[LogAnalyticsWorkspaceName] = Encoder.encodeString.contramap(_.value)
 
   implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct4(
     "publisher",
@@ -753,34 +750,30 @@ object JsonCodec {
   )(x => (x.publisher, x.offer, x.sku, x.version))
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct12(
+    Decoder.forProduct10(
       "landingZoneId",
       "clusterName",
       "batchAccountName",
       "relayNamespace",
       "storageAccountName",
       "vnetName",
-      "logAnalyticsWorkspaceName",
       "batchNodesSubnetName",
       "aksSubnetName",
-      "computeSubnetName",
       "region",
       "applicationInsightsName"
     )(
       LandingZoneResources.apply
     )
 
-  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct12(
+  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct10(
     "landingZoneId",
     "clusterName",
     "batchAccountName",
     "relayNamespace",
     "storageAccountName",
     "vnetName",
-    "logAnalyticsWorkspaceName",
     "batchNodesSubnetName",
     "aksSubnetName",
-    "computeSubnetName",
     "region",
     "applicationInsightsName"
   )(x =>
@@ -790,10 +783,8 @@ object JsonCodec {
      x.relayNamespace,
      x.storageAccountName,
      x.vnetName,
-     x.logAnalyticsWorkspaceName,
      x.batchNodesSubnetName,
      x.aksSubnetName,
-     x.computeSubnetName,
      x.region,
      x.applicationInsightsName
     )

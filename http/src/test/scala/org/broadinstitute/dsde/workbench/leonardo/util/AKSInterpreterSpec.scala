@@ -107,10 +107,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     RelayNamespace("relay"),
     StorageAccountName("storage"),
     NetworkName("network"),
-    LogAnalyticsWorkspaceName("logs"),
     SubnetworkName("subnet1"),
     SubnetworkName("subnet2"),
-    SubnetworkName("subnet3"),
     azureRegion,
     ApplicationInsightsName("lzappinsights")
   )
