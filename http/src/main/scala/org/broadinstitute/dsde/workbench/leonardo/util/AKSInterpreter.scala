@@ -41,7 +41,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, WorkspaceNotFoundException}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.withLogging
 import org.broadinstitute.dsp.{Release, _}
@@ -66,7 +66,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            cbasDao: CbasDAO[F],
                            cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F],
-                           hailBatchDao: HailBatchDAO[F]
+                           hailBatchDao: HailBatchDAO[F],
+                           wsmDao: WsmDao[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -318,6 +319,178 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield ()
 
+  override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    for {
+      ctx <- ev.ask
+
+      // Grab records from the database
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), params.appName)
+        .transaction
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(CloudContext.Azure(params.cloudContext),
+                             params.appName,
+                             ctx.traceId,
+                             "No active app found in DB"
+        )
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"Updating app $params.appName in workspace $params.workspaceId")
+
+      app = dbApp.app
+      namespaceName = app.appResources.namespace.name
+
+      // Grab the LZ and storage container information associated with the workspace
+      leoAuth <- samDao.getLeoAuthToken
+      workspaceDescOpt <- wsmDao.getWorkspace(params.workspaceId, leoAuth)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(params.workspaceId, ctx.traceId))
+      landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
+
+      // Get the optional storage container for the workspace
+      storageContainer <- wsmDao.getWorkspaceStorageContainer(params.workspaceId, leoAuth)
+
+      // Resolve pet managed identity in Azure
+      // Only do this for user-private apps; do not assign any identity for shared apps.
+      // In the future we may use a shared identity instead.
+      petMi <- app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp => F.pure(None)
+        case _ =>
+          for {
+            msi <- buildMsiManager(params.cloudContext)
+            petMi <- F.delay(
+              msi.identities().getById(app.googleServiceAccount.value)
+            )
+
+            // Assign the pet managed identity to the VM scale set backing the cluster node pool
+            _ <- assignVmScaleSet(landingZoneResources.clusterName, params.cloudContext, petMi)
+          } yield Some(petMi)
+      }
+
+      // Get relay hybrid connection pool information
+      hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
+      relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayEndpoint = s"https://${relayDomain}/"
+      relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
+
+      // Generate the app values to pass to helm at the upgrade chart step
+      chartOverrideValues <- app.appType match {
+        case AppType.Cromwell =>
+          for {
+            // Get the batch account key
+            batchAccount <- azureBatchService.getBatchAccount(landingZoneResources.batchAccountName,
+                                                              params.cloudContext
+            )
+            batchAccountKey = batchAccount.getKeys().primary
+            // Storage container is required for Cromwell app
+            storageContainer <- F.fromOption(
+              storageContainer,
+              AppUpdateException("Storage container required for Cromwell app", Some(ctx.traceId))
+            )
+            // Resolve Application Insights resource in Azure to pass to the helm chart.
+            applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
+              landingZoneResources.applicationInsightsName,
+              params.cloudContext
+            )
+            // get the pet userToken
+            tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+            userToken <- F.fromOption(
+              tokenOpt,
+              AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
+            )
+          } yield buildCromwellChartOverrideValues(
+            app.release,
+            params.appName,
+            params.cloudContext,
+            params.workspaceId,
+            landingZoneResources,
+            relayPath,
+            petMi,
+            storageContainer,
+            BatchAccountKey(batchAccountKey),
+            applicationInsightsComponent.connectionString(),
+            app.sourceWorkspaceId,
+            userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+          )
+        case AppType.Wds =>
+          for {
+            // Resolve Application Insights resource in Azure to pass to the helm chart.
+            applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
+              landingZoneResources.applicationInsightsName,
+              params.cloudContext
+            )
+            // get the pet userToken
+            tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+            userToken <- F.fromOption(
+              tokenOpt,
+              AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
+            )
+          } yield buildWdsChartOverrideValues(
+            app.release,
+            params.appName,
+            params.cloudContext,
+            params.workspaceId,
+            landingZoneResources,
+            petMi,
+            applicationInsightsComponent.connectionString(),
+            app.sourceWorkspaceId,
+            userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+          )
+        case AppType.HailBatch =>
+          for {
+            // Storage container is required for HailBatch app
+            storageContainer <- F.fromOption(
+              storageContainer,
+              AppUpdateException("Storage container required for Hail Batch app", Some(ctx.traceId))
+            )
+          } yield buildHailBatchChartOverrideValues(
+            params.appName,
+            params.workspaceId,
+            landingZoneResources,
+            petMi,
+            storageContainer,
+            relayDomain,
+            hcName
+          )
+        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on Azure"))
+      }
+
+      // Authenticate helm client
+      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+
+      // Upgrade app chart version and explicitly pass the values
+      _ <- helmClient
+        .upgradeChart(
+          app.release,
+          app.chart.name,
+          params.appChartVersion,
+          chartOverrideValues
+        )
+        .run(authContext)
+
+      // Poll until all pods in the app namespace are running
+      appOk <- pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
+      _ <-
+        if (appOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdateException(
+              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              Some(ctx.traceId)
+            )
+          )
+
+      _ <- logger.info(
+        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.clusterName}"
+      )
+
+      // Update app chart version in the DB
+      _ <- appQuery.updateChart(app.id, Chart(app.chart.name, params.appChartVersion)).transaction
+
+      _ <- logger.info(s"Done updating app $params.appName in workspace $params.workspaceId")
+    } yield ()
+  }
+
   override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext, keepHistory) = params
     for {
@@ -408,42 +581,61 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield ()
   }
 
+  private[util] def pollApp(userEmail: WorkbenchEmail, relayBaseUri: Uri, appType: AppType)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] = for {
+    ctx <- ev.ask
+    tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+    token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
+    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+
+    op <- appType match {
+      case AppType.Cromwell =>
+        // Status check each configured coa service for Cromwell app type
+        config.coaAppConfig.coaServices
+          .collect {
+            case Cbas =>
+              cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+            case CbasUI =>
+              cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+            case Cromwell =>
+              cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          }
+          .toList
+          .sequence
+          .map(_.forall(identity))
+      case AppType.Wds =>
+        wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
+      case AppType.HailBatch =>
+        hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+      case _ => F.raiseError[Boolean](AppCreationException(s"App type ${appType} not supported on Azure"))
+    }
+  } yield op
+
   private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri, appType: AppType)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
-      ctx <- ev.ask
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-      token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
-      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-
-      op = appType match {
-        case AppType.Cromwell =>
-          // Status check each configured coa service for Cromwell app type
-          config.coaAppConfig.coaServices
-            .collect {
-              case Cbas =>
-                cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-              case CbasUI =>
-                cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-              case Cromwell =>
-                cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-            }
-            .toList
-            .sequence
-            .map(_.forall(identity))
-        case AppType.Wds =>
-          wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
-        case AppType.HailBatch =>
-          hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-        case _ => F.raiseError[Boolean](AppCreationException(s"App type ${appType} not supported on Azure"))
-      }
-
+      _ <- ev.ask
+      op = pollApp(userEmail, relayBaseUri, appType)
       appOk <- streamFUntilDone(
         op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
         delay = config.appMonitorConfig.createApp.interval
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+    } yield appOk.isDone
+
+  private[util] def pollAppUpdate(userEmail: WorkbenchEmail, relayBaseUri: Uri, appType: AppType)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] =
+    for {
+      _ <- ev.ask
+      op = pollApp(userEmail, relayBaseUri, appType)
+      appOk <- streamFUntilDone(
+        op,
+        maxAttempts = config.appMonitorConfig.updateApp.maxAttempts,
+        delay = config.appMonitorConfig.updateApp.interval
+      ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
     } yield appOk.isDone
 
   private[util] def buildSetupChartOverrideValues(release: Release,

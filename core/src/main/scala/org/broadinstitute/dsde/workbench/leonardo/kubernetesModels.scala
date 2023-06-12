@@ -267,6 +267,10 @@ object ErrorAction {
     override def toString: String = "startApp"
   }
 
+  case object UpdateApp extends ErrorAction {
+    override def toString: String = "updateApp"
+  }
+
   case object DeleteNodepool extends ErrorAction {
     override def toString: String = "deleteNodepool"
   }

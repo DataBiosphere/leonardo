@@ -855,7 +855,8 @@ object Config {
       config.as[PollMonitorConfig]("deleteApp"),
       config.as[PollMonitorConfig]("scalingUpNodepool"),
       config.as[PollMonitorConfig]("scalingDownNodepool"),
-      config.as[InterruptablePollMonitorConfig]("startApp")
+      config.as[InterruptablePollMonitorConfig]("startApp"),
+      config.as[InterruptablePollMonitorConfig]("updateApp")
     )
   }
 

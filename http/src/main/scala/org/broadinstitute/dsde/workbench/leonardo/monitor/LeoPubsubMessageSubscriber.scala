@@ -105,6 +105,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           handleStopAppMessage(msg)
         case msg: StartAppMessage =>
           handleStartAppMessage(msg)
+        case msg: UpdateAppMessage =>
+          handleUpdateAppMessage(msg)
         case msg: CreateAzureRuntimeMessage =>
           azurePubsubHandler.createAndPollRuntime(msg).adaptError { case e =>
             PubsubHandleMessageError.AzureRuntimeCreationError(
@@ -1312,6 +1314,62 @@ class LeoPubsubMessageSubscriber[F[_]](
         }
 
       _ <- asyncTasks.offer(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now, "startApp"))
+    } yield ()
+
+  private[monitor] def handleUpdateAppMessage(
+    msg: UpdateAppMessage
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      appOpt <- KubernetesServiceDbQueries
+        .getFullAppById(msg.cloudContext, msg.appId)
+        .transaction
+      appResult <- appOpt.fold(
+        F.raiseError[GetAppResult](PubsubHandleMessageError.AppNotFound(msg.appId.id, msg))
+      )(F.pure)
+
+      // We can only update apps while they are RUNNING
+      _ <-
+        if (appResult.app.status != AppStatus.Running)
+          F.raiseError[Unit](
+            PubsubHandleMessageError.AppInvalidState(msg.appId.id, msg)
+          )
+        else F.unit
+
+      // TODO Scale replicas up (1 -> 2)
+
+      updateApp = msg.cloudContext match {
+        case CloudContext.Gcp(_) =>
+          gkeAlg
+            .updateAndPollApp(UpdateAppParams(msg.appId, msg.appName, msg.appChartVersion, msg.workspaceId))
+            .adaptError { case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
+                Some(msg.appId),
+                false,
+                None,
+                None,
+                None
+              )
+            }
+        case CloudContext.Azure(azureContext) =>
+          azurePubsubHandler
+            .updateAndPollApp(msg.appId, msg.appName, msg.appChartVersion, msg.workspaceId, azureContext)
+            .adaptError { case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
+                Some(msg.appId),
+                false,
+                None,
+                None,
+                None
+              )
+            }
+      }
+
+      // TODO Scale replicas down
+
+      _ <- asyncTasks.offer(Task(ctx.traceId, updateApp, Some(handleKubernetesError), ctx.now, "updateApp"))
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>

@@ -673,7 +673,8 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         wdsDao,
-        hailBatchDao
+        hailBatchDao,
+        wsmDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](

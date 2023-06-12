@@ -528,6 +528,9 @@ class GKEInterpreter[F[_]](
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
+  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = ???
+  // TODO Do the GKE implementation
+
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1869,6 +1872,10 @@ final case class AppDeletionException(message: String) extends AppProcessingExce
 }
 
 final case class AppStartException(message: String) extends AppProcessingException {
+  override def getMessage: String = message
+}
+
+final case class AppUpdateException(message: String, traceId: Option[TraceId] = None) extends AppProcessingException {
   override def getMessage: String = message
 }
 
