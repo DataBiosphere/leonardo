@@ -142,6 +142,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Valid hosts for app ${params.appName.value} are ${refererConfig.validHosts}"
+      )
+
       values = buildSetupChartOverrideValues(
         app.release,
         app.samResourceId,
