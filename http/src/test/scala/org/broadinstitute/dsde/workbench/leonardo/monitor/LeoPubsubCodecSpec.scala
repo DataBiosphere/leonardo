@@ -159,11 +159,9 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     RelayNamespace("relay-ns"),
     StorageAccountName("storage-account"),
     NetworkName("vnet"),
-    PostgresName("pg"),
     LogAnalyticsWorkspaceName("logs"),
     SubnetworkName("batch-subnet"),
     SubnetworkName("aks-subnet"),
-    SubnetworkName("pg-subnet"),
     SubnetworkName("compute-subnet"),
     com.azure.core.management.Region.US_EAST,
     ApplicationInsightsName("lzappinsights")

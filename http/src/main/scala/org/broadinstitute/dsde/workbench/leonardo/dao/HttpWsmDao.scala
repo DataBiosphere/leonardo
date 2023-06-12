@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
   AKS_NODE_POOL_SUBNET,
   LandingZoneResourcePurpose,
-  POSTGRESQL_SUBNET,
   SHARED_RESOURCE,
   WORKSPACE_BATCH_SUBNET,
   WORKSPACE_COMPUTE_SUBNET
@@ -175,11 +174,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                        SHARED_RESOURCE,
                                                        false
       )
-      postgresName <- getLandingZoneResourceName(groupedLzResources,
-                                                 "microsoft.dbforpostgresql/flexibleservers",
-                                                 SHARED_RESOURCE,
-                                                 false
-      )
       logAnalyticsWorkspaceName <- getLandingZoneResourceName(groupedLzResources,
                                                               "microsoft.operationalinsights/workspaces",
                                                               SHARED_RESOURCE,
@@ -202,7 +196,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                       WORKSPACE_COMPUTE_SUBNET,
                                                       false
       )
-      postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
 
     } yield LandingZoneResources(
       landingZoneId,
@@ -211,11 +204,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       RelayNamespace(relayNamespace),
       StorageAccountName(storageAccountName),
       NetworkName(vnetName),
-      PostgresName(postgresName),
       LogAnalyticsWorkspaceName(logAnalyticsWorkspaceName),
       SubnetworkName(batchNodesSubnetName),
       SubnetworkName(aksSubnetName),
-      SubnetworkName(postgresSubnetName),
       SubnetworkName(computeSubnetName),
       region,
       ApplicationInsightsName(applicationInsightsName)
