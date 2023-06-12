@@ -176,7 +176,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                        false
       )
       postgresName <- getLandingZoneResourceName(groupedLzResources,
-                                                 "microsoft.dbforpostgresql/servers",
+                                                 "microsoft.dbforpostgresql/flexibleservers",
                                                  SHARED_RESOURCE,
                                                  false
       )

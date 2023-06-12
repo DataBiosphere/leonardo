@@ -76,7 +76,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
           buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
           buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
           buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
-          buildMockLandingZoneResource("microsoft.dbforpostgresql/servers", "lzpostgres"),
+          buildMockLandingZoneResource("microsoft.dbforpostgresql/flexibleservers", "lzpostgres"),
           buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics"),
           buildMockLandingZoneResource("Microsoft.Insights/components", "lzappinsights")
         )
