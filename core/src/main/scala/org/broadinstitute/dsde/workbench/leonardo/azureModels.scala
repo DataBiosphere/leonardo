@@ -27,7 +27,6 @@ final case class BatchAccountKey(value: String) extends AnyVal
 
 final case class PostgresName(value: String) extends AnyVal
 
-
 final case class LandingZoneResources(landingZoneId: UUID,
                                       clusterName: AKSClusterName,
                                       batchAccountName: BatchAccountName,
