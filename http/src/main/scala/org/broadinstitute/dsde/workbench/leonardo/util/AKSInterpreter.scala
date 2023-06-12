@@ -142,10 +142,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Valid hosts for app ${params.appName.value} are ${refererConfig.validHosts}"
-      )
-
       values = buildSetupChartOverrideValues(
         app.release,
         app.samResourceId,
@@ -156,7 +152,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app.appType,
         params.workspaceId,
         app.appName,
-        (refererConfig.validHosts + relayDomain).toSeq
+        refererConfig.validHosts + relayDomain
       )
 
       _ <- logger.info(ctx.loggingCtx)(
@@ -467,7 +463,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   appType: AppType,
                                                   workspaceId: WorkspaceId,
                                                   appName: AppName,
-                                                  validHosts: Seq[String]
+                                                  validHosts: Set[String]
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
@@ -481,6 +477,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // so requires that we don't strip the entity path. For other app types we do
     // strip the entity path.
     val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
+
+    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
+    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
+      raw"relaylistener.validHosts[$idx]=$elem"
+    }
 
     Values(
       List(
@@ -501,14 +502,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.runtimeName=${appName.value}",
         raw"relaylistener.image=${config.listenerImage}",
         raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"relaylistener.validHosts[0]=${validHosts(0)}",
-        raw"relaylistener.validHosts[1]=${validHosts(1)}",
-        raw"relaylistener.validHosts[2]=${validHosts(2)}",
-        raw"relaylistener.validHosts[3]=${validHosts(3)}",
 
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
-      ).mkString(",")
+      ).concat(validHostValues).mkString(",")
     )
   }
 
