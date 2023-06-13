@@ -112,7 +112,7 @@ final case class LandingZoneResource(resourceId: Option[String],
 object LandingZoneResourcePurpose extends Enumeration {
   type LandingZoneResourcePurpose = Value
   val SHARED_RESOURCE, WLZ_RESOURCE = Value
-  val WORKSPACE_COMPUTE_SUBNET, WORKSPACE_STORAGE_SUBNET, AKS_NODE_POOL_SUBNET, POSTGRESQL_SUBNET,
+  val WORKSPACE_COMPUTE_SUBNET, WORKSPACE_STORAGE_SUBNET, AKS_NODE_POOL_SUBNET, POSTGRESQL_SUBNET, POSTGRES_ADMIN,
     WORKSPACE_BATCH_SUBNET = Value
 }
 

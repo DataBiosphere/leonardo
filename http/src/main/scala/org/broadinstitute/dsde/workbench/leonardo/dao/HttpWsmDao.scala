@@ -15,10 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
   AKS_NODE_POOL_SUBNET,
   LandingZoneResourcePurpose,
-  POSTGRESQL_SUBNET,
   SHARED_RESOURCE,
-  WORKSPACE_BATCH_SUBNET,
-  WORKSPACE_COMPUTE_SUBNET
+  WORKSPACE_BATCH_SUBNET
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
@@ -175,16 +173,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                        SHARED_RESOURCE,
                                                        false
       )
-      postgresName <- getLandingZoneResourceName(groupedLzResources,
-                                                 "microsoft.dbforpostgresql/servers",
-                                                 SHARED_RESOURCE,
-                                                 false
-      )
-      logAnalyticsWorkspaceName <- getLandingZoneResourceName(groupedLzResources,
-                                                              "microsoft.operationalinsights/workspaces",
-                                                              SHARED_RESOURCE,
-                                                              false
-      )
       applicationInsightsName <- getLandingZoneResourceName(groupedLzResources,
                                                             "Microsoft.Insights/components",
                                                             SHARED_RESOURCE,
@@ -197,13 +185,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                          false
       )
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
-      computeSubnetName <- getLandingZoneResourceName(groupedLzResources,
-                                                      "DeployedSubnet",
-                                                      WORKSPACE_COMPUTE_SUBNET,
-                                                      false
-      )
-      postgresSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", POSTGRESQL_SUBNET, false)
-
     } yield LandingZoneResources(
       landingZoneId,
       AKSClusterName(aksClusterName),
@@ -211,12 +192,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       RelayNamespace(relayNamespace),
       StorageAccountName(storageAccountName),
       NetworkName(vnetName),
-      PostgresName(postgresName),
-      LogAnalyticsWorkspaceName(logAnalyticsWorkspaceName),
       SubnetworkName(batchNodesSubnetName),
       SubnetworkName(aksSubnetName),
-      SubnetworkName(postgresSubnetName),
-      SubnetworkName(computeSubnetName),
       region,
       ApplicationInsightsName(applicationInsightsName)
     )
