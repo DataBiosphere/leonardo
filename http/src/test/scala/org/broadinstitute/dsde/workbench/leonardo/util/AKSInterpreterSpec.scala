@@ -72,6 +72,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
   val mockAzureRelayService = setUpMockAzureRelayService
+  val mockKube = setUpMockKube
 
   val aksInterp = new AKSInterpreter[IO](
     config,
@@ -85,14 +86,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCbasDAO,
     mockCbasUiDAO,
     mockWdsDAO,
-    mockHailBatchDAO
-  ) {
-    override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
-    override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
-    override private[util] def buildCoreV1Client(cloudContext: AzureCloudContext,
-                                                 clusterName: AKSClusterName
-    ): IO[CoreV1Api] = IO.pure(setUpMockKubeAPI)
-  }
+    mockHailBatchDAO,
+    mockKube
+  )
 
   val cloudContext = AzureCloudContext(
     TenantId("tenant"),
@@ -340,17 +336,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCbasDAO,
         mockCbasUiDAO,
         mockWdsDAO,
-        mockHailBatchDAO
-      ) {
-        override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
-
-        override private[util] def buildComputeManager(cloudContext: AzureCloudContext) =
-          IO.pure(setUpMockComputeManager)
-
-        override private[util] def buildCoreV1Client(cloudContext: AzureCloudContext,
-                                                     clusterName: AKSClusterName
-        ): IO[CoreV1Api] = IO.pure(setUpMockKubeAPI)
-      }
+        mockHailBatchDAO,
+        mockKube
+      )
       val res = for {
         cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
         nodepool <- IO(makeNodepool(1, cluster.id).save())
@@ -431,16 +419,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockCbasDAO,
       mockCbasUiDAO,
       mockWdsDAO,
-      mockHailBatchDAO
-    ) {
-      override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
-
-      override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
-
-      override private[util] def buildCoreV1Client(cloudContext: AzureCloudContext,
-                                                   clusterName: AKSClusterName
-      ): IO[CoreV1Api] = IO.pure(setUpMockKubeAPI)
-    }
+      mockHailBatchDAO,
+      mockKube
+    )
 
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -620,7 +601,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     container
   }
 
-  private def setUpMockKubeAPI: CoreV1Api = {
+  private def setUpMockKube: KubernetesAlgebra[IO] = {
+    val kube = mock[KubernetesAlgebra[IO]]
     val coreV1Api = mock[CoreV1Api]
     val podList = mock[V1PodList]
     val mockPod = mock[V1Pod]
@@ -644,7 +626,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       coreV1Api.deleteNamespace(any, any, any, any, any, any, any)
     } thenReturn mockV1Status
-    coreV1Api
+    when {
+      kube.createAzureClient(any, any)(any)
+    } thenReturn IO.pure(coreV1Api)
+    kube
   }
 
   private def setUpMockSamDAO: SamDAO[IO] = {
@@ -685,7 +670,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockWdsDAO: WdsDAO[IO] = {
     val wds = mock[WdsDAO[IO]]
     when {
-      wds.getStatus(any, any, any)(any)
+      wds.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     wds
   }

@@ -289,7 +289,6 @@ object Boot extends IOApp {
             appDependencies.cromwellDAO,
             appDependencies.hailBatchDAO,
             appDependencies.samDAO,
-            appDependencies.wsmDAO,
             appDependencies.kubeAlg,
             appDependencies.azureContainerService
           )
@@ -684,7 +683,8 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         wdsDao,
-        hailBatchDao
+        hailBatchDao,
+        kubeAlg
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
