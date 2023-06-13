@@ -321,13 +321,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // if the vm is found in WSM and has a deletable state,
       // then the resourceId is passed to back leo to make the delete call to WSM
       // (state can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
+      deletableStatus = List("BROKEN", "READY")
+
       wsmVMResourceSamId = Try(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value)) match {
         case Success(result) =>
           val vmState = result.getMetadata.getState.getValue
           log.info(
             s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
           )
-          if (List("BROKEN", "READY").contains(vmState))
+          if deletableStatus.contains(vmState))
             Some(wsmResourceId)
           else None
         case Failure(e) =>

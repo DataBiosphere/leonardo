@@ -890,7 +890,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "not delete a runtime in a non-deletable status" in isolatedDbTest {
+  it should "not delete a runtime in a creating status" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -926,7 +926,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "delete a runtime and not send wsmResourceId if runtime in a non-deletable WSM status" in isolatedDbTest {
+  it should "delete a runtime and not send wsmResourceId if runtime in a DELETING WSM status" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
