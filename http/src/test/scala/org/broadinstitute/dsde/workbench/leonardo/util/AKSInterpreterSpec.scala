@@ -12,8 +12,8 @@ import com.azure.resourcemanager.containerservice.models.KubernetesCluster
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import io.kubernetes.client.openapi.apis.CoreV1Api
-import io.kubernetes.client.openapi.models._
 import org.broadinstitute.dsde.workbench.azure._
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
@@ -88,7 +88,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockWdsDAO,
     mockHailBatchDAO,
     mockKube
-  )
+  ) {
+    override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
+    override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
+  }
 
   val cloudContext = AzureCloudContext(
     TenantId("tenant"),
@@ -338,7 +341,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockWdsDAO,
         mockHailBatchDAO,
         mockKube
-      )
+      ) {
+        override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
+        override private[util] def buildComputeManager(cloudContext: AzureCloudContext) =
+          IO.pure(setUpMockComputeManager)
+      }
       val res = for {
         cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
         nodepool <- IO(makeNodepool(1, cluster.id).save())
@@ -421,7 +428,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockWdsDAO,
       mockHailBatchDAO,
       mockKube
-    )
+    ) {
+      override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
+      override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
+    }
 
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -604,31 +614,18 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockKube: KubernetesAlgebra[IO] = {
     val kube = mock[KubernetesAlgebra[IO]]
     val coreV1Api = mock[CoreV1Api]
-    val podList = mock[V1PodList]
-    val mockPod = mock[V1Pod]
-    val mockNamespace = mock[V1NamespaceList]
-    val mockV1Status = mock[V1Status]
-    when {
-      coreV1Api.listNamespacedPod(any, any, any, any, any, any, any, any, any, any, any)
-    } thenReturn podList
-    when {
-      podList.getItems
-    } thenReturn List(mockPod).asJava
-    when {
-      mockPod.getStatus
-    } thenReturn new V1PodStatus().phase("Failed")
-    when {
-      coreV1Api.listNamespace(any, any, any, any, any, any, any, any, any, any)
-    } thenReturn mockNamespace
-    when {
-      mockNamespace.getItems
-    } thenReturn List.empty.asJava
-    when {
-      coreV1Api.deleteNamespace(any, any, any, any, any, any, any)
-    } thenReturn mockV1Status
     when {
       kube.createAzureClient(any, any[String].asInstanceOf[AKSClusterName])(any)
     } thenReturn IO.pure(coreV1Api)
+    when {
+      kube.listPodStatus(any, any)(any)
+    } thenReturn IO.pure(List(PodStatus.Failed))
+    when {
+      kube.deleteNamespace(any, any)(any)
+    } thenReturn IO.unit
+    when {
+      kube.namespaceExists(any, any)(any)
+    } thenReturn IO.pure(false)
     kube
   }
 

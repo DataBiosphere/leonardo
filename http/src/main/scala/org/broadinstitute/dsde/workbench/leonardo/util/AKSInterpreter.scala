@@ -41,7 +41,6 @@ import java.net.URL
 import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
-import scala.sys.process._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
@@ -254,10 +253,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             storageContainer <- F.fromOption(
               params.storageContainer,
               AppCreationException("Storage container required for Hail Batch app", Some(ctx.traceId))
-            )
-            _ <- F.delay("rm -rf /leonardo/hail-batch-terra-azure" !!)
-            _ <- F.delay(
-              "helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version 0.1.9 --untar --untardir /leonardo" !!
             )
             _ <- helmClient
               .installChart(
