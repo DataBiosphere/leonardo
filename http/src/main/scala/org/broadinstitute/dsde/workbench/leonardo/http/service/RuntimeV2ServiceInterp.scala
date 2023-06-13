@@ -329,7 +329,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           log.info(
             s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
           )
-          if deletableStatus.contains(vmState))
+          if (deletableStatus.contains(vmState))
             Some(wsmResourceId)
           else None
         case Failure(e) =>
