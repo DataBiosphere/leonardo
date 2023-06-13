@@ -53,7 +53,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
-    helm repo add aou-rstudio-chart https://storage.googleapis.com/terra-app-helm/aou-rstudio-chart && \
+    helm repo add aou-rstudio-chart https://tarekmamdouh.github.io/aou-rstudio-helm-chart && \
     helm repo update
 
 
