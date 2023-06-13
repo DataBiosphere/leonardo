@@ -38,7 +38,7 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  minMemoryGb: Int,
                                  minNumOfCpus: Int,
                                  enabled: Boolean
-                                ) extends KubernetesAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
@@ -50,7 +50,7 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    serviceAccountName: ServiceAccountName,
                                    dbPassword: DbPassword,
                                    enabled: Boolean
-                                  ) extends KubernetesAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
@@ -63,7 +63,7 @@ final case class CustomAppConfig(chartName: ChartName,
                                  serviceAccountName: ServiceAccountName,
                                  customApplicationAllowList: CustomApplicationAllowListConfig,
                                  enabled: Boolean
-                                ) extends KubernetesAppConfig {
+) extends KubernetesAppConfig {
   // Not known at config. Generated at runtime.
   override lazy val kubernetesServices: List[KubernetesService] = List.empty
 }
@@ -77,15 +77,15 @@ final case class CoaAppConfig(chartName: ChartName,
                               instrumentationEnabled: Boolean,
                               enabled: Boolean,
                               dockstoreBaseUrl: URL
-                             ) extends KubernetesAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 
   def coaServices: Set[CoaService] = services
     .map(_.name)
     .collect {
-      case ServiceName("cbas") => Cbas
-      case ServiceName("cbas-ui") => CbasUI
+      case ServiceName("cbas")     => Cbas
+      case ServiceName("cbas-ui")  => CbasUI
       case ServiceName("cromwell") => Cromwell
     }
     .toSet
@@ -99,7 +99,7 @@ final case class WdsAppConfig(chartName: ChartName,
                               services: List[ServiceConfig],
                               instrumentationEnabled: Boolean,
                               enabled: Boolean
-                             ) extends KubernetesAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 }
@@ -111,7 +111,7 @@ final case class HailBatchAppConfig(chartName: ChartName,
                                     ksaName: KsaName,
                                     services: List[ServiceConfig],
                                     enabled: Boolean
-                                   ) extends KubernetesAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 }
@@ -123,7 +123,7 @@ final case class RStudioAppConfig(chartName: ChartName,
                                   services: List[ServiceConfig],
                                   serviceAccountName: ServiceAccountName,
                                   enabled: Boolean
-                                 ) extends KubernetesAppConfig {
+) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
