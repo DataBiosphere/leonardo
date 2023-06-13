@@ -2,7 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
-import org.broadinstitute.dsde.workbench.leonardo.{Chart, DbPassword, GalaxyDrsUrl, GalaxyOrchUrl, KsaName, KubernetesService, NamespaceNameSuffix, ReleaseNameSuffix, ServiceConfig, ServiceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  Chart,
+  DbPassword,
+  GalaxyDrsUrl,
+  GalaxyOrchUrl,
+  KsaName,
+  KubernetesService,
+  NamespaceNameSuffix,
+  ReleaseNameSuffix,
+  ServiceConfig,
+  ServiceId
+}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 import java.net.URL
