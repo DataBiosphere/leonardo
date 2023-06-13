@@ -627,7 +627,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       coreV1Api.deleteNamespace(any, any, any, any, any, any, any)
     } thenReturn mockV1Status
     when {
-      kube.createAzureClient(any, any)(any)
+      kube.createAzureClient(any, any[String].asInstanceOf[AKSClusterName])(any)
     } thenReturn IO.pure(coreV1Api)
     kube
   }
