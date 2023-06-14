@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class PersistentDisk(id: DiskId,
                                 cloudContext: CloudContext,
-                                zone: ZoneName,
+                                zone: ZoneName, // in the case of Azure, this will be com.azure.core.management.Region
                                 name: DiskName,
                                 serviceAccount: WorkbenchEmail,
                                 samResource: PersistentDiskSamResourceId,
@@ -20,7 +20,9 @@ final case class PersistentDisk(id: DiskId,
                                 formattedBy: Option[FormattedBy],
                                 appRestore: Option[AppRestore],
                                 labels: LabelMap,
-                                sourceDisk: Option[DiskLink]
+                                sourceDisk: Option[DiskLink],
+                                wsmResourceId: Option[WsmControlledResourceId],
+                                workspaceId: Option[WorkspaceId]
 ) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
@@ -55,6 +57,7 @@ object DiskStatus extends Enum[DiskStatus] {
   final case object Ready extends DiskStatus
   final case object Deleting extends DiskStatus
   final case object Deleted extends DiskStatus
+  final case object Error extends DiskStatus
 
   val activeStatuses: Set[DiskStatus] =
     Set(Creating, Restoring, Ready)
@@ -123,6 +126,10 @@ object FormattedBy extends Enum[FormattedBy] {
   final case object Cromwell extends FormattedBy {
     override def asString: String = "CROMWELL"
   }
+
+  final case object RStudio extends FormattedBy {
+    override def asString: String = "RSTUDIO"
+  }
 }
 
 final case class PvcId(asString: String) extends AnyVal
@@ -133,10 +140,13 @@ sealed trait AppRestore extends Product with Serializable {
 
 object AppRestore {
   // information needed for restoring a Galaxy app
-  final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
+  final case class GalaxyRestore(galaxyPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
 
   // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
   final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore
+
+  // information needed for reconnecting a disk used previously by RStudio app to another RStudio app
+  final case class RStudioRestore(lastUsedBy: AppId) extends AppRestore
 }
 
 final case class DiskLink(asString: String) extends AnyVal

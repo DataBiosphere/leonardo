@@ -43,16 +43,11 @@ import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 final case class HostContext(status: HostStatus, description: String)
 
-sealed trait SamResourceCacheKey extends Product with Serializable {
-  def googleProject: GoogleProject
-}
+sealed trait SamResourceCacheKey extends Product with Serializable {}
 object SamResourceCacheKey {
-  final case class RuntimeCacheKey(cloudContext: CloudContext, name: RuntimeName) extends SamResourceCacheKey {
-    override val googleProject: GoogleProject = GoogleProject(
-      cloudContext.asString
-    ) // TODO: remove this once AppCacheKey is also moved to use cloudContext
-  }
-  final case class AppCacheKey(googleProject: GoogleProject, name: AppName) extends SamResourceCacheKey
+  final case class RuntimeCacheKey(cloudContext: CloudContext, name: RuntimeName) extends SamResourceCacheKey {}
+  final case class AppCacheKey(cloudContext: CloudContext, name: AppName, workspaceId: Option[WorkspaceId])
+      extends SamResourceCacheKey
 }
 
 final case class ProxyHostNotReadyException(context: HostContext, traceId: TraceId)
@@ -96,7 +91,7 @@ class ProxyService(
   proxyResolver: ProxyResolver[IO],
   samDAO: SamDAO[IO],
   googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]]
+  samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])]
 )(implicit
   val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -120,6 +115,11 @@ class ProxyService(
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
           _ <-
             if (checkUserEnabled) for {
+              // TODO [IA-4131] this code seems to assume a non-enabled user will return an error or an empty response. However,
+              // HttpSamDAO::getSamUserInfo calls /register/user/v2/self/info which
+              // (per https://sam.dsde-dev.broadinstitute.org/#/Users/getUserStatusInfo)
+              // returns a JSON body with Boolean property `enabled`.
+              // See also SamAuthProvider::lookupOriginatingUserEmail which looks for `enabled` on the response.
               samUserInfo <- samDAO.getSamUserInfo(token)
               _ <- IO.fromOption(samUserInfo)(AuthenticationError(Some(userInfo.userEmail)))
             } yield ()
@@ -156,16 +156,52 @@ class ProxyService(
       }
     } yield res
 
-  private[leonardo] def getSamResourceFromDb(samResourceCacheKey: SamResourceCacheKey): IO[Option[String]] =
-    samResourceCacheKey match {
-      case RuntimeCacheKey(cloudContext, name) =>
-        clusterQuery.getActiveClusterInternalIdByName(cloudContext, name).map(_.map(_.resourceId)).transaction
-      case AppCacheKey(googleProject, name) =>
-        KubernetesServiceDbQueries
-          .getActiveFullAppByName(CloudContext.Gcp(googleProject), name) // TODO: support Azure
-          .map(_.map(_.app.samResourceId.resourceId))
-          .transaction
-    }
+  private[leonardo] def getSamResourceFromDb(
+    samResourceCacheKey: SamResourceCacheKey
+  ): IO[(Option[String], Option[AppAccessScope])] =
+    for {
+      resourceId <- samResourceCacheKey match {
+        case RuntimeCacheKey(cloudContext, name) =>
+          clusterQuery.getActiveClusterInternalIdByName(cloudContext, name).map(_.map(_.resourceId)).transaction
+        case AppCacheKey(cloudContext, name, workspaceId) =>
+          cloudContext match {
+            case CloudContext.Gcp(_) =>
+              KubernetesServiceDbQueries
+                .getActiveFullAppByName(cloudContext, name)
+                .map(_.map(_.app.samResourceId.resourceId))
+                .transaction
+            case CloudContext.Azure(_) =>
+              workspaceId match {
+                case Some(w) =>
+                  KubernetesServiceDbQueries
+                    .getActiveFullAppByWorkspaceIdAndAppName(w, name)
+                    .map(_.map(_.app.samResourceId.resourceId))
+                    .transaction
+                case None => IO(None)
+              }
+          }
+      }
+      appAccessScope <- samResourceCacheKey match {
+        case RuntimeCacheKey(_, _) => IO(None) // Runtimes do not have an AppAccessScope field
+        case AppCacheKey(cloudContext, name, workspaceId) =>
+          cloudContext match {
+            case CloudContext.Gcp(_) =>
+              KubernetesServiceDbQueries
+                .getActiveFullAppByName(cloudContext, name)
+                .map(_.map(_.app.appAccessScope))
+                .transaction
+            case CloudContext.Azure(_) =>
+              workspaceId match {
+                case Some(w) =>
+                  KubernetesServiceDbQueries
+                    .getActiveFullAppByWorkspaceIdAndAppName(w, name)
+                    .map(_.map(_.app.appAccessScope))
+                    .transaction
+                case None => IO(None)
+              }
+          }
+      }
+    } yield (resourceId, appAccessScope.flatten)
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(implicit
     ev: Ask[IO, AppContext]
@@ -175,7 +211,8 @@ class ProxyService(
       cacheResult <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )
-      resourceId = cacheResult.map(RuntimeSamResourceId)
+      cacheResourceId = cacheResult._1
+      resourceId = cacheResourceId.map(RuntimeSamResourceId)
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
@@ -197,13 +234,17 @@ class ProxyService(
       cacheResult <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )
-      resourceId = cacheResult.map(AppSamResourceId)
+
+      cacheSamResourceId = cacheResult._1
+      cacheAppAccessScope = cacheResult._2
+      resourceId = cacheSamResourceId.map(s => AppSamResourceId(s, cacheAppAccessScope))
+
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
           IO.raiseError(
             AppNotFoundException(
-              CloudContext.Gcp(key.googleProject),
+              key.cloudContext,
               key.name,
               ctx.traceId,
               s"Unable to look up sam resource for ${key.toString}"
@@ -215,11 +256,29 @@ class ProxyService(
   def invalidateAccessToken(token: String): IO[Unit] =
     googleTokenCache.remove(token)
 
-  def proxyRequest(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName, request: HttpRequest)(
-    implicit ev: Ask[IO, AppContext]
+  def proxyRequest(userInfo: UserInfo,
+                   cloudContext: CloudContext,
+                   runtimeName: RuntimeName,
+                   workspaceId: Option[WorkspaceId],
+                   request: HttpRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
+
+      hasWorkspacePermission <- workspaceId match {
+        case Some(wid) =>
+          authProvider
+            .isUserWorkspaceReader(
+              WorkspaceResourceSamResourceId(wid),
+              userInfo
+            )
+        case None => IO.pure(true)
+      }
+
+      _ <- IO.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(cloudContext, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission[RuntimeSamResourceId, RuntimeAction](
@@ -274,7 +333,7 @@ class ProxyService(
           IO.unit
         else
           jupyterDAO.createTerminal(googleProject, runtimeName)
-      r <- proxyRequest(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
+      r <- proxyRequest(userInfo, CloudContext.Gcp(googleProject), runtimeName, None, request)
       result = if (r.status.isSuccess()) "success" else "failure"
 
       tool = RuntimeContainerServiceType.values
@@ -289,8 +348,9 @@ class ProxyService(
     } yield r
 
   def proxyAppRequest(userInfo: UserInfo,
-                      googleProject: GoogleProject,
+                      cloudContext: CloudContext,
                       appName: AppName,
+                      workspaceId: Option[WorkspaceId],
                       serviceName: ServiceName,
                       request: HttpRequest
   )(implicit
@@ -298,7 +358,20 @@ class ProxyService(
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
-      samResource <- getCachedAppSamResource(AppCacheKey(googleProject, appName))
+
+      hasWorkspacePermission <- workspaceId match {
+        case Some(wid) =>
+          authProvider
+            .isUserWorkspaceReader(
+              WorkspaceResourceSamResourceId(wid),
+              userInfo
+            )
+        case None => IO.pure(true)
+      }
+
+      _ <- IO.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+      samResource <- getCachedAppSamResource(AppCacheKey(cloudContext, appName, workspaceId))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
                                                                                    AppAction.GetAppStatus,
@@ -307,7 +380,7 @@ class ProxyService(
       _ <-
         if (!hasViewPermission) {
           IO.raiseError(
-            AppNotFoundException(CloudContext.Gcp(googleProject), appName, ctx.traceId, "no view permission")
+            AppNotFoundException(cloudContext, appName, ctx.traceId, "no view permission")
           )
         } else IO.unit
       hasConnectPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
@@ -318,8 +391,8 @@ class ProxyService(
         if (!hasConnectPermission) {
           IO.raiseError(ForbiddenError(userInfo.userEmail))
         } else IO.unit
-      hostStatus <- getAppTargetHost(googleProject, appName)
-      hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
+      hostStatus <- getAppTargetHost(cloudContext, appName)
+      hostContext = HostContext(hostStatus, s"${cloudContext.asString}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
       appType <- appQuery.getAppType(appName).transaction
       result = if (r.status.isSuccess()) "success" else "failure"
@@ -332,8 +405,8 @@ class ProxyService(
   private[service] def getRuntimeTargetHost(cloudContext: CloudContext, runtimeName: RuntimeName): IO[HostStatus] =
     Proxy.getRuntimeTargetHost[IO](runtimeDnsCache, cloudContext, runtimeName)
 
-  private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
-    Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
+  private[service] def getAppTargetHost(cloudContext: CloudContext, appName: AppName): IO[HostStatus] =
+    Proxy.getAppTargetHost[IO](kubernetesDnsCache, cloudContext, appName)
 
   private def proxyInternal(hostContext: HostContext, request: HttpRequest)(implicit
     ev: Ask[IO, AppContext]

@@ -37,6 +37,8 @@ package object api {
   val runtimeNameSegmentWithValidation = Segment.map(x =>
     validateName(x).map(RuntimeName).getOrElse(throw BadRequestException(s"Invalid runtime name $x", None))
   )
+  val diskIdSegment = Segment.map(x => DiskId(x.toLong))
+
   val workspaceIdSegment = Segment.map { x =>
     val components: Array[String] = x.split("-")
     if (components.length != 5)

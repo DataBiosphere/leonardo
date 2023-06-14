@@ -17,7 +17,13 @@ import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.{AzureContainerService, AzureRelayService, AzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureApplicationInsightsService,
+  AzureBatchService,
+  AzureContainerService,
+  AzureRelayService,
+  AzureVmService
+}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{
   GoogleProjectDAO,
@@ -71,7 +77,7 @@ import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
 
-import java.net.InetSocketAddress
+import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -167,6 +173,14 @@ object Boot extends IOApp {
         googleDependencies.googleProjectDAO
       )
 
+      val diskV2Service = new DiskV2ServiceInterp[IO](
+        ConfigReader.appConfig.persistentDisk,
+        appDependencies.authProvider,
+        appDependencies.wsmDAO,
+        appDependencies.samDAO,
+        appDependencies.publisherQueue
+      )
+
       val leoKubernetesService: LeoAppServiceInterp[IO] =
         new LeoAppServiceInterp(
           appServiceConfig,
@@ -176,7 +190,8 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO
+          appDependencies.wsmDAO,
+          appDependencies.samDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -184,7 +199,8 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.wsmDAO,
         appDependencies.samDAO,
-        appDependencies.publisherQueue
+        appDependencies.publisherQueue,
+        appDependencies.dateAccessedUpdaterQueue
       )
 
       val httpRoutes = new HttpRoutes(
@@ -193,6 +209,7 @@ object Boot extends IOApp {
         proxyService,
         runtimeService,
         diskService,
+        diskV2Service,
         leoKubernetesService,
         azureService,
         StandardUserInfoDirectives,
@@ -204,10 +221,10 @@ object Boot extends IOApp {
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
           AppContext(TraceId(s"Boot_${start}"), start)
         )
-//       TODO: this will be needed once we support more environments.
-//        Disable for now since this causes fiab start to fail
-//        _ <- appDependencies.samDAO.registerLeo
-
+        // This only needs to happen once in each environment
+        _ <- appDependencies.samDAO.registerLeo.handleErrorWith { case e =>
+          logger.warn(e)("fail to register Leonardo SA")
+        }
         _ <-
           if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
             appDependencies.dataprocInterp.setupDataprocImageGoogleGroup
@@ -255,6 +272,24 @@ object Boot extends IOApp {
               appDependencies.asyncTasksQueue
             )
 
+          // LeoMetricsMonitor collects metrics from both runtimes and apps.
+          // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
+          // - appDAO, wdsDAO, cbasDAO, cbasUiDAO, cromwellDAO are for status checking apps.
+          implicit val clusterToolToToolDao =
+            ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
+                                         appDependencies.welderDAO,
+                                         appDependencies.rstudioDAO
+            )
+          val metricsMonitor = new LeoMetricsMonitor(
+            ConfigReader.appConfig.metrics,
+            appDependencies.appDAO,
+            appDependencies.wdsDAO,
+            appDependencies.cbasDAO,
+            appDependencies.cbasUiDAO,
+            appDependencies.cromwellDAO,
+            appDependencies.samDAO
+          )
+
           List(
             nonLeoMessageSubscriber.process,
             Stream.eval(appDependencies.nonLeoMessageGoogleSubscriber.start),
@@ -262,7 +297,8 @@ object Boot extends IOApp {
             appDependencies.pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
-            autopauseMonitor.process // check database to autopause runtimes periodically
+            autopauseMonitor.process, // check database to autopause runtimes periodically
+            metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }
 
@@ -352,9 +388,14 @@ object Boot extends IOApp {
       cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
         new HttpCbasDAO[F](client)
       )
+      cbasUiDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_ui_client"), false).map(
+        client => new HttpCbasUiDAO[F](client)
+      )
       wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
         new HttpWdsDAO[F](client)
       )
+      hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
+        .map(client => new HttpHailBatchDAO[F](client))
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -381,6 +422,14 @@ object Boot extends IOApp {
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
+        ConfigReader.appConfig.azure.appRegistration
+      )
+
+      azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
+        ConfigReader.appConfig.azure.appRegistration
+      )
+
+      azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
       )
       // Set up identity providers
@@ -424,11 +473,6 @@ object Boot extends IOApp {
         scopedCredential,
         semaphore,
         googleComputeRetryPolicy
-      )
-
-      googleDataprocRetryPolicy = RetryPredicates.retryConfigWithPredicates(
-        RetryPredicates.standardGoogleRetryPredicate,
-        RetryPredicates.whenStatusCode(400)
       )
 
       dataprocService <- GoogleDataprocService
@@ -490,12 +534,16 @@ object Boot extends IOApp {
         F.delay(CaffeineCache[F, String, (UserInfo, Instant)](underlyingGoogleTokenCache))
       )(_.close)
 
-      underlyingSamResourceCache = buildCache[SamResourceCacheKey, scalacache.Entry[Option[String]]](
+      underlyingSamResourceCache = buildCache[SamResourceCacheKey,
+                                              scalacache.Entry[(Option[String], Option[AppAccessScope])]
+      ](
         proxyConfig.internalIdCacheMaxSize,
         proxyConfig.internalIdCacheExpiryTime
       )
       samResourceCache <- Resource.make(
-        F.delay(CaffeineCache[F, SamResourceCacheKey, Option[String]](underlyingSamResourceCache))
+        F.delay(
+          CaffeineCache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])](underlyingSamResourceCache)
+        )
       )(s => s.close)
 
       underlyingOperationFutureCache = buildCache[Long, scalacache.Entry[OperationFuture[Operation, Operation]]](
@@ -585,6 +633,7 @@ object Boot extends IOApp {
 
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
+        bucketHelper,
         vpcInterp,
         googleDependencies.gkeService,
         kubeService,
@@ -602,32 +651,44 @@ object Boot extends IOApp {
         AKSInterpreterConfig(
           ConfigReader.appConfig.terraAppSetupChart,
           ConfigReader.appConfig.azure.coaAppConfig,
+          ConfigReader.appConfig.azure.wdsAppConfig,
+          ConfigReader.appConfig.azure.hailBatchAppConfig,
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
           ConfigReader.appConfig.azure.appRegistration,
           samConfig,
           appMonitorConfig,
           ConfigReader.appConfig.azure.wsm,
-          ConfigReader.appConfig.drs
+          ConfigReader.appConfig.drs,
+          applicationConfig.leoUrlBase,
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+          ConfigReader.appConfig.azure.tdr
         ),
         helmClient,
+        azureBatchService,
         azureContainerService,
+        azureApplicationInsightsService,
         azureRelay,
         samDao,
         cromwellDao,
         cbasDao,
-        wdsDao
+        cbasUiDao,
+        wdsDao,
+        hailBatchDao
       )
 
-      val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
-                                                     contentSecurityPolicy,
-                                                     asyncTasksQueue,
-                                                     wsmDao,
-                                                     samDao,
-                                                     welderDao,
-                                                     jupyterDao,
-                                                     azureRelay,
-                                                     azureVmService,
-                                                     aksAlg
+      val azureAlg = new AzurePubsubHandlerInterp[F](
+        ConfigReader.appConfig.azure.pubsubHandler,
+        applicationConfig,
+        contentSecurityPolicy,
+        asyncTasksQueue,
+        wsmDao,
+        samDao,
+        welderDao,
+        jupyterDao,
+        azureRelay,
+        azureVmService,
+        aksAlg,
+        refererConfig
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
@@ -636,6 +697,7 @@ object Boot extends IOApp {
         googleDependencies.googleComputeService,
         authProvider,
         googleDependencies.googleStorageService,
+        googleDependencies.googleDiskService,
         publisherQueue,
         gceInterp
       )
@@ -645,6 +707,7 @@ object Boot extends IOApp {
         googleDependencies.googleComputeService,
         authProvider,
         googleDependencies.googleStorageService,
+        googleDependencies.googleDiskService,
         dataprocInterp,
         googleDependencies.googleDataproc
       )
@@ -671,6 +734,8 @@ object Boot extends IOApp {
         samDao,
         dockerDao,
         jupyterDao,
+        rstudioDAO,
+        welderDao,
         wsmDao,
         serviceAccountProvider,
         authProvider,
@@ -689,7 +754,13 @@ object Boot extends IOApp {
         gkeAlg,
         dataprocInterp,
         oidcConfig,
-        aksAlg
+        aksAlg,
+        appDAO,
+        wdsDao,
+        cbasDao,
+        cbasUiDao,
+        cromwellDao,
+        hailBatchDao
       )
     }
 
@@ -712,7 +783,16 @@ object Boot extends IOApp {
     metricsPrefix: Option[String],
     withRetry: Boolean
   ): Resource[F, org.http4s.client.Client[F]] = {
-    val retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
+    // Retry all SocketExceptions to deal with pooled HTTP connections getting closed.
+    // See https://broadworkbench.atlassian.net/browse/IA-4069.
+    val retryPolicy = RetryPolicy[F](
+      RetryPolicy.exponentialBackoff(30 seconds, 5),
+      (req, result) =>
+        result match {
+          case Left(e) if e.isInstanceOf[SocketException] => true
+          case _                                          => RetryPolicy.defaultRetriable(req, result)
+        }
+    )
 
     for {
       httpClient <- client
@@ -722,13 +802,17 @@ object Boot extends IOApp {
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(dnsResolver)
+        .withConnectTimeout(30 seconds)
+        .withRequestTimeout(60 seconds)
+        .withMaxTotalConnections(100)
+        .withMaxIdleDuration(30 seconds)
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
       )
-      client = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
+      clientWithRetry = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
       finalClient <- metricsPrefix match {
-        case None => Resource.pure[F, org.http4s.client.Client[F]](client)
+        case None => Resource.pure[F, org.http4s.client.Client[F]](clientWithRetry)
         case Some(prefix) =>
           val classifierFunc = (r: Request[F]) => Some(r.method.toString.toLowerCase)
           for {
@@ -737,7 +821,7 @@ object Boot extends IOApp {
             meteredClient = Metrics[F](
               metricsOps,
               classifierFunc
-            )(httpClientWithLogging)
+            )(clientWithRetry)
           } yield meteredClient
       }
     } yield finalClient
@@ -771,6 +855,8 @@ final case class AppDependencies[F[_]](
   samDAO: HttpSamDAO[F],
   dockerDAO: HttpDockerDAO[F],
   jupyterDAO: HttpJupyterDAO[F],
+  rstudioDAO: HttpRStudioDAO[F],
+  welderDAO: HttpWelderDAO[F],
   wsmDAO: HttpWsmDao[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],
@@ -784,10 +870,16 @@ final case class AppDependencies[F[_]](
   proxyResolver: ProxyResolver[F],
   recordCacheMetrics: List[Stream[F, Unit]],
   googleTokenCache: scalacache.Cache[F, String, (UserInfo, Instant)],
-  samResourceCache: scalacache.Cache[F, SamResourceCacheKey, Option[String]],
+  samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   gkeAlg: GKEAlgebra[F],
   dataprocInterp: DataprocInterpreter[F],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
-  aksInterp: AKSAlgebra[F]
+  aksInterp: AKSAlgebra[F],
+  appDAO: AppDAO[F],
+  wdsDAO: WdsDAO[F],
+  cbasDAO: CbasDAO[F],
+  cbasUiDAO: CbasUiDAO[F],
+  cromwellDAO: CromwellDAO[F],
+  hailBatchDAO: HailBatchDAO[F]
 )

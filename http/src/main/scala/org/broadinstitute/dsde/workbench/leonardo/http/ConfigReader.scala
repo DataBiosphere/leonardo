@@ -2,13 +2,20 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.{CoaAppConfig, HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  CoaAppConfig,
+  HailBatchAppConfig,
+  HttpWsmDaoConfig,
+  PersistentDiskConfig,
+  WdsAppConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 
 object ConfigReader {
   lazy val appConfig =
@@ -22,7 +29,11 @@ final case class AzureConfig(
   wsm: HttpWsmDaoConfig,
   appRegistration: AzureAppRegistrationConfig,
   coaAppConfig: CoaAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig
+  wdsAppConfig: WdsAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  allowedSharedApps: List[String],
+  tdr: TdrConfig
 )
 
 final case class OidcAuthConfig(
@@ -41,6 +52,8 @@ final case class AadPodIdentityConfig(namespace: Namespace,
 
 final case class DrsConfig(url: String)
 
+final case class TdrConfig(url: String)
+
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
 final case class AppConfig(
@@ -48,5 +61,6 @@ final case class AppConfig(
   persistentDisk: PersistentDiskConfig,
   azure: AzureConfig,
   oidc: OidcAuthConfig,
-  drs: DrsConfig
+  drs: DrsConfig,
+  metrics: LeoMetricsMonitorConfig
 )

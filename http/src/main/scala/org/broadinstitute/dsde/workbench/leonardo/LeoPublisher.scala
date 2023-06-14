@@ -89,6 +89,8 @@ final class LeoPublisher[F[_]](
           persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Creating, now).transaction
         case m: LeoPubsubMessage.DeleteDiskMessage =>
           persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Deleting, now).transaction
+        case m: LeoPubsubMessage.DeleteDiskV2Message =>
+          persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Deleting, now).transaction
         case m: LeoPubsubMessage.StopRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Stopping, now).transaction
         case m: LeoPubsubMessage.StartRuntimeMessage =>

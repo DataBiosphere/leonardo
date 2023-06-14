@@ -69,4 +69,42 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
+
+  it should "update runtime" in isolatedDbTest {
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion
+      )
+      runtime1 = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      runtime2 = makeCluster(2)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      _ <- controlledResourceQuery
+        .save(runtime1.id, resourceId, WsmResourceType.AzureDisk)
+        .transaction
+
+      _ <- controlledResourceQuery.updateRuntime(resourceId, WsmResourceType.AzureDisk, runtime2.id).transaction
+
+      controlledResources <- controlledResourceQuery.getAllForRuntime(runtime2.id).transaction
+      controlledStorageContainerResource <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtime2.id, WsmResourceType.AzureDisk)
+        .transaction
+    } yield {
+      controlledResources.length shouldBe 1
+      controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureDisk)
+      controlledStorageContainerResource.isDefined shouldBe true
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
 }

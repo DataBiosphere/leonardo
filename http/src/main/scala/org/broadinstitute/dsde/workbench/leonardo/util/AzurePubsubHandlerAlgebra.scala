@@ -2,12 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage
+  DeleteAzureRuntimeMessage,
+  DeleteDiskV2Message
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
@@ -36,6 +37,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
+
+  def deleteDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def createAndPollApp(appId: AppId,
                        appName: AppName,
@@ -75,10 +78,13 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 
 final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtime: Runtime,
-                                          relayeNamespace: RelayNamespace,
                                           storageContainerResourceId: WsmControlledResourceId,
+                                          landingZoneResources: LandingZoneResources,
                                           runtimeConfig: RuntimeConfig.AzureConfig,
-                                          vmImage: AzureImage
+                                          vmImage: AzureImage,
+                                          useExistingDisk: Boolean,
+                                          workspaceName: String,
+                                          storageContainerName: ContainerName
 )
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
@@ -87,7 +93,8 @@ final case class StartAzureRuntimeParams(runtime: Runtime, runtimeConfig: Runtim
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
                                    jobId: WsmJobId,
-                                   relayNamespace: RelayNamespace
+                                   relayNamespace: RelayNamespace,
+                                   useExistingDisk: Boolean
 )
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
@@ -96,6 +103,7 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           welderImageHash: String,
                                           createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
+                                          deleteDiskPollConfig: PollMonitorConfig,
                                           runtimeDefaults: AzureRuntimeDefaults
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"

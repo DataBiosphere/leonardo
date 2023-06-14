@@ -8,7 +8,9 @@ import _root_.io.circe.syntax._
 import io.circe.Printer
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
+  ApplicationInsightsName,
   AzureCloudContext,
+  BatchAccountName,
   ContainerName,
   ManagedResourceGroupName,
   RelayNamespace,
@@ -57,7 +59,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                     zone = ZoneName("us-central1-a"),
                                                     None
       ),
-      None
+      None,
+      Some(1)
     )
 
     val res = decode[CreateRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
@@ -87,6 +90,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                           zone = ZoneName("us-central1-a"),
                                                           None
       ),
+      None,
       None
     )
 
@@ -135,9 +139,12 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val originalMessage =
       CreateAzureRuntimeMessage(1,
                                 WorkspaceId(UUID.randomUUID()),
-                                RelayNamespace("relay-ns"),
                                 storageContainerResourceId,
-                                None
+                                landingZoneResources,
+                                false,
+                                None,
+                                "WorkspaceName",
+                                ContainerName("dummy")
       )
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
@@ -146,17 +153,16 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   val landingZoneResources = LandingZoneResources(
+    UUID.randomUUID(),
     AKSClusterName("cluster-name"),
     BatchAccountName("batch-account"),
     RelayNamespace("relay-ns"),
     StorageAccountName("storage-account"),
     NetworkName("vnet"),
-    PostgresName("pg"),
-    LogAnalyticsWorkspaceName("logs"),
     SubnetworkName("batch-subnet"),
     SubnetworkName("aks-subnet"),
-    SubnetworkName("pg-subnet"),
-    SubnetworkName("compute-subnet")
+    com.azure.core.management.Region.US_EAST,
+    ApplicationInsightsName("lzappinsights")
   )
 
   it should "encode/decode LandingZoneResources properly" in {

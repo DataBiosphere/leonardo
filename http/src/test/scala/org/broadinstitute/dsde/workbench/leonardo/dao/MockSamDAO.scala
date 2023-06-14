@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -71,7 +72,13 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
       case SamResourceType.App =>
         val res = apps
-          .get((AppSamResourceId(resource), authHeader))
+          .get((AppSamResourceId(resource, None), authHeader))
+          .map(_.map(_.asString).contains(action))
+          .getOrElse(false)
+        IO.pure(res)
+      case SamResourceType.SharedApp =>
+        val res = apps
+          .get((AppSamResourceId(resource, Some(AppAccessScope.WorkspaceShared)), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
@@ -89,12 +96,12 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
     }
 
-  override def getResourcePolicies[R](authHeader: Authorization)(implicit
+  override def getResourcePolicies[R](authHeader: Authorization, resourceType: SamResourceType)(implicit
     sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[IO, TraceId]
   ): IO[List[(R, SamPolicyName)]] =
-    sr.resourceType match {
+    resourceType match {
       case SamResourceType.Runtime =>
         IO.pure(
           runtimeCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
@@ -106,6 +113,8 @@ class MockSamDAO extends SamDAO[IO] {
       case SamResourceType.PersistentDisk =>
         IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
       case SamResourceType.App =>
+        IO.pure(appCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
+      case SamResourceType.SharedApp =>
         IO.pure(appCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
       case SamResourceType.Workspace =>
         IO.pure(
@@ -159,8 +168,10 @@ class MockSamDAO extends SamDAO[IO] {
     }
   }
 
-  override def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit
+  override def createResourceWithGoogleProjectParent[R](resource: R,
+                                                        creatorEmail: WorkbenchEmail,
+                                                        googleProject: GoogleProject
+  )(implicit
     sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[IO, TraceId]
@@ -208,6 +219,73 @@ class MockSamDAO extends SamDAO[IO] {
     }
   }
 
+  override def createResourceWithWorkspaceParent[R](resource: R,
+                                                    creatorEmail: WorkbenchEmail,
+                                                    userInfo: UserInfo,
+                                                    workspaceId: WorkspaceId
+  )(implicit
+    sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = {
+    val authHeader = userEmailToAuthorization(creatorEmail)
+    val projectOwnerAuthHeader = userEmailToAuthorization(projectOwnerEmail)
+    val workspaceOwnerAuthHeader = userEmailToAuthorization(workspaceOwnerEmail)
+    resource match {
+      case r: RuntimeSamResourceId =>
+        IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
+          IO {
+            runtimeCreators = runtimeCreators |+| Map(
+              authHeader -> Set(
+                (r, SamPolicyName.Creator)
+              )
+            )
+          }.void
+      case r: PersistentDiskSamResourceId =>
+        IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
+          IO {
+            diskCreators = diskCreators |+| Map(
+              authHeader -> Set(
+                (r, SamPolicyName.Creator)
+              )
+            )
+          }.void
+      case r: ProjectSamResourceId =>
+        IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >> IO {
+          projectOwners = projectOwners |+| Map(
+            authHeader -> Set(
+              (r, SamPolicyName.Owner)
+            )
+          )
+        }.void
+      case r: AppSamResourceId =>
+        r.resourceType match {
+          case SamResourceType.App =>
+            IO(
+              apps ++=
+                Map((r, authHeader) -> AppAction.allActions, (r, projectOwnerAuthHeader) -> appManagerActions)
+            ) >>
+              IO {
+                appCreators = appCreators |+| Map(
+                  authHeader -> Set((r, SamPolicyName.Creator)),
+                  projectOwnerAuthHeader -> Set((r, SamPolicyName.Manager))
+                )
+              }.void
+          case _ =>
+            IO(
+              apps ++=
+                Map((r, authHeader) -> AppAction.allActions, (r, workspaceOwnerAuthHeader) -> appManagerActions)
+            ) >>
+              IO {
+                appCreators = appCreators |+| Map(
+                  authHeader -> Set((r, SamPolicyName.Owner)),
+                  workspaceOwnerAuthHeader -> Set((r, SamPolicyName.User))
+                )
+              }.void
+        }
+    }
+  }
+
   override def deleteResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit
     sr: SamResource[R],
@@ -251,7 +329,7 @@ class MockSamDAO extends SamDAO[IO] {
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[List[A]] =
-    sr.resourceType match {
+    sr.resourceType(resource) match {
       case SamResourceType.Project =>
         val res = billingProjects
           .get((resource.asInstanceOf[ProjectSamResourceId], authHeader))
@@ -274,6 +352,13 @@ class MockSamDAO extends SamDAO[IO] {
           .asInstanceOf[List[A]]
         IO.pure(res)
       case SamResourceType.App =>
+        val res = apps
+          .get((resource.asInstanceOf[AppSamResourceId], authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .asInstanceOf[List[A]]
+        IO.pure(res)
+      case SamResourceType.SharedApp =>
         val res = apps
           .get((resource.asInstanceOf[AppSamResourceId], authHeader))
           .map(_.toList)
@@ -304,7 +389,12 @@ class MockSamDAO extends SamDAO[IO] {
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
 
   override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
-    IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
+    if (token == OAuth2BearerToken(s"TokenFor${MockSamDAO.disabledUserEmail}").token)
+      IO.pure(
+        Some(SamUserInfo(UserSubjectId("test-disabled"), WorkbenchEmail("test-disabled@gmail.com"), enabled = false))
+      )
+    else
+      IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
 
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
@@ -329,12 +419,19 @@ class MockSamDAO extends SamDAO[IO] {
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = ???
+
+  /** Returns all roles for the user for a given resource.  */
+  override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Set[SamRole]] = ???
 }
 
 object MockSamDAO {
   val petSA = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val petMI = WorkbenchEmail("/subscriptions/foo/resourceGroups/bar/userAssignedManagedIdentities/pet-1234")
+  val disabledUserEmail = WorkbenchEmail("disabled-user@test.org")
   val projectOwnerEmail = WorkbenchEmail("project-owner@test.org")
+  val workspaceOwnerEmail = WorkbenchEmail("workspace-owner@test.org")
   val appManagerActions = Set(AppAction.GetAppStatus, AppAction.DeleteApp)
   def userEmailToAuthorization(workbenchEmail: WorkbenchEmail): Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${workbenchEmail}"))

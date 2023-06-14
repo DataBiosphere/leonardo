@@ -24,6 +24,7 @@ final case class AppRecord(id: AppId,
                            nodepoolId: NodepoolLeoId,
                            appType: AppType,
                            appName: AppName,
+                           appAccessScope: Option[AppAccessScope],
                            workspaceId: Option[WorkspaceId],
                            status: AppStatus,
                            chart: Chart,
@@ -39,7 +40,8 @@ final case class AppRecord(id: AppId,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
                            descriptorPath: Option[Uri],
-                           extraArgs: Option[List[String]]
+                           extraArgs: Option[List[String]],
+                           sourceWorkspaceId: Option[WorkspaceId]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -48,6 +50,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def nodepoolId = column[NodepoolLeoId]("nodepoolId")
   def appType = column[AppType]("appType", O.Length(254))
   def appName = column[AppName]("appName", O.Length(254))
+  def appAccessScope = column[Option[AppAccessScope]]("appAccessScope", O.Length(254))
   def workspaceId = column[Option[WorkspaceId]]("workspaceId", O.Length(254))
   def status = column[AppStatus]("status", O.Length(254))
   def chart = column[Chart]("chart", O.Length(254))
@@ -64,13 +67,14 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
   def descriptorPath = column[Option[Uri]]("descriptorPath", O.Length(1024))
   def extraArgs = column[Option[List[String]]]("extraArgs")
-
+  def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
   def * =
     (
       id,
       nodepoolId,
       appType,
       appName,
+      appAccessScope,
       workspaceId,
       status,
       chart,
@@ -86,7 +90,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       diskId,
       customEnvironmentVariables,
       descriptorPath,
-      extraArgs
+      extraArgs,
+      sourceWorkspaceId
     ) <> (AppRecord.tupled, AppRecord.unapply)
 }
 
@@ -103,11 +108,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.nodepoolId,
       app.appType,
       app.appName,
+      app.appAccessScope,
       app.workspaceId,
       app.status,
       app.chart,
       app.release,
-      app.samResourceId,
+      AppSamResourceId(app.samResourceId.resourceId, app.appAccessScope),
       app.googleServiceAccount,
       AuditInfo(
         app.creator,
@@ -125,7 +131,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       errors,
       app.customEnvironmentVariables.getOrElse(Map.empty),
       app.descriptorPath,
-      app.extraArgs.getOrElse(List.empty)
+      app.extraArgs.getOrElse(List.empty),
+      app.sourceWorkspaceId
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -184,6 +191,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.nodepoolId,
         saveApp.app.appType,
         saveApp.app.appName,
+        saveApp.app.appAccessScope,
         saveApp.app.workspaceId,
         saveApp.app.status,
         saveApp.app.chart,
@@ -199,7 +207,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,
-        if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs)
+        if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
+        saveApp.app.sourceWorkspaceId
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
@@ -287,6 +296,15 @@ object appQuery extends TableQuery(new AppTable(_)) {
       case Some(wid) => query.filter(_.workspaceId === wid)
       case None      => query
     }
+
+  private[db] def filterByCreator(query: Query[AppTable, AppRecord, Seq],
+                                  creatorOnly: Option[WorkbenchEmail]
+  ): Query[AppTable, AppRecord, Seq] =
+    creatorOnly match {
+      case Some(email) => query.filter(_.creator === email)
+      case None        => query
+    }
+
 }
 
 case class SaveApp(app: App)

@@ -72,7 +72,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       _ <- IO {
         Orchestration.billingV2.createBillingProject(
           billingProjectName,
-          billingAccount = ServiceTestConfig.Projects.billingAccountId
+          billingInformation = Left(ServiceTestConfig.Projects.billingAccountId)
         )(hermioneAuthToken)
       }
 
@@ -262,7 +262,6 @@ final class LeonardoSuite
 final class LeonardoTerraDockerSuite
     extends Suites(
       new NotebookAouSpec,
-      new NotebookBioconductorKernelSpec,
       new NotebookGATKSpec,
       new NotebookHailSpec,
       new NotebookPyKernelSpec,

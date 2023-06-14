@@ -73,9 +73,9 @@ export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 GPU_ENABLED=$(gpuEnabled)
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  export IS_RSTUDIO_RUNTIME="true"
+  export SHOULD_BACKGROUND_SYNC="true"
 else
-  export IS_RSTUDIO_RUNTIME="false"
+  export SHOULD_BACKGROUND_SYNC="false"
 fi
 
 # Overwrite old cert on restart
@@ -102,8 +102,8 @@ if [ -f "$FILE" ]
 then
     CERT_DIRECTORY='/var/certs'
     DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
-    GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20201104-00 gsutil'
-    GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20201104-00 gcloud'
+    GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gsutil'
+    GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gcloud'
     DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
     JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
@@ -180,7 +180,7 @@ WELDER_SERVER_NAME=${WELDER_SERVER_NAME}
 WELDER_DOCKER_IMAGE=${WELDER_DOCKER_IMAGE}
 STAGING_BUCKET=${STAGING_BUCKET}
 WELDER_MEM_LIMIT=${WELDER_MEM_LIMIT}
-IS_RSTUDIO_RUNTIME=${IS_RSTUDIO_RUNTIME}
+SHOULD_BACKGROUND_SYNC=${SHOULD_BACKGROUND_SYNC}
 END
 
         ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop

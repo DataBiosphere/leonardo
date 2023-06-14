@@ -1,0 +1,118 @@
+name: Custom Image Generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-dataproc-override:
+        description: 'Set this to `true` to run dataproc image generation script.'
+        required: false
+        default: false
+        type: boolean
+      run-gce-override:
+        description: 'Set this to `true` to run gce image generation script.'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  GOOGLE_PROJECT: broad-dsp-gcr-public
+  GOOGLE_CREDENTIAL_FILE_NAME: application_default_credentials.json
+  REGION: us-central1
+  ZONE: us-central1-a
+
+jobs:
+  run-image-generation-script-gce:
+    runs-on: self-hosted
+    if:  ${{ inputs.run-gce-override }} # [DEBUG COMMENT]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    env:
+      GCE_IMAGE_BUCKET: gs://leo-gce-image-creation-logs
+      DAISY_IMAGE: gcr.io/compute-image-tools/daisy:release
+      GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
+      OUTPUT_FILE_RELATIVE_PATH: jenkins/gce-custom-images/output.txt
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - id: 'auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        # Centralized in dsp-tools-k8s; ask in #dsp-devops-champions for help troubleshooting
+        workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
+        service_account: 'image-build-account@broad-dsp-gcr-public.iam.gserviceaccount.com'
+
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v1'
+
+    - name: Create svc acct file
+      run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
+      shell: bash
+      env:
+        GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
+
+    - name: Setup for script
+      run: |
+        gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
+        docker pull $DAISY_IMAGE
+
+    - name: Run image generation script
+      shell: bash
+      run: |
+         OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" GCE_IMAGE_BUCKET=$GCE_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/gce-custom-images/create_gce_image.sh
+         gsutil rm -r $GCE_IMAGE_BUCKET || true
+
+    - name: Output image URI
+      run: |
+        cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH
+        echo "`cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH` > $GITHUB_STEP_SUMMARY"
+
+  run-image-generate-script-dataproc:
+    runs-on: ubuntu-latest
+    if:  ${{ inputs.run-dataproc-override }} # [DEBUG COMMENT]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    env:
+      GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
+      OUTPUT_FILE_RELATIVE_PATH: jenkins/dataproc-custom-images/output.txt
+      DATAPROC_IMAGE_BUCKET: gs://leo-dataproc-image-creation-logs
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          # Centralized in dsp-tools-k8s; ask in #dsp-devops-champions for help troubleshooting
+          workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
+          service_account: 'image-build-account@broad-dsp-gcr-public.iam.gserviceaccount.com'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
+
+      - name: Create svc acct file
+        run: 'echo "$GCP_DAISY_GCR_KEY" | base64 -d > "$GITHUB_WORKSPACE/jenkins/dataproc-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME"'
+        shell: bash
+        env:
+          GCP_DAISY_GCR_KEY: ${{secrets.GCP_DAISY_GCR_KEY}}
+
+      - name: Init submodule
+        run: |
+          git submodule sync
+          git submodule update --init --recursive
+
+      - name: Run image generation script
+        shell: bash
+        run: |
+          gsutil ls $DATAPROC_IMAGE_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$DATAPROC_IMAGE_BUCKET"
+          OUTPUT_FILE_PATH="$GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH" DATAPROC_IMAGE_BUCKET=$DATAPROC_IMAGE_BUCKET $GITHUB_WORKSPACE/jenkins/dataproc-custom-images/create_dataproc_image.sh
+          gsutil rm -r $DATAPROC_IMAGE_BUCKET || true
+
+      - name: Output image URI
+        run: |
+          cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH
+          echo "`cat $GITHUB_WORKSPACE/$OUTPUT_FILE_RELATIVE_PATH` > $GITHUB_STEP_SUMMARY"

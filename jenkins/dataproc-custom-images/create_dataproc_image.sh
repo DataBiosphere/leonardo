@@ -18,28 +18,33 @@ WORK_DIR=`pwd`/jenkins/dataproc-custom-images/dataproc-custom-images
 GOOGLE_PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
 ZONE="${REGION}-a"
-TEST_BUCKET='gs://dataproc_custom_image_test'
 
-gsutil ls $TEST_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$TEST_BUCKET"
+if [ -z "$DATAPROC_IMAGE_BUCKET" ]; then
+  DATAPROC_IMAGE_BUCKET="gs://leo-dataproc-image-creation-logs"
+fi
+TEST_BUCKET="gs://leo-dataproc-image-creation-logs"
 
 pushd $WORK_DIR
 
-customDataprocImageBaseName="test"
-dp_version_formatted="2-0-51-debian10"
+DATAPROC_BASE_NAME="leo-dataproc-image"
+DP_VERSION_FORMATTED="2-0-51-debian10"
 # This needs to be unique for each run
-imageID=$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
+IMAGE_ID=$(date +"%Y-%m-%d-%H-%M-%S")
+OUTPUT_IMAGE_NAME="$DATAPROC_BASE_NAME-$DP_VERSION_FORMATTED-$IMAGE_ID"
 
 gcloud config set dataproc/region us-central1
 
 python generate_custom_image.py \
-    --image-name "$customDataprocImageBaseName-$dp_version_formatted-$imageID" \
+    --image-name "$OUTPUT_IMAGE_NAME" \
     --dataproc-version "2.0.51-debian10" \
     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
     --zone $ZONE \
-    --gcs-bucket $TEST_BUCKET \
+    --gcs-bucket $DATAPROC_IMAGE_BUCKET \
     --project-id=$GOOGLE_PROJECT \
     --disk-size=120
 
-popd
+if ! [ -z "$OUTPUT_FILE_PATH" ]; then
+  echo "projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME" > $OUTPUT_FILE_PATH
+fi
 
-gsutil rm -r $TEST_BUCKET
+popd

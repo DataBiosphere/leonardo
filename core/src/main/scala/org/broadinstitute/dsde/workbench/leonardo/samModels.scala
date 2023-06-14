@@ -6,26 +6,40 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait SamResourceId {
   def resourceId: String
+  def resourceType: SamResourceType
   def asString: String = resourceId
 }
 
 object SamResourceId {
-  final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId
+  final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId {
+    override def resourceType: SamResourceType = SamResourceType.Runtime
+  }
 
-  final case class PersistentDiskSamResourceId(resourceId: String) extends SamResourceId
+  final case class PersistentDiskSamResourceId(resourceId: String) extends SamResourceId {
+    override def resourceType: SamResourceType = SamResourceType.PersistentDisk
+  }
 
   final case class ProjectSamResourceId(googleProject: GoogleProject) extends SamResourceId {
     override def resourceId: String = googleProject.value
+    override def resourceType: SamResourceType = SamResourceType.Project
   }
 
-  final case class AppSamResourceId(resourceId: String) extends SamResourceId
+  final case class AppSamResourceId(resourceId: String, accessScope: Option[AppAccessScope]) extends SamResourceId {
+    override def resourceType: SamResourceType = accessScope match {
+      case Some(AppAccessScope.UserPrivate)     => SamResourceType.App
+      case Some(AppAccessScope.WorkspaceShared) => SamResourceType.SharedApp
+      case None                                 => SamResourceType.App
+    }
+  }
 
   final case class WorkspaceResourceSamResourceId(workspaceId: WorkspaceId) extends SamResourceId {
     override def resourceId: String = workspaceId.value.toString
+    override def resourceType: SamResourceType = SamResourceType.Workspace
   }
 
   final case class WsmResourceSamResourceId(controlledResourceId: WsmControlledResourceId) extends SamResourceId {
     override def resourceId: String = controlledResourceId.value.toString
+    override def resourceType: SamResourceType = SamResourceType.WsmResource
   }
 }
 
@@ -44,6 +58,9 @@ object SamResourceType {
   }
   final case object App extends SamResourceType {
     val asString = "kubernetes-app"
+  }
+  final case object SharedApp extends SamResourceType {
+    val asString = "kubernetes-app-shared"
   }
   final case object Workspace extends SamResourceType {
     val asString = "workspace"
@@ -229,6 +246,9 @@ object SamRole {
   final case object Manager extends SamRole {
     val asString = "manager"
   }
+  final case object Owner extends SamRole {
+    val asString = "owner"
+  }
   final case class Other(asString: String) extends SamRole
   val stringToRole = sealerate.collect[SamRole].map(p => (p.asString, p)).toMap
 }
@@ -238,11 +258,17 @@ object SamPolicyName {
   final case object Creator extends SamPolicyName {
     override def toString = "creator"
   }
+  final case object Writer extends SamPolicyName {
+    override def toString = "writer"
+  }
   final case object Owner extends SamPolicyName {
     override def toString = "owner"
   }
   final case object Manager extends SamPolicyName {
     override def toString = "manager"
+  }
+  final case object User extends SamPolicyName {
+    override def toString = "user"
   }
   final case class Other(asString: String) extends SamPolicyName {
     override def toString = asString
@@ -253,3 +279,17 @@ object SamPolicyName {
 
 final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
 final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])
+
+sealed abstract class AppAccessScope
+object AppAccessScope {
+  case object UserPrivate extends AppAccessScope {
+    override def toString: String = "USER_PRIVATE"
+  }
+  case object WorkspaceShared extends AppAccessScope {
+    override def toString: String = "WORKSPACE_SHARED"
+  }
+
+  def values: Set[AppAccessScope] = sealerate.values[AppAccessScope]
+
+  def stringToObject: Map[String, AppAccessScope] = values.map(v => v.toString -> v).toMap
+}

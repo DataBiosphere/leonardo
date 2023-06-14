@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.concurrent.ScalaFutures
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -357,5 +358,28 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     } yield deletedFrom shouldBe Some("zombieMonitor")
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "get cluster from diskId" in isolatedDbTest {
+    val res = for {
+      savedDisk <- makePersistentDisk(None).save()
+      savedRuntime1 <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                    savedDisk.id,
+                                    azureRegion
+          )
+        )
+      )
+      savedRuntime2 <- IO(
+        makeCluster(2).saveWithRuntimeConfig(
+          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                    savedDisk.id,
+                                    azureRegion
+          )
+        )
+      )
+      retrievedRuntime <- clusterQuery.getClusterWithDiskId(savedDisk.id).transaction
+    } yield retrievedRuntime shouldBe savedRuntime2
   }
 }

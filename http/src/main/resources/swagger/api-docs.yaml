@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "1.3.5"
+  version: "1.3.6"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -25,10 +25,6 @@ tags:
   - name: service_info
     description: Service Info API
 security:
-  - googleoauth:
-      - openid
-      - email
-      - profile
   - oidc:
       - openid
       - email
@@ -710,6 +706,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/runtimes/{workspaceId}/{name}/updateDateAccessed":
+    patch:
+      summary: Update the date accessed of a runtime.
+      description: >
+        This API is used in conjunction with v2 runtime's autopause functionality. Since Azure runtimes are not proxied to Leonardo, the relay must send a 'keep-alive'
+        message of sorts. If no requests are received after a period of time, the runtime will be stopped.
+        Each request to this API does not result in the runtime's date accessed being updated. An async process is responsible for batching them and executing updates.
+      operationId: updateDateAccessed
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Runtime update date accessed request accepted
+        "403":
+          description: User does not have permission to perform action on runtime
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
   "/api/v2/runtimes/{workspaceId}/azure/{name}":
     get:
       summary: Get details of an azure runtime
@@ -774,6 +810,14 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: useExistingDisk
+          description: Defaults to false. If true ignores disk request and creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found.
+          required: false
+          schema:
+            type: boolean
+            default: false
+
       requestBody:
         $ref: "#/components/requestBodies/CreateAzureRuntimeRequest"
       responses:
@@ -820,6 +864,13 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not disk should be deleted upon runtime deletion. Defaults to true if not specified
+          required: false
+          schema:
+            type: boolean
+            default: true
       responses:
         "202":
           description: Runtime deletion request accepted
@@ -827,6 +878,45 @@ paths:
           description: User does not have permission to perform action on runtime
         "404":
           description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
+  "/api/v2/runtimes/{workspaceId}/deleteAll":
+    post:
+      summary: Deletes ALL runtimes associated with the given workspace Id
+      description: deletes all runtimes in a workspace
+      operationId: deleteAllRuntimesV2
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: Runtime(s) deletion request accepted
+        "403":
+          description: User does not have permission to perform action on runtime(s)
+        "404":
+          description: Runtime(s) not found
           content:
             application/json:
               schema:
@@ -873,6 +963,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -937,6 +1033,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each persistent disk in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes persistent disks you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -1128,6 +1230,74 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  "/api/v2/disks/{id}":
+    get:
+      summary: Get details of a persistent disk
+      description: >
+        Returns information about an existing persistent disk managed by Leo.
+        Poll this to find out your disk status.
+      operationId: getDiskV2
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: id
+          description: diskId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Persistent disk found, here are the details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetPersistentDiskV2Response"
+        "403":
+          description: User does not have permission to perform action on disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+    delete:
+      summary: Deletes an existing persistent disk instance
+      description: Deletes a persistent disk
+      operationId: deleteDiskV2
+      tags:
+        - disks
+      parameters:
+        - in: path
+          name: id
+          description: diskId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "202":
+          description: Persistent disk deletion request accepted
+        "403":
+          description: User does not have permission to perform action on persistent disk
+        "404":
+          description: Persistent disk not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Kubernetes App API ##
   "/api/google/v1/apps":
     get:
@@ -1162,6 +1332,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each app in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -1225,6 +1401,12 @@ paths:
             Optional label keys of the labels returned in response. Example:
             Querying by key1,key2,key3
             returns all labels key1/val1 key2/val2 and key3 and val3 for each app in response
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
           required: false
           schema:
             type: string
@@ -1494,7 +1676,7 @@ paths:
           schema:
             type: string
       requestBody:
-        $ref: "#/components/requestBodies/CreateAppRequest"
+        $ref: "#/components/requestBodies/CreateAppV2Request"
       responses:
         "202":
           description: App creation request has been received
@@ -1656,6 +1838,45 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ListAppResponse"
+
+  "/api/apps/v2/{workspaceId}/deleteAll":
+    post:
+      summary: Deletes ALL apps associated with the given workspace Id
+      description: deletes all Apps in a workspace
+      operationId: deleteAllAppsV2
+      tags:
+        - appsV2
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: App(s) deletion request accepted
+        "403":
+          description: User does not have permission to perform action on App(s)
+        "404":
+          description: App(s) not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
 
   ## Deprecated Notebook API ##
 
@@ -2553,6 +2774,13 @@ components:
             diskConfig:
               name: "disk1"
             appType: "GALAXY"
+    CreateAppV2Request:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateAppRequest"
+          example:
+            appType: "CROMWELL"
     CreateAzureRuntimeRequest:
       content:
         application/json:
@@ -2560,20 +2788,10 @@ components:
             $ref: "#/components/schemas/CreateAzureRuntimeRequest"
           example:
             labels: { saturnRuntimeName: "saturn-ab9134" }
-            region: "eastus"
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
 
   securitySchemes:
-    googleoauth:
-      type: oauth2
-      flows:
-        implicit:
-          authorizationUrl: https://accounts.google.com/o/oauth2/auth
-          scopes:
-            openid: open id authorization
-            email: email authorization
-            profile: profile authorization
     oidc:
       type: oauth2
       flows:
@@ -2591,17 +2809,26 @@ components:
         - CROMWELL
         - CUSTOM
         - GALAXY
+        - WDS
+        - HAIL_BATCH
+        - RSTUDIO
     AppStatus:
       type: string
       enum:
-        - DELETING
         - DELETED
+        - DELETING
         - ERROR
         - PROVISIONING
         - RUNNING
+        - STARTING
         - STATUS_UNSPECIFIED
         - STOPPED
         - STOPPING
+    AppAccessScope:
+      type: string
+      enum:
+        - USER_PRIVATE
+        - WORKSPACE_SHARED
     DiskType:
       type: string
       enum:
@@ -2721,8 +2948,7 @@ components:
           type: string
           description: Deprecated. The Google Project used to create the runtime
         cloudContext:
-          type: string
-          description: Google project this app is associated with if the app is created in GCP; Azure's tenantId/subscriptionId/managedResourceGroupId if the app is created in Azure
+          $ref: '#/components/schemas/CloudContext'
         serviceAccount:
           type: string
           description: The Google Service Account used to create the runtime
@@ -2822,14 +3048,14 @@ components:
           type: string
           description: The user-supplied name for the runtime
         auditInfo:
-          type: object
-          $ref: "#/components/schemas/AuditInfo"
+          allOf:
+          - $ref: "#/components/schemas/AuditInfo"
+          - type: object
         googleProject:
           type: string
           description: Deprecated. The Google Project used to create the runtime
         cloudContext:
-          type: string
-          description: Google project this app is associated with if the app is created in GCP; Azure's tenantId/subscriptionId/managedResourceGroupId if the app is created in Azure
+          $ref: '#/components/schemas/CloudContext'
         runtimeConfig:
           $ref: "#/components/schemas/OneOfRuntimeConfig"
         proxyUrl:
@@ -2847,7 +3073,7 @@ components:
       description: ""
       required:
         - id
-        - googleProject
+        - cloudContext
         - zone
         - name
         - status
@@ -2860,9 +3086,8 @@ components:
         id:
           type: integer
           description: Internal Leonardo ID of the persistent disk
-        googleProject:
-          type: string
-          description: The google project used to create the persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
         zone:
           type: string
           description: The google zone in which the persistent disk was created
@@ -2889,10 +3114,10 @@ components:
       description: ""
       required:
         - id
-        - googleProject
+        - cloudContext
         - zone
         - name
-        - googleId
+        - serviceAccount
         - samResourceId
         - status
         - auditInfo
@@ -2900,22 +3125,22 @@ components:
         - diskType
         - blockSize
         - labels
+        - formattedBy
       properties:
         id:
           type: integer
-          description: Internal Leonardo ID of the persistent disk
-        googleProject:
-          type: string
-          description: The google project used to create the persistent disk
+          description: The cloud-platform provided unique ID of this persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
         zone:
           type: string
-          description: The google zone in which the persistent disk was created
+          description: The zone in which the persistent disk was created
         name:
           type: string
-          description: The user-supplied name of the persistent disk
-        googleId:
+          description: The name of the persistent disk
+        serviceAccount:
           type: string
-          description: Google's UUID for the persistent disk
+          description: The account used to create the disk
         samResourceId:
           type: string
           description: Internal resource ID of the persistent disk
@@ -2941,6 +3166,70 @@ components:
             - GCE
             - CROMWELL
             - CUSTOM
+            - RSTUDIO
+          description: App that formatted disk, missing if unformatted
+
+    GetPersistentDiskV2Response:
+      description: ""
+      required:
+        - id
+        - cloudContext
+        - zone
+        - name
+        - serviceAccount
+        - samResourceId
+        - status
+        - auditInfo
+        - size
+        - diskType
+        - blockSize
+        - labels
+        - workspaceId
+        - formattedBy
+      properties:
+        id:
+          type: integer
+          description: The cloud-platform provided unique ID of this persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
+        zone:
+          type: string
+          description: The zone in which the persistent disk was created
+        name:
+          type: string
+          description: The name of the persistent disk
+        serviceAccount:
+          type: string
+          description: The account used to create the disk
+        samResourceId:
+          type: string
+          description: Internal resource ID of the persistent disk
+        status:
+          $ref: "#/components/schemas/DiskStatus"
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        size:
+          type: integer
+          description: Size of persistent disk in GB
+        diskType:
+          $ref: "#/components/schemas/DiskType"
+        blockSize:
+          type: integer
+          description: Block size of persistent disk in bytes
+        labels:
+          type: object
+          description: The labels to be placed on the persistent disk. Of type Map[String,String]
+        workspaceId:
+          type: string
+          description: The id of the disk's workspace
+        formattedBy:
+          type: string
+          enum:
+            - GALAXY
+            - GCE
+            - CROMWELL
+            - CUSTOM
+            - RSTUDIO
           description: App that formatted disk, missing if unformatted
 
     InstanceKey:
@@ -3036,6 +3325,10 @@ components:
         defaultClientId:
           type: string
           description: The default Google Client ID.
+        timeoutInMinutes:
+          type: integer
+          description: Custom image deployment time out in minutes. The value is currently capped at a maximum of
+            30 minutes. If nothing is provided, a default of 10 minutes will be used.
         toolDockerImage:
           type: string
           description: The tool docker image to install. May be Google Container Repository (GCR),
@@ -3075,23 +3368,19 @@ components:
       description: Creates a new runtime
       type: object
       required:
-        - region
         - machineSize
         - disk
       properties:
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
-        region:
-          type: string
-          description: An azure region, see this for strings https://github.com/Azure/azure-libraries-for-java/blob/master/azure-mgmt-resources/src/main/java/com/microsoft/azure/management/resources/fluentcore/arm/Region.java
         machineSize:
           type: string
           description: The azure-specific machine size identifier string. See https://docs.microsoft.com/en-us/azure/virtual-machines/sizes-general
         imageUri:
           type: string
           description: The azure identifier for the vm image uri. Optional, there is an intelligent default. Note this must be in the same region specified in the request Ex, /subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0
-        customEnvironmentVariabales:
+        customEnvironmentVariables:
           type: object
           description: an optional set of key value pairs for environment variables to be injected into the VM
         disk:
@@ -3561,6 +3850,8 @@ components:
           $ref: '#/components/schemas/PersistentDiskRequest'
         appType:
           $ref: '#/components/schemas/AppType'
+        accessScope:
+          $ref: '#/components/schemas/AppAccessScope'
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:
@@ -3577,6 +3868,9 @@ components:
           items:
             type: string
           description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
+        sourceWorkspaceId:
+          type: string
+          description: Optional id of source workspace if app is a clone.
 
     GetAppResponse:
       description: the configuration of an app
@@ -3601,8 +3895,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app
@@ -3613,6 +3909,8 @@ components:
           $ref: "#/components/schemas/AuditInfo"
         appType:
           $ref: '#/components/schemas/AppType'
+        accessScope:
+          $ref: '#/components/schemas/AppAccessScope'
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
@@ -3625,9 +3923,9 @@ components:
         - auditInfo
       type: object
       properties:
-        googleProject:
+        workspaceId:
           type: string
-          description: Deprecated. The project this app is associated with
+          description: workspaceId
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
         kubernetesRuntimeConfig:
@@ -3640,8 +3938,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app
@@ -3652,6 +3952,8 @@ components:
           $ref: '#/components/schemas/AppType'
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
+        accessScope:
+          $ref: '#/components/schemas/AppAccessScope'
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]

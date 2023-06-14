@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDataprocInterpreter,
   GoogleDataprocService,
+  GoogleDiskService,
   GoogleStorageService,
   ZoneName
 }
@@ -38,6 +39,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   googleComputeService: GoogleComputeService[F],
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
+  googleDiskService: GoogleDiskService[F],
   override val runtimeAlg: RuntimeAlgebra[F],
   googleDataprocService: GoogleDataprocService[F]
 )(implicit
@@ -51,12 +53,16 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
 ) extends BaseCloudServiceRuntimeMonitor[F] {
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
+  override def googleDisk: GoogleDiskService[F] = googleDiskService
 
   /**
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+  override def handleCheck(monitorContext: MonitorContext,
+                           runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                           checkToolsInterruptAfter: Option[FiniteDuration]
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
@@ -85,7 +91,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         }
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
-          creatingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig.runtime, dataprocConfig)
+          creatingRuntime(cluster,
+                          monitorContext,
+                          runtimeAndRuntimeConfig.runtime,
+                          dataprocConfig,
+                          checkToolsInterruptAfter
+          )
         case RuntimeStatus.Deleting =>
           deletedRuntime(cluster, monitorContext, runtimeAndRuntimeConfig)
         case RuntimeStatus.Starting =>
@@ -107,7 +118,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     cluster: Option[Cluster],
     monitorContext: MonitorContext,
     runtime: Runtime,
-    dataprocConfig: RuntimeConfig.DataprocConfig
+    dataprocConfig: RuntimeConfig.DataprocConfig,
+    checkToolsInterruptAfter: Option[FiniteDuration]
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = {
     val runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, dataprocConfig)
     cluster match {
@@ -161,7 +173,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                                                    runtimeAndRuntimeConfig,
                                                                    ip,
                                                                    masterInstance,
-                                                                   true
+                                                                   true,
+                                                                   checkToolsInterruptAfter
                             )
                           case None =>
                             checkAgain(monitorContext,
@@ -313,7 +326,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                                              runtimeAndRuntimeConfig,
                                                              ip,
                                                              main.map(_._1),
-                                                             false
+                                                             false,
+                                                             None
                       )
                     case None =>
                       checkAgain(monitorContext,
@@ -432,7 +446,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             main.flatMap(_.ip) match {
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait a few seconds before we check jupyter
-                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main, false)
+                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main, false, None)
               case None =>
                 checkAgain(monitorContext,
                            runtimeAndRuntimeConfig,

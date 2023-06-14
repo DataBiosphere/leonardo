@@ -27,7 +27,7 @@ import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.duration._
 
-class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
+class RuntimeRoutes(saturnIframeExtensionHostConfig: RefererConfig,
                     runtimeService: RuntimeService[IO],
                     userInfoDirectives: UserInfoDirectives
 )(implicit
@@ -36,7 +36,15 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
 ) {
   // See https://github.com/DataBiosphere/terra-ui/blob/ef88f396a61383ee08beb65a37af7cae9476cc20/src/libs/ajax.js#L1358
   private val allValidSaturnIframeExtensions =
-    saturnIframeExtentionHostConfig.validHosts.map(s => s"https://${s}/jupyter-iframe-extension.js")
+    saturnIframeExtensionHostConfig.validHosts
+      .filter(_ != "*")
+      .map(uri => if (uri.last == '/') uri.slice(0, uri.length - 1) else uri)
+      .map(s => s"https://${s}/jupyter-iframe-extension.js")
+
+  private def isValidSaturnIframeExtension(uri: String): Boolean =
+    !saturnIframeExtensionHostConfig.enabled ||
+      saturnIframeExtensionHostConfig.validHosts.contains("*") ||
+      allValidSaturnIframeExtensions(uri)
 
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
@@ -159,7 +167,7 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
       ctx <- ev.ask[AppContext]
       _ <- req.userJupyterExtensionConfig.traverse(uje =>
         uje.nbExtensions.get("saturn-iframe-extension").traverse { s =>
-          if (allValidSaturnIframeExtensions.contains(s) || saturnIframeExtentionHostConfig.validHosts.contains("*"))
+          if (isValidSaturnIframeExtension(s))
             IO.unit
           else
             logger.info(s"allowed valid saturn-iframe-extensions: ${allValidSaturnIframeExtensions}") >> IO.raiseError(
@@ -436,6 +444,7 @@ object RuntimeRoutes {
       wr <- c.downField("welderRegistry").as[Option[ContainerRegistry]]
       s <- c.downField("scopes").as[Option[Set[String]]]
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
+      tm <- c.downField("timeoutInMinutes").as[Option[Int]]
     } yield CreateRuntimeRequest(
       l.getOrElse(Map.empty),
       us.orElse(jus),
@@ -448,7 +457,10 @@ object RuntimeRoutes {
       tdi,
       wr,
       s.getOrElse(Set.empty),
-      cv.getOrElse(Map.empty)
+      cv.getOrElse(Map.empty),
+      // Note that the timeoutInMinutes provided by the UI corresponds to the checkToolsInterruptAfter parameter
+      // within the backend environment
+      tm.map(x => x minutes)
     )
   }
 

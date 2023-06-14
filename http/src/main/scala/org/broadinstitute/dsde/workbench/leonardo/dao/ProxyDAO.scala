@@ -5,7 +5,6 @@ import akka.http.scaladsl.model.Uri.Host
 import cats.effect.Async
 import cats.effect.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.Uri
 
 import scala.concurrent.duration._
@@ -46,8 +45,8 @@ object Proxy {
       .timeout(5 seconds)
 
   def getAppTargetHost[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F],
-                                    googleProject: GoogleProject,
+                                    cloudContext: CloudContext,
                                     appName: AppName
   ): F[HostStatus] =
-    kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(googleProject, appName)).timeout(5 seconds)
+    kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(cloudContext, appName)).timeout(5 seconds)
 }

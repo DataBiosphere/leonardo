@@ -11,7 +11,8 @@ import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.mock.{
   BaseFakeGoogleDataprocService,
   FakeGoogleComputeService,
-  FakeGoogleDataprocService
+  FakeGoogleDataprocService,
+  MockGoogleDiskService
 }
 import org.broadinstitute.dsde.workbench.google2.{
   ClusterError,
@@ -55,7 +56,12 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(None, monitorContext, savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
+      r <- monitor.creatingRuntime(None,
+                                   monitorContext,
+                                   savedRuntime,
+                                   CommonTestData.defaultDataprocRuntimeConfig,
+                                   None
+      )
     } yield r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -79,12 +85,14 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r1 <- monitor.creatingRuntime(Some(cluster1),
                                     monitorContext,
                                     savedRuntime,
-                                    CommonTestData.defaultDataprocRuntimeConfig
+                                    CommonTestData.defaultDataprocRuntimeConfig,
+                                    None
       )
       r2 <- monitor.creatingRuntime(Some(cluster2),
                                     monitorContext,
                                     savedRuntime,
-                                    CommonTestData.defaultDataprocRuntimeConfig
+                                    CommonTestData.defaultDataprocRuntimeConfig,
+                                    None
       )
     } yield {
       r1._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
@@ -111,7 +119,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r <- monitor.creatingRuntime(Some(cluster),
                                    monitorContext,
                                    savedRuntime,
-                                   CommonTestData.defaultDataprocRuntimeConfig
+                                   CommonTestData.defaultDataprocRuntimeConfig,
+                                   None
       )
     } yield r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
 
@@ -134,7 +143,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r <- monitor.creatingRuntime(Some(cluster),
                                    monitorContext,
                                    savedRuntime,
-                                   CommonTestData.defaultDataprocRuntimeConfig
+                                   CommonTestData.defaultDataprocRuntimeConfig,
+                                   None
       )
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
@@ -161,7 +171,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r <- monitor.creatingRuntime(Some(cluster),
                                    monitorContext,
                                    savedRuntime,
-                                   CommonTestData.defaultDataprocRuntimeConfig
+                                   CommonTestData.defaultDataprocRuntimeConfig,
+                                   None
       )
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
@@ -188,7 +199,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r <- monitor.creatingRuntime(Some(cluster),
                                    monitorContext,
                                    savedRuntime,
-                                   CommonTestData.defaultDataprocRuntimeConfig
+                                   CommonTestData.defaultDataprocRuntimeConfig,
+                                   None
       )
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
@@ -215,7 +227,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r <- monitor.creatingRuntime(Some(cluster),
                                    monitorContext,
                                    savedRuntime,
-                                   CommonTestData.defaultDataprocRuntimeConfig
+                                   CommonTestData.defaultDataprocRuntimeConfig,
+                                   None
       )
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
@@ -252,7 +265,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r <- monitor.creatingRuntime(Some(cluster),
                                    monitorContext,
                                    savedRuntime,
-                                   CommonTestData.defaultDataprocRuntimeConfig
+                                   CommonTestData.defaultDataprocRuntimeConfig,
+                                   None
       )
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
@@ -570,6 +584,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       googleComputeService,
       MockAuthProvider,
       FakeGoogleStorageService,
+      MockGoogleDiskService,
       FakeDataproInterp,
       dataprocService
     )

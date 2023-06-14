@@ -1,0 +1,51 @@
+name: Unit tests
+
+on:
+  push:
+    branches: [ develop ]
+    paths-ignore: ['**.md']
+  pull_request:
+    branches: [ develop ]
+    paths-ignore: ['**.md']
+  merge_group:
+    branches: [ develop ]
+    paths-ignore: ['**.md']
+
+
+jobs:
+
+  generateAndPublishClient:
+    runs-on: ubuntu-latest
+
+    env:
+      ARTIFACTORY_USERNAME: ${{secrets.ARTIFACTORY_USERNAME}}
+      ARTIFACTORY_PASSWORD: ${{secrets.ARTIFACTORY_PASSWORD}}
+      SBT_OPTS: -Xmx3g
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # coursier cache action caches both coursier and sbt caches
+      - name: coursier-cache-action
+        uses: coursier/cache-action@v5
+
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extractBranch
+
+      - name: Generate java client
+        id: generateJavaClient
+        run: bash codegen_java/gen_java_client.sh
+
+      - name: Publish java client for merge to develop branch
+        working-directory: codegen_java
+        id: publishJavaClient
+        if: ${{steps.extractBranch.outputs.branch == 'develop'}}
+        run: sbt "+ publish" -Dproject.isSnapshot=false
+
+      - name: Publish java client as snapshot for PRs
+        working-directory: codegen_java
+        id: publishJavaClientSnapshot
+        if: ${{steps.extractBranch.outputs.branch != 'develop'}}
+        run: sbt "+ publish" -Dproject.isSnapshot=true

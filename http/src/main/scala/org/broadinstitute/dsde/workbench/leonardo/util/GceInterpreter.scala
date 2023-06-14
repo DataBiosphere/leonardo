@@ -154,7 +154,9 @@ class GceInterpreter[F[_]](
               )
             )
             isFormatted <- persistentDisk.formattedBy match {
-              case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) | Some(FormattedBy.Cromwell) =>
+              case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) | Some(FormattedBy.Cromwell) | Some(
+                    FormattedBy.RStudio
+                  ) =>
                 F.raiseError[Boolean](
                   new RuntimeException(
                     s"Trying to use an app formatted disk for creating GCE runtime. This should never happen. Disk Id: ${x.persistentDiskId}."
@@ -527,7 +529,7 @@ class GceInterpreter[F[_]](
       gceAllocated = config.gceConfig.gceReservedMemory.map(_.bytes).getOrElse(0L)
       welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
       result = MemorySize(total.bytes - gceAllocated - welderAllocated)
-    } yield RuntimeResourceConstraints(result)
+    } yield RuntimeResourceConstraints(result, total)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
                                      subnetwork: SubnetworkName,

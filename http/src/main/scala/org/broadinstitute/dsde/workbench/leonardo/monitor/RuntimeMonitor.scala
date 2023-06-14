@@ -22,7 +22,9 @@ import scala.jdk.CollectionConverters._
  * It doesn't trigger any of the action but only responsible for monitoring the progress and make necessary cleanup when the transition is done
  */
 trait RuntimeMonitor[F[_], A] {
-  def process(a: A)(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit]
+  def process(a: A)(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+    ev: Ask[F, TraceId]
+  ): Stream[F, Unit]
 
   def handlePollCheckCompletion(
     a: A
@@ -63,7 +65,7 @@ object RuntimeMonitor {
       _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
-  private def findToolImageInfo(images: Set[RuntimeImage], imageConfig: ImageConfig): String = {
+  private def findToolImageInfo(images: Set[RuntimeImage], imageConfig: ImageConfig, custom: Boolean): String = {
     val terraJupyterImage = imageConfig.jupyterImageRegex.r
     val anvilRStudioImage = imageConfig.rstudioImageRegex.r
     val broadDockerhubImageRegex = imageConfig.broadDockerhubImageRegex.r
@@ -72,10 +74,10 @@ object RuntimeMonitor {
     ) match {
       case Some(toolImage) =>
         toolImage.imageUrl match {
-          case terraJupyterImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
-          case anvilRStudioImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
-          case broadDockerhubImageRegex(imageType, hash) => s"DockerHub/${imageType}/${hash}"
-          case _                                         => "custom_image"
+          case terraJupyterImage(imageType, hash) if !custom        => s"GCR/${imageType}/${hash}"
+          case anvilRStudioImage(imageType, hash) if !custom        => s"GCR/${imageType}/${hash}"
+          case broadDockerhubImageRegex(imageType, hash) if !custom => s"DockerHub/${imageType}/${hash}"
+          case _                                                    => "custom_image"
         }
       case None => "unknown"
     }
@@ -85,27 +87,27 @@ object RuntimeMonitor {
     createdDate: Instant,
     images: Set[RuntimeImage],
     imageConfig: ImageConfig,
-    cloudService: CloudService
+    cloudService: CloudService,
+    custom: Boolean
   )(implicit openTelemetry: OpenTelemetryMetrics[F]): F[Unit] =
     for {
       endTime <- Async[F].realTimeInstant
-      toolImageInfo = findToolImageInfo(images, imageConfig)
+      toolImageInfo = findToolImageInfo(images, imageConfig, custom)
       metricsName = s"monitor/runtimeCreation"
       duration = (endTime.toEpochMilli - createdDate.toEpochMilli).milliseconds
       tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
       _ <- openTelemetry.incrementCounter(metricsName, 1, tags)
       distributionBucket = List(1 minutes,
-                                1.5 minutes,
                                 2 minutes,
-                                2.5 minutes,
                                 3 minutes,
-                                3.5 minutes,
-                                4 minutes,
-                                4.5 minutes,
                                 5 minutes,
-                                5.5 minutes,
-                                6 minutes
-      ) // Distribution buckets from 1 min to 6 min
+                                7 minutes,
+                                10 minutes,
+                                15 minutes,
+                                20 minutes,
+                                25 minutes,
+                                30 minutes
+      ) // Distribution buckets from 1 min to 30 min
       _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 

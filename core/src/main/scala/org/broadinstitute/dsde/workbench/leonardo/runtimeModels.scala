@@ -238,10 +238,36 @@ object CustomImage {
 }
 
 /** Configuration of the runtime such as machine types, disk size, etc */
+sealed trait RuntimeConfigType extends EnumEntry with Product with Serializable {
+  def asString: String
+
+  override def toString: String = asString // Enumeratum's withName function uses `toString` as key for lookup
+}
+object RuntimeConfigType extends Enum[RuntimeConfigType] {
+  case object Dataproc extends RuntimeConfigType {
+    val asString = "Dataproc"
+  }
+
+  case object GceConfig extends RuntimeConfigType {
+    val asString = "GceConfig"
+  }
+
+  case object GceWithPdConfig extends RuntimeConfigType {
+    val asString = "GceWithPdConfig"
+  }
+
+  case object AzureVmConfig extends RuntimeConfigType {
+    val asString = "AzureVmConfig"
+  }
+
+  override def values: immutable.IndexedSeq[RuntimeConfigType] = findValues
+}
 final case class RuntimeConfigId(id: Long) extends AnyVal
 sealed trait RuntimeConfig extends Product with Serializable {
   def cloudService: CloudService
   def machineType: MachineTypeName
+
+  def configType: RuntimeConfigType
 }
 object RuntimeConfig {
   final case class GceConfig(
@@ -254,6 +280,7 @@ object RuntimeConfig {
     gpuConfig: Option[GpuConfig] // This is optional since not all runtimes use gpus
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
+    val configType: RuntimeConfigType = RuntimeConfigType.GceConfig
   }
 
   // When persistentDiskId is None, then we don't have any disk attached to the runtime
@@ -264,6 +291,7 @@ object RuntimeConfig {
                                    gpuConfig: Option[GpuConfig]
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
+    val configType: RuntimeConfigType = RuntimeConfigType.GceWithPdConfig
   }
 
   final case class DataprocConfig(numberOfWorkers: Int,
@@ -282,6 +310,7 @@ object RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
+    val configType: RuntimeConfigType = RuntimeConfigType.Dataproc
   }
 
   // Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
@@ -290,6 +319,7 @@ object RuntimeConfig {
                                region: com.azure.core.management.Region
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.AzureVm
+    val configType: RuntimeConfigType = RuntimeConfigType.AzureVmConfig
   }
 }
 
@@ -374,7 +404,7 @@ sealed trait RuntimeContainerServiceType extends EnumEntry with Serializable wit
 object RuntimeContainerServiceType extends Enum[RuntimeContainerServiceType] {
   val values = findValues
   val imageTypeToRuntimeContainerServiceType: Map[RuntimeImageType, RuntimeContainerServiceType] =
-    values.toList.map(v => v.imageType -> v).toMap
+    values.toList.map(v => v.imageType -> v).toMap ++ Map(RuntimeImageType.Azure -> JupyterService)
   case object JupyterService extends RuntimeContainerServiceType {
     override def imageType: RuntimeImageType = Jupyter
     override def proxySegment: String = "jupyter"
@@ -425,6 +455,26 @@ object RuntimeUI {
   }
 }
 
+//This ADT is how some of the UI logic is resolved. Only used in Labels table.
+sealed trait Tool extends EnumEntry with Product with Serializable {
+  def asString: String
+
+  override def toString: String = asString
+}
+object Tool extends Enum[Tool] {
+  case object RStudio extends Tool {
+    val asString: String = "RStudio"
+  }
+  case object Jupyter extends Tool {
+    val asString: String = "Jupyter"
+  }
+  case object JupyterLab extends Tool {
+    val asString: String = "JupyterLab"
+  }
+
+  override def values: immutable.IndexedSeq[Tool] = findValues
+}
+
 /** Default runtime labels */
 case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 googleProject: Option[GoogleProject],
@@ -433,7 +483,7 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 serviceAccount: Option[WorkbenchEmail],
                                 userScript: Option[UserScriptPath],
                                 startUserScript: Option[UserScriptPath],
-                                tool: Option[RuntimeImageType]
+                                tool: Option[Tool]
 ) {
   def toMap: LabelMap =
     Map(
@@ -479,9 +529,13 @@ final case class MemorySize(bytes: Long) extends AnyVal {
   override def toString: String = bytes.toString + "b"
 }
 object MemorySize {
-  def fromKb(kb: Double): MemorySize = MemorySize((kb * 1024).toLong)
-  def fromMb(mb: Double): MemorySize = MemorySize((mb * 1048576).toLong)
-  def fromGb(gb: Double): MemorySize = MemorySize((gb * 1073741824).toLong)
+  val kbInBytes = 1024
+  val mbInBytes = 1048576
+  val gbInBytes = 1073741824
+
+  def fromKb(kb: Double): MemorySize = MemorySize((kb * kbInBytes).toLong)
+  def fromMb(mb: Double): MemorySize = MemorySize((mb * mbInBytes).toLong)
+  def fromGb(gb: Double): MemorySize = MemorySize((gb * gbInBytes).toLong)
 }
 
 /**
@@ -489,11 +543,14 @@ object MemorySize {
  * See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
  * for other types of resources we may want to add here.
  */
-final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
+final case class RuntimeResourceConstraints(memoryLimit: MemorySize, totalMachineMemory: MemorySize)
 
-final case class RunningRuntime(cloudContext: CloudContext,
+final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
-                                containers: List[RuntimeContainerServiceType]
+                                status: RuntimeStatus,
+                                workspaceId: Option[WorkspaceId],
+                                images: Set[RuntimeImage],
+                                labels: LabelMap
 )
 
 final case class RuntimeName(asString: String) extends AnyVal

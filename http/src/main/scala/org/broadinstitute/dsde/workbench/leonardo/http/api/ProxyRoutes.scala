@@ -217,7 +217,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService
-        .proxyAppRequest(userInfo, googleProject, appName, serviceName, request)
+        .proxyAppRequest(userInfo, CloudContext.Gcp(googleProject), appName, None, serviceName, request)
         .onError { case e =>
           IO(
             logger.warn(
@@ -251,7 +251,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = proxyService.proxyRequest(userInfo, cloudContext, runtimeName, request)
+      apiCall = proxyService.proxyRequest(userInfo, cloudContext, runtimeName, None, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
       _ <-
         if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {

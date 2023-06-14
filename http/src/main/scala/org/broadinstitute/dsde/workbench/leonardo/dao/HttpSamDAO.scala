@@ -14,7 +14,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -51,7 +51,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     "https://www.googleapis.com/auth/userinfo.profile",
     StorageScopes.DEVSTORAGE_READ_ONLY
   )
-  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInteral)
+  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInternal)
 
   override def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
@@ -68,7 +68,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Request[F](
             method = Method.POST,
             uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self")),
-            entity = Entity.strict(Chunk.array("app.terra.bio/#terms-of-service".getBytes(UTF_8))),
+            entity = Entity.strict(Chunk.array("app.terra.bio/#terms-of-service".getBytes(UTF_8)).toByteVector),
             headers = Headers(leoToken)
           )
         )
@@ -110,14 +110,14 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     ev: Ask[F, TraceId]
   ): F[List[A]] = {
     implicit val d = sr.decoder
-    metrics.incrementCounter(s"sam/getListOfResourcePermissions/${sr.resourceType.asString}") >>
+    metrics.incrementCounter(s"sam/getListOfResourcePermissions/${sr.resourceType(resource).asString}") >>
       httpClient.expectOr[List[A]](
         Request[F](
           method = Method.GET,
           uri = config.samUri
             .withPath(
               Uri.Path.unsafeFromString(
-                s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"
+                s"/api/resources/v2/${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)}/actions"
               )
             ),
           headers = Headers(authHeader)
@@ -126,18 +126,39 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   }
 
   override def getResourcePolicies[R](
-    authHeader: Authorization
+    authHeader: Authorization,
+    resourceType: SamResourceType
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
-      _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${sr.resourceType.asString}")
+      ctx <- ev.ask
+      _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${resourceType.asString}")
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${resourceType.asString}")),
           headers = Headers(authHeader)
         )
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
+
+  override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[SamRole]] = for {
+    ctx <- ev.ask
+    _ <- metrics.incrementCounter(s"sam/getRoles/${resourceId.resourceId}")
+    resp <- httpClient.expectOr[Set[SamRole]](
+      Request[F](
+        method = Method.GET,
+        uri = config.samUri.withPath(
+          Uri.Path.unsafeFromString(
+            s"/api/resources/v2/${resourceId.resourceType.asString}/${resourceId.resourceId}/roles"
+          )
+        ),
+        headers = Headers(authHeader)
+      )
+    )(onError)
+    _ = println(s"${ctx.asString} 00000000 all resource policies ${resp}")
+  } yield resp
 
   override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit
@@ -171,9 +192,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       traceId <- ev.ask
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(
-        s"Creating ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} resource in Sam"
+        s"Creating ${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)} resource in Sam"
       )
-      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
       _ <- httpClient
         .run(
           Request[F](
@@ -181,7 +202,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             uri = config.samUri
               .withPath(
                 Uri.Path
-                  .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+                  .unsafeFromString(
+                    s"/api/resources/v2/${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)}"
+                  )
               ),
             headers = Headers(authHeader)
           )
@@ -194,7 +217,8 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         }
     } yield ()
 
-  def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceWithGoogleProjectParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
     sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
@@ -211,11 +235,11 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(
-        s"Creating ${sr.resourceType.asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
+        s"Creating ${sr.resourceType(resource).asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
       )
-      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
       policies = Map[SamPolicyName, SamPolicyData](
-        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(sr.ownerRoleName(resource)))
       )
       parent = SerializableSamResource(SamResourceType.Project, ProjectSamResourceId(googleProject))
       _ <- httpClient
@@ -223,7 +247,47 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType(resource).asString}")),
+            headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
+            entity = CreateSamResourceRequest[R](resource, policies, parent)
+          )
+        )
+        .use { resp =>
+          if (resp.status.isSuccess)
+            F.unit
+          else
+            onError(resp).flatMap(F.raiseError[Unit])
+        }
+    } yield ()
+
+  def createResourceWithWorkspaceParent[R](resource: R,
+                                           creatorEmail: WorkbenchEmail,
+                                           userInfo: UserInfo,
+                                           workspaceId: WorkspaceId
+  )(implicit
+    sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    for {
+      traceId <- ev.ask
+      // We can use getCachedArbitraryPetAccessToken instead of using the userInfo if this ever needs to become asynchronous
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+      loggingCtx = Map("traceId" -> traceId.asString)
+      _ <- logger.info(loggingCtx)(
+        s"Creating ${sr.resourceType(resource).asString} resource in sam v2 for ${workspaceId}/${sr.resourceIdAsString(resource)}"
+      )
+      _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
+      policies = Map[SamPolicyName, SamPolicyData](
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(sr.ownerRoleName(resource)))
+      )
+      parent = SerializableSamResource(SamResourceType.Workspace, WorkspaceResourceSamResourceId(workspaceId))
+      _ <- httpClient
+        .run(
+          Request[F](
+            method = Method.POST,
+            uri = config.samUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType(resource).asString}")),
             headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
             entity = CreateSamResourceRequest[R](resource, policies, parent)
           )
@@ -268,9 +332,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       traceId <- ev.ask
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- logger.info(loggingCtx)(
-        s"Deleting ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} resource in Sam"
+        s"Deleting ${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)} resource in Sam"
       )
-      _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType.asString}")
+      _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType(resource).asString}")
       _ <- httpClient
         .run(
           Request[F](
@@ -278,7 +342,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             uri = config.samUri
               .withPath(
                 Uri.Path
-                  .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+                  .unsafeFromString(
+                    s"/api/resources/v2/${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)}"
+                  )
               ),
             headers = Headers(authHeader)
           )
@@ -287,7 +353,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           resp.status match {
             case Status.NotFound =>
               logger.info(loggingCtx)(
-                s"Fail to delete Sam resource ${sr.resourceType.asString}/${sr.resourceIdAsString(resource)} because it doesn't exist in Sam"
+                s"Fail to delete Sam resource ${sr.resourceType(resource).asString}/${sr.resourceIdAsString(resource)} because it doesn't exist in Sam"
               )
             case s if s.isSuccess => F.unit
             case _                => onError(resp).flatMap(F.raiseError[Unit])
@@ -405,7 +471,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       now <- F.realTimeInstant
       validAccessToken <-
         if (accessToken.getExpirationTime.getTime > now.toEpochMilli)
-          getLeoAuthTokenInteral
+          getLeoAuthTokenInternal
         else F.pure(accessToken)
     } yield {
       val token = validAccessToken.getTokenValue
@@ -440,7 +506,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           } yield admins.contains(workbenchEmail)
     } yield res
 
-  private def getLeoAuthTokenInteral: F[com.google.auth.oauth2.AccessToken] =
+  private def getLeoAuthTokenInternal: F[com.google.auth.oauth2.AccessToken] =
     credentialResource(
       config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
     ).use { credential =>

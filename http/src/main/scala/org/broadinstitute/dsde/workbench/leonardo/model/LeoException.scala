@@ -68,7 +68,7 @@ final case class RuntimeNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
                                                        msg: String,
                                                        traceId: Option[TraceId] = None
 ) extends LeoException(
-      s"Runtime ${workspaceId} ${runtimeName.asString} not found",
+      s"Runtime ${runtimeName.asString} not found in workspace ${workspaceId.value}",
       StatusCodes.NotFound,
       extraMessageInLogging = s"Details: ${msg}",
       traceId = traceId
@@ -181,4 +181,15 @@ final case class DiskAlreadyFormattedError(alreadyFormattedBy: FormattedBy, targ
     extends LeoException(
       message = s"Disk is formatted by $alreadyFormattedBy already, cannot be used for $targetAppName app",
       traceId = Some(traceId)
+    )
+
+case class NonDeletableRuntimesInWorkspaceFoundException(
+  workspaceId: WorkspaceId,
+  msg: String,
+  traceId: Option[TraceId] = None
+) extends LeoException(
+      s"Workspace ${workspaceId} contains runtimes in a non deletable state.",
+      StatusCodes.Conflict,
+      extraMessageInLogging = s"Details: ${msg}",
+      traceId = traceId
     )

@@ -16,7 +16,7 @@ import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
@@ -32,6 +32,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, _}
@@ -64,6 +65,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import scalacache.caffeine.CaffeineCache
 
+import java.net.URL
+import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -166,7 +169,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -184,7 +187,9 @@ class LeoPubsubMessageSubscriberSpec
 
   "createRuntimeErrorHandler" should "handle runtime creation failure properly" in isolatedDbTest {
     val runtimeMonitor = new MockRuntimeMonitor {
-      override def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
+      override def process(
+        a: CloudService
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
         ev: Ask[IO, TraceId]
       ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
     }
@@ -198,18 +203,104 @@ class LeoPubsubMessageSubscriberSpec
             .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
             .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
         )
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
           runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           error.nonEmpty shouldBe true
           runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+          diskStatus shouldBe Some(DiskStatus.Ready)
+        }
+
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          assertions
+        )
+      } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  "createRuntimeErrorHandler" should "delete creating disk on failed runtime start" in isolatedDbTest {
+    val runtimeMonitor = new MockRuntimeMonitor {
+      override def process(
+        a: CloudService
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] = Stream.raiseError[IO](new Exception("failed"))
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val leoSubscriber = makeLeoSubscriber(runtimeMonitor = runtimeMonitor, asyncTaskQueue = queue)
+    val res =
+      for {
+        disk <- makePersistentDisk().save()
+        _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Failed, Instant.now()).transaction
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+        )
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+        tr <- traceId.ask[TraceId]
+        gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
+        )
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
+        } yield {
+          error.nonEmpty shouldBe true
+          runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+          diskStatus shouldBe Some(DiskStatus.Deleted)
+        }
+
+        _ <- withInfiniteStream(
+          asyncTaskProcessor.process,
+          assertions
+        )
+      } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle dataproc runtime creation failure properly" in isolatedDbTest {
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val dataprocAlg = new BaseMockRuntimeAlgebra {
+      override def createRuntime(params: CreateRuntimeParams)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[CreateGoogleRuntimeResponse]] = IO.raiseError(new Exception("shit"))
+    }
+    val leoSubscriber = makeLeoSubscriber(dataprocRuntimeAlgebra = dataprocAlg, asyncTaskQueue = queue)
+    val res =
+      for {
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .saveWithRuntimeConfig(CommonTestData.defaultDataprocRuntimeConfig)
+        )
+        tr <- traceId.ask[TraceId]
+        gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism
+          .getOption(CommonTestData.defaultDataprocRuntimeConfig)
+          .get
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
+        )
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          status <- clusterQuery.getClusterStatus(runtime.id).transaction
+        } yield {
+          error.nonEmpty shouldBe true
+          status shouldBe Some(RuntimeStatus.Error)
         }
 
         _ <- withInfiniteStream(
@@ -248,7 +339,7 @@ class LeoPubsubMessageSubscriberSpec
         tr <- traceId.ask[TraceId]
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
-          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr))
+          CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
@@ -438,7 +529,9 @@ class LeoPubsubMessageSubscriberSpec
     val monitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
-      )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
+      )(runtimeId: Long, action: RuntimeStatus, checkToolsInterruptAfter: Option[FiniteDuration])(implicit
+        ev: Ask[IO, TraceId]
+      ): Stream[IO, Unit] =
         Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -784,7 +877,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       getDisk.status shouldBe DiskStatus.Ready
       galaxyRestore shouldBe Some(
-        GalaxyRestore(PvcId(s"nfs-pvc-id1"), PvcId("cvmfs-pvc-id1"), getApp.app.id)
+        GalaxyRestore(PvcId(s"nfs-pvc-id1"), getApp.app.id)
       )
     }
 
@@ -1142,6 +1235,7 @@ class LeoPubsubMessageSubscriberSpec
     }
     val gkeInter = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       mockKubernetesService,
@@ -1306,6 +1400,7 @@ class LeoPubsubMessageSubscriberSpec
     }
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       mockKubernetesService,
@@ -1449,6 +1544,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       mockGKEService,
       new MockKubernetesService(PodStatus.Succeeded),
@@ -1551,6 +1647,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       new MockKubernetesService(),
@@ -1765,9 +1862,12 @@ class LeoPubsubMessageSubscriberSpec
         jobId <- IO.delay(UUID.randomUUID())
         msg = CreateAzureRuntimeMessage(runtime.id,
                                         workspaceId,
-                                        RelayNamespace("relay-ns"),
                                         storageContainerResourceId,
-                                        None
+                                        landingZoneResources,
+                                        false,
+                                        None,
+                                        "WorkspaceName",
+                                        ContainerName("dummy")
         )
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
@@ -1813,9 +1913,14 @@ class LeoPubsubMessageSubscriberSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
         vmResourceId = WsmControlledResourceId(UUID.randomUUID())
-        _ <- controlledResourceQuery.save(runtime.id, vmResourceId, WsmResourceType.AzureVm).transaction
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(vmResourceId), None)
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(vmResourceId),
+                                        landingZoneResources,
+                                        None
+        )
 
         _ <- leoSubscriber.messageHandler(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
 
@@ -1882,11 +1987,28 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle Azure delete disk message" in isolatedDbTest {
+    val azurePubsubHandlerMock = mock[AzurePubsubHandlerInterp[IO]]
+    when(azurePubsubHandlerMock.deleteDisk(any[DeleteDiskV2Message])(any()))
+      .thenReturn(IO.unit)
+    val leoSubscriber = makeLeoSubscriber(azureInterp = azurePubsubHandlerMock)
+    val res = for {
+      disk <- makePersistentDisk(cloudContextOpt = Some(cloudContextAzure)).copy(status = DiskStatus.Ready).save()
+      _ <- leoSubscriber.messageResponder(
+        DeleteDiskV2Message(disk.id, disk.workspaceId.get, disk.cloudContext, disk.wsmResourceId, None)
+      )
+
+    } yield verify(azurePubsubHandlerMock, times(1)).deleteDisk(any[DeleteDiskV2Message])(any())
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty
   ): GKEInterpreter[IO] =
     new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       new MockKubernetesService(PodStatus.Succeeded, appRelease = appRelease),
@@ -1949,6 +2071,13 @@ class LeoPubsubMessageSubscriberSpec
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
+      new ApplicationConfig("test",
+                            GoogleProject("test"),
+                            Paths.get("x.y"),
+                            WorkbenchEmail("z@x.y"),
+                            new URL("https://leonardo.foo.org"),
+                            0L
+      ),
       contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
@@ -1957,7 +2086,8 @@ class LeoPubsubMessageSubscriberSpec
       new MockJupyterDAO(),
       relayService,
       azureVmService,
-      new MockAKSInterp()
+      new MockAKSInterp(),
+      refererConfig
     )
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =

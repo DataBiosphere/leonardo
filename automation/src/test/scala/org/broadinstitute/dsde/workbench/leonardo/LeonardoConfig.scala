@@ -20,7 +20,6 @@ object LeonardoConfig extends CommonConfig {
     val gatkImageUrl: String = leonardo.getString("gatkImageUrl")
     val aouImageUrl: String = leonardo.getString("aouImageUrl")
     val baseImageUrl: String = leonardo.getString("baseImageUrl")
-    val bioconductorImageUrl: String = leonardo.getString("bioconductorImageUrl")
     val rstudioBioconductorImage =
       ContainerImage(leonardo.getString("rstudioBioconductorImageUrl"), ContainerRegistry.GCR)
 

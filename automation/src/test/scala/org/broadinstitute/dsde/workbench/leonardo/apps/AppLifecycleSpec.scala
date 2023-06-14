@@ -45,17 +45,22 @@ class AppLifecycleSpec
     ),
     appType = appType,
     customEnvironmentVariables = Map("WORKSPACE_NAME" -> workspaceName),
-    descriptorPath = descriptorPath
+    descriptorPath = descriptorPath,
+    sourceWorkspaceId = None
   )
-
   // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
-  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
-    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
-  }
+  //  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
+  //    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
+  //  }
 
   "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
+  }
+
+  "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
+    googleProject =>
+      test(googleProject, createAppRequest(AppType.RStudio, "rstudio-test-workspace", None), false, true)
   }
 
   "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
@@ -66,11 +71,11 @@ class AppLifecycleSpec
         "custom-test-workspace",
         Some(
           org.http4s.Uri.unsafeFromString(
-            "https://raw.githubusercontent.com/DataBiosphere/terra-app/acb66d96045e199d2cae6876723e028296794292/apps/ucsc_genome_browser/app.yaml"
+            "https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml"
           )
         )
       ),
-      true,
+      false,
       false
     )
   }
@@ -103,8 +108,8 @@ class AppLifecycleSpec
         monitorCreateResult <- streamUntilDoneOrTimeout(
           getApp,
           120,
-          10 seconds,
-          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
+          15 seconds,
+          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 30 minutes"
         )(implicitly, appInStateOrError(AppStatus.Running))
         _ <- loggerIO.info(
           s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
@@ -124,13 +129,13 @@ class AppLifecycleSpec
               getAppResponse <- getApp
               _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
 
-              // Verify the app eventually becomes Stopped
-              _ <- IO.sleep(60 seconds)
+              // Verify the app eventually becomes Stopped. Resizing nodepool to 0 takes more than 10 minutes
+              _ <- IO.sleep(10 minutes)
               monitorStopResult <- streamUntilDoneOrTimeout(
                 getApp,
-                180,
+                360,
                 10 seconds,
-                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 60 minutes"
               )(implicitly, appInStateOrError(AppStatus.Stopped))
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"

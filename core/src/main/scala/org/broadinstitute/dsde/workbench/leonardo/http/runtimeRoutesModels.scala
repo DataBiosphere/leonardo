@@ -63,7 +63,8 @@ final case class CreateRuntimeRequest(
   toolDockerImage: Option[ContainerImage],
   welderRegistry: Option[ContainerRegistry],
   scopes: Set[String],
-  customEnvironmentVariables: Map[String, String]
+  customEnvironmentVariables: Map[String, String],
+  checkToolsInterruptAfter: Option[FiniteDuration]
 )
 
 final case class CreateRuntimeResponse(traceId: TraceId)

@@ -20,7 +20,7 @@ String ZONE = "${REGION}-a"
 //    4. extract the segments starting with 'projects'
 // As per the doc below, running GPUs requires COS image versions to be a LTS milestone > 85
 // https://cloud.google.com/container-optimized-os/docs/how-to/run-gpus#requirements
-String GCE_BASE_IMAGE = "projects/cos-cloud/global/images/cos-101-17162-40-34"
+String GCE_BASE_IMAGE = "projects/cos-cloud/global/images/cos-101-17162-40-42"
 String GOOGLE_CREDENTIAL_FILE_NAME = "image-build-account.json"
 
 // Variables populated by the first stages

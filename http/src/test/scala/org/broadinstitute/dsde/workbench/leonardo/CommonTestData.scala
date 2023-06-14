@@ -33,7 +33,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
   Welder
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{AllowlistAuthProvider, MockPetClusterServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   AccessScope,
@@ -69,7 +69,9 @@ import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{
   AKSClusterName,
+  ApplicationInsightsName,
   AzureCloudContext,
+  BatchAccountName,
   ManagedResourceGroupName,
   RelayNamespace,
   SubscriptionId,
@@ -94,7 +96,10 @@ object CommonTestData {
   val cloudContext2Gcp = CloudContext.Gcp(project2)
   val userEmail = WorkbenchEmail("user1@example.com")
   val userEmail2 = WorkbenchEmail("user2@example.com")
+  val userEmail3 = WorkbenchEmail("user3@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
+  val userInfo2 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user2"), userEmail2, 0)
+  val userInfo3 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user3"), userEmail3, 0)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
   val unauthorizedUserInfo =
@@ -140,8 +145,10 @@ object CommonTestData {
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = Config.applicationConfig
-  val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
-  val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  val allowlistAuthConfig = config.getConfig("auth.allowlistProviderConfig")
+  val allowlistAuthConfig2 = config.getConfig("auth.allowlistProviderConfig2")
+  val allowlist = config.as[Set[String]]("auth.allowlistProviderConfig.allowlist").map(_.toLowerCase)
+  val allowlist2 = config.as[Set[String]]("auth.allowlistProviderConfig2.allowlist").map(_.toLowerCase)
   // Let's not use this pattern and directly use `Config.???` going forward :)
   // By using Config.xxx, we'll be actually testing our Config.scala code as well
   val dataprocConfig = Config.dataprocConfig
@@ -228,7 +235,7 @@ object CommonTestData {
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
-  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
+  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
@@ -265,7 +272,8 @@ object CommonTestData {
     Some(ContainerImage("myrepo/myimage", DockerHub)),
     Some(DockerHub),
     Set.empty,
-    Map.empty
+    Map.empty,
+    None
   )
   val defaultGceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
@@ -277,10 +285,11 @@ object CommonTestData {
   def defaultGceRuntimeWithPDConfig(persistentDiskId: Option[DiskId]) =
     RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                   bootDiskSize = DiskSize(50),
-                                  persistentDiskId = None,
+                                  persistentDiskId = persistentDiskId,
                                   zone = ZoneName("us-west2-b"),
                                   gpuConfig = None
     )
+
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(
       Some(0),
@@ -314,17 +323,24 @@ object CommonTestData {
                                   None
     )
 
-  def makeCluster(index: Int): Runtime = {
+  def makeCluster(index: Int,
+                  creator: Option[WorkbenchEmail] = None,
+                  cloudContext: CloudContext = cloudContextGcp
+  ): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
+    val auditInfoUpdated = creator match {
+      case Some(c) => auditInfo.copy(creator = c)
+      case None    => auditInfo
+    }
     Runtime(
       id = -1,
       workspaceId = Some(WorkspaceId(UUID.randomUUID())),
       samResource = runtimeSamResource,
       runtimeName = clusterName,
-      cloudContext = cloudContextGcp,
+      cloudContext = cloudContext,
       serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
-      auditInfo = auditInfo,
+      auditInfo = auditInfoUpdated,
       kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, clusterName, Set(jupyterImage), None, Map.empty),
       status = RuntimeStatus.Unknown,
@@ -431,7 +447,9 @@ object CommonTestData {
                          formattedBy: Option[FormattedBy] = None,
                          appRestore: Option[AppRestore] = None,
                          zoneName: Option[ZoneName] = None,
-                         cloudContextOpt: Option[CloudContext] = None
+                         cloudContextOpt: Option[CloudContext] = None,
+                         wsmResourceId: Option[WsmControlledResourceId] = None,
+                         workspaceId: Option[WorkspaceId] = workspaceIdOpt
   ): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
@@ -448,13 +466,16 @@ object CommonTestData {
       formattedBy,
       appRestore,
       Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3"),
-      None
+      None,
+      wsmResourceId,
+      workspaceId
     )
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider
-  val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
+  val allowListAuthProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider)
+  val allowListAuthProvider2 = new AllowlistAuthProvider(allowlistAuthConfig2, serviceAccountProvider)
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),
@@ -503,9 +524,11 @@ object CommonTestData {
   val azureCloudContext =
     AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
+  val workspaceIdOpt = Some(workspaceId)
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+  val cloudContextAzure = CloudContext.Azure(azureCloudContext)
 
   val testCommonControlledResourceFields = ControlledResourceCommonFields(
     ControlledResourceName("name"),
@@ -524,7 +547,6 @@ object CommonTestData {
 
   val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
     Map.empty,
-    azureRegion,
     VirtualMachineSizeTypes.STANDARD_A1,
     Map.empty,
     CreateAzureDiskRequest(
@@ -537,17 +559,16 @@ object CommonTestData {
   )
 
   val landingZoneResources = LandingZoneResources(
-    AKSClusterName(""),
-    BatchAccountName(""),
-    RelayNamespace(""),
-    StorageAccountName(""),
-    NetworkName(""),
-    PostgresName(""),
-    LogAnalyticsWorkspaceName(""),
-    SubnetworkName(""),
-    SubnetworkName(""),
-    SubnetworkName(""),
-    SubnetworkName("")
+    UUID.randomUUID(),
+    AKSClusterName("lzcluster"),
+    BatchAccountName("lzbatch"),
+    RelayNamespace("lznamespace"),
+    StorageAccountName("lzstorage"),
+    NetworkName("lzvnet"),
+    SubnetworkName("batchsub"),
+    SubnetworkName("akssub"),
+    azureRegion,
+    ApplicationInsightsName("lzappinsights")
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

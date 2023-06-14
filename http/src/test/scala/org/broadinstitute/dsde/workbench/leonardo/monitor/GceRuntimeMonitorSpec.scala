@@ -7,7 +7,7 @@ import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -176,7 +176,7 @@ class GceRuntimeMonitorSpec
       start <- IO.realTimeInstant
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -229,7 +229,7 @@ class GceRuntimeMonitorSpec
       start <- IO.realTimeInstant
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -270,7 +270,7 @@ class GceRuntimeMonitorSpec
       start <- IO.realTimeInstant
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -308,7 +308,7 @@ class GceRuntimeMonitorSpec
       start <- IO.realTimeInstant
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -346,7 +346,7 @@ class GceRuntimeMonitorSpec
       assersions = for {
         status <- clusterQuery.getClusterStatus(runtime.id).transaction
       } yield status.get shouldBe RuntimeStatus.Stopped
-      _ <- withInfiniteStream(monitor.process(runtime.id, RuntimeStatus.Starting), assersions)
+      _ <- withInfiniteStream(monitor.process(runtime.id, RuntimeStatus.Starting, None), assersions)
     } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -378,7 +378,7 @@ class GceRuntimeMonitorSpec
       start <- IO.realTimeInstant
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -430,7 +430,7 @@ class GceRuntimeMonitorSpec
       start <- IO.realTimeInstant
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -454,7 +454,7 @@ class GceRuntimeMonitorSpec
     val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- IO.realTimeInstant
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -476,7 +476,7 @@ class GceRuntimeMonitorSpec
     val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- IO.realTimeInstant
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -506,7 +506,7 @@ class GceRuntimeMonitorSpec
     val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- IO.realTimeInstant
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -531,7 +531,7 @@ class GceRuntimeMonitorSpec
           computeService(start.toEpochMilli, Some(GceInstanceStatus.Running), Some(GceInstanceStatus.Terminated))
       )
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -553,7 +553,7 @@ class GceRuntimeMonitorSpec
     val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- IO.realTimeInstant
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
     } yield {
@@ -591,7 +591,7 @@ class GceRuntimeMonitorSpec
       start <- IO.realTimeInstant
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting).compile.drain // start monitoring process
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting, None).compile.drain // start monitoring process
       afterMonitor <- IO.realTimeInstant
 
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -619,6 +619,7 @@ class GceRuntimeMonitorSpec
       googleComputeService,
       MockAuthProvider,
       FakeGoogleStorageService,
+      MockGoogleDiskService,
       publisherQueue,
       GceInterp
     )

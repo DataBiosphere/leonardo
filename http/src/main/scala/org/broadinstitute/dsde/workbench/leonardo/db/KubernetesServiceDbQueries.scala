@@ -8,12 +8,12 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundExcept
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByWorkspaceId, nonDeletedAppQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByCreator, filterByWorkspaceId, nonDeletedAppQuery}
 import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext
@@ -28,13 +28,17 @@ object KubernetesServiceDbQueries {
    * and app will be present. If you just need the cluster, nodepools, and cluster-wide namespaces, see the minimal
    * join in the KubernetesClusterComponent.
    */
-  def listFullApps(cloudContext: Option[CloudContext], labelFilter: LabelMap = Map(), includeDeleted: Boolean = false)(
-    implicit ec: ExecutionContext
+  def listFullApps(cloudContext: Option[CloudContext],
+                   labelFilter: LabelMap = Map(),
+                   includeDeleted: Boolean = false,
+                   creatorOnly: Option[WorkbenchEmail] = None
+  )(implicit
+    ec: ExecutionContext
   ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
       listClustersByCloudContext(cloudContext),
       nodepoolQuery,
-      if (includeDeleted) appQuery else nonDeletedAppQuery,
+      filterByCreator(if (includeDeleted) appQuery else nonDeletedAppQuery, creatorOnly),
       labelFilter
     )
 
@@ -64,6 +68,16 @@ object KubernetesServiceDbQueries {
       kubernetesClusterQuery,
       nodepoolQuery,
       appQuery.filter(_.status inSetBind AppStatus.monitoredStatuses)
+    )
+
+  /**
+   * List all apps for metrics. Called by AppHealthMonitor.
+   */
+  def listAppsForMetrics(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
+    joinFullAppAndUnmarshal(
+      kubernetesClusterQuery,
+      nodepoolQuery,
+      nonDeletedAppQuery
     )
 
   /**

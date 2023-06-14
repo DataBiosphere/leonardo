@@ -11,9 +11,10 @@ import org.http4s.Uri
 object AppRoutesTestJsonCodec {
   implicit val descriptorEncoder: Encoder[Uri] = Encoder.encodeString.contramap(_.toString)
 
-  implicit val createAppEncoder: Encoder[CreateAppRequest] = Encoder.forProduct7(
+  implicit val createAppEncoder: Encoder[CreateAppRequest] = Encoder.forProduct8(
     "kubernetesRuntimeConfig",
     "appType",
+    "accessScope",
     "diskConfig",
     "labels",
     "customEnvironmentVariables",
@@ -23,6 +24,7 @@ object AppRoutesTestJsonCodec {
     (
       x.kubernetesRuntimeConfig,
       x.appType,
+      x.accessScope,
       x.diskConfig,
       x.labels,
       x.customEnvironmentVariables,
@@ -36,7 +38,7 @@ object AppRoutesTestJsonCodec {
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
   implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct11(
+    Decoder.forProduct12(
       "appName",
       "cloudContext",
       "kubernetesRuntimeConfig",
@@ -47,12 +49,12 @@ object AppRoutesTestJsonCodec {
       "customEnvironmentVariables",
       "auditInfo",
       "appType",
+      "accessScope",
       "labels"
     )(GetAppResponse.apply)
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] =
     Decoder.forProduct12(
-      "cloudProvider",
       "workspaceId",
       "cloudContext",
       "kubernetesRuntimeConfig",
@@ -63,6 +65,7 @@ object AppRoutesTestJsonCodec {
       "appType",
       "diskName",
       "auditInfo",
+      "accessScope",
       "labels"
     )(ListAppResponse.apply)
 }

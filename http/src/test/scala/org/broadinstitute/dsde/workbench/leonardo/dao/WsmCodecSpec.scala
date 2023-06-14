@@ -1,108 +1,28 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.util.UUID
-import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AzureDiskName,
-  CidrIP,
-  DiskSize,
-  RuntimeName,
-  WsmControlledResourceId
-}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.flatspec.AnyFlatSpec
 import _root_.io.circe.syntax._
-import io.circe.parser._
-import WsmDecoders._
-import WsmEncoders._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import io.circe.parser._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 import java.time.ZonedDateTime
+import java.util.UUID
 
 class WsmCodecSpec extends AnyFlatSpec with Matchers {
-  it should "encode CreateIpRequest" in {
-    val req = CreateIpRequest(
-      workspaceId,
-      testCommonControlledResourceFields,
-      CreateIpRequestData(
-        AzureIpName("ip"),
-        Region.US_EAST
-      )
-    ).asJson.deepDropNullValues.noSpaces
-
-    req shouldBe
-      """
-        |{
-        |  "common" : {
-        |    "name" : "name",
-        |    "description" : "desc",
-        |    "cloningInstructions" : "COPY_NOTHING",
-        |    "accessScope" : "PRIVATE_ACCESS",
-        |    "managedBy" : "USER",
-        |    "privateResourceUser" : {
-        |      "userName" : "user1@example.com",
-        |      "privateResourceIamRole" : "EDITOR"
-        |    }
-        |  },
-        |  "azureIp" : {
-        |    "name" : "ip",
-        |    "region" : "eastus"
-        |  }
-        |}
-        |""".stripMargin.replaceAll("\\s", "")
-  }
-
-  it should "encode CreateNetworkRequest" in {
-    val req = CreateNetworkRequest(
-      workspaceId,
-      testCommonControlledResourceFields,
-      CreateNetworkRequestData(
-        AzureNetworkName("network"),
-        AzureSubnetName("subnet"),
-        CidrIP("0.0.0.0/16"),
-        CidrIP("0.0.0.0/24"),
-        Region.US_EAST
-      )
-    ).asJson.deepDropNullValues.noSpaces
-
-    req shouldBe
-      """
-        |{
-        |  "common" : {
-        |    "name" : "name",
-        |    "description" : "desc",
-        |    "cloningInstructions" : "COPY_NOTHING",
-        |    "accessScope" : "PRIVATE_ACCESS",
-        |    "managedBy" : "USER",
-        |    "privateResourceUser" : {
-        |      "userName" : "user1@example.com",
-        |      "privateResourceIamRole" : "EDITOR"
-        |    }
-        |  },
-        |  "azureNetwork" : {
-        |    "name" : "network",
-        |    "subnetName": "subnet",
-        |    "addressSpaceCidr": "0.0.0.0/16",
-        |    "subnetAddressCidr": "0.0.0.0/24",
-        |    "region" : "eastus"
-        |  }
-        |}
-        |""".stripMargin.replaceAll("\\s", "")
-  }
-
   it should "encode CreateDiskRequest" in {
     val req = CreateDiskRequest(
       workspaceId,
       testCommonControlledResourceFields,
       CreateDiskRequestData(
         AzureDiskName("disk"),
-        DiskSize(50),
-        Region.US_EAST
+        DiskSize(50)
       )
     ).asJson.deepDropNullValues.noSpaces
 
@@ -122,8 +42,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         |  },
         |  "azureDisk" : {
         |    "name" : "disk",
-        |    "size": 50,
-        |    "region" : "eastus"
+        |    "size": 50
         |  }
         |}
         |""".stripMargin.replaceAll("\\s", "")
@@ -137,7 +56,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       testCommonControlledResourceFields,
       CreateVmRequestData(
         RuntimeName("runtime"),
-        Region.US_EAST,
         VirtualMachineSizeTypes.STANDARD_A2, // Standard_A2
         ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
         CustomScriptExtension(
@@ -153,7 +71,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
           )
         ),
         VMCredential("username", "password"),
-        WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
       ),
       WsmJobControl(WsmJobId("job1"))
@@ -175,13 +92,12 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |  },
          |  "azureVm" : {
          |    "name" : "runtime",
-         |    "region" : "eastus",
          |    "vmSize": "Standard_A2",
          |    "vmImage": {
          |      "publisher": "microsoft-dsvm",
          |      "offer": "ubuntu-2004",
          |      "sku": "2004-gen2",
-         |      "version": "22.04.27"
+         |      "version": "23.01.06"
          |    },
          |    "customScriptExtension": {
          |      "name": "vm-custom-script-extension",
@@ -191,7 +107,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/b9c7fc1ec10697f8d8e278188ebbf30f6d124d67/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
@@ -200,8 +116,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      ]
          |    },
          |    "vmUser":{"name":"username","password":"password"},
-         |    "diskId": "${fixedUUID.toString}",
-         |    "networkId": "${fixedUUID.toString}"
+         |    "diskId": "${fixedUUID.toString}"
          |  },
          |  "jobControl": {
          |    "id": "job1"
@@ -223,95 +138,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |}
          |""".stripMargin.replaceAll("\\s", "")
 
-  }
-
-  it should "decode CreateIpResponse" in {
-    val fixedUUID = UUID.randomUUID()
-    val expected = CreateIpResponse(WsmControlledResourceId(fixedUUID))
-
-    val decodedResp = decode[CreateIpResponse](
-      s"""
-         |{
-         |  "resourceId": "${fixedUUID.toString}",
-         |  "azureIp": {
-         |    "fillerFieldsThatAreNotDecoded": "filler"
-         |  }
-         |}
-         |""".stripMargin.replaceAll("\\s", "")
-    )
-
-    decodedResp shouldBe Right(expected)
-  }
-
-  it should "decode getRelayNamespace response" in {
-    val expected = GetWsmResourceResponse(
-      List(
-        WsmResource(
-          WsmResourceMetadata(WsmControlledResourceId(UUID.fromString("5f22f3ce-63d7-4790-aa98-fb5b4e5b0430"))),
-          ResourceAttributes.RelayNamespaceResourceAttributes(
-            RelayNamespace("qi-relay-ns-5-2-1"),
-            region = com.azure.core.management.Region.US_WEST_CENTRAL
-          )
-        )
-      )
-    )
-    val decodedResp = decode[GetWsmResourceResponse](
-      s"""
-         |{
-         |    "resources":
-         |    [
-         |        {
-         |            "metadata":
-         |            {
-         |                "workspaceId": "bab2beee-bc29-42d0-bc1e-d2b8baa583c3",
-         |                "resourceId": "5f22f3ce-63d7-4790-aa98-fb5b4e5b0430",
-         |                "name": "qi-relay-ns-cname-1",
-         |                "description": "relay-ns",
-         |                "resourceType": "AZURE_RELAY_NAMESPACE",
-         |                "stewardshipType": "CONTROLLED",
-         |                "cloningInstructions": "COPY_NOTHING",
-         |                "controlledResourceMetadata":
-         |                {
-         |                    "accessScope": "SHARED_ACCESS",
-         |                    "managedBy": "USER",
-         |                    "privateResourceUser":
-         |                    {},
-         |                    "privateResourceState": "NOT_APPLICABLE"
-         |                }
-         |            },
-         |            "resourceAttributes":
-         |            {
-         |                "azureRelayNamespace":
-         |                {
-         |                    "namespaceName": "qi-relay-ns-5-2-1",
-         |                    "region": "westcentralus"
-         |                }
-         |            }
-         |        }
-         |    ]
-         |}
-         |""".stripMargin.replaceAll("\\s", "")
-    )
-
-    decodedResp shouldBe Right(expected)
-  }
-
-  it should "decode CreateNetworkResponse" in {
-    val fixedUUID = UUID.randomUUID()
-    val expected = CreateNetworkResponse(WsmControlledResourceId(fixedUUID))
-
-    val decodedResp = decode[CreateNetworkResponse](
-      s"""
-         |{
-         |  "resourceId": "${fixedUUID.toString}",
-         |  "azureNetwork": {
-         |    "fillerFieldsThatAreNotDecoded": "filler"
-         |  }
-         |}
-         |""".stripMargin.replaceAll("\\s", "")
-    )
-
-    decodedResp shouldBe Right(expected)
   }
 
   it should "decode CreateDiskResponse" in {

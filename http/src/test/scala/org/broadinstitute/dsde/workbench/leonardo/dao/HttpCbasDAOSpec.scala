@@ -6,7 +6,6 @@ import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpCbasDAO.statusDecoder
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
@@ -14,7 +13,7 @@ import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class HttpCbasDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite with TestComponent {
+class HttpCbasDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   "HttpCbasDAO" should "decode cbas status endpoint response successfully" in {
     val response =
       """

@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateAppRequest,
@@ -22,7 +24,9 @@ object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
   val kubeName1 = KubernetesClusterName("clustername01")
 
-  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289")
+  val appSamId = AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b289", None)
+  val sharedAppSamId =
+    AppSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b290", Some(AppAccessScope.WorkspaceShared))
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
@@ -39,7 +43,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("/leonardo/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("1.6.1")
+  val galaxyChartVersion = ChartVersion("2.5.2")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -49,7 +53,8 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.172")
+  val coaChartVersion = ChartVersion("0.2.265")
+
   val coaChart = Chart(coaChartName, coaChartVersion)
 
   val serviceKind = KubernetesServiceKindName("ClusterIP")
@@ -64,11 +69,16 @@ object KubernetesTestData {
     Some(kubernetesRuntimeConfig),
     AppType.Galaxy,
     None,
+    None,
     Map.empty,
     Map.empty,
     None,
-    List.empty
+    List.empty,
+    None
   )
+
+  val customEnvironmentVariables =
+    Map("WORKSPACE_NAME" -> "testWorkspace", "RELAY_HYBRID_CONNECTION_NAME" -> s"app1-${workspaceId.value}")
 
   val testCluster = makeKubeCluster(1)
   val testNodepool = makeNodepool(1, testCluster.id)
@@ -92,15 +102,19 @@ object KubernetesTestData {
       )
       .toVector
 
-  def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest], customEnvVars: Map[String, String]) =
+  def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest],
+                               customEnvVars: Map[String, String] = customEnvironmentVariables
+  ) =
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
+      None,
       diskConfig = diskConfig,
       labels = Map.empty,
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
-      extraArgs = List.empty
+      extraArgs = List.empty,
+      None
     )
 
   def makeNodepool(index: Int,
@@ -146,6 +160,32 @@ object KubernetesTestData {
     )
   }
 
+  def makeAzureCluster(index: Int,
+                       withDefaultNodepool: Boolean = true,
+                       status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
+  ): KubernetesCluster = {
+    val name = KubernetesClusterName("kubecluster" + index)
+    val uniqueCloudContextAzure = CloudContext.Azure(
+      AzureCloudContext(tenantId = TenantId("tenant-id"),
+                        subscriptionId = SubscriptionId("sub-id"),
+                        managedResourceGroupName = ManagedResourceGroupName("mrg-name")
+      )
+    )
+    KubernetesCluster(
+      KubernetesClusterLeoId(-1),
+      uniqueCloudContextAzure,
+      name,
+      location,
+      region,
+      status,
+      ingressChart,
+      auditInfo,
+      None,
+      List(),
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
+    )
+  }
+
   def makeNamespace(index: Int, prefix: String = ""): Namespace = {
     val name = NamespaceName(prefix + "namespace" + index)
     Namespace(NamespaceId(-1), name)
@@ -153,23 +193,29 @@ object KubernetesTestData {
 
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,
-              customEnvironmentVariables: Map[String, String] = Map.empty,
+              customEnvironmentVariables: Map[String, String] = customEnvironmentVariables,
               status: AppStatus = AppStatus.Unspecified,
               appType: AppType = galaxyApp,
-              workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID())
+              workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID()),
+              appAccessScope: AppAccessScope = AppAccessScope.UserPrivate
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
+    val samId = appAccessScope match {
+      case AppAccessScope.WorkspaceShared => sharedAppSamId
+      case _                              => appSamId
+    }
     App(
       AppId(-1),
       nodepoolId,
       appType,
       name,
+      None,
       Some(workspaceId),
       status,
       galaxyChart,
       Release(galaxyReleasePrefix + index),
-      appSamId,
+      samId,
       serviceAccountEmail,
       auditInfo,
       Map.empty,
@@ -182,7 +228,8 @@ object KubernetesTestData {
       List.empty,
       customEnvironmentVariables,
       None,
-      List.empty
+      List.empty,
+      None
     )
   }
 
@@ -193,4 +240,20 @@ object KubernetesTestData {
       ServiceConfig(name, serviceKind)
     )
   }
+
+  def makeCustomAppService(): CustomAppService =
+    CustomAppService(
+      ContainerImage.fromImageUrl("us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.10").get,
+      8001,
+      "/",
+      List("/bin/sh", "-c"),
+      List("sed -i 's/^www-address.*$//' $RSTUDIO_HOME/rserver.conf && /init"),
+      "/data",
+      "ReadWriteOnce",
+      Map(
+        "WORKSPACE_NAME" -> "my-ws",
+        "WORKSPACE_NAMESPACE" -> "my-proj",
+        "USER" -> "rstudio"
+      )
+    )
 }

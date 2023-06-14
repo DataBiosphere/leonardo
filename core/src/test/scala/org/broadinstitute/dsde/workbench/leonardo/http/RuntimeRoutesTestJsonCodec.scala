@@ -82,11 +82,11 @@ object RuntimeRoutesTestJsonCodec {
   implicit val azureDiskConfigEncoder: Encoder[CreateAzureDiskRequest] =
     Encoder.forProduct4("labels", "name", "size", "diskType")(x => CreateAzureDiskRequest.unapply(x).get)
   implicit val createAzureRuntimeRequestEncoder: Encoder[CreateAzureRuntimeRequest] =
-    Encoder.forProduct6("labels", "region", "machineSize", "customEnvironmentVariables", "disk", "autopauseThreshold")(
-      x => CreateAzureRuntimeRequest.unapply(x).get
+    Encoder.forProduct5("labels", "machineSize", "customEnvironmentVariables", "disk", "autopauseThreshold")(x =>
+      CreateAzureRuntimeRequest.unapply(x).get
     )
 
-  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct12(
+  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct13(
     "labels",
     "userScriptUri",
     "startUserScriptUri",
@@ -98,7 +98,8 @@ object RuntimeRoutesTestJsonCodec {
     "toolDockerImage",
     "welderRegistry",
     "scopes",
-    "customEnvironmentVariables"
+    "customEnvironmentVariables",
+    "checkToolsInterruptAfter"
   )(x =>
     (
       x.labels,
@@ -112,7 +113,8 @@ object RuntimeRoutesTestJsonCodec {
       x.toolDockerImage,
       x.welderRegistry,
       x.scopes,
-      x.customEnvironmentVariables
+      x.customEnvironmentVariables,
+      x.checkToolsInterruptAfter.map(_.toMinutes)
     )
   )
 

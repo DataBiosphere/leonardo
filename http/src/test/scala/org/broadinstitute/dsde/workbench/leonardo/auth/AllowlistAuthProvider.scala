@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.syntax.all._
@@ -7,23 +8,25 @@ import cats.mtl.Ask
 import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.dao.AuthProviderException
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
-class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[IO]) extends LeoAuthProvider[IO] {
+class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[IO]) extends LeoAuthProvider[IO] {
 
-  val whitelist = config.as[Set[String]]("whitelist").map(_.toLowerCase)
+  val allowlist = config.as[Set[String]]("allowlist").map(_.toLowerCase)
 
-  protected def checkWhitelist(userInfo: UserInfo): IO[Boolean] =
-    IO.pure(whitelist contains userInfo.userEmail.value.toLowerCase)
+  protected def checkAllowlist(userInfo: UserInfo): IO[Boolean] =
+    IO.pure(allowlist contains userInfo.userEmail.value.toLowerCase)
 
   def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[Boolean] = checkWhitelist(userInfo)
+  ): IO[Boolean] = checkAllowlist(userInfo)
 
   def hasPermissionWithProjectFallback[R, A](
     samResource: R,
@@ -31,13 +34,13 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit sr: SamResourceAction[R, A], ev: Ask[IO, TraceId]): IO[Boolean] = checkWhitelist(userInfo)
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[IO, TraceId]): IO[Boolean] = checkAllowlist(userInfo)
 
   def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[List[A]] =
-    checkWhitelist(userInfo).map {
+    checkAllowlist(userInfo).map {
       case true  => sr.allActions
       case false => List.empty
     }
@@ -46,7 +49,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[(List[A], List[ProjectAction])] =
-    checkWhitelist(userInfo).map {
+    checkAllowlist(userInfo).map {
       case true  => (sr.allActions, ProjectAction.allActions.toList)
       case false => (List.empty, List.empty)
     }
@@ -57,7 +60,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     ev: Ask[IO, TraceId]
   ): IO[List[R]] =
     resources.toList.traverseFilter { a =>
-      checkWhitelist(userInfo).map {
+      checkAllowlist(userInfo).map {
         case true  => Some(a)
         case false => None
       }
@@ -72,7 +75,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     ev: Ask[IO, TraceId]
   ): IO[List[(GoogleProject, R)]] =
     resources.toList.traverseFilter { a =>
-      checkWhitelist(userInfo).map {
+      checkAllowlist(userInfo).map {
         case true  => Some(a)
         case false => None
       }
@@ -94,23 +97,17 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 
-  override def filterUserVisibleWithWorkspaceFallback[R](
-    resources: NonEmptyList[(WorkspaceId, R)],
+  override def isUserWorkspaceOwner(
+    workspaceResource: WorkspaceResourceSamResourceId,
     userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(WorkspaceId, R)]] =
-    resources.toList.traverseFilter { a =>
-      checkWhitelist(userInfo).map {
-        case true  => Some(a)
-        case false => None
-      }
-    }
+  )(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+    checkAllowlist(userInfo)
 
-  override def isUserWorkspaceOwner[R](
-    workspaceId: WorkspaceId,
-    workspaceResource: R,
+  override def isUserWorkspaceReader(
+    workspaceResource: WorkspaceResourceSamResourceId,
     userInfo: UserInfo
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[Boolean] =
-    checkWhitelist(userInfo)
+  )(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+    checkAllowlist(userInfo)
 
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
@@ -118,6 +115,21 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     case serviceAccountEmail.value => IO(userEmail)
     case _                         => IO(petOrUserInfo.userEmail)
   }
+
+  override def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Unit] = for {
+    traceId: TraceId <- ev.ask
+    _ <- checkAllowlist(petOrUserInfo).map {
+      case true => IO.unit
+      case false =>
+        IO.raiseError(
+          AuthProviderException(
+            traceId,
+            s"[AllowlistAuthProvider.checkUserEnabled] User ${petOrUserInfo.userEmail.value} is disabled",
+            StatusCodes.Unauthorized
+          )
+        )
+    }
+  } yield ()
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
@@ -132,4 +144,19 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
+
+  override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Set[WorkspaceResourceSamResourceId]] = IO.pure(resources.toList.toSet)
+
+  override def filterWorkspaceReader(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Set[WorkspaceResourceSamResourceId]] = for {
+    filteredResources <- resources.toList.traverseFilter { resource =>
+      isUserWorkspaceReader(resource, userInfo).map {
+        case true  => Some(resource)
+        case false => None
+      }
+    }
+  } yield filteredResources.toSet
 }

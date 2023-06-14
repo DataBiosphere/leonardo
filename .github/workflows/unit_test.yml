@@ -6,6 +6,8 @@ on:
     branches: [ develop ]
   pull_request:
     branches: [ develop ]
+  merge_group:
+    branches: [ develop ]
 
 jobs:
   build:
@@ -42,19 +44,23 @@ jobs:
         JVM_OPTS:  -Xmx4G -Xms4G -Xss2M
       run: sbt -Denv.type=test clean "test:compile" scalafmtCheckAll
 
+    # Run SlickPlainQueryTest separately from the rest of the unit tests because for some reason, when run together, these
+    # tests will always fail
     - name: Run tests
       env:
         JAVA_OPTS: -Xmx4G -Xms4G -Xss2M -Duser.timezone=UTC -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307
         JVM_OPTS:  -Xmx4G -Xms4G -Xss2M
       run: |
-         sbt "project core" coverage test coverageReport
-         sbt "project http" coverage test coverageReport
+        sbt "project http" coverage "testOnly org.broadinstitute.dsde.workbench.leonardo.http.db.RuntimeServiceDbQueriesSpec org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceV2InterpSpec org.broadinstitute.dsde.workbench.leonardo.http.db.RuntimeServiceDbQueriesSpec" coverageReport
+        sbt "project core" coverage test coverageReport
+        sbt "project http" coverage "testOnly -- -l SlickPlainQueryTest" coverageReport
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v3
       with:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
+        version: "v0.1.15"
 
     - name: Setup Cache
       uses: coursier/cache-action@v5

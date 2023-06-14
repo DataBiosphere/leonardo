@@ -94,4 +94,11 @@
     <include file="changesets/20221115_azure_app_refactor.xml" relativeToChangelogFile="true" />
     <include file="changesets/20221117_move_workspace_id_to_app_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20221122_add_saturnAutoCreated_label.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230201_add_wsmResourceId_to_persistent_disk.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230224_add_accessScope_to_app.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230313_add_workspaceid_to_persistent_disk.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230403_update_persistent_disk_workspaceId.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230418_update_custom_env_length.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230419_add_source_workspaceId_to_app.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230522_update_persistent_disk_formattedBy_RStudio_enum.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

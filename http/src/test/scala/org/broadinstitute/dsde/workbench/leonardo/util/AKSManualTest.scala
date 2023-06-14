@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import java.net.URL
 import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.azure._
@@ -11,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CromwellDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CbasUiDAO, CromwellDAO, HailBatchDAO, SamDAO, WdsDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -69,7 +70,7 @@ object AKSManualTest {
   val uamiName = ManagedIdentityName("uami-name")
 
   val appName = AppName("coa-app")
-  val appSamResourceId = AppSamResourceId("sam-id")
+  val appSamResourceId = AppSamResourceId("sam-id", None)
 
   // Implicit dependencies
   implicit val logger = Slf4jLogger.getLogger[IO]
@@ -136,29 +137,40 @@ object AKSManualTest {
   /** Creates an AKSInterpreter */
   def getAksInterp(implicit dbRef: DbReference[IO]): Resource[IO, AKSInterpreter[IO]] = for {
     containerService <- AzureContainerService.fromAzureAppRegistrationConfig[IO](appRegConfig)
+    batchService <- AzureBatchService.fromAzureAppRegistrationConfig[IO](appRegConfig)
+    azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     relayService <- AzureRelayService.fromAzureAppRegistrationConfig[IO](appRegConfig)
     helmConcurrency <- Resource.eval(Semaphore[IO](20L))
     helmClient = new HelmInterpreter[IO](helmConcurrency)
     config = AKSInterpreterConfig(
       ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
+      ConfigReader.appConfig.azure.wdsAppConfig,
+      ConfigReader.appConfig.azure.hailBatchAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
       appRegConfig,
       SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
       appMonitorConfig,
       ConfigReader.appConfig.azure.wsm,
-      ConfigReader.appConfig.drs
+      ConfigReader.appConfig.drs,
+      new URL("https://leo-dummy-url.org"),
+      ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+      ConfigReader.appConfig.azure.tdr
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
     config,
     helmClient,
+    batchService,
     containerService,
+    azureApplicationInsightsService,
     relayService,
     mock[SamDAO[IO]],
     mock[CromwellDAO[IO]],
     mock[CbasDAO[IO]],
-    mock[WdsDAO[IO]]
+    mock[CbasUiDAO[IO]],
+    mock[WdsDAO[IO]],
+    mock[HailBatchDAO[IO]]
   )
 
   /** Deploys a CoA app */

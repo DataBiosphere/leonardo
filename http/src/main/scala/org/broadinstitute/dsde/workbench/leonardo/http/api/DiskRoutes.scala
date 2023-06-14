@@ -134,7 +134,10 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
       ctx <- ev.ask[AppContext]
       apiCall = diskService.getDisk(userInfo, cloudContext, diskName)
       _ <- metrics.incrementCounter("getDisk")
-      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getDisk").use(_ => apiCall))
+      resp <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "getDisk")
+          .use(_ => apiCall)
+      )
     } yield StatusCodes.OK -> resp
 
   private[api] def listDisksHandler(

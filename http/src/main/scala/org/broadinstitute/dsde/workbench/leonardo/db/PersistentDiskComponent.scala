@@ -4,7 +4,7 @@ package db
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -32,7 +32,9 @@ final case class PersistentDiskRecord(id: DiskId,
                                       blockSize: BlockSize,
                                       formattedBy: Option[FormattedBy],
                                       appRestore: Option[AppRestore],
-                                      sourceDisk: Option[DiskLink]
+                                      sourceDisk: Option[DiskLink],
+                                      wsmResourceId: Option[WsmControlledResourceId],
+                                      workspaceId: Option[WorkspaceId]
 )
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
@@ -53,9 +55,10 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def blockSize = column[BlockSize]("blockSizeBytes")
   def formattedBy = column[Option[FormattedBy]]("formattedBy", O.Length(255))
   def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
-  def cvmfsPvcId = column[Option[PvcId]]("cvmfsPvcId", O.Length(254))
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
   def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
+  def wsmResourceId = column[Option[WsmControlledResourceId]]("wsmResourceId")
+  def workspaceId = column[Option[WorkspaceId]]("workspaceId")
 
   override def * =
     (id,
@@ -73,8 +76,10 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      diskType,
      blockSize,
      formattedBy,
-     (galaxyPvcId, cvmfsPvcId, lastUsedBy),
-     sourceDisk
+     (galaxyPvcId, lastUsedBy),
+     sourceDisk,
+     wsmResourceId,
+     workspaceId
     ) <> ({
       case (id,
             (cloudProvider, cloudContextDb),
@@ -91,8 +96,10 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             diskType,
             blockSize,
             formattedBy,
-            (galaxyPvcId, cvmfsPvcId, lastUsedBy),
-            sourceDisk
+            (galaxyPvcId, lastUsedBy),
+            sourceDisk,
+            wsmResourceId,
+            workspaceId
           ) =>
         PersistentDiskRecord(
           id,
@@ -120,11 +127,14 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           formattedBy,
           formattedBy.flatMap {
             case FormattedBy.Galaxy =>
-              (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, lb) => GalaxyRestore(gp, cp, lb))
+              (galaxyPvcId, lastUsedBy).mapN((gp, lb) => GalaxyRestore(gp, lb))
             case FormattedBy.Cromwell                 => lastUsedBy.map(CromwellRestore)
+            case FormattedBy.RStudio                  => lastUsedBy.map(RStudioRestore)
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
-          sourceDisk
+          sourceDisk,
+          wsmResourceId,
+          workspaceId
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -149,11 +159,14 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
         record.blockSize,
         record.formattedBy,
         record.appRestore match {
-          case None                       => (None, None, None)
-          case Some(app: CromwellRestore) => (None, None, Some(app.lastUsedBy))
-          case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.cvmfsPvcId), Some(app.lastUsedBy))
+          case None                       => (None, None)
+          case Some(app: CromwellRestore) => (None, Some(app.lastUsedBy))
+          case Some(app: RStudioRestore)  => (None, Some(app.lastUsedBy))
+          case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
         },
-        record.sourceDisk
+        record.sourceDisk,
+        record.wsmResourceId,
+        record.workspaceId
       )
     })
 }
@@ -163,18 +176,16 @@ object persistentDiskQuery {
 
   private[db] def findByIdQuery(id: DiskId) = tableQuery.filter(_.id === id)
 
+  private[db] def findActiveByIdQuery(id: DiskId) =
+    tableQuery
+      .filter(_.id === id)
+      .filter(_.destroyedDate === dummyDate)
+
   private[db] def findActiveByNameQuery(cloudContext: CloudContext, name: DiskName) =
     tableQuery
       .filter(_.cloudContext === cloudContext.asCloudContextDb)
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
-
-  private[db] def findByNameQuery(cloudContext: CloudContext, name: DiskName) =
-    tableQuery
-      .filter(
-        _.cloudContext === cloudContext.asCloudContextDb
-      )
-      .filter(_.name === name)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
@@ -185,9 +196,9 @@ object persistentDiskQuery {
 
   def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyRestore): DBIO[Int] =
     findByIdQuery(id)
-      .map(x => (x.galaxyPvcId, x.cvmfsPvcId, x.lastUsedBy))
+      .map(x => (x.galaxyPvcId, x.lastUsedBy))
       .update(
-        (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.cvmfsPvcId), Some(galaxyDiskRestore.lastUsedBy))
+        (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.lastUsedBy))
       )
 
   def updateLastUsedBy(id: DiskId, lastUsedBy: AppId): DBIO[Int] =
@@ -216,18 +227,26 @@ object persistentDiskQuery {
   def getPersistentDiskRecord(id: DiskId): DBIO[Option[PersistentDiskRecord]] =
     findByIdQuery(id).result.headOption
 
+  def getActiveById(id: DiskId)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[PersistentDisk]] =
+    joinLabelQuery(findActiveByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
+
   def getActiveByName(cloudContext: CloudContext, name: DiskName)(implicit
     ec: ExecutionContext
   ): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(cloudContext, name)).result.map(aggregateLabels).map(_.headOption)
 
-  def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
+  def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
 
   def updateStatusAndIsFormatted(id: DiskId, newStatus: DiskStatus, formattedBy: FormattedBy, dateAccessed: Instant) =
     findByIdQuery(id)
       .map(d => (d.status, d.formattedBy, d.dateAccessed))
       .update((newStatus, Some(formattedBy), dateAccessed))
+
+  def updateWSMResourceId(id: DiskId, newWSMResourceId: WsmControlledResourceId, dateAccessed: Instant) =
+    findByIdQuery(id).map(d => (d.wsmResourceId, d.dateAccessed)).update((Some(newWSMResourceId), dateAccessed))
 
   def markPendingDeletion(id: DiskId, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
@@ -256,7 +275,7 @@ object persistentDiskQuery {
             isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
             isAttached <- if (isAttachedToRuntime) DBIO.successful(true) else appQuery.isDiskAttached(diskId)
           } yield isAttached
-        case Some(FormattedBy.Galaxy | FormattedBy.Custom | FormattedBy.Cromwell) =>
+        case Some(FormattedBy.Galaxy | FormattedBy.Custom | FormattedBy.Cromwell | FormattedBy.RStudio) =>
           appQuery.isDiskAttached(diskId)
         case Some(FormattedBy.GCE) =>
           RuntimeConfigQueries.isDiskAttached(diskId)
@@ -281,7 +300,9 @@ object persistentDiskQuery {
       disk.blockSize,
       disk.formattedBy,
       disk.appRestore,
-      disk.sourceDisk
+      disk.sourceDisk,
+      disk.wsmResourceId,
+      disk.workspaceId
     )
 
   private[db] def aggregateLabels(
@@ -319,6 +340,8 @@ object persistentDiskQuery {
       rec.formattedBy,
       rec.appRestore,
       labels,
-      rec.sourceDisk
+      rec.sourceDisk,
+      rec.wsmResourceId,
+      rec.workspaceId
     )
 }

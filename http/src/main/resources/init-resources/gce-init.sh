@@ -139,13 +139,13 @@ INIT_BUCKET_NAME=$(initBucketName)
 CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
-GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gsutil'
+GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gcloud'
 
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  export IS_RSTUDIO_RUNTIME="true"
+  export SHOULD_BACKGROUND_SYNC="true"
 else
-  export IS_RSTUDIO_RUNTIME="false"
+  export SHOULD_BACKGROUND_SYNC="false"
 fi
 
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
@@ -276,6 +276,10 @@ fi
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`)
+  if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    sed -i 's/jupyter/rstudio/g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
+    sed -i 's#${NOTEBOOKS_DIR}#/home/rstudio#g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
+  fi
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
 fi
 
@@ -315,7 +319,7 @@ HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PRO
 DOCKER_COMPOSE_FILES_DIRECTORY=${DOCKER_COMPOSE_FILES_DIRECTORY}
 RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
 RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
-IS_RSTUDIO_RUNTIME=${IS_RSTUDIO_RUNTIME}
+SHOULD_BACKGROUND_SYNC=${SHOULD_BACKGROUND_SYNC}
 RSTUDIO_USER_HOME=${RSTUDIO_USER_HOME}
 END
 
@@ -516,7 +520,7 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL
-IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME
+SHOULD_BACKGROUND_SYNC=$SHOULD_BACKGROUND_SYNC
 RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
 
   # Add custom_env_vars.env to Renviron.site

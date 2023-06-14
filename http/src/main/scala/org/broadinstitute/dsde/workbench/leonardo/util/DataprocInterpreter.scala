@@ -13,7 +13,6 @@ import com.google.api.services.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.{google2, DoneCheckable}
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
@@ -43,6 +42,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.{google2, DoneCheckable}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -105,6 +105,9 @@ class DataprocInterpreter[F[_]: Parallel](
     with LazyLogging {
 
   import dbRef._
+  val isMemberofGroupDoneCheckable = new DoneCheckable[Boolean] {
+    override def isDone(a: Boolean): Boolean = a
+  }
 
   override def createRuntime(
     params: CreateRuntimeParams
@@ -151,9 +154,9 @@ class DataprocInterpreter[F[_]: Parallel](
           .compile
           .drain
 
-        resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
-                                                            machineConfig.masterMachineType,
-                                                            machineConfig.region
+        jupyterResourceConstraints <- getDataprocRuntimeResourceContraints(params.runtimeProjectAndName,
+                                                                           machineConfig.masterMachineType,
+                                                                           machineConfig.region
         )
 
         templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
@@ -166,7 +169,7 @@ class DataprocInterpreter[F[_]: Parallel](
           config.proxyConfig,
           config.clusterFilesConfig,
           config.clusterResourcesConfig,
-          Some(resourceConstraints),
+          Some(jupyterResourceConstraints),
           false
         )
         templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now), false)
@@ -264,7 +267,11 @@ class DataprocInterpreter[F[_]: Parallel](
               .getOrElse((None, None))
           } else (None, None)
 
-        softwareConfig = getSoftwareConfig(googleProject, params.runtimeProjectAndName.runtimeName, machineConfig)
+        softwareConfig = getSoftwareConfig(googleProject,
+                                           params.runtimeProjectAndName.runtimeName,
+                                           machineConfig,
+                                           jupyterResourceConstraints
+        )
 
         // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
         // See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
@@ -459,7 +466,7 @@ class DataprocInterpreter[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
       )
-      resourceConstraints <- getClusterResourceContraints(
+      resourceConstraints <- getDataprocRuntimeResourceContraints(
         RuntimeProjectAndName(params.runtimeAndRuntimeConfig.runtime.cloudContext,
                               params.runtimeAndRuntimeConfig.runtime.runtimeName
         ),
@@ -625,44 +632,66 @@ class DataprocInterpreter[F[_]: Parallel](
   def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
-    parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
-      for {
-        count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
-        // Note: Don't remove the account if there are existing active clusters in the same project,
-        // because it could potentially break other clusters. We only check this for the 'remove' case.
-        _ <-
-          if (count > 0 && !createCluster) {
-            F.unit
-          } else {
-            for {
-              projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
+    for {
+      count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
+      // Note: Don't remove the account if there are existing active clusters in the same project,
+      // because it could potentially break other clusters. We only check this for the 'remove' case.
+      _ <-
+        if (count > 0 && !createCluster) {
+          F.unit
+        } else {
+          for {
+            projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
 
-              projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
-              // Note that the Dataproc service account is used to retrieve the image, and not the user's
-              // pet service account. There is one Dataproc service account per Google project. For more details:
-              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+            projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
+            // Note that the Dataproc service account is used to retrieve the image, and not the user's
+            // pet service account. There is one Dataproc service account per Google project. For more details:
+            // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
 
-              // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
-              // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
-              // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
-              dataprocServiceAccountEmail = WorkbenchEmail(
-                s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                         dataprocServiceAccountEmail,
-                                         createCluster
-              )
-              apiServiceAccountEmail = WorkbenchEmail(
-                s"${projectNumber}@cloudservices.gserviceaccount.com"
-              )
-              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                         apiServiceAccountEmail,
-                                         createCluster
-              )
-            } yield ()
-          }
-      } yield ()
-    }
+            // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
+            // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
+            // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
+            // See https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/service-accounts#dataproc_service_accounts_2
+            // for more information
+            dataprocServiceAccountEmail = WorkbenchEmail(
+              s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       dataprocServiceAccountEmail,
+                                       createCluster
+            )
+            apiServiceAccountEmail = WorkbenchEmail(
+              s"${projectNumber}@cloudservices.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       apiServiceAccountEmail,
+                                       createCluster
+            )
+          } yield ()
+        }
+    } yield ()
+
+  private[util] def waitUntilMemberAdded(memberEmail: WorkbenchEmail)(implicit ev: Ask[F, AppContext]): F[Boolean] = {
+    implicit val doneCheckable = isMemberofGroupDoneCheckable
+    val checkMemberWithLogs = for {
+      ctx <- ev.ask
+      isMember <- F.fromFuture(
+        F.blocking(
+          googleDirectoryDAO.isGroupMember(config.groupsConfig.dataprocImageProjectGroupEmail, memberEmail)
+        )
+      )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Is ${memberEmail.value} a member of ${config.groupsConfig.dataprocImageProjectGroupEmail.value}? ${isMember}"
+      )
+    } yield isMember
+
+    F.sleep(config.groupsConfig.waitForMemberAddedPollConfig.initialDelay) >> streamUntilDoneOrTimeout(
+      checkMemberWithLogs,
+      config.groupsConfig.waitForMemberAddedPollConfig.maxAttempts,
+      config.groupsConfig.waitForMemberAddedPollConfig.interval,
+      s"fail to add ${memberEmail.value} to ${config.groupsConfig.dataprocImageProjectGroupEmail.value}"
+    )
+  }
 
   private def cleanUpGoogleResourcesOnError(
     googleProject: GoogleProject,
@@ -716,9 +745,9 @@ class DataprocInterpreter[F[_]: Parallel](
       List(deleteBucket, deleteCluster, removeIamRoles).parSequence_
     }
 
-  private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
-                                                     machineType: MachineTypeName,
-                                                     region: RegionName
+  private[leonardo] def getDataprocRuntimeResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
+                                                             machineType: MachineTypeName,
+                                                             region: RegionName
   )(implicit
     ev: Ask[F, AppContext]
   ): F[RuntimeResourceConstraints] =
@@ -744,11 +773,19 @@ class DataprocInterpreter[F[_]: Parallel](
       _ <- logger.debug(ctx.loggingCtx)(s"Resolved machine type: ${resolvedMachineType.toString}")
       total = MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
     } yield {
-      // total - dataproc allocated - welder allocated
-      val dataprocAllocated = config.dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
-      val welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
-      val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
-      RuntimeResourceConstraints(result)
+      // For dataproc, we don't need much memory for Jupyter.
+
+      // Hail reserves about 80% of memory available to the machine to the JVM.
+      val sparkMemoryConfigRatio = config.dataprocConfig.sparkMemoryConfigRatio.getOrElse(0.8)
+      // We still want a minimum to run Jupyter and other system processes.
+      val minRuntimeMemoryGb = config.dataprocConfig.minimumRuntimeMemoryInGb.getOrElse(4.0)
+      val runtimeAllocatedMemory =
+        Math.max(
+          (total.bytes * (1 - sparkMemoryConfigRatio)).toLong,
+          MemorySize.fromGb(minRuntimeMemoryGb).bytes
+        )
+
+      RuntimeResourceConstraints(MemorySize(runtimeAllocatedMemory), MemorySize(total.bytes))
     }
 
   /**
@@ -803,8 +840,10 @@ class DataprocInterpreter[F[_]: Parallel](
       isMember <- checkIsMember
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
+          // Sometimes adding member to a group can take longer than when it gets to the point when we create dataproc cluster.
+          // Hence add polling here to make sure the 2 service accounts are added to the image user group properly before proceeding
           logger.info(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >>
-            addMemberToGroup
+            addMemberToGroup >> waitUntilMemberAdded(memberEmail)
         case (true, false) =>
           logger.info(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >>
             removeMemberFromGroup
@@ -829,14 +868,21 @@ class DataprocInterpreter[F[_]: Parallel](
     }
   }
 
-  private def getSoftwareConfig(googleProject: GoogleProject,
-                                runtimeName: RuntimeName,
-                                machineConfig: RuntimeConfig.DataprocConfig
+  // This file is worth keeping track of. It's the source of truth for hail machine provisioning
+  // https://github.com/hail-is/hail/blob/75f351d43a6c6b2e87e7d37531be63aaf11af9df/hail/python/hailtop/hailctl/dataproc/start.py#L20
+  def getSoftwareConfig(googleProject: GoogleProject,
+                        runtimeName: RuntimeName,
+                        machineConfig: RuntimeConfig.DataprocConfig,
+                        jupyterResourceConstraints: RuntimeResourceConstraints
   ): SoftwareConfig = {
     val dataprocProps = if (machineConfig.numberOfWorkers == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     } else Map.empty[String, String]
+
+    val memoryLimitInMb =
+      (jupyterResourceConstraints.totalMachineMemory.bytes - jupyterResourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes
+    val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${memoryLimitInMb}m")
 
     val yarnProps = Map(
       // Helps with debugging
@@ -866,7 +912,7 @@ class DataprocInterpreter[F[_]: Parallel](
     SoftwareConfig
       .newBuilder()
       .putAllProperties(
-        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ knoxProps ++ machineConfig.properties).asJava
+        (driverMemoryProp ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ knoxProps ++ machineConfig.properties).asJava
       )
       .addOptionalComponents(Component.DOCKER)
       .build()

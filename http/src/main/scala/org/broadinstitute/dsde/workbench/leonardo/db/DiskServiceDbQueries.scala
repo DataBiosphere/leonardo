@@ -7,20 +7,32 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
-import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
-import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.leonardo.http.{GetPersistentDiskResponse, GetPersistentDiskV2Response}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskNotFoundByIdException, DiskNotFoundException}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
 
 object DiskServiceDbQueries {
 
-  def listDisks(labelMap: LabelMap, includeDeleted: Boolean, cloudContextOpt: Option[CloudContext] = None)(implicit
+  def listDisks(labelMap: LabelMap,
+                includeDeleted: Boolean,
+                creatorOnly: Option[WorkbenchEmail],
+                cloudContextOpt: Option[CloudContext] = None,
+                workspaceOpt: Option[WorkspaceId] = None
+  )(implicit
     ec: ExecutionContext
   ): DBIO[List[PersistentDisk]] = {
+
+    // filtered by creator first as it may have great impact
+    val diskQueryFilteredByCreator = creatorOnly match {
+      case Some(email) => persistentDiskQuery.tableQuery.filter(_.creator === email)
+      case None        => persistentDiskQuery.tableQuery
+    }
+
     val diskQueryFilteredByDeletion =
-      if (includeDeleted) persistentDiskQuery.tableQuery
-      else persistentDiskQuery.tableQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
+      if (includeDeleted) diskQueryFilteredByCreator
+      else diskQueryFilteredByCreator.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
 
     val diskQueryFilteredByProject =
       cloudContextOpt.fold(diskQueryFilteredByDeletion)(p =>
@@ -29,7 +41,13 @@ object DiskServiceDbQueries {
           .filter(_.cloudProvider === p.cloudProvider)
       )
 
-    val diskQueryJoinedWithLabel = persistentDiskQuery.joinLabelQuery(diskQueryFilteredByProject)
+    val diskQueryFilteredByWorkspace =
+      workspaceOpt.fold(diskQueryFilteredByProject)(workspaceId =>
+        diskQueryFilteredByProject
+          .filter(_.workspaceId === workspaceId)
+      )
+
+    val diskQueryJoinedWithLabel = persistentDiskQuery.joinLabelQuery(diskQueryFilteredByWorkspace)
 
     val diskQueryFilteredByLabel = if (labelMap.isEmpty) {
       diskQueryJoinedWithLabel
@@ -92,6 +110,47 @@ object DiskServiceDbQueries {
           diskRec.diskType,
           diskRec.blockSize,
           labelMap,
+          diskRec.formattedBy
+        )
+        DBIO.successful(getDiskResponse)
+      }
+    }
+  }
+
+  def getGetPersistentDiskResponseV2(diskId: DiskId, traceId: TraceId)(implicit
+    executionContext: ExecutionContext
+  ): DBIO[GetPersistentDiskV2Response] = {
+    val diskQuery = persistentDiskQuery.findActiveByIdQuery(diskId)
+    val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
+
+    diskQueryJoinedWithLabels.result.flatMap { x =>
+      val diskWithLabel = x.toList.foldMap { case (diskRec, labelRecOpt) =>
+        val labelMap = labelRecOpt.map(labelRec => labelRec.key -> labelRec.value).toMap
+        Map(diskRec -> labelMap)
+      }.headOption
+      diskWithLabel.fold[DBIO[GetPersistentDiskV2Response]](
+        DBIO.failed(DiskNotFoundByIdException(diskId, traceId))
+      ) { d =>
+        val diskRec = d._1
+        val labelMap = d._2
+        val getDiskResponse = GetPersistentDiskV2Response(
+          diskRec.id,
+          diskRec.cloudContext,
+          diskRec.zone,
+          diskRec.name,
+          diskRec.serviceAccount,
+          diskRec.samResource,
+          diskRec.status,
+          AuditInfo(diskRec.creator,
+                    diskRec.createdDate,
+                    unmarshalDestroyedDate(diskRec.destroyedDate),
+                    diskRec.dateAccessed
+          ),
+          diskRec.size,
+          diskRec.diskType,
+          diskRec.blockSize,
+          labelMap,
+          diskRec.workspaceId,
           diskRec.formattedBy
         )
         DBIO.successful(getDiskResponse)

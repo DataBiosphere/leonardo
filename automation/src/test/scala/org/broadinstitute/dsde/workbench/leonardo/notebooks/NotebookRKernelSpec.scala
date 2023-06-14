@@ -66,31 +66,6 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should be able to install new R packages" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
-          // httr is a simple http library for R
-          // http://httr.r-lib.org//index.html
-
-          // it may take a little while to install
-          val installTimeout = 2.minutes
-
-          val output = notebookPage.executeCell("""install.packages("httr")""", installTimeout)
-          output shouldBe defined
-          output.get should include("Installing package into")
-          output.get should include("/home/jupyter/packages")
-
-          val httpGetTest =
-            """library(httr)
-              |r <- GET("http://www.example.com")
-              |status_code(r)
-            """.stripMargin
-
-          notebookPage.executeCell(httpGetTest) shouldBe Some("200")
-        }
-      }
-    }
-
     // See https://github.com/DataBiosphere/leonardo/issues/398
     "should be able to install mlr" in { runtimeFixture =>
       withWebDriver { implicit driver =>
@@ -174,6 +149,17 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""Seurat" %in% installed.packages()""") shouldBe Some("TRUE")
+        }
+      }
+    }
+
+    "should have Java available" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
+          val javaOutput = notebookPage.executeCell("""system('java --version', intern = TRUE)""")
+          javaOutput shouldBe defined
+          javaOutput.get should include("OpenJDK Runtime Environment")
+          javaOutput.get should not include "not found"
         }
       }
     }

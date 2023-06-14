@@ -23,7 +23,7 @@ trait SamDAO[F[_]] {
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[Boolean] =
-    hasResourcePermissionUnchecked(sr.resourceType,
+    hasResourcePermissionUnchecked(sr.resourceType(resource),
                                    sr.resourceIdAsString(resource),
                                    sr.actionAsString(action),
                                    authHeader
@@ -45,11 +45,16 @@ trait SamDAO[F[_]] {
   ): F[List[A]]
 
   /** Returns all resources and actions (policies) the calling user has permission to for a given resource type.*/
-  def getResourcePolicies[R](authHeader: Authorization)(implicit
+  def getResourcePolicies[R](authHeader: Authorization, resourceType: SamResourceType)(implicit
     sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(R, SamPolicyName)]]
+
+  /** Returns all roles for the user for a given resource.*/
+  def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Set[SamRole]]
 
   /** Creates a Sam resource R using a GCP pet credential for the given email/project. */
   def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
@@ -65,7 +70,20 @@ trait SamDAO[F[_]] {
 
   /** Creates a Sam resource R with the provided google project as the parent resource using a GCP pet credential
      for the given email/project. */
-  def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+  def createResourceWithGoogleProjectParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit
+    sr: SamResource[R],
+    encoder: Encoder[R],
+    ev: Ask[F, TraceId]
+  ): F[Unit]
+
+  /** Creates a Sam resource R with the provided workspace as the parent resource
+   * for the given email/project. */
+  def createResourceWithWorkspaceParent[R](resource: R,
+                                           creatorEmail: WorkbenchEmail,
+                                           userInfo: UserInfo,
+                                           workspaceId: WorkspaceId
+  )(implicit
     sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]

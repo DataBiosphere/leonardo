@@ -4,11 +4,24 @@ package dao
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.RelayNamespace
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  BatchAccountName,
+  RelayNamespace
+}
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  LandingZoneResourcePurpose,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
@@ -31,27 +44,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
 
-  override def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateIpResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateIpResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
-
   override def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[CreateDiskResponse] =
@@ -65,27 +57,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
               Uri.Path
                 .unsafeFromString(
                   s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
-
-  override def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateNetworkResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateNetworkResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/network"
                 )
             ),
           entity = request,
@@ -153,7 +124,100 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[LandingZoneResources] =
+    for {
+      // Step 1: call LZ for LZ id
+      landingZoneOpt <- getLandingZone(billingProfileId, userToken)
+      landingZone <- F.fromOption(
+        landingZoneOpt,
+        AppCreationException(s"Landing zone not found for billing profile ${billingProfileId}")
+      )
+      landingZoneId = landingZone.landingZoneId
+
+      // Step 2: call LZ for LZ resources
+      lzResourcesByPurpose <- listLandingZoneResourcesByType(landingZoneId, userToken)
+      region <- lzResourcesByPurpose
+        .flatMap(_.deployedResources)
+        .headOption match { // All LZ resources live in a same region. Hence we can grab any resource and find out the region
+        case Some(lzResource) =>
+          F.pure(
+            com.azure.core.management.Region
+              .fromName(lzResource.region)
+          )
+        case None =>
+          F.raiseError(new Exception(s"This should never happen. No resource found for LZ(${landingZoneId})"))
+      }
+      groupedLzResources = lzResourcesByPurpose.foldMap(a =>
+        a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
+      )
+
+      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
+                                                   "Microsoft.ContainerService/managedClusters",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      batchAccountName <- getLandingZoneResourceName(groupedLzResources,
+                                                     "Microsoft.Batch/batchAccounts",
+                                                     SHARED_RESOURCE,
+                                                     false
+      )
+      relayNamespace <- getLandingZoneResourceName(groupedLzResources,
+                                                   "Microsoft.Relay/namespaces",
+                                                   SHARED_RESOURCE,
+                                                   false
+      )
+      storageAccountName <- getLandingZoneResourceName(groupedLzResources,
+                                                       "Microsoft.Storage/storageAccounts",
+                                                       SHARED_RESOURCE,
+                                                       false
+      )
+      applicationInsightsName <- getLandingZoneResourceName(groupedLzResources,
+                                                            "Microsoft.Insights/components",
+                                                            SHARED_RESOURCE,
+                                                            false
+      )
+      vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
+      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
+                                                         "DeployedSubnet",
+                                                         WORKSPACE_BATCH_SUBNET,
+                                                         false
+      )
+      aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
+    } yield LandingZoneResources(
+      landingZoneId,
+      AKSClusterName(aksClusterName),
+      BatchAccountName(batchAccountName),
+      RelayNamespace(relayNamespace),
+      StorageAccountName(storageAccountName),
+      NetworkName(vnetName),
+      SubnetworkName(batchNodesSubnetName),
+      SubnetworkName(aksSubnetName),
+      region,
+      ApplicationInsightsName(applicationInsightsName)
+    )
+
+  private def getLandingZoneResourceName(
+    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+    resourceType: String,
+    purpose: LandingZoneResourcePurpose,
+    useParent: Boolean
+  ): F[String] =
+    landingZoneResourcesByPurpose
+      .get((purpose, resourceType.toLowerCase))
+      .flatMap(_.headOption)
+      .flatMap { r =>
+        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
+        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
+      }
+      .fold(
+        F.raiseError[String](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
+
+  private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[LandingZone]] =
     for {
@@ -170,7 +234,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       landingZoneOption = res.flatMap(listLandingZoneResult => listLandingZoneResult.landingzones.headOption)
     } yield landingZoneOption
 
-  override def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
+  private def listLandingZoneResourcesByType(landingZoneId: UUID, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[List[LandingZoneResourcesByPurpose]] =
     for {
@@ -203,16 +267,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "disks")
 
-  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "ip")
-
-  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "network")
-
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =
@@ -235,10 +289,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[GetDeleteJobResult]] =
+  ): F[GetDeleteJobResult] =
     for {
       ctx <- ev.ask
-      res <- httpClient.expectOptionOr[GetDeleteJobResult](
+      res <- httpClient.expectOr[GetDeleteJobResult](
         Request[F](
           method = Method.GET,
           uri = config.uri
@@ -253,22 +307,25 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  def getRelayNamespace(workspaceId: WorkspaceId,
-                        region: com.azure.core.management.Region,
-                        authorization: Authorization
-  )(implicit
+  override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[RelayNamespace]] =
+  ): F[GetDeleteJobResult] =
     for {
-      resp <- getWorkspaceResourceHelper(workspaceId, authorization, WsmResourceType.AzureRelayNamespace)
-    } yield resp.resources.collect {
-      case r
-          if r.resourceAttributes
-            .isInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes] && r.resourceAttributes
-            .asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes]
-            .region == region =>
-        r.resourceAttributes.asInstanceOf[ResourceAttributes.RelayNamespaceResourceAttributes].namespaceName
-    }.headOption
+      ctx <- ev.ask
+      res <- httpClient.expectOr[GetDeleteJobResult](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks/delete-result/${request.jobId.value}"
+                )
+            ),
+          headers = headers(authorization, ctx.traceId, false)
+        )
+      )(onError)
+    } yield res
 
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]

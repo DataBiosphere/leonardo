@@ -203,7 +203,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.offer(
-              CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
+              CreateRuntimeMessage.fromRuntime(runtime,
+                                               runtimeConfig,
+                                               Some(context.traceId),
+                                               req.checkToolsInterruptAfter
+              )
             )
           } yield ()
       }
@@ -236,9 +240,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
-      paramMap <- F.fromEither(processListParameters(params))
+      (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
+      excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimes(paramMap._1, paramMap._2, cloudContext)
+        .listRuntimes(labelMap, excludeStatuses, creatorOnly, cloudContext)
         .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
@@ -264,6 +270,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
             .toVector
       }
+      // We authenticate actions on resources. If there are no visible runtimes,
+      // we need to check if user should be able to see the empty list.
+      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield res
 
   override def deleteRuntime(req: DeleteRuntimeRequest)(implicit
@@ -848,6 +857,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 }
 
 object RuntimeServiceInterp {
+
+  private[service] def getToolFromImages(clusterImages: Set[RuntimeImage]): Option[Tool] =
+    clusterImages.map(_.imageType.toString).find(Tool.namesToValuesMap.contains) match {
+      case Some(value) => Tool.withNameOption(value)
+      case None        => None
+    }
+
   private[service] def convertToRuntime(userInfo: UserInfo,
                                         serviceAccountInfo: WorkbenchEmail,
                                         cloudContext: CloudContext,
@@ -867,7 +883,7 @@ object RuntimeServiceInterp {
       Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+      getToolFromImages(clusterImages)
     ).toMap
 
     // combine default and given labels and add labels for extensions
@@ -974,7 +990,7 @@ object RuntimeServiceInterp {
               case Some(formattedBy) =>
                 if (willBeUsedBy == formattedBy) {
                   formattedBy match {
-                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.RStudio =>
                       appQuery.isDiskAttached(pd.id).transaction
                     case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   }
@@ -1077,7 +1093,7 @@ object RuntimeServiceInterp {
               case Some(formattedBy) =>
                 if (willBeUsedBy == formattedBy) {
                   formattedBy match {
-                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.RStudio =>
                       appQuery.isDiskAttached(pd.id).transaction
                     case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   }
@@ -1188,7 +1204,7 @@ final case class DiskNotSupportedException(traceId: TraceId)
 
 final case class DiskAlreadyAttachedException(cloudContext: CloudContext, name: DiskName, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already attached to another runtime",
+      s"Your persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already attached to another runtime. You might need to wait a few minutes if you just deleted a runtime.",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

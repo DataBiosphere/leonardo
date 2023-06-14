@@ -1,3 +1,6 @@
 [submodule "jenkins/dataproc-custom-images/dataproc-custom-images"]
 	path = jenkins/dataproc-custom-images/dataproc-custom-images
 	url = https://github.com/GoogleCloudPlatform/dataproc-custom-images.git
+[submodule "local/helm-scala-sdk"]
+	path = local/helm-scala-sdk
+	url = https://github.com/broadinstitute/helm-scala-sdk.git

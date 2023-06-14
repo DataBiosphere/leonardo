@@ -42,7 +42,7 @@ object Settings {
     "-unchecked",                        // Enable additional warnings where generated code depends on assumptions.
     "-Xcheckinit",                       // Wrap field accessors to throw an exception on uninitialized access.
     "-Xfatal-warnings",                  // Fail the compilation if there are any warnings.
-//    "-Xlint:adapted-args",               // Warn if an argument list is modified to match the receiver.
+    // "-Xlint:adapted-args",               // Warn if an argument list is modified to match the receiver.
     "-Xlint:constant",                   // Evaluation of a constant arithmetic expression results in an error.
     "-Xlint:delayedinit-select",         // Selecting member of DelayedInit.
     "-Xlint:doc-detached",               // A Scaladoc comment appears to be detached from its element.
@@ -204,4 +204,17 @@ object Settings {
 
     Test / testOptions += Tests.Argument("-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
   )
+
+  val pact4sSettings = commonSettings ++ commonTestSettings ++ List(
+    libraryDependencies ++= pact4sDependencies,
+
+    /**
+     * Invoking pact tests from root project (sbt "project pact" test)
+     * will launch tests in a separate JVM context that ensures contracts
+     * are written to the pact/target/pacts folder. Otherwise, contracts
+     * will be written to the root folder.
+     */
+    Test / fork := true
+
+  ) ++ commonAssemblySettings ++ versionSettings
 }

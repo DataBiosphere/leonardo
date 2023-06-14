@@ -32,12 +32,6 @@ class NotebookGATKSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           samtoolsOutput shouldBe defined
           samtoolsOutput.get should include("Using htslib")
           samtoolsOutput.get should not include "not found"
-
-          val javaOutput = notebookPage.executeCell("""! java -version""")
-          javaOutput shouldBe defined
-          javaOutput.get should include("openjdk version \"1.8.0_")
-          javaOutput.get should include("OpenJDK Runtime Environment")
-          javaOutput.get should not include "not found"
         }
       }
     }

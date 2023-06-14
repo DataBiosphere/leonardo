@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -241,10 +242,17 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   // select * from cluster c
   // join cluster_image ci on c.id = ce.cluster_id
-  val clusterJoinClusterImageQuery: Query[(ClusterTable, ClusterImageTable), (ClusterRecord, ClusterImageRecord), Seq] =
+  // left join label l on c.id = l.clusterId
+  val clusterMetricsQuery: Query[(ClusterTable, ClusterImageTable, Rep[Option[LabelTable]]),
+                                 (ClusterRecord, ClusterImageRecord, Option[LabelRecord]),
+                                 Seq
+  ] =
     for {
-      (cluster, image) <- clusterQuery join clusterImageQuery on (_.id === _.clusterId)
-    } yield (cluster, image)
+      ((cluster, image), label) <-
+        clusterQuery join clusterImageQuery on (_.id === _.clusterId) joinLeft labelQuery on { case ((c, _), lbl) =>
+          lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
+        }
+    } yield (cluster, image, label)
 
   def detachPersistentDisk(runtimeId: Long, now: Instant)(implicit ec: ExecutionContext): DBIO[Unit] = for {
     runtimeConfigIdOpt <- findByIdQuery(runtimeId).map(_.runtimeConfigId).result.headOption
@@ -391,6 +399,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           rec._1._1.cloudContext,
           rec._1._1.runtimeName,
           rec._1._1.status,
+          rec._1._1.internalId,
           rec._2.map(_.inProgress).getOrElse(false),
           rec._1._2.runtimeConfig,
           rec._1._1.serviceAccountInfo,
@@ -412,9 +421,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       scopes <- scopeQuery.getAllForCluster(runtimeId)
     } yield ExtraInfoForCreateRuntime(images.toSet, extention, scopes)
 
-  def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =
-    clusterJoinClusterImageQuery.filter(_._1.status === (RuntimeStatus.Running: RuntimeStatus)).result map {
-      unmarshalRunningCluster
+  def listActiveForMetrics(implicit ec: ExecutionContext): DBIO[Seq[RuntimeMetrics]] =
+    clusterMetricsQuery.filter(_._1.status inSetBind RuntimeStatus.activeStatuses).result map {
+      unmarshalRuntimeForMetrics
     }
 
   def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) =
@@ -512,6 +521,26 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def getClusterStatus(id: Long): DBIO[Option[RuntimeStatus]] =
     findByIdQuery(id).map(_.status).result.headOption
+
+  def getClusterFromRuntimeConfig(runtimeConfigId: RuntimeConfigId): DBIO[Option[ClusterRecord]] =
+    clusterQuery
+      .filter(_.runtimeConfigId === runtimeConfigId)
+      .result
+      .headOption
+
+  def getClusterWithDiskId(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Option[ClusterRecord]] =
+    // get most recently created runtime with the specified persistent disk
+    for {
+      runtimeConfigId <- runtimeConfigs
+        .filter(x => x.persistentDiskId.isDefined && x.persistentDiskId === diskId)
+        .sortBy(_.dateAccessed.desc)
+        .map(_.id)
+        .result
+        .headOption
+
+      // cluster table is distinct by runtimeConfigId
+      runtimeOpt <- runtimeConfigId.flatTraverse(rid => getClusterFromRuntimeConfig(rid))
+    } yield runtimeOpt
 
   def getInitBucket(id: Long)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
     findByIdQuery(id)
@@ -668,6 +697,18 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       _ <- clusterImageQuery.upsert(id, welderImage)
     } yield ()
 
+  def updateDiskStatus(runtimeId: Long, dateAccessed: Instant)(implicit
+    ec: ExecutionContext
+  ): DBIO[Unit] =
+    for {
+      runtimeConfigId <- findByIdQuery(runtimeId)
+        .map(_.runtimeConfigId)
+        .result
+        .headOption
+      diskIdOpt <- runtimeConfigId.flatTraverse(rid => RuntimeConfigQueries.getDiskId(rid))
+      _ <- diskIdOpt.traverse(diskId => persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, dateAccessed))
+    } yield ()
+
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Running, Some(hostIp), dateAccessed)
 
@@ -732,17 +773,26 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }.toSeq
   }
 
-  private def unmarshalRunningCluster(clusterImages: Seq[(ClusterRecord, ClusterImageRecord)]): Seq[RunningRuntime] = {
-    val clusterContainerMap: Map[RunningRuntime, Chain[RuntimeContainerServiceType]] = clusterImages.toList.foldMap {
-      case (clusterRec, clusterImageRec) =>
-        val containers = Chain.fromSeq(
-          RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(clusterImageRec.imageType).toSeq
+  private def unmarshalRuntimeForMetrics(
+    runtimeRecords: Seq[(ClusterRecord, ClusterImageRecord, Option[LabelRecord])]
+  ): Seq[RuntimeMetrics] = {
+    val runtimeMap: Map[RuntimeMetrics, (Chain[RuntimeImage], Map[String, Chain[String]])] =
+      runtimeRecords.toList.foldMap { case (clusterRec, runtimeImageRec, labelRecordOpt) =>
+        val images = Chain(clusterImageQuery.unmarshalClusterImage(runtimeImageRec))
+        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
+        Map(
+          RuntimeMetrics(clusterRec.cloudContext,
+                         clusterRec.runtimeName,
+                         clusterRec.status,
+                         clusterRec.workspaceId,
+                         Set.empty,
+                         Map.empty
+          ) -> (images, labelMap)
         )
-        Map(RunningRuntime(clusterRec.cloudContext, clusterRec.runtimeName, List.empty) -> containers)
-    }
+      }
 
-    clusterContainerMap.toSeq.map { case (runningCluster, containers) =>
-      runningCluster.copy(containers = containers.toList)
+    runtimeMap.toSeq.map { case (runtime, (images, labels)) =>
+      runtime.copy(images = images.toList.toSet, labels = labels.view.mapValues(_.toList.toSet.head).toMap)
     }
   }
 

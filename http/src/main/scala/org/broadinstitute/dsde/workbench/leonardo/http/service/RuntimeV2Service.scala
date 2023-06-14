@@ -11,6 +11,7 @@ trait RuntimeV2Service[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
+                    useExistingDisk: Boolean,
                     req: CreateAzureRuntimeRequest
   )(implicit
     as: Ask[F, AppContext]
@@ -36,7 +37,11 @@ trait RuntimeV2Service[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 
-  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId, deleteDisk: Boolean)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 
@@ -47,6 +52,10 @@ trait RuntimeV2Service[F[_]] {
   )(implicit
     as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
+
+  def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
 }
 
 final case class CustomScriptExtensionConfig(name: String,

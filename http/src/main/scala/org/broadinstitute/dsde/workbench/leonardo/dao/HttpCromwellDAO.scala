@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
-import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
@@ -32,22 +31,30 @@ class HttpCromwellDAO[F[_]](httpClient: Client[F])(implicit
   metrics: OpenTelemetryMetrics[F]
 ) extends CromwellDAO[F]
     with Http4sClientDsl[F] {
-  import HttpCromwellDAO._
 
   override def getStatus(baseUri: Uri, authHeader: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter("cromwell/status")
-      cromwellStatusUri = baseUri / "cromwell" / "api" / "engine" / "v1" / "status"
-      res <- httpClient.expectOr[CromwellStatusCheckResponse](
+      cromwellStatusUri = baseUri / "cromwell" / "engine" / "v1" / "status"
+      // Note: cromwell-as-an-app /status returns '{}' in the response body for some reason.
+      // For now just check the HTTP status code instead of parsing the response body.
+      res <- httpClient.status(
         Request[F](
           method = Method.GET,
           uri = cromwellStatusUri,
           headers = Headers(authHeader)
         )
-      )(onError)
-    } yield res.ok
+      )
+//      res <- httpClient.expectOr[CromwellStatusCheckResponse](
+//        Request[F](
+//          method = Method.GET,
+//          uri = cromwellStatusUri,
+//          headers = Headers(authHeader)
+//        )
+//      )(onError)
+    } yield res.isSuccess
 
   private def onError(response: Response[F])(implicit ev: Ask[F, AppContext]): F[Throwable] =
     for {

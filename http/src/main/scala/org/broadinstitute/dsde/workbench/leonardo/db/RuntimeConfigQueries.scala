@@ -2,13 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import cats.implicits._
-
-import java.time.Instant
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries.RuntimeJoinLabel
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 object RuntimeConfigQueries {
@@ -19,15 +17,6 @@ object RuntimeConfigQueries {
     ]
 
   val runtimeConfigs = TableQuery[RuntimeConfigTable]
-
-  def runtimeLabelRuntimeConfigQuery(baseQuery: RuntimeJoinLabel): RuntimeJoinLabelJoinRuntimeConfigJoinPatch =
-    for {
-      (((cluster, label), runtimeConfig), patch) <- baseQuery
-        .join(runtimeConfigs)
-        .on(_._1.runtimeConfigId === _.id)
-        .joinLeft(patchQuery)
-        .on(_._1._1.id === _.clusterId)
-    } yield (((cluster, label), runtimeConfig), patch)
 
   /**
    * return DB generated id

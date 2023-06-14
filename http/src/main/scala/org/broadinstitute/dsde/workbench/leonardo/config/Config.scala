@@ -49,12 +49,34 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
+import java.net.URL
 import java.nio.file.{Path, Paths}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 object Config {
-  val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
+
+  /** Loads all the configs for the Leo App. All values defined in `src/main/resources/leo.conf` will take precedence over any other configs. In this way, we
+   * can still use configs rendered by `firecloud-develop` that render to `config/leonardo.conf` if we want.
+   *     If you want to use leo.conf you must populate the appropriate ENV vars (done in terra-helmfile)
+   *     leonardo.conf is what firecloud-develop renders, and it will be used if the ENV vars are not populated for leo.conf
+   */
+  // Config that lives in leo repo in /src/main/resources
+  val leoConfig = ConfigFactory.parseResourcesAnySyntax("leo")
+
+  // Config that is generated to /config from firecloud-develop
+  val firecloudDevelopConfig = ConfigFactory
+    .parseResources("leonardo.conf")
+
+  // Load any other configs on the classpath following: https://github.com/lightbend/config#standard-behavior
+  // This is where things like `src/main/resources/reference.conf` will get loaded
+  val referenceConfig = ConfigFactory.load()
+
+  // leoConfig has precedence here
+  val config = leoConfig
+    .withFallback(firecloudDevelopConfig)
+    .withFallback(referenceConfig)
+    .resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
   implicit private val groupNameReader: ValueReader[GroupName] = stringValueReader.map(GroupName)
@@ -65,6 +87,7 @@ object Config {
       config.as[GoogleProject]("leoGoogleProject"),
       config.as[Path]("leoServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail"),
+      config.as[URL]("leoUrlBase"),
       config.as[Long]("concurrency")
     )
   }
@@ -101,7 +124,8 @@ object Config {
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("customDataprocImage"),
-      config.getAs[MemorySize]("dataprocReservedMemory"),
+      config.getAs[Double]("sparkMemoryConfigRatio"),
+      config.getAs[Double]("minimumRuntimeMemoryInGb"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
       config.as[Set[RegionName]]("supportedRegions")
     )
@@ -130,7 +154,8 @@ object Config {
     GoogleGroupsConfig(
       config.as[WorkbenchEmail]("subEmail"),
       config.getString("dataprocImageProjectGroupName"),
-      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail")
+      config.as[WorkbenchEmail]("dataprocImageProjectGroupEmail"),
+      config.as[PollMonitorConfig]("waitForMemberAddedPollConfig")
     )
   }
 
@@ -248,7 +273,8 @@ object Config {
     ValueReader.relative { config =>
       RefererConfig(
         config.as[Set[String]]("validHosts"),
-        config.as[Boolean]("enabled")
+        config.as[Boolean]("enabled"),
+        config.as[Boolean]("originStrict")
       )
     }
 
@@ -271,7 +297,7 @@ object Config {
 
   implicit private val pollMonitorConfigReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
     PollMonitorConfig(
-      config.as[Option[FiniteDuration]]("initial-delay").getOrElse(2 seconds),
+      config.as[FiniteDuration]("initial-delay"),
       config.as[Int]("max-attempts"),
       config.as[FiniteDuration]("interval")
     )
@@ -288,7 +314,7 @@ object Config {
 
   implicit private val createDiskTimeoutConfigReader: ValueReader[CreateDiskTimeout] = ValueReader.relative { c =>
     CreateDiskTimeout(
-      c.getInt("timeoutInMinutes"),
+      c.getInt("checkToolsInterruptAfter"),
       c.getInt("timeoutWithSourceDiskCopyInMinutes")
     )
   }
@@ -314,7 +340,7 @@ object Config {
         case "combined" => LeoExecutionModeConfig.Combined
         case "backLeo"  => LeoExecutionModeConfig.BackLeoOnly
         case "frontLeo" => LeoExecutionModeConfig.FrontLeoOnly
-        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: ${x}")
+        case x          => throw new RuntimeException(s"invalid configuration for leonardoExecutionMode: '$x'")
       }
   }
 
@@ -619,7 +645,8 @@ object Config {
       config.as[GalaxyOrchUrl]("orchUrl"),
       config.as[GalaxyDrsUrl]("drsUrl"),
       config.as[Int]("minMemoryGb"),
-      config.as[Int]("minNumOfCpus")
+      config.as[Int]("minNumOfCpus"),
+      config.as[Boolean]("enabled")
     )
   }
 
@@ -642,7 +669,8 @@ object Config {
       releaseNameSuffix = config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       services = config.as[List[ServiceConfig]]("services"),
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
-      dbPassword = config.as[DbPassword]("dbPassword")
+      dbPassword = config.as[DbPassword]("dbPassword"),
+      enabled = config.as[Boolean]("enabled")
     )
   }
 
@@ -653,7 +681,20 @@ object Config {
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
+      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList"),
+      config.as[Boolean]("enabled")
+    )
+  }
+
+  implicit private val rstudioAppConfigReader: ValueReader[RStudioAppConfig] = ValueReader.relative { config =>
+    RStudioAppConfig(
+      config.as[ChartName]("chartName"),
+      config.as[ChartVersion]("chartVersion"),
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      config.as[ReleaseNameSuffix]("releaseNameSuffix"),
+      config.as[List[ServiceConfig]]("services"),
+      config.as[ServiceAccountName]("serviceAccountName"),
+      config.as[Boolean]("enabled")
     )
   }
 
@@ -696,6 +737,7 @@ object Config {
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
+  val gkeRStudioAppConfig = config.as[RStudioAppConfig]("gke.rstudioApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
 
@@ -718,7 +760,8 @@ object Config {
     gkeGalaxyDiskConfig,
     ConfigReader.appConfig.persistentDisk,
     gkeCromwellAppConfig,
-    gkeCustomAppConfig
+    gkeCustomAppConfig,
+    gkeRStudioAppConfig
   )
 
   val appServiceConfig = AppServiceConfig(
@@ -810,8 +853,8 @@ object Config {
       config.as[PollMonitorConfig]("createIngress"),
       config.as[InterruptablePollMonitorConfig]("createApp"),
       config.as[PollMonitorConfig]("deleteApp"),
-      config.as[PollMonitorConfig]("scaleNodepool"),
-      config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
+      config.as[PollMonitorConfig]("scalingUpNodepool"),
+      config.as[PollMonitorConfig]("scalingDownNodepool"),
       config.as[InterruptablePollMonitorConfig]("startApp")
     )
   }
@@ -826,6 +869,7 @@ object Config {
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
+      gkeRStudioAppConfig,
       appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,

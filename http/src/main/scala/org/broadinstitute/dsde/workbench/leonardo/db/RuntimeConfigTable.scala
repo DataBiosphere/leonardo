@@ -3,11 +3,11 @@ package db
 
 import java.sql.SQLDataException
 import java.time.Instant
-
 import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigTable.toRuntimeConfig
 
 class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNTIME_CONFIG") {
   def id = column[RuntimeConfigId]("id", O.PrimaryKey, O.AutoInc)
@@ -73,62 +73,24 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
             ),
             dateAccessed
           ) =>
-        val r = cloudService match {
-          case CloudService.GCE =>
-            diskSize match {
-              case Some(size) =>
-                RuntimeConfig.GceConfig(machineType,
-                                        size,
-                                        bootDiskSize,
-                                        zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
-                                        getGpuConfig(gpuConfig._1, gpuConfig._2)
-                )
-              case None =>
-                val bds =
-                  bootDiskSize.getOrElse(throw new SQLDataException("gce runtime with PD has to have a boot disk"))
-                persistentDiskId.fold(
-                  RuntimeConfig.GceWithPdConfig(
-                    machineType,
-                    None,
-                    bds,
-                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
-                    getGpuConfig(gpuConfig._1, gpuConfig._2)
-                  )
-                )(diskId =>
-                  RuntimeConfig.GceWithPdConfig(
-                    machineType,
-                    Some(diskId),
-                    bds,
-                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
-                    getGpuConfig(gpuConfig._1, gpuConfig._2)
-                  )
-                )
-            }
-          case CloudService.Dataproc =>
-            RuntimeConfig.DataprocConfig(
-              numberOfWorkers,
-              machineType,
-              diskSize.getOrElse(throw new SQLDataException("diskSize field should not be null for Dataproc.")),
-              workerMachineType,
-              workerDiskSize,
-              numberOfWorkerLocalSSDs,
-              numberOfPreemptibleWorkers,
-              dataprocProperties.getOrElse(Map.empty),
-              region.getOrElse(throw new SQLDataException("region should not be null for Dataproc")),
-              componentGatewayEnabled,
-              workerPrivateAccess
-            )
-          case CloudService.AzureVm =>
-            RuntimeConfig.AzureConfig(
-              machineType,
-              persistentDiskId.getOrElse(
-                throw new SQLDataException("persistentDiskId field should not be null for Azure.")
-              ),
-              Region.fromName(
-                region.getOrElse(throw new SQLDataException("region field should not be null for Azure.")).value
-              )
-            )
-        }
+        val r = toRuntimeConfig(
+          cloudService,
+          numberOfWorkers,
+          machineType,
+          diskSize,
+          bootDiskSize,
+          workerMachineType,
+          workerDiskSize,
+          numberOfWorkerLocalSSDs,
+          numberOfPreemptibleWorkers,
+          dataprocProperties,
+          persistentDiskId,
+          zone,
+          region,
+          gpuConfig,
+          componentGatewayEnabled,
+          workerPrivateAccess
+        )
         RuntimeConfigRecord(id, r, dateAccessed)
     }, { x: RuntimeConfigRecord =>
       x.runtimeConfig match {
@@ -223,11 +185,87 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
           )
       }
     })
+}
 
+object RuntimeConfigTable {
   def getGpuConfig(gpuType: Option[GpuType], numOfGpus: Option[Int]): Option[GpuConfig] =
     (gpuType, numOfGpus) match {
       case (Some(gpuType), Some(numOfGpus)) => Some(GpuConfig(gpuType, numOfGpus))
       case _                                => None
+    }
+
+  def toRuntimeConfig(cloudService: CloudService,
+                      numberOfWorkers: Int,
+                      machineType: MachineTypeName,
+                      diskSize: Option[DiskSize],
+                      bootDiskSize: Option[DiskSize],
+                      workerMachineType: Option[MachineTypeName],
+                      workerDiskSize: Option[DiskSize],
+                      numberOfWorkerLocalSSDs: Option[Int],
+                      numberOfPreemptibleWorkers: Option[Int],
+                      dataprocProperties: Option[Map[String, String]],
+                      persistentDiskId: Option[DiskId],
+                      zone: Option[ZoneName],
+                      region: Option[RegionName],
+                      gpuConfig: (Option[GpuType], Option[Int]),
+                      componentGatewayEnabled: Boolean,
+                      workerPrivateAccess: Boolean
+  ): RuntimeConfig =
+    cloudService match {
+      case CloudService.GCE =>
+        diskSize match {
+          case Some(size) =>
+            RuntimeConfig.GceConfig(machineType,
+                                    size,
+                                    bootDiskSize,
+                                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
+                                    getGpuConfig(gpuConfig._1, gpuConfig._2)
+            )
+          case None =>
+            val bds =
+              bootDiskSize.getOrElse(throw new SQLDataException("gce runtime with PD has to have a boot disk"))
+            persistentDiskId.fold(
+              RuntimeConfig.GceWithPdConfig(
+                machineType,
+                None,
+                bds,
+                zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
+                getGpuConfig(gpuConfig._1, gpuConfig._2)
+              )
+            )(diskId =>
+              RuntimeConfig.GceWithPdConfig(
+                machineType,
+                Some(diskId),
+                bds,
+                zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
+                getGpuConfig(gpuConfig._1, gpuConfig._2)
+              )
+            )
+        }
+      case CloudService.Dataproc =>
+        RuntimeConfig.DataprocConfig(
+          numberOfWorkers,
+          machineType,
+          diskSize.getOrElse(throw new SQLDataException("diskSize field should not be null for Dataproc.")),
+          workerMachineType,
+          workerDiskSize,
+          numberOfWorkerLocalSSDs,
+          numberOfPreemptibleWorkers,
+          dataprocProperties.getOrElse(Map.empty),
+          region.getOrElse(throw new SQLDataException("region should not be null for Dataproc")),
+          componentGatewayEnabled,
+          workerPrivateAccess
+        )
+      case CloudService.AzureVm =>
+        RuntimeConfig.AzureConfig(
+          machineType,
+          persistentDiskId.getOrElse(
+            throw new SQLDataException("persistentDiskId field should not be null for Azure.")
+          ),
+          Region.fromName(
+            region.getOrElse(throw new SQLDataException("region field should not be null for Azure.")).value
+          )
+        )
     }
 }
 

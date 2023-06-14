@@ -36,7 +36,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.{AppMonitorConfig, CoaAppConfig, HttpWsmDaoConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -49,18 +50,23 @@ import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.io.ByteArrayInputStream
+import java.net.URL
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
+                           azureBatchService: AzureBatchService[F],
                            azureContainerService: AzureContainerService[F],
+                           azureApplicationInsightsService: AzureApplicationInsightsService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
                            cromwellDao: CromwellDAO[F],
                            cbasDao: CbasDAO[F],
-                           wdsDao: WdsDAO[F]
+                           cbasUiDao: CbasUiDAO[F],
+                           wdsDao: WdsDAO[F],
+                           hailBatchDao: HailBatchDAO[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -96,6 +102,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
+
       ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppCreationException(
@@ -103,7 +110,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           Some(ctx.traceId)
         )
       )
-      petEmail = app.googleServiceAccount
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
@@ -126,55 +132,81 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
       // Create relay hybrid connection pool
-      hcName = RelayHybridConnectionName(params.appName.value)
+      hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
       relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                                        hcName,
                                                                        params.cloudContext
       )
-      relayEndpoint = s"https://${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net/"
+      relayDomain = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayEndpoint = s"https://${relayDomain}/"
+      relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
-      // Deploy setup chart
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(app.release,
-                                        app.samResourceId,
-                                        ksaName,
-                                        params.landingZoneResources.relayNamespace,
-                                        hcName,
-                                        relayPrimaryKey
+          buildSetupChartOverrideValues(
+            app.release,
+            app.samResourceId,
+            ksaName,
+            params.landingZoneResources.relayNamespace,
+            hcName,
+            relayPrimaryKey,
+            app.appType,
+            params.workspaceId,
+            app.appName
           ),
           true
         )
         .run(authContext)
 
-      // Create relay hybrid connection pool
-      hcName = RelayHybridConnectionName(params.appName.value)
-      primaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                                  hcName,
-                                                                  params.cloudContext
+      // get the pet userToken
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      userToken <- F.fromOption(
+        tokenOpt,
+        AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
       )
 
       // Resolve pet managed identity in Azure
-      msi <- buildMsiManager(params.cloudContext)
-      petMi <- F.delay(
-        msi.identities().getById(petEmail.value)
-      )
+      // Only do this for user-private apps; do not assign any identity for shared apps.
+      // In the future we may use a shared identity instead.
+      petMi <- app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp => F.pure(None)
+        case _ =>
+          for {
+            msi <- buildMsiManager(params.cloudContext)
+            petMi <- F.delay(
+              msi.identities().getById(app.googleServiceAccount.value)
+            )
 
-      // Assign the pet managed identity to the VM scale set backing the cluster node pool
-      _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
+            // Assign the pet managed identity to the VM scale set backing the cluster node pool
+            _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
+          } yield Some(petMi)
+      }
+
+      // Resolve Application Insights resource in Azure to pass to the helm chart.
+      applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
+        params.landingZoneResources.applicationInsightsName,
+        params.cloudContext
+      )
 
       // Deploy app chart
       _ <- app.appType match {
         case AppType.Cromwell =>
           for {
+            // Get the batch account key
+            batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
+                                                              params.cloudContext
+            )
+            batchAccountKey = batchAccount.getKeys().primary
+
             // Storage container is required for Cromwell app
             storageContainer <- F.fromOption(
               params.storageContainer,
               AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
             )
+
             _ <- helmClient
               .installChart(
                 app.release,
@@ -186,20 +218,69 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   params.cloudContext,
                   params.workspaceId,
                   params.landingZoneResources,
-                  relayEndpoint,
+                  relayPath,
                   petMi,
-                  storageContainer
+                  storageContainer,
+                  BatchAccountKey(batchAccountKey),
+                  applicationInsightsComponent.connectionString(),
+                  app.sourceWorkspaceId,
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                 ),
                 createNamespace = true
               )
               .run(authContext)
           } yield ()
-
+        case AppType.Wds =>
+          for {
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildWdsChartOverrideValues(
+                  app.release,
+                  params.appName,
+                  params.cloudContext,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  petMi,
+                  applicationInsightsComponent.connectionString(),
+                  app.sourceWorkspaceId,
+                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
+        case AppType.HailBatch =>
+          for {
+            // Storage container is required for HailBatch app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Hail Batch app", Some(ctx.traceId))
+            )
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildHailBatchChartOverrideValues(
+                  params.appName,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  petMi,
+                  storageContainer,
+                  relayDomain,
+                  hcName
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
         case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
       }
 
-      // Poll app status
-      appOk <- pollCromwellAppCreation(app.auditInfo.creator, Uri.unsafeFromString(relayEndpoint) / app.appName.value)
+      appOk <- pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
       _ <-
         if (appOk)
           F.unit
@@ -255,9 +336,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
       kubernetesNamespace = KubernetesNamespace(namespaceName)
-      dbCluster = dbApp.cluster
 
       clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
+
+      // Delete hybrid connection for this app
+      // for backwards compatibility, name used to be just the appName
+      name = app.customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", app.appName.value)
+
+      _ <- azureRelayService
+        .deleteRelayHybridConnection(
+          landingZoneResources.relayNamespace,
+          RelayHybridConnectionName(name),
+          cloudContext
+        )
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
@@ -317,7 +408,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield ()
   }
 
-  private[util] def pollCromwellAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri)(implicit
+  private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri, appType: AppType)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
@@ -326,30 +417,58 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
-      op = List(
-        cbasDao
-          .getStatus(relayBaseUri, authHeader)
-          .handleError(_ => false),
-        wdsDao
-          .getStatus(relayBaseUri, authHeader)
-          .handleError(_ => false)
-        // TODO (TOAZ-241): add cromwell to the status checks once it starts up
-        // cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-      ).sequence
-      cromwellOk <- streamFUntilDone(
+      op = appType match {
+        case AppType.Cromwell =>
+          // Status check each configured coa service for Cromwell app type
+          config.coaAppConfig.coaServices
+            .collect {
+              case Cbas =>
+                cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+              case CbasUI =>
+                cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+              case Cromwell =>
+                cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+            }
+            .toList
+            .sequence
+            .map(_.forall(identity))
+        case AppType.Wds =>
+          wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
+        case AppType.HailBatch =>
+          hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        case _ => F.raiseError[Boolean](AppCreationException(s"App type ${appType} not supported on Azure"))
+      }
+
+      appOk <- streamFUntilDone(
         op,
         maxAttempts = config.appMonitorConfig.createApp.maxAttempts,
         delay = config.appMonitorConfig.createApp.interval
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
-    } yield cromwellOk.isDone
+    } yield appOk.isDone
 
   private[util] def buildSetupChartOverrideValues(release: Release,
                                                   samResourceId: AppSamResourceId,
                                                   ksaName: ServiceAccountName,
                                                   relayNamespace: RelayNamespace,
                                                   relayHcName: RelayHybridConnectionName,
-                                                  relayPrimaryKey: PrimaryKey
-  ): Values =
+                                                  relayPrimaryKey: PrimaryKey,
+                                                  appType: AppType,
+                                                  workspaceId: WorkspaceId,
+                                                  appName: AppName
+  ): Values = {
+    val relayTargetHost = appType match {
+      case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
+      case AppType.HailBatch => "http://batch:8080"
+      case AppType.Galaxy | AppType.Custom | AppType.RStudio =>
+        F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
+    }
+
+    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
+    // so requires that we don't strip the entity path. For other app types we do
+    // strip the entity path.
+    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
+
     Values(
       List(
         raw"cloud=azure",
@@ -360,37 +479,50 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
         raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
-        raw"relaylistener.targetHost=http://coa-${release.asString}-reverse-proxy-service:8000/",
+        raw"relaylistener.targetHost=$relayTargetHost",
         raw"relaylistener.samUrl=${config.samConfig.server}",
         raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceType=kubernetes-app",
+        raw"relaylistener.samResourceType=${samResourceId.resourceType.asString}",
         raw"relaylistener.samAction=connect",
+        raw"relaylistener.workspaceId=${workspaceId.value.toString}",
+        raw"relaylistener.runtimeName=${appName.value}",
+        raw"relaylistener.image=${config.listenerImage}",
+        raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
 
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
       ).mkString(",")
     )
+  }
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      appName: AppName,
                                                      cloudContext: AzureCloudContext,
                                                      workspaceId: WorkspaceId,
                                                      landingZoneResources: LandingZoneResources,
-                                                     relayEndpoint: String,
-                                                     petManagedIdentity: Identity,
-                                                     storageContainer: StorageContainerResponse
+                                                     relayPath: Uri,
+                                                     petManagedIdentity: Option[Identity],
+                                                     storageContainer: StorageContainerResponse,
+                                                     batchAccountKey: BatchAccountKey,
+                                                     applicationInsightsConnectionString: String,
+                                                     sourceWorkspaceId: Option[WorkspaceId],
+                                                     userAccessToken: String
   ): Values =
     Values(
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        // TODO (TOAZ-241): pass correct information for TES running in a Terra workspace
+        raw"config.batchAccountKey=${batchAccountKey.value}",
         raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
         raw"config.drsUrl=${config.drsConfig.url}",
+        raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
+        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
+        raw"config.region=${landingZoneResources.region}",
+        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
 
         // relay configs
-        raw"relay.path=$relayEndpoint",
+        raw"relay.path=${relayPath.renderString}",
 
         // persistence configs
         raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -402,12 +534,105 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
-        raw"identity.name=${petManagedIdentity.name()}",
-        raw"identity.resourceId=${petManagedIdentity.id()}",
-        raw"identity.clientId=${petManagedIdentity.clientId()}",
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
+
+        // Leo configs
+        raw"leonardo.url=${config.leoUrlBase}",
+
+        // Enabled services configs
+        raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
+        raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
+        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
 
         // general configs
-        raw"fullnameOverride=coa-${release.asString}"
+        raw"fullnameOverride=coa-${release.asString}",
+        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
+      ).mkString(",")
+    )
+
+  private[util] def buildWdsChartOverrideValues(release: Release,
+                                                appName: AppName,
+                                                cloudContext: AzureCloudContext,
+                                                workspaceId: WorkspaceId,
+                                                landingZoneResources: LandingZoneResources,
+                                                petManagedIdentity: Option[Identity],
+                                                applicationInsightsConnectionString: String,
+                                                sourceWorkspaceId: Option[WorkspaceId],
+                                                userAccessToken: String
+  ): Values = {
+    val valuesList =
+      List(
+        // azure resources configs
+        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
+        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+
+        // Azure subscription configs currently unused
+        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
+        raw"config.region=${landingZoneResources.region}",
+
+        // persistence configs
+        raw"general.leoAppInstanceName=${appName.value}",
+        raw"general.workspaceManager.workspaceId=${workspaceId.value}",
+
+        // identity configs
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
+
+        // workspace manager
+        raw"workspacemanager.url=${config.wsmConfig.uri.renderString}",
+
+        // general configs
+        raw"fullnameOverride=wds-${release.asString}",
+        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
+
+        // import configs
+        raw"import.dataRepoUrl=${config.tdr.url}",
+
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
+      )
+    val updatedLs = sourceWorkspaceId match {
+      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
+      case None        => valuesList
+    }
+    Values(updatedLs.mkString(","))
+  }
+
+  private[util] def buildHailBatchChartOverrideValues(appName: AppName,
+                                                      workspaceId: WorkspaceId,
+                                                      landingZoneResources: LandingZoneResources,
+                                                      petManagedIdentity: Option[Identity],
+                                                      storageContainer: StorageContainerResponse,
+                                                      relayDomain: String,
+                                                      hcName: RelayHybridConnectionName
+  ): Values =
+    Values(
+      List(
+        raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
+        raw"persistence.blobContainer=${storageContainer.name.value}",
+        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
+        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
+        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
+        raw"persistence.workspaceManager.storageContainerUrl=https://${landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
+        raw"persistence.leoAppName=${appName.value}",
+
+        // identity configs
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"relay.domain=${relayDomain}",
+        raw"relay.subpath=/${hcName.value}"
       ).mkString(",")
     )
 
@@ -657,10 +882,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 final case class AKSInterpreterConfig(
   terraAppSetupChartConfig: TerraAppSetupChartConfig,
   coaAppConfig: CoaAppConfig,
+  wdsAppConfig: WdsAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
   appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
-  drsConfig: DrsConfig
+  drsConfig: DrsConfig,
+  leoUrlBase: URL,
+  listenerImage: String,
+  tdr: TdrConfig
 )
