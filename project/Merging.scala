@@ -11,8 +11,8 @@ object Merging {
     // [error] Deduplicate found different file contents in the following:
     // [error]   Jar name = auto-value-1.10.1.jar, jar org = com.google.auto.value, entry target = META-INF/kotlin-stdlib-common.kotlin_module
     // [error]   Jar name = kotlin-stdlib-1.6.20.jar, jar org = org.jetbrains.kotlin, entry target = META-INF/kotlin-stdlib-common.kotlin_module
-    case PathList("META-INF", "kotlin-stdlib-common.kotlin_module")           => MergeStrategy.preferProject
-    case PathList("org", "joda", "time", "base", "BaseDateTime.class", "bio") => MergeStrategy.first
+    case PathList("META-INF", "kotlin-stdlib-common.kotlin_module")               => MergeStrategy.preferProject
+    case PathList("org", "joda", "time", "base", "BaseDateTime.class", "jakarta") => MergeStrategy.first
     // For the following error:
     // [error] java.lang.RuntimeException: deduplicate: different file contents found in the following:
     // [error] /root/.cache/coursier/v1/https/repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.11.4/protobuf-java-3.11.4.jar:google/protobuf/field_mask.proto
