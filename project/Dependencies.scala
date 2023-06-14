@@ -245,7 +245,7 @@ object Dependencies {
   )
 
   val wsmDependencies: List[ModuleID] = List(
-    "bio.terra" % "workspace-manager-client" % "0.254.452-SNAPSHOT"
+    "bio.terra" % "workspace-manager-client" % "0.254.754-SNAPSHOT"
       exclude("com.sun.activation", "jakarta.activation"),
     "org.glassfish.jersey.inject" % "jersey-hk2" % jerseyV
       exclude("com.sun.activation", "jakarta.activation"),
