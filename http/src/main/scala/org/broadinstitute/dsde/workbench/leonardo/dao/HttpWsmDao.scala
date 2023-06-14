@@ -179,7 +179,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                             false
       )
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
-      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
+      batchNodesSubnetName <- getLandingZoneResourceId(groupedLzResources,
                                                          "DeployedSubnet",
                                                          WORKSPACE_BATCH_SUBNET,
                                                          false
@@ -211,6 +211,22 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
         else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
       }
+      .fold(
+        F.raiseError[String](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
+
+  private def getLandingZoneResourceId(
+                                          landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+                                          resourceType: String,
+                                          purpose: LandingZoneResourcePurpose,
+                                          useParent: Boolean
+                                        ): F[String] =
+    landingZoneResourcesByPurpose
+      .get((purpose, resourceType.toLowerCase))
+      .flatMap(_.headOption)
+      .flatMap(_.resourceId)
       .fold(
         F.raiseError[String](
           AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
