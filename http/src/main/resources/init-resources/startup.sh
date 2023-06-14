@@ -264,7 +264,7 @@ function validateCert() {
 
     docker restart jupyter-server
     docker restart welder-server
-    docker restart proxy-server
+#    docker restart proxy-server
 
 #    if [ "$certFileDirectory" = "/etc" ]
 #    then

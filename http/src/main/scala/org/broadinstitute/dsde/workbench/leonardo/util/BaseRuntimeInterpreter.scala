@@ -199,7 +199,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Map[String, String]] = {
-    val googleKey = "startup-script-url" // required; see https://cloud.google.com/compute/docs/startupscript
+    val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
       runtimeAndRuntimeConfig,
