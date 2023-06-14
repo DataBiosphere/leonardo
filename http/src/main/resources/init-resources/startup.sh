@@ -262,12 +262,16 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    if [ "$certFileDirectory" = "/etc" ]
-    then
-      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
-    else
-      ${DOCKER_COMPOSE} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
-    fi
+    docker restart jupyter-server
+    docker restart welder-server
+    docker restart proxy-server
+
+#    if [ "$certFileDirectory" = "/etc" ]
+#    then
+#      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+#    else
+#      ${DOCKER_COMPOSE} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+#    fi
 
     failScriptIfError ${GSUTIL_CMD}
     retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
