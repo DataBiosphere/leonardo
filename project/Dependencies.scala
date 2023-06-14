@@ -17,11 +17,6 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
 
-  // to add WSM client
-  val workSpaceManagerV = "0.254.754-SNAPSHOT"
-  val jakartaActivationV = "1.2.1"
-  val jerseyV = "2.32"
-
   private val workbenchLibsHash = "01a11c3"
   val serviceTestV = s"2.1-$workbenchLibsHash"
   val workbenchModelV = s"0.17-$workbenchLibsHash"
@@ -148,7 +143,14 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
-  val workspaceManager: ModuleID = "bio.terra" % "workspace-manager-client" % workSpaceManagerV exclude("com.sun.activation", "jakarta.activation")
+  val workSpaceManagerV = "0.254.754-SNAPSHOT"
+
+  def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
+  def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
+  def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi, excludeJakartaXmlBindApi)
+
+  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+
 
   val coreDependencies = List(
     jose4j,
@@ -244,11 +246,4 @@ object Dependencies {
     scalaTest
   )
 
-  val wsmDependencies: List[ModuleID] = List(
-    "bio.terra" % "workspace-manager-client" % "0.254.754-SNAPSHOT"
-      exclude("com.sun.activation", "jakarta.activation"),
-    "org.glassfish.jersey.inject" % "jersey-hk2" % jerseyV
-      exclude("com.sun.activation", "jakarta.activation"),
-    "jakarta.activation" % "jakarta.activation-api" % jakartaActivationV,
-  )
 }
