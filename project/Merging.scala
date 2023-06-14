@@ -33,6 +33,7 @@ object Merging {
     // [error]   Jar name = javax.activation-api-1.2.0.jar, jar org = javax.activation, entry target = javax/activation/SecuritySupport$5.class
     // case PathList("META-INF", "kotlin-stdlib-common.kotlin_module")    => MergeStrategy.preferProject
     case x if x.contains("activation") => MergeStrategy.first
-    case x                => oldStrategy(x)
+    case x if x.contains("jakarta")    => MergeStrategy.first
+    case x                             => oldStrategy(x)
   }
 }
