@@ -37,6 +37,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -141,22 +142,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
+      values = buildSetupChartOverrideValues(
+        app.release,
+        app.samResourceId,
+        ksaName,
+        params.landingZoneResources.relayNamespace,
+        hcName,
+        relayPrimaryKey,
+        app.appType,
+        params.workspaceId,
+        app.appName,
+        refererConfig.validHosts + relayDomain
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Setup chart values for app ${params.appName.value} are ${values.asString}"
+      )
+
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(
-            app.release,
-            app.samResourceId,
-            ksaName,
-            params.landingZoneResources.relayNamespace,
-            hcName,
-            relayPrimaryKey,
-            app.appType,
-            params.workspaceId,
-            app.appName
-          ),
+          values,
           true
         )
         .run(authContext)
@@ -454,7 +462,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   relayPrimaryKey: PrimaryKey,
                                                   appType: AppType,
                                                   workspaceId: WorkspaceId,
-                                                  appName: AppName
+                                                  appName: AppName,
+                                                  validHosts: Set[String]
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
@@ -468,6 +477,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // so requires that we don't strip the entity path. For other app types we do
     // strip the entity path.
     val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
+
+    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
+    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
+      raw"relaylistener.validHosts[$idx]=$elem"
+    }
 
     Values(
       List(
@@ -491,7 +505,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
-      ).mkString(",")
+      ).concat(validHostValues).mkString(",")
     )
   }
 
