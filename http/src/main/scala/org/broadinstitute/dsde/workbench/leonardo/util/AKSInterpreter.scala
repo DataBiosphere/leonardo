@@ -791,18 +791,25 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
-    app.samResourceId.accessScope match {
-      case Some(AppAccessScope.WorkspaceShared) =>
-        commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
-      case _ =>
-        commonFieldsBase
-          .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
-          .privateResourceUser(
-            new model.PrivateResourceUser()
-              .userName(app.auditInfo.creator.value)
-              .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
-          )
-    }
+      .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+      .privateResourceUser(
+        new model.PrivateResourceUser()
+          .userName(app.auditInfo.creator.value)
+          .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+      )
+//    app.samResourceId.accessScope match {
+//      case Some(AppAccessScope.WorkspaceShared) =>
+//        commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
+//      case _ =>
+//        commonFieldsBase
+//          .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+//          .privateResourceUser(
+//            new model.PrivateResourceUser()
+//              .userName(app.auditInfo.creator.value)
+//              .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+//          )
+//    }
+    commonFieldsBase
   }
 
   private def maybeCreateWsmIdentityAndDatabase(app: App,
