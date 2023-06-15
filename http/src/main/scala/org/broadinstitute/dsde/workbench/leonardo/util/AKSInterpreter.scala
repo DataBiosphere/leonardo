@@ -845,12 +845,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .azureManagedIdentity(createIdentityParams)
 
         _ <- logger.info(ctx.loggingCtx)(s"Create identity request: ${createIdentityRequest}")
-        _ <- logger.info(ctx.loggingCtx)(s"Leo auth token: ${auth.credentials.renderString}")
 
         // Execute WSM call
         createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
 
-        _ <- logger.info(ctx.loggingCtx)(s"Got identity response: ${createIdentityResponse}")
+        _ <- logger.info(ctx.loggingCtx)(s"Create identity response: ${createIdentityResponse}")
 
         // Save record in APP_CONTROLLED_RESOURCE table
         _ <- appControlledResourceQuery
@@ -881,6 +880,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Execute WSM call
         createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
+
+        _ <- logger.info(ctx.loggingCtx)(s"Create database response: ${createDatabaseResponse}")
 
         // Poll for DB creation
         // We don't actually care about the JobReport - just that it succeeded.
