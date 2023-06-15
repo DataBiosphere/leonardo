@@ -89,6 +89,14 @@ object WsmResourceType {
     override def toString: String = "AZURE_RELAY_NAMESPACE"
   }
 
+  case object AzureManagedIdentity extends WsmResourceType {
+    override def toString: String = "AZURE_MANAGED_IDENTITY"
+  }
+
+  case object AzureDatabase extends WsmResourceType {
+    override def toString: String = "AZURE_DATABASE"
+  }
+
   def values: Set[WsmResourceType] = sealerate.values[WsmResourceType]
 
   def stringToObject: Map[String, WsmResourceType] = values.map(v => v.toString -> v).toMap

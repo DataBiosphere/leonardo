@@ -422,6 +422,8 @@ object Boot extends IOApp {
       )
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
+      wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
+
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
@@ -684,7 +686,8 @@ object Boot extends IOApp {
         cbasUiDao,
         wdsDao,
         hailBatchDao,
-        kubeAlg
+        kubeAlg,
+        wsmClientProvider
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -772,6 +775,7 @@ object Boot extends IOApp {
         cbasUiDao,
         cromwellDao,
         hailBatchDao,
+        wsmClientProvider,
         kubeAlg,
         azureContainerService
       )
@@ -895,6 +899,7 @@ final case class AppDependencies[F[_]](
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
+  wsmClientProvider: HttpWsmClientProvider,
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]
 )
