@@ -864,7 +864,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
 
         // Build create DB request
-        dbName = s"db-${app.appName.value}"
+        dbName = s"db-${app.appName.value}".filterNot(_ == '-')
         databaseCommonFields = getCommonFields(dbName, s"Database for Leo app ${app.appName.value}", app)
         createDatabaseParams = new AzureDatabaseCreationParameters()
           .name(dbName)
