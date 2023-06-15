@@ -791,6 +791,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
+      .cloningInstructions(CloningInstructionsEnum.NOTHING)
     app.samResourceId.accessScope match {
       case Some(AppAccessScope.WorkspaceShared) =>
         commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
