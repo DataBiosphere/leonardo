@@ -750,7 +750,7 @@ object JsonCodec {
   )(x => (x.publisher, x.offer, x.sku, x.version))
 
   implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct10(
+    Decoder.forProduct11(
       "landingZoneId",
       "clusterName",
       "batchAccountName",
@@ -760,12 +760,13 @@ object JsonCodec {
       "batchNodesSubnetName",
       "aksSubnetName",
       "region",
-      "applicationInsightsName"
+      "applicationInsightsName",
+      "postgresName"
     )(
       LandingZoneResources.apply
     )
 
-  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct10(
+  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct11(
     "landingZoneId",
     "clusterName",
     "batchAccountName",
@@ -775,7 +776,8 @@ object JsonCodec {
     "batchNodesSubnetName",
     "aksSubnetName",
     "region",
-    "applicationInsightsName"
+    "applicationInsightsName",
+    "postgresName"
   )(x =>
     (x.landingZoneId,
      x.clusterName,
@@ -786,7 +788,8 @@ object JsonCodec {
      x.batchNodesSubnetName,
      x.aksSubnetName,
      x.region,
-     x.applicationInsightsName
+     x.applicationInsightsName,
+     x.postgresName
     )
   )
 }
