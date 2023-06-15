@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import bio.terra.workspace.model
+import bio.terra.workspace.model._
 import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
@@ -67,7 +69,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            cbasDao: CbasDAO[F],
                            cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F],
-                           hailBatchDao: HailBatchDAO[F]
+                           hailBatchDao: HailBatchDAO[F],
+                           wsmClientProvider: WsmApiClientProvider
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -81,6 +84,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     podStatus == PodStatus.Failed || podStatus == PodStatus.Succeeded
   implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
     (ps: List[PodStatus]) => ps.forall(isPodDone)
+
+  implicit private def wsmJobDoneCheckable: DoneCheckable[JobReport] =
+    _.getStatus != JobReport.StatusEnum.RUNNING
 
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
@@ -104,10 +110,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
 
+      maybeKsaFromDatabaseCreation <- maybeCreateWsmIdentityAndDatabase(app,
+                                                                        params.workspaceId,
+                                                                        params.landingZoneResources
+      )
+
+      // TODO do something with this KSA
+      _ <- logger.info(ctx.loggingCtx)(s"maybeKsaFromDatabaseCreation: ${maybeKsaFromDatabaseCreation}")
+
       ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppCreationException(
-          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
+          s"Kubernetes Service Account not found for app ${app.appName.value}",
           Some(ctx.traceId)
         )
       )
@@ -119,18 +133,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
+      // TODO maybe don't do this if WI is set up
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
-      _ <- helmClient
-        .installChart(
-          config.aadPodIdentityConfig.release,
-          config.aadPodIdentityConfig.chartName,
-          config.aadPodIdentityConfig.chartVersion,
-          config.aadPodIdentityConfig.values,
-          true
-        )
-        .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
+      _ <-
+        helmClient
+          .installChart(
+            config.aadPodIdentityConfig.release,
+            config.aadPodIdentityConfig.chartName,
+            config.aadPodIdentityConfig.chartVersion,
+            config.aadPodIdentityConfig.values,
+            true
+          )
+          .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
@@ -142,6 +158,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
+      // TODO: don't create KSA if we already have one
       values = buildSetupChartOverrideValues(
         app.release,
         app.samResourceId,
@@ -176,6 +193,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
       )
 
+      // TODO: understand how to set up workload identity in chart
       // Resolve pet managed identity in Azure
       // Only do this for user-private apps; do not assign any identity for shared apps.
       // In the future we may use a shared identity instead.
@@ -766,6 +784,123 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       .tenantId(config.appRegistrationConfig.managedAppTenantId.value)
       .build
     F.delay(ComputeManager.authenticate(clientSecretCredential, azureProfile))
+  }
+
+  private def getCommonFields(name: String,
+                              description: String,
+                              app: App
+  ): bio.terra.workspace.model.ControlledResourceCommonFields = {
+    val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
+      .name(name)
+      .description(description)
+      .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
+    app.samResourceId.accessScope match {
+      case Some(AppAccessScope.WorkspaceShared) =>
+        commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
+      case _ =>
+        commonFieldsBase
+          .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+          .privateResourceUser(
+            new model.PrivateResourceUser()
+              .userName(app.auditInfo.creator.value)
+              .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+          )
+    }
+  }
+  private def maybeCreateWsmIdentityAndDatabase(app: App,
+                                                workspaceId: WorkspaceId,
+                                                landingZoneResources: LandingZoneResources
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[ServiceAccountName]] = {
+    val databaseConfigEnabled = app.appType match {
+      case AppType.Wds => config.wdsAppConfig.databaseEnabled
+      case _           => false
+    }
+    // TODO!!
+    val landingZoneSupportsDatabase = true
+    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
+      for {
+        ctx <- ev.ask
+        _ <- logger.info(ctx.loggingCtx)(
+          s"Creating WSM identity for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+        )
+
+        // Build WSM client
+        auth <- samDao.getLeoAuthToken
+        wsmApi = wsmClientProvider.getControlledAzureResourceApi(auth.credentials.renderString)
+
+        // Build create managed identity request
+        // TODO are dashes allowed for identity?
+        identityName = s"id-${app.appName.value}".filterNot(_ == '-')
+        identityCommonFields = getCommonFields(identityName, s"Identity for Leo app ${app.appName.value}", app)
+        createIdentityParams = new AzureManagedIdentityCreationParameters().name(
+          identityName
+        )
+        createIdentityRequest = new CreateControlledAzureManagedIdentityRequestBody()
+          .common(identityCommonFields)
+          .azureManagedIdentity(createIdentityParams)
+
+        _ <- logger.info(ctx.loggingCtx)(s"Create identity request: ${createIdentityRequest}")
+
+        // Execute WSM call
+        createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
+
+        // Save record in APP_CONTROLLED_RESOURCE table
+        _ <- appControlledResourceQuery
+          .save(app.id.id,
+                WsmControlledResourceId(createIdentityResponse.getResourceId),
+                WsmResourceType.AzureManagedIdentity
+          )
+          .transaction
+
+        _ <- logger.info(ctx.loggingCtx)(
+          s"Creating WSM database for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+        )
+
+        // Build create DB request
+        dbName = s"db-${app.appName.value}"
+        databaseCommonFields = getCommonFields(dbName, s"Database for Leo app ${app.appName.value}", app)
+        createDatabaseParams = new AzureDatabaseCreationParameters()
+          .name(dbName)
+          .owner(createIdentityResponse.getResourceId)
+          .k8sNamespace(app.appResources.namespace.name.value)
+        createDatabaseJobControl = new JobControl().id(dbName)
+        createDatabaseRequest = new CreateControlledAzureDatabaseRequestBody()
+          .common(databaseCommonFields)
+          .azureDatabase(createDatabaseParams)
+          .jobControl(createDatabaseJobControl)
+
+        _ <- logger.info(ctx.loggingCtx)(s"Create database request: ${createDatabaseRequest}")
+
+        // Execute WSM call
+        createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
+
+        // Poll for DB creation
+        // We don't actually care about the JobReport - just that it succeeded.
+        op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName)).map(_.getJobReport)
+        jobReport <- streamFUntilDone(
+          op,
+          config.appMonitorConfig.createApp.maxAttempts,
+          config.appMonitorConfig.createApp.interval
+        ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+        _ <-
+          if (jobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+            F.raiseError(
+              AppCreationException(
+                s"WSM database creation failed for app ${app.appName.value}. WSM response: ${jobReport}",
+                Some(ctx.traceId)
+              )
+            )
+          } else F.unit
+
+        // Save record in APP_CONTROLLED_RESOURCE table
+        _ <- appControlledResourceQuery
+          .save(app.id.id, WsmControlledResourceId(createDatabaseResponse.getResourceId), WsmResourceType.AzureDatabase)
+          .transaction
+
+      } yield Some(ServiceAccountName(identityName))
+    } else F.pure(None)
   }
 
   private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
