@@ -287,7 +287,10 @@ object Boot extends IOApp {
             appDependencies.cbasDAO,
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
-            appDependencies.samDAO
+            appDependencies.hailBatchDAO,
+            appDependencies.samDAO,
+            appDependencies.kubeAlg,
+            appDependencies.azureContainerService
           )
 
           List(
@@ -521,6 +524,7 @@ object Boot extends IOApp {
       )
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
+
       // Use a low concurrency for helm because it can generate very chatty network traffic
       // (especially for Galaxy) and cause issues at high concurrency.
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
@@ -631,6 +635,12 @@ object Boot extends IOApp {
 
       implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
 
+      val kubeAlg = new KubernetesInterpreter[F](
+        azureContainerService,
+        googleDependencies.gkeService,
+        googleDependencies.credentials
+      )
+
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
         bucketHelper,
@@ -673,7 +683,8 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         wdsDao,
-        hailBatchDao
+        hailBatchDao,
+        kubeAlg
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -760,7 +771,9 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         cromwellDao,
-        hailBatchDao
+        hailBatchDao,
+        kubeAlg,
+        azureContainerService
       )
     }
 
@@ -881,5 +894,7 @@ final case class AppDependencies[F[_]](
   cbasDAO: CbasDAO[F],
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
-  hailBatchDAO: HailBatchDAO[F]
+  hailBatchDAO: HailBatchDAO[F],
+  kubeAlg: KubernetesAlgebra[F],
+  azureContainerService: AzureContainerService[F]
 )

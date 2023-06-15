@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
-import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -18,40 +17,28 @@ import com.azure.resourcemanager.compute.models.{
 }
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
-import io.kubernetes.client.openapi.ApiClient
-import io.kubernetes.client.openapi.apis.CoreV1Api
-import io.kubernetes.client.openapi.models.V1NamespaceList
-import io.kubernetes.client.util.Config
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
-import org.broadinstitute.dsde.workbench.google2.{
-  autoClosableResourceF,
-  recoverF,
-  streamFUntilDone,
-  streamUntilDoneOrTimeout,
-  tracedRetryF
-}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.util2.withLogging
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
-import java.io.ByteArrayInputStream
 import java.net.URL
-import java.util.{Base64, UUID}
+import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
@@ -66,7 +53,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            cbasDao: CbasDAO[F],
                            cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F],
-                           hailBatchDao: HailBatchDAO[F]
+                           hailBatchDao: HailBatchDAO[F],
+                           kubeAlg: KubernetesAlgebra[F]
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -141,22 +129,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
+      values = buildSetupChartOverrideValues(
+        app.release,
+        app.samResourceId,
+        ksaName,
+        params.landingZoneResources.relayNamespace,
+        hcName,
+        relayPrimaryKey,
+        app.appType,
+        params.workspaceId,
+        app.appName,
+        refererConfig.validHosts + relayDomain
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Setup chart values for app ${params.appName.value} are ${values.asString}"
+      )
+
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
           config.terraAppSetupChartConfig.chartName,
           config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(
-            app.release,
-            app.samResourceId,
-            ksaName,
-            params.landingZoneResources.relayNamespace,
-            hcName,
-            relayPrimaryKey,
-            app.appType,
-            params.workspaceId,
-            app.appName
-          ),
+          values,
           true
         )
         .run(authContext)
@@ -362,22 +357,22 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-      client <- buildCoreV1Client(cloudContext, landingZoneResources.clusterName)
+      client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
 
       // Poll until all pods in the app namespace are deleted
       _ <- streamUntilDoneOrTimeout(
-        listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
+        kubeAlg.listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
         config.appMonitorConfig.deleteApp.maxAttempts,
         config.appMonitorConfig.deleteApp.interval,
         "helm deletion timed out"
       )
 
       // Delete the namespace only after the helm uninstall completes.
-      _ <- deleteNamespace(client, kubernetesNamespace)
+      _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)
 
       // Poll until the namespace is actually deleted
       // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
-      fa = namespaceExists(client, kubernetesNamespace).map(exists => !exists)
+      fa = kubeAlg.namespaceExists(client, kubernetesNamespace).map(exists => !exists)
       _ <- streamUntilDoneOrTimeout(fa,
                                     config.appMonitorConfig.deleteApp.maxAttempts,
                                     config.appMonitorConfig.deleteApp.initialDelay,
@@ -433,7 +428,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             .sequence
             .map(_.forall(identity))
         case AppType.Wds =>
-          wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
+          wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         case AppType.HailBatch =>
           hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
         case _ => F.raiseError[Boolean](AppCreationException(s"App type ${appType} not supported on Azure"))
@@ -454,7 +449,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                   relayPrimaryKey: PrimaryKey,
                                                   appType: AppType,
                                                   workspaceId: WorkspaceId,
-                                                  appName: AppName
+                                                  appName: AppName,
+                                                  validHosts: Set[String]
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
@@ -468,6 +464,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // so requires that we don't strip the entity path. For other app types we do
     // strip the entity path.
     val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
+
+    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
+    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
+      raw"relaylistener.validHosts[$idx]=$elem"
+    }
 
     Values(
       List(
@@ -491,7 +492,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // general configs
         raw"fullnameOverride=setup-${release.asString}"
-      ).mkString(",")
+      ).concat(validHostValues).mkString(",")
     )
   }
 
@@ -753,130 +754,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       .build
     F.delay(ComputeManager.authenticate(clientSecretCredential, azureProfile))
   }
-
-  private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
-    // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
-    implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
-    for {
-      credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
-      client <- createClient(
-        credentials
-      )
-      _ <- F.blocking(client.setApiKey(credentials.token.value))
-    } yield new CoreV1Api(client)
-  }
-
-  private def deleteNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Unit] = {
-    val delete = for {
-      traceId <- ev.ask
-      call =
-        recoverF(
-          F.blocking(
-            client.deleteNamespace(
-              namespace.name.value,
-              "true",
-              null,
-              null,
-              null,
-              null,
-              null
-            )
-          ).void
-            .recoverWith {
-              case e: com.google.gson.JsonSyntaxException
-                  if e.getMessage.contains("Expected a string but was BEGIN_OBJECT") =>
-                logger.error(e)("Ignore response parsing error")
-            } // see https://github.com/kubernetes-client/java/wiki/6.-Known-Issues#1-exception-on-deleting-resources-javalangillegalstateexception-expected-a-string-but-was-begin_object
-          ,
-          whenStatusCode(404)
-        )
-      _ <- withLogging(
-        call,
-        Some(traceId),
-        s"io.kubernetes.client.openapi.apis.CoreV1Api.deleteNamespace(${namespace.name.value}, true, null, null, null, null, null)"
-      )
-    } yield ()
-
-    // There is a known bug with the client lib json decoding.  `com.google.gson.JsonSyntaxException` occurs every time.
-    // See https://github.com/kubernetes-client/java/issues/86
-    delete.handleErrorWith {
-      case _: com.google.gson.JsonSyntaxException =>
-        F.unit
-      case e: Throwable => F.raiseError(e)
-    }
-  }
-
-  private def listPodStatus(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
-  ): F[List[PodStatus]] =
-    for {
-      traceId <- ev.ask
-      call =
-        F.blocking(
-          client.listNamespacedPod(namespace.name.value, "true", null, null, null, null, null, null, null, null, null)
-        )
-
-      response <- withLogging(
-        call,
-        Some(traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}, true, null, null, null, null, null, null, null, null)"
-      )
-
-      listPodStatus: List[PodStatus] = response.getItems.asScala.toList.flatMap(v1Pod =>
-        PodStatus.stringToPodStatus
-          .get(v1Pod.getStatus.getPhase)
-      )
-
-    } yield listPodStatus
-
-  // The underlying http client for ApiClient claims that it releases idle threads and that shutdown is not necessary
-  // Here is a guide on how to proactively release resource if this proves to be problematic https://square.github.io/okhttp/4.x/okhttp/okhttp3/-ok-http-client/#shutdown-isnt-necessary
-  private def createClient(credentials: AKSCredentials): F[ApiClient] = {
-    val certResource = autoClosableResourceF(
-      new ByteArrayInputStream(Base64.getDecoder.decode(credentials.certificate.value))
-    )
-
-    for {
-      apiClient <- certResource.use { certStream =>
-        F.delay(
-          Config
-            .fromToken(
-              credentials.server.value,
-              credentials.token.value
-            )
-            .setSslCaCert(certStream)
-        )
-      }
-    } yield apiClient // appending here a .setDebugging(true) prints out useful API request/response info for development
-  }
-
-  private def namespaceExists(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Boolean] =
-    for {
-      traceId <- ev.ask
-      call =
-        recoverF(
-          F.blocking(
-            client.listNamespace("true", false, null, null, null, null, null, null, null, false)
-          ),
-          whenStatusCode(409)
-        )
-      v1NamespaceList <- withLogging(
-        call,
-        Some(traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespace()",
-        Show.show[Option[V1NamespaceList]](
-          _.fold("No namespace found")(x => x.getItems.asScala.toList.map(_.getMetadata.getName).mkString(","))
-        )
-      )
-    } yield v1NamespaceList
-      .map(ls => ls.getItems.asScala.toList)
-      .getOrElse(List.empty)
-      .exists(x => x.getMetadata.getName == namespace.name.value)
-
 }
 
 final case class AKSInterpreterConfig(
