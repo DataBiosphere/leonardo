@@ -791,25 +791,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
-      .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
-      .privateResourceUser(
-        new model.PrivateResourceUser()
-          .userName(app.auditInfo.creator.value)
-          .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
-      )
-//    app.samResourceId.accessScope match {
-//      case Some(AppAccessScope.WorkspaceShared) =>
-//        commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
-//      case _ =>
-//        commonFieldsBase
-//          .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
-//          .privateResourceUser(
-//            new model.PrivateResourceUser()
-//              .userName(app.auditInfo.creator.value)
-//              .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
-//          )
-//    }
-    commonFieldsBase
+    app.samResourceId.accessScope match {
+      case Some(AppAccessScope.WorkspaceShared) =>
+        commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
+      case _ =>
+        commonFieldsBase
+          .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+          .privateResourceUser(
+            new model.PrivateResourceUser()
+              .userName(app.auditInfo.creator.value)
+              .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+          )
+    }
   }
 
   private def maybeCreateWsmIdentityAndDatabase(app: App,
@@ -833,7 +826,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Build WSM client
         auth <- samDao.getLeoAuthToken
-        wsmApi = wsmClientProvider.getControlledAzureResourceApi(auth.credentials.renderString)
+        token <- auth.credentials match {
+          case org.http4s.Credentials.Token(_, token) => F.pure(token)
+          case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        }
+        wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
         // Build create managed identity request
         // TODO are dashes allowed for identity?
@@ -918,7 +915,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ctx <- ev.ask
       // Build WSM client
       auth <- samDao.getLeoAuthToken
-      wsmApi = wsmClientProvider.getControlledAzureResourceApi(auth.credentials.renderString)
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
       // Delete WSM database, if present
       wsmDatabase <- appControlledResourceQuery.getWsmRecordForApp(app.id.id, WsmResourceType.AzureDatabase).transaction
