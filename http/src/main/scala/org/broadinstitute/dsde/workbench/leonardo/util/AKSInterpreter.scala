@@ -604,10 +604,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"general.workspaceManager.workspaceId=${workspaceId.value}",
 
         // identity configs
-        raw"podIdentity.enabled=${identityType == PodIdentity}",
-        raw"podIdentity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"podIdentity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"podIdentity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"identity.enabled=${identityType == PodIdentity}",
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
         raw"workloadIdentity.enabled=${identityType == WorkloadIdentity}",
         raw"workloadIdentity.serviceAccountName=${ksaName.map(_.value).getOrElse("none")}",
 
