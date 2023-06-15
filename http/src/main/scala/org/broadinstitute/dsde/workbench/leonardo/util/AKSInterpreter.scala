@@ -405,6 +405,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                     "delete namespace timed out"
       )
 
+      // Delete WSM resources associated with the app
+      _ <- maybeDeleteWsmIdentityAndDatabase(app, params.workspaceId)
+
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
@@ -592,7 +595,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 identityType: IdentityType,
                                                 ksaName: Option[ServiceAccountName]
   ): Values = {
-    val values =
+    val valuesList =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -632,7 +635,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.sourceWorkspaceId=${sourceWorkspaceId.map(_.value).getOrElse("")}"
       )
 
-    Values(values.mkString(","))
+    Values(valuesList.mkString(","))
   }
 
   private[util] def buildHailBatchChartOverrideValues(appName: AppName,
@@ -801,6 +804,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
     }
   }
+
   private def maybeCreateWsmIdentityAndDatabase(app: App,
                                                 workspaceId: WorkspaceId,
                                                 landingZoneResources: LandingZoneResources
@@ -896,6 +900,48 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       } yield Some(ServiceAccountName(identityName))
     } else F.pure(None)
   }
+
+  private def maybeDeleteWsmIdentityAndDatabase(app: App, workspaceId: WorkspaceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      // Build WSM client
+      auth <- samDao.getLeoAuthToken
+      wsmApi = wsmClientProvider.getControlledAzureResourceApi(auth.credentials.renderString)
+
+      // Delete WSM database, if present
+      wsmDatabase <- appControlledResourceQuery.getWsmRecordForApp(app.id.id, WsmResourceType.AzureDatabase).transaction
+      _ <- wsmDatabase match {
+        case None =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"No WSM controlled Azure Database found for app ${app.appName.value} in workspace ${workspaceId.value}"
+            )
+        case Some(db) =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"Deleting WSM database for Leo app ${app.appName.value} in workspace ${workspaceId.value}"
+            ) >> F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, db.resourceId.value))
+      }
+
+      // Delete WSM identity, if present
+      wsmIdentity <- appControlledResourceQuery
+        .getWsmRecordForApp(app.id.id, WsmResourceType.AzureManagedIdentity)
+        .transaction
+      _ <- wsmIdentity match {
+        case None =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"No WSM controlled Azure managed identity found for app ${app.appName.value} in workspace ${workspaceId.value}"
+            )
+        case Some(db) =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"Deleting WSM managed identity for Leo app ${app.appName.value} in workspace ${workspaceId.value}"
+            ) >> F.delay(wsmApi.deleteAzureManagedIdentity(workspaceId.value, db.resourceId.value))
+      }
+    } yield ()
 
   private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
     // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
