@@ -23,14 +23,14 @@ EXPOSE 5050
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
-ENV TERRA_APP_SETUP_VERSION 0.0.17
+ENV TERRA_APP_SETUP_VERSION 0.0.18
 ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.265
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.265
+ENV CROMWELL_CHART_VERSION 0.2.266
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.266
 ENV WDS_CHART_VERSION 0.22.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.1.0
@@ -61,7 +61,6 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
-
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
