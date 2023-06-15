@@ -288,7 +288,10 @@ object Boot extends IOApp {
             appDependencies.cbasDAO,
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
-            appDependencies.samDAO
+            appDependencies.hailBatchDAO,
+            appDependencies.samDAO,
+            appDependencies.kubeAlg,
+            appDependencies.azureContainerService
           )
 
           List(
@@ -524,6 +527,7 @@ object Boot extends IOApp {
       )
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
+
       // Use a low concurrency for helm because it can generate very chatty network traffic
       // (especially for Galaxy) and cause issues at high concurrency.
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
@@ -634,6 +638,12 @@ object Boot extends IOApp {
 
       implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
 
+      val kubeAlg = new KubernetesInterpreter[F](
+        azureContainerService,
+        googleDependencies.gkeService,
+        googleDependencies.credentials
+      )
+
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
         bucketHelper,
@@ -676,7 +686,8 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         wdsDao,
-        hailBatchDao
+        hailBatchDao,
+        kubeAlg
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -764,7 +775,9 @@ object Boot extends IOApp {
         cbasUiDao,
         cromwellDao,
         hailBatchDao,
-        wsmClientProvider
+        wsmClientProvider,
+        kubeAlg,
+        azureContainerService
       )
     }
 
@@ -886,5 +899,7 @@ final case class AppDependencies[F[_]](
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
-  wsmClientProvider: HttpWsmClientProvider
+  wsmClientProvider: HttpWsmClientProvider,
+  kubeAlg: KubernetesAlgebra[F],
+  azureContainerService: AzureContainerService[F]
 )
