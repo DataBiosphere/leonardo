@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import bio.terra.workspace.model._
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -31,6 +32,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.{NoIdentity, PodIdentity, WorkloadIdentity}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
@@ -54,7 +56,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F],
                            hailBatchDao: HailBatchDAO[F],
-                           kubeAlg: KubernetesAlgebra[F]
+                           kubeAlg: KubernetesAlgebra[F],
+                           wsmClientProvider: WsmApiClientProvider
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -68,6 +71,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     podStatus == PodStatus.Failed || podStatus == PodStatus.Succeeded
   implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
     (ps: List[PodStatus]) => ps.forall(isPodDone)
+
+  implicit private def wsmJobDoneCheckable: DoneCheckable[JobReport] =
+    _.getStatus != JobReport.StatusEnum.RUNNING
 
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
@@ -103,21 +109,33 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
+      maybeKsaFromDatabaseCreation <- maybeCreateWsmIdentityAndDatabase(app,
+                                                                        params.workspaceId,
+                                                                        params.landingZoneResources
+      )
+
+      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType) match {
+        case (Some(_), _)                      => WorkloadIdentity
+        case (None, SamResourceType.SharedApp) => NoIdentity
+        case (None, _)                         => PodIdentity
+      }
+
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
-      _ <- helmClient
-        .installChart(
-          config.aadPodIdentityConfig.release,
-          config.aadPodIdentityConfig.chartName,
-          config.aadPodIdentityConfig.chartVersion,
-          config.aadPodIdentityConfig.values,
-          true
-        )
-        .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
+      _ <-
+        helmClient
+          .installChart(
+            config.aadPodIdentityConfig.release,
+            config.aadPodIdentityConfig.chartName,
+            config.aadPodIdentityConfig.chartVersion,
+            config.aadPodIdentityConfig.values,
+            true
+          )
+          .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
 
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
@@ -132,7 +150,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       values = buildSetupChartOverrideValues(
         app.release,
         app.samResourceId,
-        ksaName,
         params.landingZoneResources.relayNamespace,
         hcName,
         relayPrimaryKey,
@@ -163,12 +180,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
       )
 
-      // Resolve pet managed identity in Azure
-      // Only do this for user-private apps; do not assign any identity for shared apps.
-      // In the future we may use a shared identity instead.
-      petMi <- app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => F.pure(None)
-        case _ =>
+      // If we're configured to use pod identity with the pet for this app, resolve pet managed identity in Azure
+      // and assign the VM scale set.
+      // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity
+      // for all app types.
+      petMi <- identityType match {
+        case PodIdentity =>
           for {
             msi <- buildMsiManager(params.cloudContext)
             petMi <- F.delay(
@@ -178,6 +195,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             // Assign the pet managed identity to the VM scale set backing the cluster node pool
             _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
           } yield Some(petMi)
+        case _ => F.pure(None)
       }
 
       // Resolve Application Insights resource in Azure to pass to the helm chart.
@@ -241,7 +259,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   applicationInsightsComponent.connectionString(),
                   app.sourceWorkspaceId,
-                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+                  userToken, // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+                  identityType,
+                  maybeKsaFromDatabaseCreation
                 ),
                 createNamespace = true
               )
@@ -379,6 +399,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                     "delete namespace timed out"
       )
 
+      // Delete WSM resources associated with the app
+      _ <- maybeDeleteWsmIdentityAndDatabase(app, params.workspaceId)
+
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
@@ -443,7 +466,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def buildSetupChartOverrideValues(release: Release,
                                                   samResourceId: AppSamResourceId,
-                                                  ksaName: ServiceAccountName,
                                                   relayNamespace: RelayNamespace,
                                                   relayHcName: RelayHybridConnectionName,
                                                   relayPrimaryKey: PrimaryKey,
@@ -473,9 +495,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     Values(
       List(
         raw"cloud=azure",
-        // KSA configs
-        raw"serviceAccount.name=${ksaName.value}",
-
         // relay configs
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
@@ -566,7 +585,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
                                                 sourceWorkspaceId: Option[WorkspaceId],
-                                                userAccessToken: String
+                                                userAccessToken: String,
+                                                identityType: IdentityType,
+                                                ksaName: Option[ServiceAccountName]
   ): Values = {
     val valuesList =
       List(
@@ -583,9 +604,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"general.workspaceManager.workspaceId=${workspaceId.value}",
 
         // identity configs
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"podIdentity.enabled=${identityType == PodIdentity}",
+        raw"podIdentity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"podIdentity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"podIdentity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"workloadIdentity.enabled=${identityType == WorkloadIdentity}",
+        raw"workloadIdentity.serviceAccountName=${ksaName.map(_.value).getOrElse("none")}",
 
         // Sam configs
         raw"sam.url=${config.samConfig.server}",
@@ -601,13 +625,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"import.dataRepoUrl=${config.tdr.url}",
 
         // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}"
+        raw"provenance.userAccessToken=${userAccessToken}",
+        raw"provenance.sourceWorkspaceId=${sourceWorkspaceId.map(_.value).getOrElse("")}"
       )
-    val updatedLs = sourceWorkspaceId match {
-      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => valuesList
-    }
-    Values(updatedLs.mkString(","))
+
+    Values(valuesList.mkString(","))
   }
 
   private[util] def buildHailBatchChartOverrideValues(appName: AppName,
@@ -754,6 +776,177 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       .build
     F.delay(ComputeManager.authenticate(clientSecretCredential, azureProfile))
   }
+
+  private def getCommonFields(name: String,
+                              description: String,
+                              app: App
+  ): bio.terra.workspace.model.ControlledResourceCommonFields = {
+    val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
+      .name(name)
+      .description(description)
+      .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
+      .cloningInstructions(CloningInstructionsEnum.NOTHING)
+    app.samResourceId.accessScope match {
+      case Some(AppAccessScope.WorkspaceShared) =>
+        commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
+      case _ =>
+        commonFieldsBase
+          .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+          .privateResourceUser(
+            new bio.terra.workspace.model.PrivateResourceUser()
+              .userName(app.auditInfo.creator.value)
+              .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+          )
+    }
+  }
+
+  private def maybeCreateWsmIdentityAndDatabase(app: App,
+                                                workspaceId: WorkspaceId,
+                                                landingZoneResources: LandingZoneResources
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[ServiceAccountName]] = {
+    val databaseConfigEnabled = app.appType match {
+      case AppType.Wds => config.wdsAppConfig.databaseEnabled
+      case _           => false
+    }
+    val landingZoneSupportsDatabase = landingZoneResources.postgresName.isDefined
+    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
+      for {
+        ctx <- ev.ask
+        _ <- logger.info(ctx.loggingCtx)(
+          s"Creating WSM identity for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+        )
+
+        // Build WSM client
+        auth <- samDao.getLeoAuthToken
+        token <- auth.credentials match {
+          case org.http4s.Credentials.Token(_, token) => F.pure(token)
+          case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        }
+        wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+
+        // Build create managed identity request
+        identityName = s"id-${app.appName.value}".filterNot(_ == '-')
+        identityCommonFields = getCommonFields(identityName, s"Identity for Leo app ${app.appName.value}", app)
+        createIdentityParams = new AzureManagedIdentityCreationParameters().name(
+          identityName
+        )
+        createIdentityRequest = new CreateControlledAzureManagedIdentityRequestBody()
+          .common(identityCommonFields)
+          .azureManagedIdentity(createIdentityParams)
+
+        _ <- logger.info(ctx.loggingCtx)(s"Create identity request: ${createIdentityRequest}")
+
+        // Execute WSM call
+        createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
+
+        _ <- logger.info(ctx.loggingCtx)(s"Create identity response: ${createIdentityResponse}")
+
+        // Save record in APP_CONTROLLED_RESOURCE table
+        _ <- appControlledResourceQuery
+          .save(app.id.id,
+                WsmControlledResourceId(createIdentityResponse.getResourceId),
+                WsmResourceType.AzureManagedIdentity
+          )
+          .transaction
+
+        _ <- logger.info(ctx.loggingCtx)(
+          s"Creating WSM database for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+        )
+
+        // Build create DB request
+        dbName = s"db-${app.appName.value}".filterNot(_ == '-')
+        databaseCommonFields = getCommonFields(dbName, s"Database for Leo app ${app.appName.value}", app)
+        createDatabaseParams = new AzureDatabaseCreationParameters()
+          .name(dbName)
+          .owner(createIdentityResponse.getResourceId)
+          .k8sNamespace(app.appResources.namespace.name.value)
+        createDatabaseJobControl = new JobControl().id(dbName)
+        createDatabaseRequest = new CreateControlledAzureDatabaseRequestBody()
+          .common(databaseCommonFields)
+          .azureDatabase(createDatabaseParams)
+          .jobControl(createDatabaseJobControl)
+
+        _ <- logger.info(ctx.loggingCtx)(s"Create database request: ${createDatabaseRequest}")
+
+        // Execute WSM call
+        createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
+
+        _ <- logger.info(ctx.loggingCtx)(s"Create database response: ${createDatabaseResponse}")
+
+        // Poll for DB creation
+        // We don't actually care about the JobReport - just that it succeeded.
+        op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName)).map(_.getJobReport)
+        jobReport <- streamFUntilDone(
+          op,
+          config.appMonitorConfig.createApp.maxAttempts,
+          config.appMonitorConfig.createApp.interval
+        ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+        _ <-
+          if (jobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+            F.raiseError(
+              AppCreationException(
+                s"WSM database creation failed for app ${app.appName.value}. WSM response: ${jobReport}",
+                Some(ctx.traceId)
+              )
+            )
+          } else F.unit
+
+        // Save record in APP_CONTROLLED_RESOURCE table
+        _ <- appControlledResourceQuery
+          .save(app.id.id, WsmControlledResourceId(createDatabaseResponse.getResourceId), WsmResourceType.AzureDatabase)
+          .transaction
+
+      } yield Some(ServiceAccountName(identityName))
+    } else F.pure(None)
+  }
+
+  private def maybeDeleteWsmIdentityAndDatabase(app: App, workspaceId: WorkspaceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      // Build WSM client
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+
+      // Delete WSM database, if present
+      wsmDatabase <- appControlledResourceQuery.getWsmRecordForApp(app.id.id, WsmResourceType.AzureDatabase).transaction
+      _ <- wsmDatabase match {
+        case None =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"No WSM controlled Azure Database found for app ${app.appName.value} in workspace ${workspaceId.value}"
+            )
+        case Some(db) =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"Deleting WSM database for Leo app ${app.appName.value} in workspace ${workspaceId.value}"
+            ) >> F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, db.resourceId.value))
+      }
+
+      // Delete WSM identity, if present
+      wsmIdentity <- appControlledResourceQuery
+        .getWsmRecordForApp(app.id.id, WsmResourceType.AzureManagedIdentity)
+        .transaction
+      _ <- wsmIdentity match {
+        case None =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"No WSM controlled Azure managed identity found for app ${app.appName.value} in workspace ${workspaceId.value}"
+            )
+        case Some(db) =>
+          logger
+            .info(ctx.loggingCtx)(
+              s"Deleting WSM managed identity for Leo app ${app.appName.value} in workspace ${workspaceId.value}"
+            ) >> F.delay(wsmApi.deleteAzureManagedIdentity(workspaceId.value, db.resourceId.value))
+      }
+    } yield ()
 }
 
 final case class AKSInterpreterConfig(
