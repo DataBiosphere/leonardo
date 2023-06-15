@@ -45,7 +45,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.{PodIdentityWithPet, WorkloadIdentity}
+import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.{NoIdentity, PodIdentity, WorkloadIdentity}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.withLogging
 import org.broadinstitute.dsp.{Release, _}
@@ -121,9 +121,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType) match {
-        case (Some(_), _)                      => IdentityType.WorkloadIdentity
-        case (None, SamResourceType.SharedApp) => IdentityType.NoIdentity
-        case (None, _)                         => IdentityType.PodIdentityWithPet
+        case (Some(_), _)                      => WorkloadIdentity
+        case (None, SamResourceType.SharedApp) => NoIdentity
+        case (None, _)                         => PodIdentity
       }
 
       // Authenticate helm client
@@ -191,7 +191,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity
       // for all app types.
       petMi <- identityType match {
-        case PodIdentityWithPet =>
+        case PodIdentity =>
           for {
             msi <- buildMsiManager(params.cloudContext)
             petMi <- F.delay(
@@ -610,7 +610,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"general.workspaceManager.workspaceId=${workspaceId.value}",
 
         // identity configs
-        raw"podIdentity.enabled=${identityType == PodIdentityWithPet}",
+        raw"podIdentity.enabled=${identityType == PodIdentity}",
         raw"podIdentity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"podIdentity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"podIdentity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
