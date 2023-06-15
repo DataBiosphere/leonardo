@@ -70,6 +70,7 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
+export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 GPU_ENABLED=$(gpuEnabled)
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
@@ -262,10 +263,7 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    docker restart jupyter-server
-    docker restart welder-server
-#    docker restart proxy-server
-
+    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${PROXY_DOCKER_COMPOSE}` up -d
 #    if [ "$certFileDirectory" = "/etc" ]
 #    then
 #      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
