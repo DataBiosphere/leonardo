@@ -36,8 +36,6 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success, Try}
-
 class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
@@ -323,20 +321,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // (state can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
       deletableStatus = List("BROKEN", "READY")
 
-      wsmVMResourceSamId = Try(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value)) match {
-        case Success(result) =>
+      attempt <- F.delay(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value)).attempt
+      wsmVMResourceSamId <- attempt match {
+        case Right(result) =>
           val vmState = result.getMetadata.getState.getValue
-          log.info(
-            s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
-          )
-          if (deletableStatus.contains(vmState))
-            Some(wsmResourceId)
-          else None
-        case Failure(e) =>
-          log.info(
-            s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm, ${e.getMessage}"
-          )
-          None
+          val res = if (deletableStatus.contains(vmState)) Some(wsmResourceId) else None
+          log
+            .info(ctx.loggingCtx)(
+              s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
+            )
+            .as(res)
+        case Left(e) =>
+          log
+            .info(ctx.loggingCtx)(
+              s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm, ${e.getMessage}"
+            )
+            .as(None)
       }
 
       hasPermission <-
