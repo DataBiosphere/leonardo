@@ -45,6 +45,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.{PodIdentityWithPet, WorkloadIdentity}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.withLogging
 import org.broadinstitute.dsp.{Release, _}
@@ -110,30 +111,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
+      )
+
       maybeKsaFromDatabaseCreation <- maybeCreateWsmIdentityAndDatabase(app,
                                                                         params.workspaceId,
                                                                         params.landingZoneResources
       )
 
-      // TODO do something with this KSA
-      _ <- logger.info(ctx.loggingCtx)(s"maybeKsaFromDatabaseCreation: ${maybeKsaFromDatabaseCreation}")
-
-      ksaName <- F.fromOption(
-        app.appResources.kubernetesServiceAccountName,
-        AppCreationException(
-          s"Kubernetes Service Account not found for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
-      )
+      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType) match {
+        case (Some(_), _)                      => IdentityType.WorkloadIdentity
+        case (None, SamResourceType.SharedApp) => IdentityType.NoIdentity
+        case (None, _)                         => IdentityType.PodIdentityWithPet
+      }
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
-      // TODO maybe don't do this if WI is set up
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
@@ -158,11 +153,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
-      // TODO: don't create KSA if we already have one
       values = buildSetupChartOverrideValues(
         app.release,
         app.samResourceId,
-        ksaName,
         params.landingZoneResources.relayNamespace,
         hcName,
         relayPrimaryKey,
@@ -193,13 +186,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
       )
 
-      // TODO: understand how to set up workload identity in chart
-      // Resolve pet managed identity in Azure
-      // Only do this for user-private apps; do not assign any identity for shared apps.
-      // In the future we may use a shared identity instead.
-      petMi <- app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => F.pure(None)
-        case _ =>
+      // If we're configured to use pod identity with the pet for this app, resolve pet managed identity in Azure
+      // and assign the VM scale set.
+      // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity
+      // for all app types.
+      petMi <- identityType match {
+        case PodIdentityWithPet =>
           for {
             msi <- buildMsiManager(params.cloudContext)
             petMi <- F.delay(
@@ -209,6 +201,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             // Assign the pet managed identity to the VM scale set backing the cluster node pool
             _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
           } yield Some(petMi)
+        case _ => F.pure(None)
       }
 
       // Resolve Application Insights resource in Azure to pass to the helm chart.
@@ -272,7 +265,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   petMi,
                   applicationInsightsComponent.connectionString(),
                   app.sourceWorkspaceId,
-                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+                  userToken, // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+                  identityType,
+                  maybeKsaFromDatabaseCreation
                 ),
                 createNamespace = true
               )
@@ -474,7 +469,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def buildSetupChartOverrideValues(release: Release,
                                                   samResourceId: AppSamResourceId,
-                                                  ksaName: ServiceAccountName,
                                                   relayNamespace: RelayNamespace,
                                                   relayHcName: RelayHybridConnectionName,
                                                   relayPrimaryKey: PrimaryKey,
@@ -504,9 +498,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     Values(
       List(
         raw"cloud=azure",
-        // KSA configs
-        raw"serviceAccount.name=${ksaName.value}",
-
         // relay configs
         raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"relaylistener.connectionName=${relayHcName.value}",
@@ -597,9 +588,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 petManagedIdentity: Option[Identity],
                                                 applicationInsightsConnectionString: String,
                                                 sourceWorkspaceId: Option[WorkspaceId],
-                                                userAccessToken: String
+                                                userAccessToken: String,
+                                                identityType: IdentityType,
+                                                ksaName: Option[ServiceAccountName]
   ): Values = {
-    val valuesList =
+    val values =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -614,9 +607,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"general.workspaceManager.workspaceId=${workspaceId.value}",
 
         // identity configs
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"podIdentity.enabled=${identityType == PodIdentityWithPet}",
+        raw"podIdentity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"podIdentity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"podIdentity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"workloadIdentity.enabled=${identityType == WorkloadIdentity}",
+        raw"workloadIdentity.serviceAccountName=${ksaName.map(_.value).getOrElse("none")}",
 
         // Sam configs
         raw"sam.url=${config.samConfig.server}",
@@ -632,13 +628,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"import.dataRepoUrl=${config.tdr.url}",
 
         // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}"
+        raw"provenance.userAccessToken=${userAccessToken}",
+        raw"provenance.sourceWorkspaceId=${sourceWorkspaceId.map(_.value).getOrElse("")}"
       )
-    val updatedLs = sourceWorkspaceId match {
-      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => valuesList
-    }
-    Values(updatedLs.mkString(","))
+
+    Values(values.mkString(","))
   }
 
   private[util] def buildHailBatchChartOverrideValues(appName: AppName,

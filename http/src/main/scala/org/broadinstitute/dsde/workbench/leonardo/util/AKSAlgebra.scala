@@ -29,3 +29,10 @@ final case class DeleteAKSAppParams(
   cloudContext: AzureCloudContext,
   keepHistory: Boolean = false
 )
+
+sealed trait IdentityType
+object IdentityType {
+  case object PodIdentityWithPet extends IdentityType
+  case object WorkloadIdentity extends IdentityType
+  case object NoIdentity extends IdentityType
+}
