@@ -96,24 +96,27 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
-
-      ksaName <- F.fromOption(
-        app.appResources.kubernetesServiceAccountName,
-        AppCreationException(
-          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
+      kubernetesNamespace = KubernetesNamespace(namespaceName)
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
+      // Create kubernetes client
+      kubeClient <- kubeAlg.createAzureClient(params.cloudContext, params.landingZoneResources.clusterName)
+
+      // Create namespace
+      _ <- kubeAlg.createNamespace(kubeClient, kubernetesNamespace)
+
+      // If configured for the app type, call WSM to create a managed identity and postgres database.
+      // This returns a KSA authorized to access the database.
       maybeKsaFromDatabaseCreation <- maybeCreateWsmIdentityAndDatabase(app,
                                                                         params.workspaceId,
-                                                                        params.landingZoneResources
+                                                                        params.landingZoneResources,
+                                                                        kubernetesNamespace
       )
 
+      // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
       identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType) match {
         case (Some(_), _)                      => WorkloadIdentity
         case (None, SamResourceType.SharedApp) => NoIdentity
@@ -126,16 +129,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
-      _ <-
-        helmClient
-          .installChart(
-            config.aadPodIdentityConfig.release,
-            config.aadPodIdentityConfig.chartName,
-            config.aadPodIdentityConfig.chartVersion,
-            config.aadPodIdentityConfig.values,
-            true
-          )
-          .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
+      _ <- identityType match {
+        case PodIdentity =>
+          helmClient
+            .installChart(
+              config.aadPodIdentityConfig.release,
+              config.aadPodIdentityConfig.chartName,
+              config.aadPodIdentityConfig.chartVersion,
+              config.aadPodIdentityConfig.values,
+              true
+            )
+            .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
+        case _ => F.unit
+      }
 
       // Create relay hybrid connection pool
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
@@ -387,6 +393,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         "helm deletion timed out"
       )
 
+      // Delete WSM resources associated with the app
+      _ <- maybeDeleteWsmIdentityAndDatabase(app, params.workspaceId)
+
       // Delete the namespace only after the helm uninstall completes.
       _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)
 
@@ -398,9 +407,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                     config.appMonitorConfig.deleteApp.initialDelay,
                                     "delete namespace timed out"
       )
-
-      // Delete WSM resources associated with the app
-      _ <- maybeDeleteWsmIdentityAndDatabase(app, params.workspaceId)
 
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
@@ -802,7 +808,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private def maybeCreateWsmIdentityAndDatabase(app: App,
                                                 workspaceId: WorkspaceId,
-                                                landingZoneResources: LandingZoneResources
+                                                landingZoneResources: LandingZoneResources,
+                                                namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Option[ServiceAccountName]] = {
@@ -827,7 +834,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
         // Build create managed identity request
-        identityName = s"id-${app.appName.value}".filterNot(_ == '-')
+        // Name the identity the same as the k8s namespace, with the suffix stripped. Ex: en5cqf
+        identityName = namespace.name.value.split('-').head
         identityCommonFields = getCommonFields(identityName, s"Identity for Leo app ${app.appName.value}", app)
         createIdentityParams = new AzureManagedIdentityCreationParameters().name(
           identityName
@@ -856,7 +864,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
 
         // Build create DB request
-        dbName = s"db-${app.appName.value}".filterNot(_ == '-')
+        // Name the identity the same as the k8s namespace, with the suffix stripped. Ex: en5cqf
+        dbName = namespace.name.value.split('-').head
         databaseCommonFields = getCommonFields(dbName, s"Database for Leo app ${app.appName.value}", app)
         createDatabaseParams = new AzureDatabaseCreationParameters()
           .name(dbName)
