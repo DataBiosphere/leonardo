@@ -363,6 +363,7 @@ object LeoPubsubMessage {
                                     appChartVersion: ChartVersion,
                                     workspaceId: WorkspaceId,
                                     cloudContext: CloudContext,
+                                    googleProject: Option[GoogleProject],
                                     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateApp
@@ -558,7 +559,14 @@ object LeoPubsubCodec {
 
   implicit val chartVersionDecoder: Decoder[ChartVersion] = Decoder.decodeString.map(ChartVersion)
   implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
-    Decoder.forProduct6("appId", "appName", "appChartVersion", "workspaceId", "cloudcontext", "traceId")(
+    Decoder.forProduct7("appId",
+                        "appName",
+                        "appChartVersion",
+                        "workspaceId",
+                        "cloudcontext",
+                        "googleProject",
+                        "traceId"
+    )(
       UpdateAppMessage.apply
     )
 
@@ -952,8 +960,16 @@ object LeoPubsubCodec {
 
   implicit val chartVersionEncoder: Encoder[ChartVersion] = Encoder.encodeString.contramap(_.asString)
   implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
-    Encoder.forProduct7("messageType", "appId", "appName", "appChartVersion", "workspaceId", "cloudContext", "traceId")(
-      x => (x.messageType, x.appId, x.appName, x.appChartVersion, x.workspaceId, x.cloudContext, x.traceId)
+    Encoder.forProduct8("messageType",
+                        "appId",
+                        "appName",
+                        "appChartVersion",
+                        "workspaceId",
+                        "cloudContext",
+                        "googleProject",
+                        "traceId"
+    )(x =>
+      (x.messageType, x.appId, x.appName, x.appChartVersion, x.workspaceId, x.cloudContext, x.googleProject, x.traceId)
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =

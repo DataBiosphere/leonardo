@@ -16,8 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppMachineType,
   AppName,
   KubernetesClusterLeoId,
-  NodepoolLeoId,
-  WorkspaceId
+  NodepoolLeoId
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.ChartVersion
@@ -124,5 +123,5 @@ final case class StartAppParams(appId: AppId, appName: AppName, googleProject: G
 final case class UpdateAppParams(appId: AppId,
                                  appName: AppName,
                                  appChartVersion: ChartVersion,
-                                 workspaceId: WorkspaceId
+                                 googleProject: Option[GoogleProject]
 )

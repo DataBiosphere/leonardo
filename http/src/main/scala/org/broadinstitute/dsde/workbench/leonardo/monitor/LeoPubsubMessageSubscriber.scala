@@ -1336,12 +1336,10 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
         else F.unit
 
-      // TODO Scale replicas up (1 -> 2)
-
       updateApp = msg.cloudContext match {
         case CloudContext.Gcp(_) =>
           gkeAlg
-            .updateAndPollApp(UpdateAppParams(msg.appId, msg.appName, msg.appChartVersion, msg.workspaceId))
+            .updateAndPollApp(UpdateAppParams(msg.appId, msg.appName, msg.appChartVersion, msg.googleProject))
             .adaptError { case e =>
               PubsubKubernetesError(
                 AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
@@ -1366,8 +1364,6 @@ class LeoPubsubMessageSubscriber[F[_]](
               )
             }
       }
-
-      // TODO Scale replicas down
 
       _ <- asyncTasks.offer(Task(ctx.traceId, updateApp, Some(handleKubernetesError), ctx.now, "updateApp"))
     } yield ()

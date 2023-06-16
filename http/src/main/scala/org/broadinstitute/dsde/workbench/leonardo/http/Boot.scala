@@ -644,7 +644,8 @@ object Boot extends IOApp {
         googleDiskService,
         appDescriptorDAO,
         nodepoolLock,
-        googleDependencies.googleResourceService
+        googleDependencies.googleResourceService,
+        googleDependencies.googleComputeService
       )
 
       val aksAlg = new AKSInterpreter[F](
