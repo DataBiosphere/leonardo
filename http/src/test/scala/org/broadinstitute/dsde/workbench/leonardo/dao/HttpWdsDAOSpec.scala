@@ -3,9 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import io.circe.parser._
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpWdsDAO.statusDecoder
-import org.broadinstitute.dsde.workbench.leonardo.{AppType, LeonardoTestSuite}
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
@@ -45,7 +45,7 @@ class HttpWdsDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
     )
 
     val wdsDAO = new HttpWdsDAO(okWds)
-    val res = wdsDAO.getStatus(Uri.unsafeFromString("https://test.com/wds/status"), authHeader, AppType.Cromwell)
+    val res = wdsDAO.getStatus(Uri.unsafeFromString("https://test.com/wds/status"), authHeader)
     val status = res.unsafeRunSync()
     status shouldBe false
   }
