@@ -907,7 +907,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Save record in APP_CONTROLLED_RESOURCE table
         _ <- appControlledResourceQuery
-          .save(app.id.id, WsmControlledResourceId(result.getResourceId), WsmResourceType.AzureDatabase)
+          .save(app.id.id,
+                WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
+                WsmResourceType.AzureDatabase
+          )
           .transaction
       } yield Some(ServiceAccountName(identityName))
     } else F.pure(None)

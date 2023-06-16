@@ -2,11 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import bio.terra.workspace.api.ControlledAzureResourceApi
-import bio.terra.workspace.model.{
-  CreatedControlledAzureDatabaseResult,
-  CreatedControlledAzureManagedIdentity,
-  JobReport
-}
+import bio.terra.workspace.model._
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
@@ -788,7 +784,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       api.getCreateAzureDatabaseResult(any, any)
     } thenReturn new CreatedControlledAzureDatabaseResult()
-      .resourceId(UUID.randomUUID())
+      .azureDatabase(new AzureDatabaseResource().metadata(new ResourceMetadata().resourceId(UUID.randomUUID())))
       .jobReport(
         new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
       )
