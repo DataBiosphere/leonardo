@@ -104,7 +104,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          databaseEnabled = true
+          databaseEnabled = false
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
