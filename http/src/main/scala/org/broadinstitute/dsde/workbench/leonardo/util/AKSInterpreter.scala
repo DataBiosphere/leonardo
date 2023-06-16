@@ -833,9 +833,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
         wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
-        // Build create managed identity request
-        // Name the identity the same as the k8s namespace, with the suffix stripped. Ex: en5cqf
-        identityName = namespace.name.value.split('-').head
+        // Build create managed identity request.
+        // Use the k8s namespace for the name. Note dashes aren't allowed.
+        identityName = s"id${namespace.name.value.split('-').head}"
         identityCommonFields = getCommonFields(identityName, s"Identity for Leo app ${app.appName.value}", app)
         createIdentityParams = new AzureManagedIdentityCreationParameters().name(
           identityName
@@ -864,8 +864,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
 
         // Build create DB request
-        // Name the identity the same as the k8s namespace, with the suffix stripped. Ex: en5cqf
-        dbName = namespace.name.value.split('-').head
+        // Use the k8s namespace for the name. Note dashes aren't allowed.
+        dbName = s"db${namespace.name.value.split('-').head}"
         databaseCommonFields = getCommonFields(dbName, s"Database for Leo app ${app.appName.value}", app)
         createDatabaseParams = new AzureDatabaseCreationParameters()
           .name(dbName)
