@@ -402,7 +402,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """welder.extraEnv[2].name=CLUSTER_NAME,""" +
       """welder.extraEnv[2].value=app1,""" +
       """welder.extraEnv[3].name=OWNER_EMAIL,""" +
-      """welder.extraEnv[3].value=user2@example.com""" +
+      """welder.extraEnv[3].value=user2@example.com,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=gs://test-workspace-name,"""
 
