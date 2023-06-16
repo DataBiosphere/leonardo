@@ -72,8 +72,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
     (ps: List[PodStatus]) => ps.forall(isPodDone)
 
-  implicit private def wsmJobDoneCheckable: DoneCheckable[JobReport] =
-    _.getStatus != JobReport.StatusEnum.RUNNING
+  implicit private def createDatabaseDoneCheckable: DoneCheckable[CreatedControlledAzureDatabaseResult] =
+    _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
 
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
@@ -844,12 +844,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .common(identityCommonFields)
           .azureManagedIdentity(createIdentityParams)
 
-        _ <- logger.info(ctx.loggingCtx)(s"Create identity request: ${createIdentityRequest}")
+        _ <- logger.info(ctx.loggingCtx)(s"WSM create identity request: ${createIdentityRequest}")
 
         // Execute WSM call
         createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
 
-        _ <- logger.info(ctx.loggingCtx)(s"Create identity response: ${createIdentityResponse}")
+        _ <- logger.info(ctx.loggingCtx)(s"WSM create identity response: ${createIdentityResponse}")
 
         // Save record in APP_CONTROLLED_RESOURCE table
         _ <- appControlledResourceQuery
@@ -877,26 +877,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .azureDatabase(createDatabaseParams)
           .jobControl(createDatabaseJobControl)
 
-        _ <- logger.info(ctx.loggingCtx)(s"Create database request: ${createDatabaseRequest}")
+        _ <- logger.info(ctx.loggingCtx)(s"WSM create database request: ${createDatabaseRequest}")
 
         // Execute WSM call
         createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
 
-        _ <- logger.info(ctx.loggingCtx)(s"Create database response: ${createDatabaseResponse}")
+        _ <- logger.info(ctx.loggingCtx)(s"WSM create database response: ${createDatabaseResponse}")
 
         // Poll for DB creation
         // We don't actually care about the JobReport - just that it succeeded.
-        op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName)).map(_.getJobReport)
-        jobReport <- streamFUntilDone(
+        op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName))
+        result <- streamFUntilDone(
           op,
           config.appMonitorConfig.createApp.maxAttempts,
           config.appMonitorConfig.createApp.interval
         ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+
+        _ <- logger.info(ctx.loggingCtx)(s"WSM create database job result: ${result}")
+
         _ <-
-          if (jobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+          if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
             F.raiseError(
               AppCreationException(
-                s"WSM database creation failed for app ${app.appName.value}. WSM response: ${jobReport}",
+                s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
                 Some(ctx.traceId)
               )
             )
@@ -904,9 +907,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Save record in APP_CONTROLLED_RESOURCE table
         _ <- appControlledResourceQuery
-          .save(app.id.id, WsmControlledResourceId(createDatabaseResponse.getResourceId), WsmResourceType.AzureDatabase)
+          .save(app.id.id, WsmControlledResourceId(result.getResourceId), WsmResourceType.AzureDatabase)
           .transaction
-
       } yield Some(ServiceAccountName(identityName))
     } else F.pure(None)
   }

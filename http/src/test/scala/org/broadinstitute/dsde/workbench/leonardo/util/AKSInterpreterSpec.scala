@@ -787,9 +787,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn new CreatedControlledAzureDatabaseResult().resourceId(UUID.randomUUID())
     when {
       api.getCreateAzureDatabaseResult(any, any)
-    } thenReturn new CreatedControlledAzureDatabaseResult().jobReport(
-      new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
-    )
+    } thenReturn new CreatedControlledAzureDatabaseResult()
+      .resourceId(UUID.randomUUID())
+      .jobReport(
+        new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
+      )
     when {
       wsm.getControlledAzureResourceApi(any)
     } thenReturn api
