@@ -110,7 +110,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // If configured for the app type, call WSM to create a managed identity and postgres database.
       // This returns a KSA authorized to access the database.
-      maybeKsaFromDatabaseCreation <- maybeCreateWsmIdentityAndDatabase(app,
+      (maybeKsaFromDatabaseCreation, maybeDbName) <- maybeCreateWsmIdentityAndDatabase(app,
                                                                         params.workspaceId,
                                                                         params.landingZoneResources,
                                                                         kubernetesNamespace
@@ -267,7 +267,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   app.sourceWorkspaceId,
                   userToken, // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                   identityType,
-                  maybeKsaFromDatabaseCreation
+                  maybeKsaFromDatabaseCreation,
+                  maybeDbName
                 ),
                 createNamespace = true
               )
@@ -593,7 +594,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 sourceWorkspaceId: Option[WorkspaceId],
                                                 userAccessToken: String,
                                                 identityType: IdentityType,
-                                                ksaName: Option[ServiceAccountName]
+                                                ksaName: Option[ServiceAccountName],
+                                                wdsDbName: Option[String]
   ): Values = {
     val valuesList =
       List(
@@ -635,7 +637,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.sourceWorkspaceId=${sourceWorkspaceId.map(_.value).getOrElse("")}"
       )
 
-    Values(valuesList.mkString(","))
+    val postgresConfig = (ksaName, wdsDbName, landingZoneResources.postgresName) match {
+      case (Some(ksa), Some(db), Some(PostgresName(dbServer))) =>
+        List(
+          raw"postgres.podLocalDatabaseEnabled=false",
+          raw"postgres.host=$dbServer.postgres.database.azure.com",
+          raw"postgres.dbname=$db",
+          // convention is that the database user is the same as the service account name
+          raw"postgres.user=${ksa.value}",
+        )
+      case _ => List.empty
+    }
+
+    Values((valuesList ++ postgresConfig).mkString(","))
   }
 
   private[util] def buildHailBatchChartOverrideValues(appName: AppName,
@@ -812,7 +826,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                       namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[ServiceAccountName]] = {
+  ): F[(Option[ServiceAccountName], Option[String])] = {
     val databaseConfigEnabled = app.appType match {
       case AppType.Wds => config.wdsAppConfig.databaseEnabled
       case _           => false
@@ -912,8 +926,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                 WsmResourceType.AzureDatabase
           )
           .transaction
-      } yield Some(ServiceAccountName(identityName))
-    } else F.pure(None)
+      } yield (Some(ServiceAccountName(identityName)), Some(dbName))
+    } else F.pure((None, None))
   }
 
   private[util] def maybeDeleteWsmIdentityAndDatabase(app: App, workspaceId: WorkspaceId)(implicit

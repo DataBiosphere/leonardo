@@ -198,6 +198,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       None,
       petUserInfo.accessToken.token,
       IdentityType.PodIdentity,
+      None,
       None
     )
     overrides.asString shouldBe
@@ -237,6 +238,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(sourceWorkspaceId),
       petUserInfo.accessToken.token,
       IdentityType.PodIdentity,
+      None,
       None
     )
     overrides.asString shouldBe
@@ -274,7 +276,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       None,
       petUserInfo.accessToken.token,
       IdentityType.WorkloadIdentity,
-      Some(ServiceAccountName("ksa"))
+      Some(ServiceAccountName("ksa")),
+      Some("dbname")
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -295,7 +298,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "instrumentationEnabled=false," +
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
-      "provenance.sourceWorkspaceId="
+      "provenance.sourceWorkspaceId=," +
+      "postgres.podLocalDatabaseEnabled=false," +
+      s"postgres.host=${lzResources.postgresName.map(_.value).get}.postgres.database.azure.com," +
+      "postgres.dbname=dbname," +
+      "postgres.user=ksa"
   }
 
   it should "build hail batch override values" in {
@@ -559,7 +566,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                          KubernetesNamespace(NamespaceName("ns1"))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    res shouldBe None
+    res shouldBe (None, None)
   }
 
   it should "not create a WSM database when the app does not support it" in {
@@ -573,7 +580,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                          KubernetesNamespace(NamespaceName("ns1"))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    res shouldBe None
+    res shouldBe (None, None)
   }
 
   private def setUpMockIdentity: Identity = {
