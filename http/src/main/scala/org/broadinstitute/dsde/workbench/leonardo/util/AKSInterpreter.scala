@@ -806,10 +806,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private def maybeCreateWsmIdentityAndDatabase(app: App,
-                                                workspaceId: WorkspaceId,
-                                                landingZoneResources: LandingZoneResources,
-                                                namespace: KubernetesNamespace
+  private[util] def maybeCreateWsmIdentityAndDatabase(app: App,
+                                                      workspaceId: WorkspaceId,
+                                                      landingZoneResources: LandingZoneResources,
+                                                      namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Option[ServiceAccountName]] = {
@@ -911,7 +911,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } else F.pure(None)
   }
 
-  private def maybeDeleteWsmIdentityAndDatabase(app: App, workspaceId: WorkspaceId)(implicit
+  private[util] def maybeDeleteWsmIdentityAndDatabase(app: App, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {

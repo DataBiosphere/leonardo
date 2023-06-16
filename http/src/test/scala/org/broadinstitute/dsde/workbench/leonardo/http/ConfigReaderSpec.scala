@@ -103,7 +103,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
           ),
           instrumentationEnabled = false,
-          enabled = true
+          enabled = true,
+          databaseEnabled = true
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
