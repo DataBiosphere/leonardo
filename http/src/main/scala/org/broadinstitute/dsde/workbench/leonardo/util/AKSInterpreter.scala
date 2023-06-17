@@ -111,9 +111,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // If configured for the app type, call WSM to create a managed identity and postgres database.
       // This returns a KSA authorized to access the database.
       (maybeKsaFromDatabaseCreation, maybeDbName) <- maybeCreateWsmIdentityAndDatabase(app,
-                                                                        params.workspaceId,
-                                                                        params.landingZoneResources,
-                                                                        kubernetesNamespace
+                                                                                       params.workspaceId,
+                                                                                       params.landingZoneResources,
+                                                                                       kubernetesNamespace
       )
 
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
@@ -644,7 +644,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           raw"postgres.host=$dbServer.postgres.database.azure.com",
           raw"postgres.dbname=$db",
           // convention is that the database user is the same as the service account name
-          raw"postgres.user=${ksa.value}",
+          raw"postgres.user=${ksa.value}"
         )
       case _ => List.empty
     }
