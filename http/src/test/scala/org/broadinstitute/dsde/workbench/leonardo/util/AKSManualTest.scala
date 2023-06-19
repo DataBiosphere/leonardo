@@ -170,7 +170,8 @@ object AKSManualTest {
     mock[CbasDAO[IO]],
     mock[CbasUiDAO[IO]],
     mock[WdsDAO[IO]],
-    mock[HailBatchDAO[IO]]
+    mock[HailBatchDAO[IO]],
+    mock[KubernetesAlgebra[IO]]
   )
 
   /** Deploys a CoA app */
