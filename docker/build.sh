@@ -171,7 +171,9 @@ function docker_cmd()
             DOCKER_TAG_TESTS=${GIT_SHA:0:12}
         fi
 
-        docker build -t "${DEFAULT_IMAGE}:${DOCKER_TAG}" .
+        docker build \
+            --security-opt seccomp=unconfined \
+            -t "${DEFAULT_IMAGE}:${DOCKER_TAG}" .
 
         echo "building $TESTS_IMAGE docker image..."
         docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG_TESTS}" .
