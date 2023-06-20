@@ -40,10 +40,12 @@ COPY ./leonardo*.jar /leonardo
 COPY --from=helm-go-lib-builder /helm-go-lib-build/helm-scala-sdk/helm-go-lib /leonardo/helm-go-lib
 
 # Install the Helm3 CLI client using a provided script because installing it via the RHEL package managing didn't work
-RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 && \
-    chmod 700 get_helm.sh && \
-    ./get_helm.sh --version v3.11.2 && \
-    rm get_helm.sh
+# Temporarily using pre downloaded get_helm.sh instead of
+#RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 && \
+COPY ./docker/get_helm.sh /get_helm.sh
+RUN chmod 700 /get_helm.sh && \
+    /get_helm.sh --version v3.11.2 && \
+    rm /get_helm.sh
 
 # Add the repos containing nginx, galaxy, setup apps, custom apps, cromwell and aou charts
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
