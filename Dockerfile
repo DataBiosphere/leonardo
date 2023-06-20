@@ -39,13 +39,15 @@ RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
 COPY --from=helm-go-lib-builder /helm-go-lib-build/helm-scala-sdk/helm-go-lib /leonardo/helm-go-lib
 
-# Install the Helm3 CLI client using a provided script because installing it via the RHEL package managing didn't work
-# Temporarily using pre downloaded get_helm.sh instead of
-#RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 && \
-COPY ./docker/get_helm.sh /get_helm.sh
-RUN chmod 700 /get_helm.sh && \
-    /get_helm.sh --version v3.11.2 && \
-    rm /get_helm.sh
+# Install helm
+RUN apt-get update && \
+    apt-get install gpg --yes && \
+    curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | tee /usr/share/keyrings/helm.gpg > /dev/null && \
+    apt-get install apt-transport-https --yes && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list && \
+    apt-get update && \
+    apt-get install helm
+
 
 # Add the repos containing nginx, galaxy, setup apps, custom apps, cromwell and aou charts
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
@@ -77,8 +79,7 @@ RUN cd /leonardo && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
-RUN apt-get update && \
-    apt-get install jattach
+RUN apt-get install jattach
 
 # Copy Terra-docker-versions-candidate.json from bucket into docker root
 RUN curl -fsSL -o /terra-docker-versions-candidate.json \
