@@ -4,6 +4,9 @@
 
 FROM golang:1.20 AS helm-go-lib-builder
 
+RUN apt-get update && \
+    apt-get install libc6
+
 # TODO Consider moving repo set-up to the build script to make CI versioning easier
 RUN mkdir /helm-go-lib-build && \
     cd /helm-go-lib-build && \
@@ -76,7 +79,8 @@ RUN cd /leonardo && \
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \
-    apt-get install jattach
+    apt-get install jattach && \
+    apt-get install libc6
 
 # Copy Terra-docker-versions-candidate.json from bucket into docker root
 RUN curl -fsSL -o /terra-docker-versions-candidate.json \
