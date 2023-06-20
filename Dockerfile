@@ -4,6 +4,8 @@
 
 FROM us.gcr.io/broad-dsp-gcr-public/base/jre:17-debian AS helm-go-lib-builder   
 
+RUN apt update && apt install git
+
 ARG GO_PACKAGE='go1.20.5.linux-amd64.tar.gz'
 RUN curl -fsSL -o "${GO_PACKAGE}" "https://go.dev/dl/${GO_PACKAGE}" && \
     tar -C /usr/local -xzf "${GO_PACKAGE}" && \
@@ -16,7 +18,7 @@ RUN mkdir /helm-go-lib-build && \
     cd helm-scala-sdk && \
     git checkout master && \
     cd helm-go-lib && \
-    go build -buildvcs=false -o libhelm.so -buildmode=c-shared main.go
+    go build -o libhelm.so -buildmode=c-shared main.go
 
 # Use this graalvm image if we need to use jstack etc
 # FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.0.0.2
