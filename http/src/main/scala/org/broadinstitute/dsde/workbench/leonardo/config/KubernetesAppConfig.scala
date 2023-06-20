@@ -16,14 +16,23 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
+import java.net.URL
+
 sealed trait KubernetesAppConfig {
   def chartName: ChartName
+
   def chartVersion: ChartVersion
+
   def releaseNameSuffix: ReleaseNameSuffix
+
   def namespaceNameSuffix: NamespaceNameSuffix
+
   def serviceAccountName: ServiceAccountName
+
   def chart: Chart = Chart(chartName, chartVersion)
+
   def kubernetesServices: List[KubernetesService]
+
   def enabled: Boolean
 }
 
@@ -77,10 +86,12 @@ final case class CoaAppConfig(chartName: ChartName,
                               ksaName: KsaName,
                               services: List[ServiceConfig],
                               instrumentationEnabled: Boolean,
-                              enabled: Boolean
+                              enabled: Boolean,
+                              dockstoreBaseUrl: URL
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
+
   def coaServices: Set[CoaService] = services
     .map(_.name)
     .collect {
@@ -129,9 +140,13 @@ final case class RStudioAppConfig(chartName: ChartName,
 }
 
 sealed trait CoaService
+
 object CoaService {
   final case object Cbas extends CoaService
+
   final case object CbasUI extends CoaService
+
   final case object Cromwell extends CoaService
+
   final case object Tes extends CoaService
 }

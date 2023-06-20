@@ -65,10 +65,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   F: Async[F]
 ) extends AKSAlgebra[F] {
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
+
   implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
   private[util] def isPodDone(podStatus: PodStatus): Boolean =
     podStatus == PodStatus.Failed || podStatus == PodStatus.Succeeded
+
   implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
     (ps: List[PodStatus]) => ps.forall(isPodDone)
 
@@ -575,6 +577,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
         raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
         raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
+        raw"dockstore.baseUrl=${config.coaAppConfig.dockstoreBaseUrl}",
 
         // general configs
         raw"fullnameOverride=coa-${release.asString}",
