@@ -367,6 +367,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "build RStudio override values string" in {
     val savedCluster1 = makeKubeCluster(1)
     val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
+    val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
     val res = gkeInterp.buildRStudioAppChartOverrideValuesString(
       appName = AppName("app1"),
       cluster = savedCluster1,
@@ -375,10 +376,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       disk = savedDisk1,
       ksaName = ServiceAccountName("app1-rstudio-ksa"),
       userEmail = userEmail2,
-      stagingBucket = GcsBucketName("test-staging-bucket")
+      stagingBucket = GcsBucketName("test-staging-bucket"),
+      envVariables
     )
-
-    println(res.mkString(","))
 
     res.mkString(",") shouldBe
       """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
@@ -402,7 +402,10 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """welder.extraEnv[2].name=CLUSTER_NAME,""" +
       """welder.extraEnv[2].value=app1,""" +
       """welder.extraEnv[3].name=OWNER_EMAIL,""" +
-      """welder.extraEnv[3].value=user2@example.com"""
+      """welder.extraEnv[3].value=user2@example.com,""" +
+      """extraEnv[0].name=WORKSPACE_NAME,""" +
+      """extraEnv[0].value=test-workspace-name"""
+
   }
 
   it should "check if a pod is done" in {
