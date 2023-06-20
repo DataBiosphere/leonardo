@@ -2,12 +2,11 @@
 #   1. Build the Helm client Go lib
 #   2. Deploy Leonardo pointing to the Go lib
 
+FROM us.gcr.io/broad-dsp-gcr-public/base/jre:17-debian AS helm-go-lib-builder   
+
 ARG GO_PACKAGE='go1.20.5.linux-amd64.tar.gz'
-
-FROM us.gcr.io/broad-dsp-gcr-public/base/jre:17-debian AS helm-go-lib-builder
-
-RUN curl -fsSL -o $GO_PACKAGE https://go.dev/dl/$GO_PACKAGE && \
-    tar -C /usr/local -xzf $GO_PACKAGE && \
+RUN curl -fsSL -o "${GO_PACKAGE}" "https://go.dev/dl/${GO_PACKAGE}" && \
+    tar -C /usr/local -xzf "${GO_PACKAGE}" && \
     export PATH=$PATH:/usr/local/go/bin
 
 # TODO Consider moving repo set-up to the build script to make CI versioning easier
