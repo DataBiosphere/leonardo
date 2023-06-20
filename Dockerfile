@@ -16,7 +16,7 @@ RUN mkdir /helm-go-lib-build && \
     cd helm-scala-sdk && \
     git checkout master && \
     cd helm-go-lib && \
-    go build -o libhelm.so -buildmode=c-shared main.go
+    go build -buildvcs=false -o libhelm.so -buildmode=c-shared main.go
 
 # Use this graalvm image if we need to use jstack etc
 # FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.0.0.2
