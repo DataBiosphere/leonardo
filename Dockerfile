@@ -15,7 +15,7 @@ RUN mkdir /helm-go-lib-build && \
 
 # Use this graalvm image if we need to use jstack etc
 # FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.0.0.2
-FROM us.gcr.io/broad-dsp-gcr-public/base/jre:17-debian
+FROM us.gcr.io/broad-dsp-gcr-public/base/jre@sha256:632bfba41693ae3017b78d12c59fdc86ed2b80d5872445ee78f18f9d1235d4b2
 
 EXPOSE 8080
 EXPOSE 5050
