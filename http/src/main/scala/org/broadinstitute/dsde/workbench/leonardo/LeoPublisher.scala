@@ -118,9 +118,8 @@ final class LeoPublisher[F[_]](
           appQuery.updateStatus(m.appId, AppStatus.Stopping).transaction
         case m: LeoPubsubMessage.StartAppMessage =>
           appQuery.updateStatus(m.appId, AppStatus.Starting).transaction
-        case _: LeoPubsubMessage.UpdateAppMessage =>
-          F.unit
-          //TODO - See if we need to transition to an `UPDATING` status
+        case m: LeoPubsubMessage.UpdateAppMessage =>
+          appQuery.updateStatus(m.appId, AppStatus.Updating).transaction
         case _: LeoPubsubMessage.UpdateDiskMessage =>
           F.unit
         case _: LeoPubsubMessage.UpdateRuntimeMessage =>

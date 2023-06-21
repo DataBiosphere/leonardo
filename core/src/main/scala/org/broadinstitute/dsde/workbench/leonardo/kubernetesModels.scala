@@ -481,6 +481,10 @@ object AppStatus {
     override def toString: String = "STARTING"
   }
 
+  final case object Updating extends AppStatus {
+    override def toString: String = "UPDATING"
+  }
+
   def values: Set[AppStatus] = sealerate.values[AppStatus]
   def stringToObject: Map[String, AppStatus] = values.map(v => v.toString -> v).toMap
 

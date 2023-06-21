@@ -765,6 +765,8 @@ class GKEInterpreter[F[_]](
 
       // Update app chart version in the DB
       _ <- appQuery.updateChart(app.id, Chart(app.chart.name, params.appChartVersion)).transaction
+      // Put app status back to running
+      _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
 
       _ <- logger.info(s"Done updating app $params.appName in workspace $params.workspaceId")
     } yield ()
