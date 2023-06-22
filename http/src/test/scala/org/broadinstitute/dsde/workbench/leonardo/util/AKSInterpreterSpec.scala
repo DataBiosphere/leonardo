@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.model._
 import cats.effect.IO
 import com.azure.core.http.rest.PagedIterable
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
@@ -13,7 +15,7 @@ import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.{Identities, Identity}
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
@@ -31,7 +33,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.http4s.Uri
+import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials, Uri}
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.{verify, when}
@@ -73,6 +76,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureBatchService = setUpMockAzureBatchService
   val mockAzureRelayService = setUpMockAzureRelayService
   val mockKube = setUpMockKube
+  val mockWsm = setUpMockWsmApiClientProvider
 
   val aksInterp = new AKSInterpreter[IO](
     config,
@@ -87,7 +91,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCbasUiDAO,
     mockWdsDAO,
     mockHailBatchDAO,
-    mockKube
+    mockKube,
+    mockWsm
   ) {
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -109,7 +114,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SubnetworkName("subnet1"),
     SubnetworkName("subnet2"),
     azureRegion,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresName("postgres"))
   )
 
   val storageContainer = StorageContainerResponse(
@@ -191,7 +197,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
       None,
-      petUserInfo.accessToken.token
+      petUserInfo.accessToken.token,
+      IdentityType.PodIdentity,
+      None,
+      None
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -200,15 +209,19 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"config.region=${azureRegion}," +
       "general.leoAppInstanceName=app," +
       s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "identity.enabled=true," +
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
+      "workloadIdentity.enabled=false," +
+      "workloadIdentity.serviceAccountName=none," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
-      s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      "provenance.sourceWorkspaceId="
   }
 
   it should "build wds override values with sourceWorkspaceId" in {
@@ -224,7 +237,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       Some(setUpMockIdentity),
       "applicationInsightsConnectionString",
       Some(sourceWorkspaceId),
-      petUserInfo.accessToken.token
+      petUserInfo.accessToken.token,
+      IdentityType.PodIdentity,
+      None,
+      None
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -233,9 +249,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"config.region=${azureRegion}," +
       "general.leoAppInstanceName=app," +
       s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "identity.enabled=true," +
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
+      "workloadIdentity.enabled=false," +
+      "workloadIdentity.serviceAccountName=none," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
@@ -243,7 +262,48 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
+  }
 
+  it should "build wds override values with workload identity" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildWdsChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources,
+      Some(setUpMockIdentity),
+      "applicationInsightsConnectionString",
+      None,
+      petUserInfo.accessToken.token,
+      IdentityType.WorkloadIdentity,
+      Some(ServiceAccountName("ksa")),
+      Some("dbname")
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "general.leoAppInstanceName=app," +
+      s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "identity.enabled=false," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      "workloadIdentity.enabled=true," +
+      "workloadIdentity.serviceAccountName=ksa," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      "fullnameOverride=wds-rel-1," +
+      "instrumentationEnabled=false," +
+      "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      "provenance.sourceWorkspaceId=," +
+      "postgres.podLocalDatabaseEnabled=false," +
+      s"postgres.host=${lzResources.postgresName.map(_.value).get}.postgres.database.azure.com," +
+      "postgres.dbname=dbname," +
+      "postgres.user=ksa"
   }
 
   it should "build hail batch override values" in {
@@ -341,7 +401,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
-        mockKube
+        mockKube,
+        mockWsm
       ) {
         override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
         override private[util] def buildComputeManager(cloudContext: AzureCloudContext) =
@@ -428,7 +489,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockCbasUiDAO,
       mockWdsDAO,
       mockHailBatchDAO,
-      mockKube
+      mockKube,
+      mockWsm
     ) {
       override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
       override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
@@ -492,6 +554,34 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     }
 
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not create a WSM database when the LZ does not support it" in {
+    val cluster = makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext))
+    val nodepool = makeNodepool(1, cluster.id)
+    val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
+    val res = aksInterp
+      .maybeCreateWsmIdentityAndDatabase(app,
+                                         workspaceId,
+                                         landingZoneResources.copy(postgresName = None),
+                                         KubernetesNamespace(NamespaceName("ns1"))
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe (None, None)
+  }
+
+  it should "not create a WSM database when the app does not support it" in {
+    val cluster = makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext))
+    val nodepool = makeNodepool(1, cluster.id)
+    val app = makeApp(1, nodepool.id).copy(appType = AppType.Cromwell)
+    val res = aksInterp
+      .maybeCreateWsmIdentityAndDatabase(app,
+                                         workspaceId,
+                                         landingZoneResources,
+                                         KubernetesNamespace(NamespaceName("ns1"))
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe (None, None)
   }
 
   private def setUpMockIdentity: Identity = {
@@ -627,6 +717,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       kube.namespaceExists(any, any)(any)
     } thenReturn IO.pure(false)
+    when {
+      kube.createNamespace(any, any)(any)
+    } thenReturn IO.unit
     kube
   }
 
@@ -638,6 +731,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       sam.deleteResourceInternal(any, any)(any, any)
     } thenReturn IO.unit
+    when {
+      sam.getLeoAuthToken
+    } thenReturn IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "leotoken")))
     sam
   }
 
@@ -682,6 +778,28 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       batch.getDriverStatus(any, any)(any)
     } thenReturn IO.pure(true)
     batch
+  }
+
+  private def setUpMockWsmApiClientProvider: WsmApiClientProvider = {
+    val wsm = mock[WsmApiClientProvider]
+    val api = mock[ControlledAzureResourceApi]
+    when {
+      api.createAzureManagedIdentity(any, any)
+    } thenReturn new CreatedControlledAzureManagedIdentity().resourceId(UUID.randomUUID())
+    when {
+      api.createAzureDatabase(any, any)
+    } thenReturn new CreatedControlledAzureDatabaseResult().resourceId(UUID.randomUUID())
+    when {
+      api.getCreateAzureDatabaseResult(any, any)
+    } thenReturn new CreatedControlledAzureDatabaseResult()
+      .azureDatabase(new AzureDatabaseResource().metadata(new ResourceMetadata().resourceId(UUID.randomUUID())))
+      .jobReport(
+        new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
+      )
+    when {
+      wsm.getControlledAzureResourceApi(any)
+    } thenReturn api
+    wsm
   }
 
 }

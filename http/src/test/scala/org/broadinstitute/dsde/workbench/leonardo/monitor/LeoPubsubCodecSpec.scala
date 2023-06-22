@@ -162,7 +162,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     SubnetworkName("batch-subnet"),
     SubnetworkName("aks-subnet"),
     com.azure.core.management.Region.US_EAST,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresName("postgres"))
   )
 
   it should "encode/decode LandingZoneResources properly" in {

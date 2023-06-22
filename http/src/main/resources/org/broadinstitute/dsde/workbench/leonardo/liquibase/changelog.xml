@@ -101,4 +101,5 @@
     <include file="changesets/20230418_update_custom_env_length.xml" relativeToChangelogFile="true" />
     <include file="changesets/20230419_add_source_workspaceId_to_app.xml" relativeToChangelogFile="true" />
     <include file="changesets/20230522_update_persistent_disk_formattedBy_RStudio_enum.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20230614_add_app_controlled_resource.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
