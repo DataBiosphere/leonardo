@@ -189,6 +189,11 @@ echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
 docker pull nvcr.io/nvidia/clara/clara-parabricks:4.1.1-1
 
+sudo usermod -aG docker jupyter
+
+sudo setfacl --modify user:jupyter:rw /var/run/docker.sock
+
+
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
 sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/ea519ef899de28e27e2a37ba368433da9fd03b7f/http/src/main/resources/init-resources/jupyter_server_config.py"
