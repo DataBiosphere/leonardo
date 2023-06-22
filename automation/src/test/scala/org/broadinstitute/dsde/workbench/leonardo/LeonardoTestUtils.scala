@@ -6,7 +6,9 @@ import cats.effect.std.Semaphore
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
+import io.circe.{parser, Decoder}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.config.{Credentials => WorkbenchCredentials}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{
@@ -23,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
-import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
+import org.broadinstitute.dsde.workbench.service.{Rawls, RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.http4s.client.Client
@@ -38,6 +40,7 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 import java.io.{ByteArrayInputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Success, Try}
 
@@ -651,6 +654,94 @@ trait LeonardoTestUtils
       }
     }
   }
+  def withRawlsWorkspace[T](
+    projectName: AzureBillingProjectName
+  )(testCode: WorkspaceResponse => T)(implicit authToken: AuthToken): T = {
+    // hardcode this if you want to use a static workspace
+//    val workspaceName = "ddf3f5fa-a80e-4b2f-ab6e-9bd07817fad1-azure-test-workspace"
+
+    val workspaceName = generateWorkspaceName()
+    Rawls.workspaces.create(
+      projectName.value,
+      workspaceName,
+      Set.empty,
+      Map("disableAutomaticAppCreation" -> "true")
+    )
+
+    val response =
+      workspaceResponse(projectName.value, workspaceName).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    testCode(response)
+  }
+
+  private def workspaceResponse(projectName: String, workspaceName: String)(implicit authToken: AuthToken): IO[WorkspaceResponse] = for {
+    responseString <- IO.pure(Rawls.workspaces.getWorkspaceDetails(projectName, workspaceName))
+    json <- IO.fromEither(parser.parse(responseString))
+    parsedResponse <- IO.fromEither(json.as[WorkspaceResponse])
+  } yield parsedResponse
+
+  case class WorkspaceResponse(accessLevel: Option[String],
+                               canShare: Option[Boolean],
+                               canCompute: Option[Boolean],
+                               catalog: Option[Boolean],
+                               workspace: WorkspaceDetails,
+                               owners: Option[Set[String]],
+                               azureContext: Option[AzureCloudContext]
+  )
+
+  implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
+    for {
+      tenantId <- c.downField("tenantId").as[String]
+      subscriptionId <- c.downField("subscriptionId").as[String]
+      resourceGroupId <- c.downField("managedResourceGroupId").as[String]
+    } yield AzureCloudContext(TenantId(tenantId),
+                              SubscriptionId(subscriptionId),
+                              ManagedResourceGroupName(resourceGroupId)
+    )
+  }
+
+  implicit val workspaceDetailsDecoder: Decoder[WorkspaceDetails] = Decoder.forProduct10(
+    "namespace",
+    "name",
+    "workspaceId",
+    "bucketName",
+    "createdDate",
+    "lastModified",
+    "createdBy",
+    "isLocked",
+    "billingAccountErrorMessage",
+    "errorMessage"
+  )(WorkspaceDetails.apply)
+
+  implicit val workspaceResponseDecoder: Decoder[WorkspaceResponse] = Decoder.forProduct7(
+    "accessLevel",
+    "canShare",
+    "canCompute",
+    "catalog",
+    "workspace",
+    "owners",
+    "azureContext"
+  )(WorkspaceResponse.apply)
+
+  // Note this isn't the full model available, we only need a few fields
+  // The full model lives in rawls here https://github.com/broadinstitute/rawls/blob/develop/model/src/main/scala/org/broadinstitute/dsde/rawls/model/WorkspaceModel.scala#L712
+  case class WorkspaceDetails(
+    namespace: String,
+    name: String,
+    workspaceId: String,
+    bucketName: String,
+    createdDate: String,
+    lastModified: String,
+    createdBy: String,
+    isLocked: Boolean = false,
+    billingAccountErrorMessage: Option[String] = None,
+    errorMessage: Option[String] = None
+  )
+
+  private def generateWorkspaceName(): String =
+    s"${UUID.randomUUID().toString()}-azure-test-workspace"
+
+  def generateAzureDiskName(): String =
+    s"automation-test-disk-${UUID.randomUUID().toString().substring(0, 8)}"
 
   def saveDataprocLogFiles(stagingBucket: Option[GcsBucketName],
                            googleProject: GoogleProject,
@@ -710,63 +801,6 @@ trait LeonardoTestUtils
 
   def runtimeInStateOrError(status: ClusterStatus): DoneCheckable[GetRuntimeResponseCopy] =
     x => x.status == ClusterStatus.Running || x.status == ClusterStatus.Running
-//  def withNewWorkspace[T](testCode: WorkspaceId => IO[T]): T = {
-//    val test = for {
-//      _ <- loggerIO.info("Allocating a new single-test workspace")
-//      workspaceId <- createWsmWorkspace()
-//      cloudContextResult <- createAzureCloudContext(workspaceId)
-//      t <- testCode(workspaceId)
-//      _ <- loggerIO.info("Deleting wsm workspace")
-//      _ <- IO(wsmWorkspaceClient.deleteWorkspace(workspaceId.value))
-//    } yield t
-//
-//    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//  }
-
-//  protected def createWsmWorkspace(): IO[WorkspaceId] = {
-//    val workspaceId: UUID = UUID.randomUUID
-//    val requestBody: CreateWorkspaceRequestBody =
-//      new CreateWorkspaceRequestBody().id(workspaceId).stage(WorkspaceStageModel.MC_WORKSPACE)
-//    for {
-//      _ <- loggerIO.info(s"calling wsm createWorkspace")
-//      _ <- IO(wsmWorkspaceClient.createWorkspace(requestBody))
-//    } yield WorkspaceId(workspaceId)
-//  }
-
-//  protected def createAzureCloudContext(workspaceId: WorkspaceId): IO[CreateCloudContextResult] = {
-//    val jobControl = new JobControl().id(UUID.randomUUID().toString)
-//
-//    val azureContext = new AzureContext()
-//      .tenantId(LeonardoConfig.Leonardo.tenantId)
-//      .subscriptionId(LeonardoConfig.Leonardo.subscriptionId)
-//      .resourceGroupId(LeonardoConfig.Leonardo.managedResourceGroup)
-//
-//    val requestBody: CreateCloudContextRequest = new CreateCloudContextRequest()
-//      .jobControl(jobControl)
-//      .azureContext(azureContext)
-//      .cloudPlatform(CloudPlatform.AZURE)
-//
-//    for {
-//      _ <- loggerIO.info(s"calling wsm create cloud context")
-//      result <- IO(wsmWorkspaceClient.createCloudContext(requestBody, workspaceId.value))
-//    } yield result
-//  }
-
-//  //THIS CLIENT IS VALID FOR 1 HR
-//  private def buildWsmClient(): WorkspaceApi = {
-//    val apiClient = new ApiClient
-//    apiClient.setBasePath(LeonardoConfig.WSM.wsmUri)
-//
-//    val creds = ServiceAccountCredentials
-//      .fromStream(new FileInputStream(LeonardoConfig.GCS.pathToQAJson))
-//      .createScoped(
-//        List("openid", "email", "profile", "https://www.googleapis.com/auth/cloud-platform").asJava
-//      )
-//
-//    val token = creds.getAccessToken
-//    apiClient.setAccessToken(token.getTokenValue)
-//    new WorkspaceApi(apiClient)
-//  }
 }
 
 // Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner

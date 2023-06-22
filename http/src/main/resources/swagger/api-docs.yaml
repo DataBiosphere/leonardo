@@ -2929,14 +2929,19 @@ components:
         - id
         - runtimeName
         - googleProject
+        - cloudContext
         - serviceAccount
         - auditInfo
         - runtimeConfig
+        - proxyUrl
         - status
         - labels
+        - erors
         - autopauseThreshold
-        - defaultClientId
+        - runtimeImages
         - scopes
+        - customEnvironmentVariables
+        - patchInProgress
       properties:
         id:
           type: integer
@@ -3177,15 +3182,13 @@ components:
         - zone
         - name
         - serviceAccount
-        - samResourceId
+        - samResource
         - status
         - auditInfo
         - size
         - diskType
         - blockSize
         - labels
-        - workspaceId
-        - formattedBy
       properties:
         id:
           type: integer
@@ -3201,7 +3204,7 @@ components:
         serviceAccount:
           type: string
           description: The account used to create the disk
-        samResourceId:
+        samResource:
           type: string
           description: Internal resource ID of the persistent disk
         status:
@@ -3596,19 +3599,28 @@ components:
       properties:
         cloudService:
           type: string
-          enum: [gce, dataproc]
+          enum: [GCE, DATAPROC, AZURE_VM]
+        configType:
+          type: string
+          enum: [Dataproc, GceConfig, GceWithPdCConfig, AzureVmConfig]
     OneOfRuntimeConfig:
       oneOf:
         - $ref: "#/components/schemas/GceConfig"
         - $ref: "#/components/schemas/GceWithPdConfig"
         - $ref: "#/components/schemas/DataprocConfig"
+        - $ref: "#/components/schemas/AzureConfig"
       discriminator:
         propertyName: cloudService
         mapping:
           gce: "#/components/schemas/GceWithPdConfig"
           dataproc: "#/components/schemas/DataprocConfig"
+          azure_vm: "#/components/schemas/AzureConfig"
     RuntimeImage:
       type: object
+      required:
+        - imageType
+        - imageUrl
+        - timestamp
       properties:
         imageType:
           description: "The container this image supports. Ex Jupyter, Proxy, VM"
@@ -3619,6 +3631,9 @@ components:
         timestamp:
           type: string
           description: timestamp for image addition to the runtime in ISO 8601 format
+        homeDirectory:
+          type: string
+          description: Home directory in the image
     GceConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
@@ -3756,6 +3771,25 @@ components:
               description: >
                 Optional, specifies whether to prevent public Internet access from the Dataproc worker nodes,
                 if any. Does not affect the master node. Defaults to false.
+    AzureConfig:
+      description: Configuration for an Azure VM
+      allOf:
+        - $ref: '#/components/schemas/RuntimeConfig'
+        - type: object
+          properties:
+            machineType:
+              type: string
+              description: >
+                Azure machine type describing number of CPUs/Memory as , ex: Standard_DS1_v2. 
+                See https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+            persistentDiskId:
+              type: number
+              description: >
+                The id of the persistent disk associated with this runtime (this is Leo's internal ID for the disk)
+            region:
+              type: string
+              description: >
+                The azure region this resource resides in
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:

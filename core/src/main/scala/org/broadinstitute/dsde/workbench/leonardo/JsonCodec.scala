@@ -29,7 +29,12 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateRuntimeResponse,
+  DiskConfig,
+  GetRuntimeResponse,
+  PersistentDiskRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -592,6 +597,9 @@ object JsonCodec {
       ("patchInProgress", x.patchInProgress.asJson)
     )
   }
+
+  implicit val createRuntimeResponseEncoder: Encoder[CreateRuntimeResponse] =
+    Encoder.forProduct1("traceId")(x => CreateRuntimeResponse.unapply(x).get)
 
   implicit val persistentDiskRequestEncoder: Encoder[PersistentDiskRequest] = Encoder.forProduct4(
     "name",

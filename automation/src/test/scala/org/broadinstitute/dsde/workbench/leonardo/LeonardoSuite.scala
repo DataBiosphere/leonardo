@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.azure.AzureRuntimeSpec
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -19,6 +20,11 @@ import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRo
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.getAuthTokenAndAuthorization
+import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
+
+import java.util.UUID
 
 trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
   override type FixtureParam = GoogleProject
@@ -243,6 +249,49 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
     } else IO.unit
 }
 
+final case class AzureBillingProjectName(value: String) extends AnyVal
+trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAfterAll {
+  this: TestSuite =>
+  override type FixtureParam = AzureBillingProjectName
+
+  val azureBillingProjectKey = "leonardo.azureBillingProject"
+
+  implicit val (authToken, authorization) = getAuthTokenAndAuthorization(Hermione)
+  // These are static coordinates for this managed app in the azure portal: https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview
+  // Note that the final 'optional' field for a pre-created landing zone is not technically optional
+  // If you fail to include a landing zone, the wb-libs call to create the billing project will fail, timing out due to landing zone creation not being an expected part of creation
+  // Contact the workspaces team if this fails to work
+  implicit val azureManagedAppCoordinates = AzureManagedAppCoordinates(
+    UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
+    UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
+    "staticTestingMrg",
+    Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
+  )
+
+  // Needed for wb-libs
+  implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+  override def withFixture(test: OneArgTest): Outcome = {
+    def runTestAndCheckOutcome(projectName: AzureBillingProjectName) =
+      super.withFixture(test.toNoArgTest(projectName))
+
+    sys.props.get(azureBillingProjectKey) match {
+      case None =>
+        throw new RuntimeException(
+          s"${azureBillingProjectKey} system property is not set, indicating a problem with azure billing project setup"
+        )
+      case Some(projectName) => runTestAndCheckOutcome(AzureBillingProjectName(projectName))
+    }
+  }
+
+  override def beforeAll(): Unit =
+    // hardcode this if you want to use a static azure billing project
+    // val projectName = "tmp-billing-project-beddf71a74"
+    withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
+      sys.props.put(azureBillingProjectKey, projectName)
+    }
+}
+
 final class LeonardoSuite
     extends Suites(
       new RuntimeCreationDiskSpec,
@@ -270,4 +319,11 @@ final class LeonardoTerraDockerSuite
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+    with ParallelTestExecution
+
+final class LeonardoAzureSuite
+    extends Suites(
+      new AzureRuntimeSpec
+    )
+    with TestSuite
     with ParallelTestExecution
