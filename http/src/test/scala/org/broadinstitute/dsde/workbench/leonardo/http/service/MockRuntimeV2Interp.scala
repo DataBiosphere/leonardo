@@ -26,7 +26,7 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
       GetRuntimeResponse
         .fromRuntime(CommonTestData.testCluster,
                      RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
-                                               DiskId(-1),
+                                               Some(DiskId(-1)),
                                                azureRegion
                      ),
                      None
@@ -68,7 +68,7 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
           CloudContext.Azure(azureCloudContext),
           CommonTestData.testCluster.auditInfo,
           RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
-                                    DiskId(-1),
+                                    Some(DiskId(-1)),
                                     azureRegion
           ),
           CommonTestData.testCluster.proxyUrl,

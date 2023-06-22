@@ -12,7 +12,15 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CbasUiDAO, CromwellDAO, HailBatchDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  CbasDAO,
+  CbasUiDAO,
+  CromwellDAO,
+  HailBatchDAO,
+  SamDAO,
+  WdsDAO,
+  WsmApiClientProvider
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -171,7 +179,8 @@ object AKSManualTest {
     mock[CbasUiDAO[IO]],
     mock[WdsDAO[IO]],
     mock[HailBatchDAO[IO]],
-    mock[KubernetesAlgebra[IO]]
+    mock[KubernetesAlgebra[IO]],
+    mock[WsmApiClientProvider]
   )
 
   /** Deploys a CoA app */

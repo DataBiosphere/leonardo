@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.{
   LandingZoneResources,
   LeonardoTestSuite,
+  PostgresName,
   StorageAccountName,
   WorkspaceId,
   WsmControlledResourceId,
@@ -140,7 +141,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       SubnetworkName("batchsub"),
       SubnetworkName("akssub"),
       com.azure.core.management.Region.US_EAST,
-      ApplicationInsightsName("lzappinsights")
+      ApplicationInsightsName("lzappinsights"),
+      Some(PostgresName("lzpostgres"))
     )
 
     val landingZoneResources = res.toOption.get
