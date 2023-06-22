@@ -4,13 +4,7 @@ package http
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  CoaAppConfig,
-  HailBatchAppConfig,
-  HttpWsmDaoConfig,
-  PersistentDiskConfig,
-  WdsAppConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AzureRuntimeDefaults,
   CustomScriptExtensionConfig,
@@ -23,13 +17,14 @@ import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+import java.net.URL
 import scala.concurrent.duration._
 
 class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.9")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.18")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -73,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:48a3a7b",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:4647ac3",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -81,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.260"),
+          ChartVersion("0.2.268"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -91,11 +86,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,
-          enabled = true
+          enabled = true,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/")
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.20.0"),
+          ChartVersion("0.26.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),

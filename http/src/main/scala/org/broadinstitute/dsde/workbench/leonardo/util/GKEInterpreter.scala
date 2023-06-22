@@ -456,7 +456,8 @@ class GKEInterpreter[F[_]](
             nfsDisk,
             ksaName,
             gsa,
-            app.auditInfo.creator
+            app.auditInfo.creator,
+            app.customEnvironmentVariables
           )
         case AppType.Custom =>
           installCustomApp(
@@ -1465,7 +1466,8 @@ class GKEInterpreter[F[_]](
     disk: PersistentDisk,
     ksaName: ServiceAccountName,
     gsa: WorkbenchEmail,
-    userEmail: WorkbenchEmail
+    userEmail: WorkbenchEmail,
+    customEnvironmentVariables: Map[String, String]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val chart = config.rStudioAppConfig.chart
 
@@ -1496,7 +1498,8 @@ class GKEInterpreter[F[_]](
                                                              disk,
                                                              ksaName,
                                                              userEmail,
-                                                             stagingBucketName
+                                                             stagingBucketName,
+                                                             customEnvironmentVariables
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
@@ -1949,12 +1952,21 @@ class GKEInterpreter[F[_]](
     disk: PersistentDisk,
     ksaName: ServiceAccountName,
     userEmail: WorkbenchEmail,
-    stagingBucket: GcsBucketName
+    stagingBucket: GcsBucketName,
+    customEnvironmentVariables: Map[String, String]
   ): List[String] = {
     val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
+
+    // Custom EV configs
+    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
+      List(
+        raw"""extraEnv[$i].name=$k""",
+        raw"""extraEnv[$i].value=$v"""
+      )
+    }
 
     val rewriteTarget = "$2"
     val ingress = List(
@@ -1989,7 +2001,7 @@ class GKEInterpreter[F[_]](
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder
+    ) ++ ingress ++ welder ++ configs
   }
 
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
