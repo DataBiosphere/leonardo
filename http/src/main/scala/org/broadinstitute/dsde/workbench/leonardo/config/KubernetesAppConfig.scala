@@ -109,7 +109,8 @@ final case class WdsAppConfig(chartName: ChartName,
                               ksaName: KsaName,
                               services: List[ServiceConfig],
                               instrumentationEnabled: Boolean,
-                              enabled: Boolean
+                              enabled: Boolean,
+                              databaseEnabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)

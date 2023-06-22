@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="add_app_controlled_resource_table">
+        <createTable tableName="APP_CONTROLLED_RESOURCE">
+            <column name="appId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="resourceId" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="resourceType" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex indexName="FK_APP_CONTROLLED_RESOURCE" tableName="APP_CONTROLLED_RESOURCE">
+            <column name="appId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="appId" baseTableName="APP_CONTROLLED_RESOURCE" constraintName="FK_APP_CONTROLLED_RESOURCE" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
+        <addUniqueConstraint columnNames="appId, resourceId, resourceType" constraintName="IDX_APP_CONTROLLED_RESOURCE_UNIQUE" tableName="APP_CONTROLLED_RESOURCE"/>
+    </changeSet>
+
+</databaseChangeLog>
