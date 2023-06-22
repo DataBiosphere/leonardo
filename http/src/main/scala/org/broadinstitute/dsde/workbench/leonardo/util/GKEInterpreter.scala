@@ -732,8 +732,6 @@ class GKEInterpreter[F[_]](
         case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on GCP"))
       }
 
-      // TODO Scale replicas up (1 -> 2)?
-
       // Authenticate helm client
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
@@ -746,8 +744,6 @@ class GKEInterpreter[F[_]](
           org.broadinstitute.dsp.Values(chartOverrideValues)
         )
         .run(helmAuthContext)
-
-      // TODO Scale replicas down
 
       // Fail if apps are not live
       _ <-

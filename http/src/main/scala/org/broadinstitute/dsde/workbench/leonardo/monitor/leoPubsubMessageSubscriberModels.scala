@@ -25,7 +25,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
-import org.broadinstitute.dsp.ChartVersion
 
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.NoStackTrace
@@ -360,7 +359,6 @@ object LeoPubsubMessage {
 
   final case class UpdateAppMessage(appId: AppId,
                                     appName: AppName,
-                                    appChartVersion: ChartVersion,
                                     workspaceId: WorkspaceId,
                                     cloudContext: CloudContext,
                                     googleProject: Option[GoogleProject],
@@ -557,16 +555,8 @@ object LeoPubsubCodec {
   implicit val startAppDecoder: Decoder[StartAppMessage] =
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
-  implicit val chartVersionDecoder: Decoder[ChartVersion] = Decoder.decodeString.map(ChartVersion)
   implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
-    Decoder.forProduct7("appId",
-                        "appName",
-                        "appChartVersion",
-                        "workspaceId",
-                        "cloudcontext",
-                        "googleProject",
-                        "traceId"
-    )(
+    Decoder.forProduct6("appId", "appName", "workspaceId", "cloudcontext", "googleProject", "traceId")(
       UpdateAppMessage.apply
     )
 
@@ -958,18 +948,9 @@ object LeoPubsubCodec {
       (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
-  implicit val chartVersionEncoder: Encoder[ChartVersion] = Encoder.encodeString.contramap(_.asString)
   implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
-    Encoder.forProduct8("messageType",
-                        "appId",
-                        "appName",
-                        "appChartVersion",
-                        "workspaceId",
-                        "cloudContext",
-                        "googleProject",
-                        "traceId"
-    )(x =>
-      (x.messageType, x.appId, x.appName, x.appChartVersion, x.workspaceId, x.cloudContext, x.googleProject, x.traceId)
+    Encoder.forProduct7("messageType", "appId", "appName", "workspaceId", "cloudContext", "googleProject", "traceId")(
+      x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.googleProject, x.traceId)
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
