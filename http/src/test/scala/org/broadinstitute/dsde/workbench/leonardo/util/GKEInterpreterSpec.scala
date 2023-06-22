@@ -66,7 +66,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       MockGoogleDiskService,
       MockAppDescriptorDAO,
       nodepoolLock,
-      FakeGoogleResourceService
+      FakeGoogleResourceService,
+      FakeGoogleComputeService
     )
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
@@ -463,7 +464,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         MockGoogleDiskService,
         MockAppDescriptorDAO,
         nodepoolLock,
-        FakeGoogleResourceService
+        FakeGoogleResourceService,
+        FakeGoogleComputeService
       )
 
     val res = for {

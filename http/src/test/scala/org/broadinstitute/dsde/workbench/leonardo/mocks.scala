@@ -261,6 +261,9 @@ class MockGKEService extends GKEAlgebra[IO] {
   /** Creates an app and polls it for completion. */
   override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
+  /** Updates an app and polls it for completion. */
+  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
   /** Deletes a cluster and polls for completion */
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
@@ -281,6 +284,9 @@ class MockAKSInterp extends AKSAlgebra[IO] {
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Updates an app and polls it for completion */
+  override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
   override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }

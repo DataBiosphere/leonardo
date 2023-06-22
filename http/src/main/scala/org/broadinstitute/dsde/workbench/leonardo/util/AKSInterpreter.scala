@@ -454,6 +454,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
+      // TODO Scale replicas up (1 -> 2)?
+
       // Upgrade app chart version and explicitly pass the values
       _ <- helmClient
         .upgradeChart(
@@ -463,6 +465,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           chartOverrideValues
         )
         .run(authContext)
+
+      // TODO Scale replicas down
 
       // Poll until all pods in the app namespace are running
       appOk <- pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
