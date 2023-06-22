@@ -31,8 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, WorkspaceNotFoundException}
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.util2.withLogging
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
@@ -55,9 +54,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F],
                            hailBatchDao: HailBatchDAO[F],
-                           wsmDao: WsmDao[F]
+                           wsmDao: WsmDao[F],
                            kubeAlg: KubernetesAlgebra[F]
-
 )(implicit
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -606,7 +604,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .sequence
           .map(_.forall(identity))
       case AppType.Wds =>
-        wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
+        wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       case AppType.HailBatch =>
         hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       case _ => F.raiseError[Boolean](AppCreationException(s"App type ${appType} not supported on Azure"))

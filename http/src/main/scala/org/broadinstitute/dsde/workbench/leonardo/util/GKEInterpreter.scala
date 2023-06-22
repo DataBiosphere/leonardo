@@ -681,7 +681,8 @@ class GKEInterpreter[F[_]](
               nfsDisk,
               ksaName,
               userEmail,
-              stagingBucketName
+              stagingBucketName,
+              app.customEnvironmentVariables
             )
 
             last <- streamFUntilDone(

@@ -685,7 +685,7 @@ object Boot extends IOApp {
         cbasUiDao,
         wdsDao,
         hailBatchDao,
-        wsmDao
+        wsmDao,
         kubeAlg
       )
 
