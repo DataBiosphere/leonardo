@@ -22,6 +22,11 @@ trait KubernetesAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[List[PodStatus]]
 
+  /** Creates a namespace. */
+  def createNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
   /** Deletes a namespace. */
   def deleteNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
     ev: Ask[F, AppContext]

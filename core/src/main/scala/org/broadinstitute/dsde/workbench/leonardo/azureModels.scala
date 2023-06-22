@@ -36,5 +36,6 @@ final case class LandingZoneResources(landingZoneId: UUID,
                                       batchNodesSubnetName: SubnetworkName,
                                       aksSubnetName: SubnetworkName,
                                       region: com.azure.core.management.Region,
-                                      applicationInsightsName: ApplicationInsightsName
+                                      applicationInsightsName: ApplicationInsightsName,
+                                      postgresName: Option[PostgresName]
 )
