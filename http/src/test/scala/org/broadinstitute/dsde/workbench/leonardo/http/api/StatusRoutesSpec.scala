@@ -18,6 +18,8 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO.statusCheckResponseDecoder
+import org.scalatestplus.mockito.MockitoSugar
+
 import scala.concurrent.duration._
 
 /**
@@ -29,7 +31,8 @@ class StatusRoutesSpec
     with ScalatestRouteTest
     with LeonardoTestSuite
     with TestComponent
-    with TestLeoRoutes {
+    with TestLeoRoutes
+    with MockitoSugar {
   implicit override val patienceConfig = PatienceConfig(timeout = 1.second)
 
   "GET /version" should "give 200 for ok" in {
