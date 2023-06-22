@@ -1850,7 +1850,7 @@ class LeoPubsubMessageSubscriberSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -1904,7 +1904,7 @@ class LeoPubsubMessageSubscriberSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -1946,7 +1946,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime <- IO(
@@ -1971,7 +1971,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime <- IO(
