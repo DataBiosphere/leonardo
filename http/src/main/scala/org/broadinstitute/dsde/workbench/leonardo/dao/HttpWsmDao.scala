@@ -185,6 +185,11 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                          false
       )
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
+      postgresName <- getLandingZoneResourceName(groupedLzResources,
+                                                 "Microsoft.DBforPostgreSQL/flexibleServers",
+                                                 SHARED_RESOURCE,
+                                                 false
+      ).attempt
     } yield LandingZoneResources(
       landingZoneId,
       AKSClusterName(aksClusterName),
@@ -195,7 +200,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       SubnetworkName(batchNodesSubnetName),
       SubnetworkName(aksSubnetName),
       region,
-      ApplicationInsightsName(applicationInsightsName)
+      ApplicationInsightsName(applicationInsightsName),
+      postgresName.toOption.map(PostgresName)
     )
 
   private def getLandingZoneResourceName(

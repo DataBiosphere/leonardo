@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   HailBatchDAO,
   SamDAO,
   WdsDAO,
+  WsmApiClientProvider,
   WsmDao
 }
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
@@ -180,7 +181,8 @@ object AKSManualTest {
     mock[WdsDAO[IO]],
     mock[HailBatchDAO[IO]],
     mock[WsmDao[IO]],
-    mock[KubernetesAlgebra[IO]]
+    mock[KubernetesAlgebra[IO]],
+    mock[WsmApiClientProvider]
   )
 
   /** Deploys a CoA app */

@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.mockito.MockitoSugar
 
 class LivenessRoutesSpec
     extends AnyFlatSpec
@@ -15,7 +16,8 @@ class LivenessRoutesSpec
     with ScalatestRouteTest
     with LeonardoTestSuite
     with TestComponent
-    with TestLeoRoutes {
+    with TestLeoRoutes
+    with MockitoSugar {
   val livenessRoutes = new LivenessRoutes
 
   "GET /liveness" should "give 200" in {
