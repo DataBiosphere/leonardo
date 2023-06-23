@@ -568,7 +568,8 @@ object CommonTestData {
     SubnetworkName("batchsub"),
     SubnetworkName("akssub"),
     azureRegion,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresName("postgres"))
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

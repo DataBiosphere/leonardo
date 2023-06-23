@@ -4,13 +4,7 @@ package http
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  CoaAppConfig,
-  HailBatchAppConfig,
-  HttpWsmDaoConfig,
-  PersistentDiskConfig,
-  WdsAppConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AzureRuntimeDefaults,
   CustomScriptExtensionConfig,
@@ -23,13 +17,14 @@ import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+import java.net.URL
 import scala.concurrent.duration._
 
 class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.18")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.19")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -73,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a782afe",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:4647ac3",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -91,11 +86,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,
-          enabled = true
+          enabled = true,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/")
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.24.0"),
+          ChartVersion("0.27.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -103,7 +99,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
           ),
           instrumentationEnabled = false,
-          enabled = true
+          enabled = true,
+          databaseEnabled = false
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),

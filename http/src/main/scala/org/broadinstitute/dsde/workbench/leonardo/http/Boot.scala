@@ -200,7 +200,8 @@ object Boot extends IOApp {
         appDependencies.wsmDAO,
         appDependencies.samDAO,
         appDependencies.publisherQueue,
-        appDependencies.dateAccessedUpdaterQueue
+        appDependencies.dateAccessedUpdaterQueue,
+        appDependencies.wsmClientProvider
       )
 
       val httpRoutes = new HttpRoutes(
@@ -421,6 +422,8 @@ object Boot extends IOApp {
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
+
+      wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
@@ -684,7 +687,8 @@ object Boot extends IOApp {
         cbasUiDao,
         wdsDao,
         hailBatchDao,
-        kubeAlg
+        kubeAlg,
+        wsmClientProvider
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -772,6 +776,7 @@ object Boot extends IOApp {
         cbasUiDao,
         cromwellDao,
         hailBatchDao,
+        wsmClientProvider,
         kubeAlg,
         azureContainerService
       )
@@ -895,6 +900,7 @@ final case class AppDependencies[F[_]](
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
+  wsmClientProvider: HttpWsmClientProvider,
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]
 )

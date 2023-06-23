@@ -143,6 +143,15 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
+  val workSpaceManagerV = "0.254.782-SNAPSHOT"
+
+  def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
+  def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
+  def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi, excludeJakartaXmlBindApi)
+
+  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+
+
   val coreDependencies = List(
     jose4j,
     workbenchOauth2,
@@ -170,7 +179,8 @@ object Dependencies {
     scalaTestScalaCheck,
     workbenchAzure,
     workbenchAzureTest,
-    logbackClassic
+    logbackClassic,
+    workspaceManager
   )
 
   val httpDependencies = Seq(
@@ -235,4 +245,5 @@ object Dependencies {
     http4sCirce,
     scalaTest
   )
+
 }
