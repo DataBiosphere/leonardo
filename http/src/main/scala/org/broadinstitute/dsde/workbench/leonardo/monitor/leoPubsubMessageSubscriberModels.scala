@@ -359,8 +359,8 @@ object LeoPubsubMessage {
 
   final case class UpdateAppMessage(appId: AppId,
                                     appName: AppName,
-                                    workspaceId: WorkspaceId,
                                     cloudContext: CloudContext,
+                                    workspaceId: Option[WorkspaceId],
                                     googleProject: Option[GoogleProject],
                                     traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
@@ -556,7 +556,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
-    Decoder.forProduct6("appId", "appName", "workspaceId", "cloudcontext", "googleProject", "traceId")(
+    Decoder.forProduct6("appId", "appName", "cloudcontext", "workspaceId", "googleProject", "traceId")(
       UpdateAppMessage.apply
     )
 
@@ -949,8 +949,8 @@ object LeoPubsubCodec {
     )
 
   implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
-    Encoder.forProduct7("messageType", "appId", "appName", "workspaceId", "cloudContext", "googleProject", "traceId")(
-      x => (x.messageType, x.appId, x.appName, x.workspaceId, x.cloudContext, x.googleProject, x.traceId)
+    Encoder.forProduct7("messageType", "appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
+      x => (x.messageType, x.appId, x.appName, x.cloudContext, x.workspaceId, x.googleProject, x.traceId)
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
