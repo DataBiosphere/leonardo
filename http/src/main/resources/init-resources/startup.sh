@@ -264,9 +264,8 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${PROXY_DOCKER_COMPOSE}` up -d
-    docker restart proxy-server
-    docker restart jupyter-server
+    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${PROXY_DOCKER_COMPOSE}` restart -d
+#    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${JUPYTER_DOCKER_COMPOSE}` restart -d
 #    if [ "$certFileDirectory" = "/etc" ]
 #    then
 #      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
