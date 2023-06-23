@@ -347,6 +347,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     for {
       ctx <- ev.ask
 
+      workspaceId <- F.fromOption(
+        params.workspaceId,
+        AppUpdateException(
+          s"${params.appName} must have a Workspace in the Azure cloud context | trace id: ${ctx.traceId}"
+        )
+      )
+
       // Grab records from the database
       dbAppOpt <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), params.appName)
@@ -367,12 +374,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Grab the LZ and storage container information associated with the workspace
       leoAuth <- samDao.getLeoAuthToken
-      workspaceDescOpt <- wsmDao.getWorkspace(params.workspaceId, leoAuth)
-      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(params.workspaceId, ctx.traceId))
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
       landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
 
       // Get the optional storage container for the workspace
-      storageContainer <- wsmDao.getWorkspaceStorageContainer(params.workspaceId, leoAuth)
+      storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, leoAuth)
 
       // Resolve pet managed identity in Azure
       // Only do this for user-private apps; do not assign any identity for shared apps.
@@ -392,7 +399,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Get relay hybrid connection pool information
-      hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
+      hcName = RelayHybridConnectionName(s"${params.appName.value}-${workspaceId.value}")
       relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
@@ -426,7 +433,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             app.release,
             params.appName,
             params.cloudContext,
-            params.workspaceId,
+            workspaceId,
             landingZoneResources,
             relayPath,
             petMi,
@@ -477,7 +484,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             app.release,
             params.appName,
             params.cloudContext,
-            params.workspaceId,
+            workspaceId,
             landingZoneResources,
             petMi,
             applicationInsightsComponent.connectionString(),
@@ -496,7 +503,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             )
           } yield buildHailBatchChartOverrideValues(
             params.appName,
-            params.workspaceId,
+            workspaceId,
             landingZoneResources,
             petMi,
             storageContainer,

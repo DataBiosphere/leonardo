@@ -28,7 +28,7 @@ final case class CreateAKSAppParams(appId: AppId,
 final case class UpdateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     appChartVersion: ChartVersion,
-                                    workspaceId: WorkspaceId,
+                                    workspaceId: Option[WorkspaceId],
                                     cloudContext: AzureCloudContext
 )
 

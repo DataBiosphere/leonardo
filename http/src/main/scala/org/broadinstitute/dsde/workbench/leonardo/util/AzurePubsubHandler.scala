@@ -766,7 +766,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   override def updateAndPollApp(appId: AppId,
                                 appName: AppName,
                                 appChartVersion: ChartVersion,
-                                workspaceId: WorkspaceId,
+                                workspaceId: Option[WorkspaceId],
                                 cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]
