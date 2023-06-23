@@ -255,6 +255,7 @@ function validateCert() {
   ## This helps when we need to rotate certs.
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
   echo "notafter ${notAfter}"
+  echo ""
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
   if [[ "$notAfter" != *"notAfter=Jun  7"* ]] ; then
@@ -264,6 +265,8 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
     ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${PROXY_DOCKER_COMPOSE}` up -d
+    docker restart proxy-server
+    docker restart jupyter-server
 #    if [ "$certFileDirectory" = "/etc" ]
 #    then
 #      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
