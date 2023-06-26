@@ -264,7 +264,16 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${PROXY_DOCKER_COMPOSE}` restart -d
+#  TODO: parameterize docker image list,
+#   TODO: determine if restart on jupyter or rstudio
+    if [ "$certFileDirectory" = "/etc" ]
+    then
+#      ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${PROXY_DOCKER_COMPOSE}` restart -d
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2 --env-file=/var/variables.env -f /var/docker-compose-files/proxy-docker-compose-gce.yaml -f /var/docker-compose-files/jupyter-docker-compose-gce.yaml -f /var/docker-compose-files/welder-docker-compose-gce.yaml restart
+    else
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2 --env-file=/var/variables.env -f /var/docker-compose-files/proxy-docker-compose-gce.yaml -f /var/docker-compose-files/jupyter-docker-compose-gce.yaml -f /var/docker-compose-files/welder-docker-compose-gce.yaml restart
+    fi
+
 #    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${JUPYTER_DOCKER_COMPOSE}` restart -d
 #    if [ "$certFileDirectory" = "/etc" ]
 #    then
