@@ -1125,6 +1125,14 @@ class GKEInterpreter[F[_]](
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+        case AppType.RStudio =>
+          streamFUntilDone(
+            config.rStudioAppConfig.services
+              .map(_.name)
+              .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+            config.monitorConfig.startApp.maxAttempts,
+            config.monitorConfig.startApp.interval
+          ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
         case AppType.Custom =>
           for {
             desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
@@ -1141,7 +1149,7 @@ class GKEInterpreter[F[_]](
               config.monitorConfig.startApp.interval
             ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
           } yield last.isDone
-        case _ =>
+        case AppType.Wds | AppType.HailBatch =>
           F.raiseError(AppCreationException(s"App type ${dbApp.app.appType} not supported on GCP"))
       }
 
