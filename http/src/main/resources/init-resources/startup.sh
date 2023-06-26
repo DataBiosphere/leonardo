@@ -257,8 +257,9 @@ function validateCert() {
   echo "notafter ${notAfter}"
   echo ""
 
+  #TODO: uncomment if after testing
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-  if [[ "$notAfter" != *"notAfter=Jun  7"* ]] ; then
+#  if [[ "$notAfter" != *"notAfter=Jun  7"* ]] ; then
     echo "in if block for notAfter"
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
@@ -283,7 +284,7 @@ function validateCert() {
 
     failScriptIfError ${GSUTIL_CMD}
     retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-  fi
+#  fi
 }
 
 validateCert ${CERT_DIRECTORY}
