@@ -263,13 +263,13 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    IMAGES_TO_RESTART=("-f /var/docker-compose-files/welder-docker-compose-gce.yaml -f /var/docker-compose-files/proxy-docker-compose-gce.yaml")
+    IMAGES_TO_RESTART=(-f /var/docker-compose-files/welder-docker-compose-gce.yaml -f /var/docker-compose-files/proxy-docker-compose-gce.yaml)
     if [[ ! -z "$RSTUDIO_DOCKER_IMAGE" ]] ; then
-      IMAGES_TO_RESTART+=("-f /var/docker-compose-files/rstudio-docker-compose-gce.yaml")
+      IMAGES_TO_RESTART+=(-f /var/docker-compose-files/rstudio-docker-compose-gce.yaml)
     fi
 
     if [[ ! -z "$JUPYTER_DOCKER_IMAGE" ]] ; then
-      IMAGES_TO_RESTART+=("-f /var/docker-compose-files/jupyter-docker-compose-gce.yaml")
+      IMAGES_TO_RESTART+=(-f /var/docker-compose-files/jupyter-docker-compose-gce.yaml)
     fi
 
     if [ "$certFileDirectory" = "/etc" ] #if its dataproc the cert directory is different, and we can asssume the docker images present
