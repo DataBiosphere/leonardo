@@ -93,9 +93,18 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, config.clusterResourcesConfig.jupyterDockerCompose)
 
       // Re-upload jupyter certs to any new/rotated ones automatically get added to bucket
-      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, RuntimeResource(config.clusterFilesConfig.proxyServerCrt.toAbsolutePath.toString))
-      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, RuntimeResource(config.clusterFilesConfig.proxyServerKey.toAbsolutePath.toString))
-      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, RuntimeResource(config.clusterFilesConfig.proxyRootCaPem.toAbsolutePath.toString))
+      _ <- bucketHelper.uploadFileToInitBucket(
+        params.initBucket,
+        RuntimeResource(config.clusterFilesConfig.proxyServerCrt.toAbsolutePath.toString)
+      )
+      _ <- bucketHelper.uploadFileToInitBucket(
+        params.initBucket,
+        RuntimeResource(config.clusterFilesConfig.proxyServerKey.toAbsolutePath.toString)
+      )
+      _ <- bucketHelper.uploadFileToInitBucket(
+        params.initBucket,
+        RuntimeResource(config.clusterFilesConfig.proxyRootCaPem.toAbsolutePath.toString)
+      )
 
       startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
                                                  params.initBucket,
