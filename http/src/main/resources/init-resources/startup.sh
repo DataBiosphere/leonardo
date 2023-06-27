@@ -263,20 +263,20 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    TOOL_IMAGES_TO_RESTART=()
+    IMAGES_TO_RESTART=("-f /var/docker-compose-files/welder-docker-compose-gce.yaml -f /var/docker-compose-files/proxy-docker-compose-gce.yaml")
     if [[ ! -z "$RSTUDIO_DOCKER_IMAGE" ]] ; then
-      TOOL_IMAGES_TO_RESTART+=("-f /var/docker-compose-files/rstudio-docker-compose-gce.yaml")
+      IMAGES_TO_RESTART+=("-f /var/docker-compose-files/rstudio-docker-compose-gce.yaml")
     fi
 
     if [[ ! -z "$JUPYTER_DOCKER_IMAGE" ]] ; then
-      TOOL_IMAGES_TO_RESTART+=("-f /var/docker-compose-files/jupyter-docker-compose-gce.yaml")
+      IMAGES_TO_RESTART+=("-f /var/docker-compose-files/jupyter-docker-compose-gce.yaml")
     fi
 
     if [ "$certFileDirectory" = "/etc" ] #if its dataproc the cert directory is different, and we can asssume the docker images present
     then
       ${DOCKER_COMPOSE} --env-file=/var/variables.env -f /etc/proxy-docker-compose-gce.yaml -f /etc/jupyter-docker-compose-gce.yaml -f /etc/welder-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
     else
-      ${DOCKER_COMPOSE} --env-file=/var/variables.env -f /var/docker-compose-files/proxy-docker-compose-gce.yaml "${TOOL_IMAGES_TO_RESTART[@]}" -f /var/docker-compose-files/welder-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+      ${DOCKER_COMPOSE} --env-file=/var/variables.env "${IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     fi
 
 #    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${JUPYTER_DOCKER_COMPOSE}` restart -d
