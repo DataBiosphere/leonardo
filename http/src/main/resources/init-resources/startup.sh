@@ -254,8 +254,6 @@ function validateCert() {
   certFileDirectory=$1
   ## This helps when we need to rotate certs.
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
-  echo "notafter ${notAfter}"
-  echo ""
 
   #TODO: uncomment if after testing
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
@@ -265,13 +263,20 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-#   TODO: determine if restart on jupyter or rstudio
-# TODO: test with dataproc
-    if [ "$certFileDirectory" = "/etc" ]
+    TOOL_IMAGES_TO_RESTART=()
+    if [[ ! -z "$RSTUDIO_DOCKER_IMAGE" ]] ; then
+      TOOL_IMAGES_TO_RESTART+=("-f /var/docker-compose-files/rstudio-docker-compose-gce.yaml")
+    fi
+
+    if [[ ! -z "$JUPYTER_DOCKER_IMAGE" ]] ; then
+      TOOL_IMAGES_TO_RESTART+=("-f /var/docker-compose-files/jupyter-docker-compose-gce.yaml")
+    fi
+
+    if [ "$certFileDirectory" = "/etc" ] #if its dataproc the cert directory is different, and we can asssume the docker images present
     then
       ${DOCKER_COMPOSE} --env-file=/var/variables.env -f /etc/proxy-docker-compose-gce.yaml -f /etc/jupyter-docker-compose-gce.yaml -f /etc/welder-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
     else
-      ${DOCKER_COMPOSE} --env-file=/var/variables.env -f /var/docker-compose-files/proxy-docker-compose-gce.yaml -f /var/docker-compose-files/jupyter-docker-compose-gce.yaml -f /var/docker-compose-files/welder-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+      ${DOCKER_COMPOSE} --env-file=/var/variables.env -f /var/docker-compose-files/proxy-docker-compose-gce.yaml "${TOOL_IMAGES_TO_RESTART[@]}" -f /var/docker-compose-files/welder-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
     fi
 
 #    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${JUPYTER_DOCKER_COMPOSE}` restart -d
