@@ -179,7 +179,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "cbas.enabled=true," +
       "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
-      "dockstore.baseUrl=https://staging.dockstore.org/," +
+      "dockstore.baseUrl=https://fake-url-on-purpose-staging.dockstore.org/," +
       "fullnameOverride=coa-rel-1," +
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
