@@ -538,7 +538,8 @@ class GKEInterpreter[F[_]](
       googleProject <- F.fromOption(
         params.googleProject,
         AppUpdateException(
-          s"${params.appName} must have a google project in the GCP cloud context", Some(ctx.traceId)
+          s"${params.appName} must have a google project in the GCP cloud context",
+          Some(ctx.traceId)
         )
       )
 
@@ -568,7 +569,8 @@ class GKEInterpreter[F[_]](
       ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppUpdateException(
-          s"Kubernetes Service Account not found in DB for app ${app.appName.value}", Some(ctx.traceId)
+          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
+          Some(ctx.traceId)
         )
       )
       userEmail = app.auditInfo.creator
@@ -767,7 +769,7 @@ class GKEInterpreter[F[_]](
       // Put app status back to running
       _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
 
-      _ <- logger.info(s"Done updating app ${params.appName} in workspace ${params.workspaceId}")
+      _ <- logger.info(s"Done updating app ${params.appName} in project ${params.googleProject}")
     } yield ()
 
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
