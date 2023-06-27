@@ -1175,7 +1175,7 @@ object PubsubHandleMessageError {
   }
   final case class AppInvalidState(appId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"Unable to process transition finished message ${appId}for app ${appId} because its status was not RUNNING"
+      s"Unable to process transition finished message ${message}for app ${appId} because its status was not RUNNING"
 
     val isRetryable: Boolean = false
   }

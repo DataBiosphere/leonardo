@@ -350,7 +350,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       workspaceId <- F.fromOption(
         params.workspaceId,
         AppUpdateException(
-          s"${params.appName} must have a Workspace in the Azure cloud context | trace id: ${ctx.traceId}"
+          s"${params.appName} must have a Workspace in the Azure cloud context",
+          Some(ctx.traceId)
         )
       )
 
@@ -366,7 +367,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                              "No active app found in DB"
         )
       )
-      _ <- logger.info(ctx.loggingCtx)(s"Updating app $params.appName in workspace $params.workspaceId")
+      _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
 
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
@@ -392,9 +393,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             petMi <- F.delay(
               msi.identities().getById(app.googleServiceAccount.value)
             )
-
-            // Assign the pet managed identity to the VM scale set backing the cluster node pool
-            _ <- assignVmScaleSet(landingZoneResources.clusterName, params.cloudContext, petMi)
           } yield Some(petMi)
       }
 
@@ -510,7 +508,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             relayDomain,
             hcName
           )
-        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on Azure"))
+        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on Azure", Some(ctx.traceId)))
       }
 
       // Authenticate helm client
@@ -548,7 +546,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Put app status back to running
       _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
 
-      _ <- logger.info(s"Done updating app $params.appName in workspace $params.workspaceId")
+      _ <- logger.info(s"Done updating app ${params.appName} in workspace ${params.workspaceId}")
     } yield ()
   }
 

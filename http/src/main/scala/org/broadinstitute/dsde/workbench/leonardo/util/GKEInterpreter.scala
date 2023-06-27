@@ -538,7 +538,7 @@ class GKEInterpreter[F[_]](
       googleProject <- F.fromOption(
         params.googleProject,
         AppUpdateException(
-          s"${params.appName} must have a google project in the GCP cloud context | trace id: ${ctx.traceId}"
+          s"${params.appName} must have a google project in the GCP cloud context", Some(ctx.traceId)
         )
       )
 
@@ -550,7 +550,7 @@ class GKEInterpreter[F[_]](
         dbAppOpt,
         AppNotFoundException(CloudContext.Gcp(googleProject), params.appName, ctx.traceId, "No active app found in DB")
       )
-      _ <- logger.info(ctx.loggingCtx)(s"Updating app $params.appName in project $googleProject")
+      _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in project ${googleProject}")
 
       // Grab all of the values that we need to resend to the helm update command for each app
       dbCluster = dbApp.cluster
@@ -563,12 +563,12 @@ class GKEInterpreter[F[_]](
       gsa = app.googleServiceAccount
       nfsDisk <- F.fromOption(
         dbApp.app.appResources.disk,
-        AppUpdateException(s"NFS disk not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}")
+        AppUpdateException(s"NFS disk not found in DB for app ${app.appName.value}", Some(ctx.traceId))
       )
       ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppUpdateException(
-          s"Kubernetes Service Account not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}"
+          s"Kubernetes Service Account not found in DB for app ${app.appName.value}", Some(ctx.traceId)
         )
       )
       userEmail = app.auditInfo.creator
@@ -578,7 +578,7 @@ class GKEInterpreter[F[_]](
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
       googleCluster <- F.fromOption(
         googleClusterOpt,
-        AppUpdateException(s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}")
+        AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
       )
 
       (chartOverrideValues, appOk) <- app.appType match {
@@ -700,7 +700,8 @@ class GKEInterpreter[F[_]](
             desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
             descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
               AppUpdateException(
-                s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}"
+                s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}",
+                Some(ctx.traceId)
               )
             }
 
@@ -729,7 +730,7 @@ class GKEInterpreter[F[_]](
             ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
 
           } yield (chartValues, last)
-        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on GCP"))
+        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId)))
       }
 
       // Authenticate helm client
@@ -766,7 +767,7 @@ class GKEInterpreter[F[_]](
       // Put app status back to running
       _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
 
-      _ <- logger.info(s"Done updating app $params.appName in workspace $params.workspaceId")
+      _ <- logger.info(s"Done updating app ${params.appName} in workspace ${params.workspaceId}")
     } yield ()
 
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
