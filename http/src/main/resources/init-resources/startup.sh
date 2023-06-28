@@ -263,18 +263,23 @@ function validateCert() {
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    IMAGES_TO_RESTART=(-f /var/docker-compose-files/welder-docker-compose-gce.yaml -f /var/docker-compose-files/proxy-docker-compose-gce.yaml)
+    IMAGES_TO_RESTART=(-f /var/docker-compose-files/proxy-docker-compose-gce.yaml)
+    DATAPROC_IMAGES_TO_RESTART=(-f /etc/proxy-docker-compose.yaml)
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ]; then
+      IMAGES_TO_RESTART+=(-f /var/docker-compose-files/welder-docker-compose-gce.yaml)
+      DATAPROC_IMAGES_TO_RESTART+=(-f /etc/welder-docker-compose.yaml)
+    fi
     if [[ ! -z "$RSTUDIO_DOCKER_IMAGE" ]] ; then
       IMAGES_TO_RESTART+=(-f /var/docker-compose-files/rstudio-docker-compose-gce.yaml)
     fi
-
     if [[ ! -z "$JUPYTER_DOCKER_IMAGE" ]] ; then
       IMAGES_TO_RESTART+=(-f /var/docker-compose-files/jupyter-docker-compose-gce.yaml)
+      DATAPROC_IMAGES_TO_RESTART+=(-f /etc/jupyter-docker-compose.yaml )
     fi
 
-    if [ "$certFileDirectory" = "/etc" ] #if its dataproc the cert directory is different, and we can asssume the docker images present
+    if [ "$certFileDirectory" = "/certs" ] #if its dataproc the cert directory is '/certs', and we can assume the docker images present
     then
-      ${DOCKER_COMPOSE} --env-file=/var/variables.env -f /etc/proxy-docker-compose-gce.yaml -f /etc/jupyter-docker-compose-gce.yaml -f /etc/welder-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+      ${DOCKER_COMPOSE} "${DATAPROC_IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     else
       ${DOCKER_COMPOSE} --env-file=/var/variables.env "${IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     fi
