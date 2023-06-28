@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
+import scala.collection.immutable.Seq
 import scala.io.Source
 
 class BucketHelper[F[_]](
@@ -92,12 +93,29 @@ class BucketHelper[F[_]](
         .drain
     } yield ()
 
-  def uploadFileToInitBucket(initBucketName: GcsBucketName, path: Path): F[Unit] =
-    (TemplateHelper.fileStream[F](path) through google2StorageDAO
+  def uploadFileToInitBucket(initBucketName: GcsBucketName, runtimeResource: RuntimeResource): F[Unit] =
+    (TemplateHelper.resourceStream[F](runtimeResource) through google2StorageDAO
       .streamUploadBlob(
         initBucketName,
-        GcsBlobName(path.getFileName.toString)
+        GcsBlobName(runtimeResource.asString)
       )).compile.drain
+
+  def uploadClusterCertsToInitBucket(initBucketName: GcsBucketName): F[Unit] = {
+    val uploadStream = for {
+      f <- Stream.emits(
+        Seq(
+          config.clusterFilesConfig.proxyServerCrt,
+          config.clusterFilesConfig.proxyServerKey,
+          config.clusterFilesConfig.proxyRootCaPem
+        )
+      )
+      upload <- TemplateHelper.fileStream[F](f) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(f.getFileName.toString)
+      )
+    } yield upload
+    uploadStream.compile.drain
+  }
 
   def initializeBucketObjects(
     initBucketName: GcsBucketName,
@@ -118,20 +136,6 @@ class BucketHelper[F[_]](
     val customEnvVars = customClusterEnvironmentVariables.foldLeft("") { case (memo, (key, value)) =>
       memo + s"$key=$value\n"
     }
-
-    val uploadRawFiles = for {
-      f <- Stream.emits(
-        Seq(
-          config.clusterFilesConfig.proxyServerCrt,
-          config.clusterFilesConfig.proxyServerKey,
-          config.clusterFilesConfig.proxyRootCaPem
-        )
-      )
-      _ <- TemplateHelper.fileStream[F](f) through google2StorageDAO.streamUploadBlob(
-        initBucketName,
-        GcsBlobName(f.getFileName.toString)
-      )
-    } yield ()
 
     val uploadRawResources =
       Stream

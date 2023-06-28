@@ -91,23 +91,10 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
         .map(_.getOrElse(params.runtimeAndRuntimeConfig.runtime))
 
       // Re-upload Jupyter Docker Compose file to init bucket for updating environment variables in Jupyter
-      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket,
-                                               Paths.get(config.clusterResourcesConfig.jupyterDockerCompose.asString)
-      )
+      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, config.clusterResourcesConfig.jupyterDockerCompose)
 
       // Re-upload jupyter certs to any new/rotated ones automatically get added to bucket
-      _ <- bucketHelper.uploadFileToInitBucket(
-        params.initBucket,
-        config.clusterFilesConfig.proxyServerCrt
-      )
-      _ <- bucketHelper.uploadFileToInitBucket(
-        params.initBucket,
-        config.clusterFilesConfig.proxyServerKey
-      )
-      _ <- bucketHelper.uploadFileToInitBucket(
-        params.initBucket,
-        config.clusterFilesConfig.proxyRootCaPem
-      )
+      _ <- bucketHelper.uploadClusterCertsToInitBucket(params.initBucket)
 
       startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
                                                  params.initBucket,
@@ -154,9 +141,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(s"Will deploy welder to runtime ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/upgrade")
 
-      _ <- bucketHelper.uploadFileToInitBucket(initBucket,
-                                               Paths.get(config.clusterResourcesConfig.welderDockerCompose.asString)
-      )
+      _ <- bucketHelper.uploadFileToInitBucket(initBucket, config.clusterResourcesConfig.welderDockerCompose)
       newWelderImageUrl <- Async[F].fromEither(
         runtime.runtimeImages
           .find(_.imageType == Welder)
