@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
+import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.time.Instant
 import scala.concurrent.ExecutionContext
@@ -90,20 +91,22 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
         .map(_.getOrElse(params.runtimeAndRuntimeConfig.runtime))
 
       // Re-upload Jupyter Docker Compose file to init bucket for updating environment variables in Jupyter
-      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, config.clusterResourcesConfig.jupyterDockerCompose)
+      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket,
+                                               Paths.get(config.clusterResourcesConfig.jupyterDockerCompose.asString)
+      )
 
       // Re-upload jupyter certs to any new/rotated ones automatically get added to bucket
       _ <- bucketHelper.uploadFileToInitBucket(
         params.initBucket,
-        RuntimeResource(config.clusterFilesConfig.proxyServerCrt.toAbsolutePath.toString)
+        config.clusterFilesConfig.proxyServerCrt
       )
       _ <- bucketHelper.uploadFileToInitBucket(
         params.initBucket,
-        RuntimeResource(config.clusterFilesConfig.proxyServerKey.toAbsolutePath.toString)
+        config.clusterFilesConfig.proxyServerKey
       )
       _ <- bucketHelper.uploadFileToInitBucket(
         params.initBucket,
-        RuntimeResource(config.clusterFilesConfig.proxyRootCaPem.toAbsolutePath.toString)
+        config.clusterFilesConfig.proxyRootCaPem
       )
 
       startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
@@ -143,7 +146,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       isClusterBeforeCutoffDate = runtime.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(runtime: Runtime, initBukcet: GcsBucketName, now: Instant)(implicit
+  private def updateWelder(runtime: Runtime, initBucket: GcsBucketName, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Runtime] =
     for {
@@ -151,7 +154,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(s"Will deploy welder to runtime ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/upgrade")
 
-      _ <- bucketHelper.uploadFileToInitBucket(initBukcet, config.clusterResourcesConfig.welderDockerCompose)
+      _ <- bucketHelper.uploadFileToInitBucket(initBucket,
+                                               Paths.get(config.clusterResourcesConfig.welderDockerCompose.asString)
+      )
       newWelderImageUrl <- Async[F].fromEither(
         runtime.runtimeImages
           .find(_.imageType == Welder)

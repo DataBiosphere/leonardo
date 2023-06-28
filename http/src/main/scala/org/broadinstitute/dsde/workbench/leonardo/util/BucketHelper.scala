@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProj
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import java.nio.charset.StandardCharsets
+import java.nio.file.Path
 import scala.io.Source
 
 class BucketHelper[F[_]](
@@ -91,11 +92,11 @@ class BucketHelper[F[_]](
         .drain
     } yield ()
 
-  def uploadFileToInitBucket(initBucketName: GcsBucketName, runtimeResource: RuntimeResource): F[Unit] =
-    (TemplateHelper.resourceStream[F](runtimeResource) through google2StorageDAO
+  def uploadFileToInitBucket(initBucketName: GcsBucketName, path: Path): F[Unit] =
+    (TemplateHelper.fileStream[F](path) through google2StorageDAO
       .streamUploadBlob(
         initBucketName,
-        GcsBlobName(runtimeResource.asString)
+        GcsBlobName(path.getFileName.toString)
       )).compile.drain
 
   def initializeBucketObjects(
