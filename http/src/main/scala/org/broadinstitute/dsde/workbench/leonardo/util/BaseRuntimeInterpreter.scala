@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
-import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.time.Instant
 import scala.concurrent.ExecutionContext

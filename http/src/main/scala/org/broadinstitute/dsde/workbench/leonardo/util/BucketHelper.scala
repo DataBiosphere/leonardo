@@ -15,8 +15,6 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProj
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Path
-import scala.collection.immutable.Seq
 import scala.io.Source
 
 class BucketHelper[F[_]](
@@ -136,6 +134,19 @@ class BucketHelper[F[_]](
     val customEnvVars = customClusterEnvironmentVariables.foldLeft("") { case (memo, (key, value)) =>
       memo + s"$key=$value\n"
     }
+    val uploadRawFiles = for {
+      f <- Stream.emits(
+        Seq(
+          config.clusterFilesConfig.proxyServerCrt,
+          config.clusterFilesConfig.proxyServerKey,
+          config.clusterFilesConfig.proxyRootCaPem
+        )
+      )
+      _ <- TemplateHelper.fileStream[F](f) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(f.getFileName.toString)
+      )
+    } yield ()
 
     val uploadRawResources =
       Stream
