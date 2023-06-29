@@ -17,6 +17,8 @@ package object leonardo {
   val SECURITY_GROUP = "security-group"
   val SECURITY_GROUP_HIGH = "high"
 
+  val AOU_UI_LABEL = "all-of-us"
+
   implicit def http4sBody[F[_], A](body: A)(implicit encoder: EntityEncoder[F, A]): Entity[F] =
     encoder.toEntity(body)
 
@@ -53,8 +55,6 @@ package object leonardo {
       retryOnPermissionDenied
     )
   }
-
-  def isAoUProject(labels: Map[String, String]): Boolean = labels.get(SECURITY_GROUP).isDefined
 
   val allSupportedRegions = List(
     RegionName("us-central1"),

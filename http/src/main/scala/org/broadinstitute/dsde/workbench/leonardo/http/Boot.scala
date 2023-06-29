@@ -253,7 +253,6 @@ object Boot extends IOApp {
             new MonitorAtBoot[IO](
               appDependencies.publisherQueue,
               googleDependencies.googleComputeService,
-              googleDependencies.googleResourceService,
               appDependencies.samDAO,
               appDependencies.wsmDAO
             )

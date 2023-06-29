@@ -80,14 +80,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      enableIntraNodeVisibility <- req.appType match {
-        case AppType.Galaxy | AppType.HailBatch | AppType.Wds => F.pure(false)
-        case AppType.RStudio | AppType.Cromwell =>
-          for {
-            projectLabels <- googleResourceService.getLabels(googleProject)
-          } yield isAoUProject(
-            projectLabels.getOrElse(Map.empty)
-          ) // only enable intranode visibility for AoU projects for now. Can consider turning it on for all apps in the future
+      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
+      _ <- req.appType match {
+        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.RStudio | AppType.Cromwell => F.unit
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>

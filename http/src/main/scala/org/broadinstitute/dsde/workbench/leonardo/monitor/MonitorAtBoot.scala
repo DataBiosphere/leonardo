@@ -6,7 +6,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -29,7 +29,6 @@ import scala.concurrent.ExecutionContext
 
 class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                           computeService: GoogleComputeService[F],
-                          googleResourceService: GoogleResourceService[F],
                           samDAO: SamDAO[F],
                           wsmDao: WsmDao[F]
 )(implicit
@@ -194,11 +193,11 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                         )
                       )
                     )
-                  projectLabels <- googleResourceService.getLabels(googleProject)
 
                   diskIdOpt = app.appResources.disk.flatMap(d =>
                     if (d.status == DiskStatus.Creating) Some(d.id) else None
                   )
+                  enableIntraNodeVisibility = app.labels.get(AOU_UI_LABEL).isDefined
                   msg = CreateAppMessage(
                     googleProject,
                     action,
@@ -210,9 +209,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                     app.appResources.namespace.name,
                     Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
                     Some(appContext.traceId),
-                    isAoUProject(
-                      projectLabels.getOrElse(Map.empty)
-                    )
+                    enableIntraNodeVisibility
                   )
                 } yield msg
 
