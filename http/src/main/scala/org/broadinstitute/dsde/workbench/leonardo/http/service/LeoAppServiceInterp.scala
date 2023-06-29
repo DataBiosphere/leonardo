@@ -86,7 +86,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>
-              isCreationAllowedAndEnableIntranodeVisilibity(userInfo.userEmail, googleProject, descriptorPath)
+              checkIfAppCreationIsAllowed(userInfo.userEmail, googleProject, descriptorPath)
             case None =>
               F.raiseError(
                 BadRequestException(
@@ -821,12 +821,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
    * @param ev
    * @return true if intranode visibility should be enabled; false otherwise
    */
-  private[service] def isCreationAllowedAndEnableIntranodeVisilibity(userEmail: WorkbenchEmail,
-                                                                     googleProject: GoogleProject,
-                                                                     descriptorPath: Uri
+  private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
+                                                   googleProject: GoogleProject,
+                                                   descriptorPath: Uri
   )(implicit
     ev: Ask[F, TraceId]
-  ): F[Boolean] =
+  ): F[Unit] =
     if (config.enableCustomAppCheck)
       for {
         ctx <- ev.ask
@@ -845,32 +845,32 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       else customAppConfig.customApplicationAllowList.default
                     if (appAllowList.contains(descriptorPath.toString()))
                       authProvider.isCustomAppAllowed(userEmail) map { res =>
-                        if (res) Right(true)
+                        if (res) Right(())
                         else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
                       }
                     else
                       F.pure(s"${descriptorPath.toString()} is not in app allow list.".asLeft[Boolean])
                   case None =>
                     authProvider.isCustomAppAllowed(userEmail) map { res =>
-                      if (res) Right(false)
+                      if (res) Right(())
                       else Left("No security-group found for this project. User is not in CUSTOM_APP_USERS group")
                     }
                 }
               case None =>
                 authProvider.isCustomAppAllowed(userEmail) map { res =>
-                  if (res) Right(false)
+                  if (res) Right(())
                   else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
                 }
             }
           } yield isAppAllowed
 
-        r <- allowedOrError match {
+        _ <- allowedOrError match {
           case Left(error) =>
             log.info(Map("traceId" -> ctx.asString))(error) >> F.raiseError(ForbiddenError(userEmail, Some(ctx)))
-          case Right(res) => F.pure(res)
+          case Right(_) => F.unit
         }
-      } yield r
-    else F.pure(true)
+      } yield ()
+    else F.unit
 
   private def getLastUsedAppForDisk(
     req: CreateAppRequest,

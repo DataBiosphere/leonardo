@@ -2209,7 +2209,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   "checkIfAppCreationIsAllowedAndIsAoU" should "enable IntraNodeVisibility if customApp check is disabled" in {
     val interp = makeInterp(QueueFactory.makePublisherQueue(), enableCustomAppCheckFlag = false)
     val res =
-      interp.isCreationAllowedAndEnableIntranodeVisilibity(userEmail, project, Uri.unsafeFromString("https://dummy"))
+      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe true
   }
 
@@ -2228,7 +2228,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
     )
     val res =
-      interp.isCreationAllowedAndEnableIntranodeVisilibity(userEmail, project, Uri.unsafeFromString("https://dummy"))
+      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
     res.attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -2252,7 +2252,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
     )
     val res =
-      interp.isCreationAllowedAndEnableIntranodeVisilibity(userEmail, project, Uri.unsafeFromString("https://dummy"))
+      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
     res.attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -2276,7 +2276,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
     )
     val res1 =
-      interp.isCreationAllowedAndEnableIntranodeVisilibity(userEmail, project, Uri.unsafeFromString("https://dummy"))
+      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
     res1.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe true
 
     val resourceService2 = new FakeGoogleResourceService {
@@ -2288,7 +2288,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                              googleResourceService = resourceService2
     )
     val res2 =
-      interp2.isCreationAllowedAndEnableIntranodeVisilibity(userEmail, project, Uri.unsafeFromString("https://dummy"))
+      interp2.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
     res2.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe false
   }
 
