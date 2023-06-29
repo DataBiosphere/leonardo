@@ -849,7 +849,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                         else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
                       }
                     else
-                      F.pure(s"${descriptorPath.toString()} is not in app allow list.".asLeft[Boolean])
+                      F.pure(s"${descriptorPath.toString()} is not in app allow list.".asLeft[Unit])
                   case None =>
                     authProvider.isCustomAppAllowed(userEmail) map { res =>
                       if (res) Right(())

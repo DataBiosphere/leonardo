@@ -2210,7 +2210,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val interp = makeInterp(QueueFactory.makePublisherQueue(), enableCustomAppCheckFlag = false)
     val res =
       interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe true
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe ()
   }
 
   it should "should fail if app is not in allowed list for non high security projects" in {
@@ -2259,37 +2259,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ForbiddenError] shouldBe true
-  }
-
-  it should "enable IntraNodeVisibility only for AoU projects if customApp check is enabled" in {
-    val resourceService = new FakeGoogleResourceService {
-      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-        IO.pure(Some(Map(SECURITY_GROUP -> "other")))
-    }
-    val userEmail = WorkbenchEmail("allowlist")
-    val interp = makeInterp(
-      QueueFactory.makePublisherQueue(),
-      enableCustomAppCheckFlag = true,
-      googleResourceService = resourceService,
-      customAppConfig = gkeCustomAppConfig.copy(customApplicationAllowList =
-        CustomApplicationAllowListConfig(List("https://dummy"), List())
-      )
-    )
-    val res1 =
-      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
-    res1.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe true
-
-    val resourceService2 = new FakeGoogleResourceService {
-      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-        IO.pure(Some(Map.empty))
-    }
-    val interp2 = makeInterp(QueueFactory.makePublisherQueue(),
-                             enableCustomAppCheckFlag = true,
-                             googleResourceService = resourceService2
-    )
-    val res2 =
-      interp2.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
-    res2.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe false
   }
 
   private def withLeoPublisher(
