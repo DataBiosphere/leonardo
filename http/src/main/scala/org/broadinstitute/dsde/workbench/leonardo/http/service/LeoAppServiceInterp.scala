@@ -834,7 +834,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             projectLabels <- googleResourceService.getLabels(googleProject)
             isAppAllowed <- projectLabels match {
               case Some(labels) =>
-                // as long as the project has SECURITY_GROUP label, it is an AoU project
                 labels.get(SECURITY_GROUP) match {
                   case Some(securityGroupValue) =>
                     val appAllowList =
