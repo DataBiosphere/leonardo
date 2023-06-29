@@ -14,6 +14,9 @@ package object leonardo {
   val autoPauseOffValue = 0
   val traceIdHeaderString = ci"X-Cloud-Trace-Context"
 
+  val SECURITY_GROUP = "security-group"
+  val SECURITY_GROUP_HIGH = "high"
+
   implicit def http4sBody[F[_], A](body: A)(implicit encoder: EntityEncoder[F, A]): Entity[F] =
     encoder.toEntity(body)
 
@@ -50,6 +53,8 @@ package object leonardo {
       retryOnPermissionDenied
     )
   }
+
+  def isAoUProject(labels: Map[String, String]): Boolean = labels.get(SECURITY_GROUP).isDefined
 
   val allSupportedRegions = List(
     RegionName("us-central1"),

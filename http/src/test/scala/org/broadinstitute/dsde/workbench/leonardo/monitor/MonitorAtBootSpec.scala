@@ -4,7 +4,7 @@ import cats.Eq
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   customEnvironmentVariables,
@@ -144,7 +144,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
-        None
+        None,
+        false
       )
       (msg eqv Some(expected)) shouldBe true
     }
@@ -195,7 +196,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
-        None
+        None,
+        false
       )
       (msg eqv Some(expected)) shouldBe true
     }
@@ -246,7 +248,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
-        None
+        None,
+        false
       )
       (msg eqv Some(expected)) shouldBe true
     }
@@ -356,5 +359,10 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     queue: Queue[IO, LeoPubsubMessage] =
       Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): MonitorAtBoot[IO] =
-    new MonitorAtBoot[IO](queue, FakeGoogleComputeService, new MockSamDAO(), new MockWsmDAO())
+    new MonitorAtBoot[IO](queue,
+                          FakeGoogleComputeService,
+                          FakeGoogleResourceService,
+                          new MockSamDAO(),
+                          new MockWsmDAO()
+    )
 }

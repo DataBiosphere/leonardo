@@ -61,9 +61,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   metrics: OpenTelemetryMetrics[F],
   ec: ExecutionContext
 ) extends AppService[F] {
-  val SECURITY_GROUP = "security-group"
-  val SECURITY_GROUP_HIGH = "high"
-
   override def createApp(
     userInfo: UserInfo,
     cloudContext: CloudContext.Gcp,
@@ -83,11 +80,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      _ <- req.appType match {
+      enableIntraNodeVisibility <- req.appType match {
+        case AppType.Galaxy | AppType.HailBatch | AppType.Wds => F.pure(false)
+        case AppType.RStudio | AppType.Cromwell =>
+          for {
+            projectLabels <- googleResourceService.getLabels(googleProject)
+          } yield isAoUProject(
+            projectLabels.getOrElse(Map.empty)
+          ) // only enable intranode visibility for AoU projects for now. Can consider turning it on for all apps in the future
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>
-              checkIfAppCreationIsAllowed(userInfo.userEmail, googleProject, descriptorPath)
+              isCreationAllowedAndEnableIntranodeVisilibity(userInfo.userEmail, googleProject, descriptorPath)
             case None =>
               F.raiseError(
                 BadRequestException(
@@ -96,7 +100,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                 )
               )
           }
-        case _ => F.unit
       }
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(googleProject), appName).transaction
@@ -229,7 +232,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.appType,
         app.appResources.namespace.name,
         appMachineType,
-        Some(ctx.traceId)
+        Some(ctx.traceId),
+        enableIntraNodeVisibility
       )
       _ <- publisherQueue.offer(createAppMessage)
     } yield ()
@@ -811,9 +815,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject, descriptorPath: Uri)(
-    implicit ev: Ask[F, TraceId]
-  ): F[Unit] =
+  /**
+   * Short-cuit if app creation isn't allowed, and return whether or not the user's project is AoU project
+   *
+   * If custom app check isn't enabled, we'll just turn on intranode visibility; otherwise, we only turn it on for AoU projects
+   *
+   * @param userEmail
+   * @param googleProject
+   * @param descriptorPath
+   * @param ev
+   * @return true if intranode visibility should be enabled; false otherwise
+   */
+  private[service] def isCreationAllowedAndEnableIntranodeVisilibity(userEmail: WorkbenchEmail,
+                                                                     googleProject: GoogleProject,
+                                                                     descriptorPath: Uri
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] =
     if (config.enableCustomAppCheck)
       for {
         ctx <- ev.ask
@@ -823,39 +841,41 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             projectLabels <- googleResourceService.getLabels(googleProject)
             isAppAllowed <- projectLabels match {
               case Some(labels) =>
+                // as long as the project has SECURITY_GROUP label, it is an AoU project
                 labels.get(SECURITY_GROUP) match {
                   case Some(securityGroupValue) =>
                     val appAllowList =
                       if (securityGroupValue == SECURITY_GROUP_HIGH)
                         customAppConfig.customApplicationAllowList.highSecurity
                       else customAppConfig.customApplicationAllowList.default
-                    val res =
-                      if (appAllowList.contains(descriptorPath.toString()))
-                        Right(())
-                      else
-                        Left(s"${descriptorPath.toString()} is not in app allow list.")
-                    F.pure(res)
+                    if (appAllowList.contains(descriptorPath.toString()))
+                      authProvider.isCustomAppAllowed(userEmail) map { res =>
+                        if (res) Right(true)
+                        else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
+                      }
+                    else
+                      F.pure(s"${descriptorPath.toString()} is not in app allow list.".asLeft[Boolean])
                   case None =>
                     authProvider.isCustomAppAllowed(userEmail) map { res =>
-                      if (res) Right(())
+                      if (res) Right(false)
                       else Left("No security-group found for this project. User is not in CUSTOM_APP_USERS group")
                     }
                 }
               case None =>
                 authProvider.isCustomAppAllowed(userEmail) map { res =>
-                  if (res) Right(())
+                  if (res) Right(false)
                   else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
                 }
             }
           } yield isAppAllowed
 
-        _ <- allowedOrError match {
+        r <- allowedOrError match {
           case Left(error) =>
             log.info(Map("traceId" -> ctx.asString))(error) >> F.raiseError(ForbiddenError(userEmail, Some(ctx)))
-          case Right(_) => F.unit
+          case Right(res) => F.pure(res)
         }
-      } yield ()
-    else F.unit
+      } yield r
+    else F.pure(true)
 
   private def getLastUsedAppForDisk(
     req: CreateAppRequest,
