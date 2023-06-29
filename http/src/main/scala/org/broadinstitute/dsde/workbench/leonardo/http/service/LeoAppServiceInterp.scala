@@ -813,13 +813,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   /**
    * Short-cuit if app creation isn't allowed, and return whether or not the user's project is AoU project
    *
-   * If custom app check isn't enabled, we'll just turn on intranode visibility; otherwise, we only turn it on for AoU projects
-   *
    * @param userEmail
    * @param googleProject
    * @param descriptorPath
    * @param ev
-   * @return true if intranode visibility should be enabled; false otherwise
+   * @return 
    */
   private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
                                                    googleProject: GoogleProject,
