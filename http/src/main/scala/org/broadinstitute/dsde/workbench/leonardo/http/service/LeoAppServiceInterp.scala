@@ -61,9 +61,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   metrics: OpenTelemetryMetrics[F],
   ec: ExecutionContext
 ) extends AppService[F] {
-  val SECURITY_GROUP = "security-group"
-  val SECURITY_GROUP_HIGH = "high"
-
   override def createApp(
     userInfo: UserInfo,
     cloudContext: CloudContext.Gcp,
@@ -83,7 +80,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
+      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
       _ <- req.appType match {
+        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.RStudio | AppType.Cromwell => F.unit
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>
@@ -96,7 +95,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                 )
               )
           }
-        case _ => F.unit
       }
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(googleProject), appName).transaction
@@ -229,7 +227,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.appType,
         app.appResources.namespace.name,
         appMachineType,
-        Some(ctx.traceId)
+        Some(ctx.traceId),
+        enableIntraNodeVisibility
       )
       _ <- publisherQueue.offer(createAppMessage)
     } yield ()
@@ -811,8 +810,20 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject, descriptorPath: Uri)(
-    implicit ev: Ask[F, TraceId]
+  /**
+   * Short-cuit if app creation isn't allowed, and return whether or not the user's project is AoU project
+   *
+   * @param userEmail
+   * @param googleProject
+   * @param descriptorPath
+   * @param ev
+   * @return 
+   */
+  private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
+                                                   googleProject: GoogleProject,
+                                                   descriptorPath: Uri
+  )(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit] =
     if (config.enableCustomAppCheck)
       for {
@@ -829,12 +840,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       if (securityGroupValue == SECURITY_GROUP_HIGH)
                         customAppConfig.customApplicationAllowList.highSecurity
                       else customAppConfig.customApplicationAllowList.default
-                    val res =
-                      if (appAllowList.contains(descriptorPath.toString()))
-                        Right(())
-                      else
-                        Left(s"${descriptorPath.toString()} is not in app allow list.")
-                    F.pure(res)
+                    if (appAllowList.contains(descriptorPath.toString()))
+                      authProvider.isCustomAppAllowed(userEmail) map { res =>
+                        if (res) Right(())
+                        else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
+                      }
+                    else
+                      F.pure(s"${descriptorPath.toString()} is not in app allow list.".asLeft[Unit])
                   case None =>
                     authProvider.isCustomAppAllowed(userEmail) map { res =>
                       if (res) Right(())
