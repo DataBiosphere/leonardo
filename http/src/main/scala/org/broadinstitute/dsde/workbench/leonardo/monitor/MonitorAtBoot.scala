@@ -197,6 +197,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   diskIdOpt = app.appResources.disk.flatMap(d =>
                     if (d.status == DiskStatus.Creating) Some(d.id) else None
                   )
+                  enableIntraNodeVisibility = app.labels.get(AOU_UI_LABEL).isDefined
                   msg = CreateAppMessage(
                     googleProject,
                     action,
@@ -207,7 +208,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                     app.appType,
                     app.appResources.namespace.name,
                     Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
-                    Some(appContext.traceId)
+                    Some(appContext.traceId),
+                    enableIntraNodeVisibility
                   )
                 } yield msg
 

@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGooglePublisher,
   FakeGoogleResourceService
 }
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -69,23 +69,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
       )
   }
-
-  // used when we care about queue state
-  def makeInterp(queue: Queue[IO, LeoPubsubMessage],
-                 allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
-                 wsmDao: WsmDao[IO] = wsmDao
-  ) =
-    new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      allowlistAuthProvider,
-      serviceAccountProvider,
-      queue,
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
-      gkeCustomAppConfig,
-      wsmDao,
-      samDao
-    )
 
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
   val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
@@ -2223,10 +2206,88 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     thrown.appType shouldBe AppType.HailBatch
   }
 
+  "checkIfAppCreationIsAllowedAndIsAoU" should "enable IntraNodeVisibility if customApp check is disabled" in {
+    val interp = makeInterp(QueueFactory.makePublisherQueue(), enableCustomAppCheckFlag = false)
+    val res =
+      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe ()
+  }
+
+  it should "should fail if app is not in allowed list for non high security projects" in {
+    val resourceService = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map(SECURITY_GROUP -> "other")))
+    }
+    val userEmail = WorkbenchEmail("allowlist")
+    val interp = makeInterp(
+      QueueFactory.makePublisherQueue(),
+      enableCustomAppCheckFlag = true,
+      googleResourceService = resourceService,
+      customAppConfig = gkeCustomAppConfig.copy(customApplicationAllowList =
+        CustomApplicationAllowListConfig(List(), List("https://dummy"))
+      )
+    )
+    val res =
+      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
+    res.attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+      .isInstanceOf[ForbiddenError] shouldBe true
+  }
+
+  it should "should fail if app is not in allowed list for high security projects" in {
+    val resourceService = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map(SECURITY_GROUP -> "high")))
+    }
+    val userEmail = WorkbenchEmail("allowlist")
+    val interp = makeInterp(
+      QueueFactory.makePublisherQueue(),
+      enableCustomAppCheckFlag = true,
+      googleResourceService = resourceService,
+      customAppConfig = gkeCustomAppConfig.copy(customApplicationAllowList =
+        CustomApplicationAllowListConfig(List("https://dummy"), List())
+      )
+    )
+    val res =
+      interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
+    res.attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+      .isInstanceOf[ForbiddenError] shouldBe true
+  }
+
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
     val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
     withInfiniteStream(leoPublisher.process, validations)
+  }
+
+  // used when we care about queue state
+  private def makeInterp(queue: Queue[IO, LeoPubsubMessage],
+                         allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
+                         wsmDao: WsmDao[IO] = wsmDao,
+                         enableCustomAppCheckFlag: Boolean = true,
+                         googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
+                         customAppConfig: CustomAppConfig = gkeCustomAppConfig
+  ) = {
+    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag)
+
+    new LeoAppServiceInterp[IO](
+      appConfig,
+      allowlistAuthProvider,
+      serviceAccountProvider,
+      queue,
+      FakeGoogleComputeService,
+      googleResourceService,
+      customAppConfig,
+      wsmDao,
+      samDao
+    )
   }
 }
