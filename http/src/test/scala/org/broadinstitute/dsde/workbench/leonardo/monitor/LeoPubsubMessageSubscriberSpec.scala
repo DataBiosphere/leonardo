@@ -899,7 +899,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -952,7 +953,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1048,7 +1050,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         msg2 = CreateAppMessage(
           savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
@@ -1060,7 +1063,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp2.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg1)
@@ -1102,7 +1106,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
@@ -1324,7 +1329,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1430,7 +1436,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1495,7 +1502,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1574,7 +1582,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       } yield ()
@@ -1749,7 +1758,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appType,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         // send message twice
