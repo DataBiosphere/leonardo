@@ -68,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:4647ac3",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:7c9a542",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -91,7 +91,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.27.0"),
+          ChartVersion("0.28.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
