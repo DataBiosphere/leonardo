@@ -7,4 +7,4 @@ c.ServerApp.token=''
 c.ServerApp.ip=''
 c.ServerApp.allow_origin="*"
 c.ServerApp.disable_check_xsrf=True # to prevent 'xsrf missing from POST' error https://broadworkbench.atlassian.net/browse/IA-4284
-# c.ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager
+c.ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager

@@ -22,7 +22,6 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
-      _ <- logger.info(s"TESTING TESTING TESTING Jupyter host status: ${hostStatus}")
       headers <- cloudContext match {
         case _: CloudContext.Azure =>
           samDAO.getLeoAuthToken.map(x => Headers(x))
