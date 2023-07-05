@@ -557,7 +557,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             images <- clusterImageQuery.getAllForCluster(runtimeAndRuntimeConfig.runtime.id)
           } yield images.toList
         }
-      _ = println("TESTING TESTING TESTING imageTypes to monitor", imageTypes)
+      _ <- logger.info(ctx.loggingCtx)(s"TESTING TESTING TESTING imageTypes: ${imageTypes}")
       checkTools = imageTypes.traverseFilter { imageType =>
         RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType
           .get(imageType)
@@ -567,6 +567,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             ).map(b => (imageType, b))
           )
       }
+      _ <- logger.info(ctx.loggingCtx)(s"TESTING TESTING TESTING checktools: ${checkTools}")
       // wait for tools to start up before time out. Use the checkToolsInterruptAfter value if available to calculate a
       // new interval and InterruptAfter values. Else the default checkTools with an interruptAfter of 10 minutes is used.
       runtimeCheckTools = getCustomInterruptablePollMonitorConfig(monitorConfig.checkTools, checkToolsInterruptAfter)
