@@ -77,7 +77,7 @@ object LeonardoApiClient {
     None,
     Set.empty,
     Map.empty,
-    Some(15.minutes)
+    None
   )
 
   val defaultCreateDataprocRuntimeRequest = CreateRuntimeRequest(
