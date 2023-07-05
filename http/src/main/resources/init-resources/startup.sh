@@ -253,12 +253,11 @@ function failScriptIfError() {
 function validateCert() {
   certFileDirectory=$1
   ## This helps when we need to rotate certs.
-  notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+  notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul  4 20:31:52 2026 GMT`
 
-  #TODO: uncomment if after testing
+  #TODO: generate new certs and update if after testing
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-#  if [[ "$notAfter" != *"notAfter=Jun  7"* ]] ; then
-    echo "in if block for notAfter"
+  if [[ "$notAfter" != *"notAfter=Jul  4"* ]] ; then
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
@@ -284,17 +283,9 @@ function validateCert() {
       ${DOCKER_COMPOSE} --env-file=/var/variables.env "${IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     fi
 
-#    ${DOCKER_COMPOSE} --env-file=/var/variables.env -f `basename ${JUPYTER_DOCKER_COMPOSE}` restart -d
-#    if [ "$certFileDirectory" = "/etc" ]
-#    then
-#      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
-#    else
-#      ${DOCKER_COMPOSE} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
-#    fi
-
     failScriptIfError ${GSUTIL_CMD}
     retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-#  fi
+  fi
 }
 
 validateCert ${CERT_DIRECTORY}
