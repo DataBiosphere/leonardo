@@ -557,6 +557,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             images <- clusterImageQuery.getAllForCluster(runtimeAndRuntimeConfig.runtime.id)
           } yield images.toList
         }
+      _ = println("TESTING TESTING TESTING imageTypes to monitor", imageTypes)
       checkTools = imageTypes.traverseFilter { imageType =>
         RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType
           .get(imageType)
