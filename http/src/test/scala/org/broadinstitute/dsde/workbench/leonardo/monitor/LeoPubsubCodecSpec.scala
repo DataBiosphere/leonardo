@@ -127,7 +127,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       Galaxy,
       NamespaceName("ns"),
       None,
-      Some(traceId)
+      Some(traceId),
+      false
     )
 
     val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))
