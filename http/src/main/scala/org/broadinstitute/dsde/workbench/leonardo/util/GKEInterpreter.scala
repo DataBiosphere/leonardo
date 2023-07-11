@@ -6,6 +6,7 @@ import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.services.container.model
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
@@ -121,6 +122,7 @@ class GKEInterpreter[F[_]](
       kubeNetwork = KubernetesNetwork(googleProject, network)
       kubeSubNetwork = KubernetesSubNetwork(googleProject, dbCluster.region, subnetwork)
 
+      networkConfig = new model.NetworkConfig().setEnableIntraNodeVisibility(params.enableIntraNodeVisibility)
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
         .setInitialClusterVersion(config.clusterConfig.version.value)
@@ -129,6 +131,7 @@ class GKEInterpreter[F[_]](
         .setNetwork(kubeNetwork.idString)
         .setSubnetwork(kubeSubNetwork.idString)
         .setResourceLabels(Map("leonardo" -> "true").asJava)
+        .setNetworkConfig(networkConfig)
         .setNetworkPolicy(
           new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
         )
