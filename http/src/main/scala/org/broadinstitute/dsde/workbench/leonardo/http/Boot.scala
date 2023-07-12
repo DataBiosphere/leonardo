@@ -204,6 +204,14 @@ object Boot extends IOApp {
         appDependencies.wsmClientProvider
       )
 
+      val adminService = new AdminServiceInterp[IO](
+        appDependencies.authProvider,
+        appDependencies.publisherQueue,
+        gkeCustomAppConfig,
+        appDependencies.wsmDAO,
+        appDependencies.samDAO
+      )
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -213,6 +221,7 @@ object Boot extends IOApp {
         diskV2Service,
         leoKubernetesService,
         azureService,
+        adminService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig

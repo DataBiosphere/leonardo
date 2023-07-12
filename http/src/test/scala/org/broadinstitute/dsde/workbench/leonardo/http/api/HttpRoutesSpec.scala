@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeServiceDbQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.http.AdminRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
@@ -52,6 +53,7 @@ class HttpRoutesSpec
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -67,6 +69,7 @@ class HttpRoutesSpec
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -82,6 +85,7 @@ class HttpRoutesSpec
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -97,6 +101,7 @@ class HttpRoutesSpec
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -917,6 +922,18 @@ class HttpRoutesSpec
     }
   }
 
+  it should "run a basic app update request" in {
+    Post(s"/api/admin/v2/apps/update")
+      .withEntity(
+        ContentTypes.`application/json`,
+        UpdateAppsRequest(true)
+          .asJson
+          .spaces2
+      ) ~> httpRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+    }
+  }
+
   // Validate encoding/decoding of RuntimeConfigRequest types
   // TODO should these decoders move to JsonCodec in core module?
 
@@ -967,6 +984,7 @@ class HttpRoutesSpec
       MockDiskV2ServiceInterp,
       MockAppService,
       runtimev2Service,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -982,6 +1000,7 @@ class HttpRoutesSpec
       MockDiskV2ServiceInterp,
       kubernetesService,
       runtimev2Service,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

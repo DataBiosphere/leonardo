@@ -20,6 +20,8 @@ tags:
     description: Apps API v2. Support for Google Kubernetes Engine and Azure Kubernetes Service. Under active Development.
   - name: proxy
     description: Proxy API
+  - name: admin
+    description: Admin API
   - name: notebooks
     description: Notebooks API. Deprecated in favor of Proxy API.
   - name: service_info
@@ -1878,6 +1880,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  ## Admin API ##
+
+  "/api/admin/v2/apps/update":
+    post:
+      summary: Updates a designated collection of apps (both v1 and v2)
+      description: Updates apps
+      operationId: updateApps
+      tags:
+        - admin
+      requestBody:
+        $ref: "#/components/requestBodies/UpdateAppsRequest"
+      responses:
+        "202":
+            description: App(s) update request accepted
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Deprecated Notebook API ##
 
   "/notebooks/{googleProject}/{clusterName}":
@@ -2790,6 +2813,13 @@ components:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
+    UpdateAppsRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateAppsRequest"
+          example:
+            dryRun: true
 
   securitySchemes:
     oidc:
@@ -3871,6 +3901,14 @@ components:
         sourceWorkspaceId:
           type: string
           description: Optional id of source workspace if app is a clone.
+
+    UpdateAppsRequest:
+      description: a request to update a specific set of apps (v1 or v2)
+      type: object
+      properties:
+        dryRun:
+            type: boolean
+            description: If true, report on what apps would be updated but take no action.
 
     GetAppResponse:
       description: the configuration of an app
