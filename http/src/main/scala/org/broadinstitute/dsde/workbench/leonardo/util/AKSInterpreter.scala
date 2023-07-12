@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import bio.terra.workspace.api.ControlledAzureResourceApi
 import bio.terra.workspace.model._
 import cats.effect.Async
 import cats.mtl.Ask
@@ -40,7 +41,7 @@ import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.net.URL
-import java.util.Base64
+import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
@@ -118,11 +119,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                                                        kubernetesNamespace
       )
 
+      maybeCromwellDatabaseNames <- maybeCreateCromwellDatabases(app,
+                                                                 params.workspaceId,
+                                                                 params.landingZoneResources,
+                                                                 kubernetesNamespace
+      )
+
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
-      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType) match {
-        case (Some(_), _)                      => WorkloadIdentity
-        case (None, SamResourceType.SharedApp) => NoIdentity
-        case (None, _)                         => PodIdentity
+      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeCromwellDatabaseNames) match {
+        case (Some(_), _, _)                      => WorkloadIdentity
+        case (None, SamResourceType.SharedApp, _) => NoIdentity
+        case (None, _, Some(_))                   => WorkloadIdentity
+        case (None, _, _)                         => PodIdentity
       }
 
       // Authenticate helm client
@@ -188,21 +196,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
       )
 
-      // If we're configured to use pod identity with the pet for this app, resolve pet managed identity in Azure
-      // and assign the VM scale set.
-      // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity
-      // for all app types.
-      petMi <- identityType match {
-        case PodIdentity =>
+      // private apps run as the pet managed identity, get it
+      petMi <- app.samResourceId.resourceType match {
+        case SamResourceType.App =>
           for {
             msi <- buildMsiManager(params.cloudContext)
             petMi <- F.delay(
               msi.identities().getById(app.googleServiceAccount.value)
             )
-
-            // Assign the pet managed identity to the VM scale set backing the cluster node pool
-            _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
           } yield Some(petMi)
+        case _ => F.pure(None)
+      }
+
+      // If we're configured to use pod identity with the pet for this app assign pet to the VM scale set.
+      // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity
+      // for all app types.
+      _ <- (identityType, petMi) match {
+        case (PodIdentity, Some(identity)) =>
+          assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, identity)
         case _ => F.pure(None)
       }
 
@@ -245,7 +256,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
                   app.sourceWorkspaceId,
-                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+                  userToken, // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
+                  identityType,
+                  maybeCromwellDatabaseNames
                 ),
                 createNamespace = true
               )
@@ -535,9 +548,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      batchAccountKey: BatchAccountKey,
                                                      applicationInsightsConnectionString: String,
                                                      sourceWorkspaceId: Option[WorkspaceId],
-                                                     userAccessToken: String
-  ): Values =
-    Values(
+                                                     userAccessToken: String,
+                                                     identityType: IdentityType,
+                                                     maybeDatabaseNames: Option[CromwellDatabaseNames]
+  ): Values = {
+    val valuesList =
       List(
         // azure resources configs
         raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
@@ -566,6 +581,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"workloadIdentity.enabled=${identityType == WorkloadIdentity}",
+        raw"workloadIdentity.serviceAccountName=${petManagedIdentity.map(_.name).getOrElse("none")}",
 
         // Sam configs
         raw"sam.url=${config.samConfig.server}",
@@ -584,8 +601,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}"
-      ).mkString(",")
-    )
+      )
+
+    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
+      case (Some(databaseNames), Some(PostgresName(dbServer)), Some(pet)) =>
+        List(
+          raw"postgres.podLocalDatabaseEnabled=false",
+          raw"postgres.host=$dbServer.postgres.database.azure.com",
+          // convention is that the database user is the same as the service account name
+          raw"postgres.user=${pet.name()}",
+          raw"postgres.dbnames.cromwell=${databaseNames.cromwell}",
+          raw"postgres.dbnames.cbas=${databaseNames.cbas}",
+          raw"postgres.dbnames.tes=${databaseNames.tes}"
+        )
+      case _ => List.empty
+    }
+
+    Values((valuesList ++ postgresConfig).mkString(","))
+  }
 
   private[util] def buildWdsChartOverrideValues(release: Release,
                                                 appName: AppName,
@@ -876,61 +909,111 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
           .transaction
 
-        _ <- logger.info(ctx.loggingCtx)(
-          s"Creating WSM database for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+        dbName <- createDatabaseInWsm(app,
+                                      workspaceId,
+                                      namespace,
+                                      "wds",
+                                      wsmApi,
+                                      Option(createIdentityResponse.getResourceId)
         )
-
-        // Build create DB request
-        // Use the k8s namespace for the name. Note dashes aren't allowed.
-        dbName = s"db${namespace.name.value.split('-').head}"
-        databaseCommonFields = getCommonFields(dbName, s"Database for Leo app ${app.appName.value}", app)
-        createDatabaseParams = new AzureDatabaseCreationParameters()
-          .name(dbName)
-          .owner(createIdentityResponse.getResourceId)
-          .k8sNamespace(app.appResources.namespace.name.value)
-        createDatabaseJobControl = new JobControl().id(dbName)
-        createDatabaseRequest = new CreateControlledAzureDatabaseRequestBody()
-          .common(databaseCommonFields)
-          .azureDatabase(createDatabaseParams)
-          .jobControl(createDatabaseJobControl)
-
-        _ <- logger.info(ctx.loggingCtx)(s"WSM create database request: ${createDatabaseRequest}")
-
-        // Execute WSM call
-        createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
-
-        _ <- logger.info(ctx.loggingCtx)(s"WSM create database response: ${createDatabaseResponse}")
-
-        // Poll for DB creation
-        // We don't actually care about the JobReport - just that it succeeded.
-        op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName))
-        result <- streamFUntilDone(
-          op,
-          config.appMonitorConfig.createApp.maxAttempts,
-          config.appMonitorConfig.createApp.interval
-        ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
-
-        _ <- logger.info(ctx.loggingCtx)(s"WSM create database job result: ${result}")
-
-        _ <-
-          if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
-            F.raiseError(
-              AppCreationException(
-                s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
-                Some(ctx.traceId)
-              )
-            )
-          } else F.unit
-
-        // Save record in APP_CONTROLLED_RESOURCE table
-        _ <- appControlledResourceQuery
-          .save(app.id.id,
-                WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
-                WsmResourceType.AzureDatabase
-          )
-          .transaction
       } yield (Some(ServiceAccountName(identityName)), Some(dbName))
     } else F.pure((None, None))
+  }
+
+  private[util] def maybeCreateCromwellDatabases(app: App,
+                                                 workspaceId: WorkspaceId,
+                                                 landingZoneResources: LandingZoneResources,
+                                                 namespace: KubernetesNamespace
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[CromwellDatabaseNames]] = {
+    val databaseConfigEnabled = app.appType match {
+      case AppType.Cromwell => config.coaAppConfig.databaseEnabled
+      case _                => false
+    }
+    val landingZoneSupportsDatabase = landingZoneResources.postgresName.isDefined
+    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
+      for {
+        // Build WSM client
+        auth <- samDao.getLeoAuthToken
+        token <- auth.credentials match {
+          case org.http4s.Credentials.Token(_, token) => F.pure(token)
+          case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        }
+        wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+
+        cromwellDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwell", wsmApi, None)
+        cbasDb <- createDatabaseInWsm(app, workspaceId, namespace, "cbas", wsmApi, None)
+        tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
+      } yield Some(CromwellDatabaseNames(cromwellDb, cbasDb, tesDb))
+    } else F.pure(None)
+  }
+
+  private[util] def createDatabaseInWsm(app: App,
+                                        workspaceId: WorkspaceId,
+                                        namespace: KubernetesNamespace,
+                                        databaseNamePrefix: String,
+                                        wsmApi: ControlledAzureResourceApi,
+                                        owner: Option[UUID]
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[String] = {
+    // Build create DB request
+    // Use the k8s namespace for the name. Note dashes aren't allowed.
+    val dbName = s"$databaseNamePrefix${namespace.name.value.split('-').head}"
+    val databaseCommonFields =
+      getCommonFields(dbName, s"$databaseNamePrefix database for Leo app ${app.appName.value}", app)
+    val createDatabaseParams = new AzureDatabaseCreationParameters()
+      .name(dbName)
+      .k8sNamespace(app.appResources.namespace.name.value)
+    owner.foreach(createDatabaseParams.owner)
+    val createDatabaseJobControl = new JobControl().id(dbName)
+    val createDatabaseRequest = new CreateControlledAzureDatabaseRequestBody()
+      .common(databaseCommonFields)
+      .azureDatabase(createDatabaseParams)
+      .jobControl(createDatabaseJobControl)
+
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating $databaseNamePrefix database for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create database request: ${createDatabaseRequest}")
+
+      // Execute WSM call
+      createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create database response: ${createDatabaseResponse}")
+
+      // Poll for DB creation
+      // We don't actually care about the JobReport - just that it succeeded.
+      op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName))
+      result <- streamFUntilDone(
+        op,
+        config.appMonitorConfig.createApp.maxAttempts,
+        config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create database job result: ${result}")
+
+      _ <-
+        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+          F.raiseError(
+            AppCreationException(
+              s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
+              Some(ctx.traceId)
+            )
+          )
+        } else F.unit
+
+      // Save record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery
+        .save(app.id.id,
+              WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
+              WsmResourceType.AzureDatabase
+        )
+        .transaction
+    } yield dbName
   }
 
   private[util] def maybeDeleteWsmIdentityAndDatabase(app: App, workspaceId: WorkspaceId)(implicit
@@ -995,3 +1078,5 @@ final case class AKSInterpreterConfig(
   listenerImage: String,
   tdr: TdrConfig
 )
+
+final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)

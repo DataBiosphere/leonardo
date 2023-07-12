@@ -78,8 +78,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockKube = setUpMockKube
   val mockWsm = setUpMockWsmApiClientProvider
 
-  val aksInterp = new AKSInterpreter[IO](
-    config,
+  def newAksInterp(configuration: AKSInterpreterConfig) = new AKSInterpreter[IO](
+    configuration,
     MockHelm,
     mockAzureBatchService,
     mockAzureContainerService,
@@ -97,6 +97,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
     override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
   }
+
+  val aksInterp = newAksInterp(config)
 
   val cloudContext = AzureCloudContext(
     TenantId("tenant"),
@@ -151,7 +153,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
       None,
-      petUserInfo.accessToken.token
+      petUserInfo.accessToken.token,
+      IdentityType.PodIdentity,
+      None
     )
     overrides.asString shouldBe
       "config.resourceGroup=mrg," +
@@ -174,6 +178,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "identity.name=identity-name," +
       "identity.resourceId=identity-id," +
       "identity.clientId=identity-client-id," +
+      "workloadIdentity.enabled=false," +
+      "workloadIdentity.serviceAccountName=identity-name," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
@@ -183,7 +189,65 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "fullnameOverride=coa-rel-1," +
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}"
+  }
 
+  it should "build coa override values with databases" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val databaseNames = CromwellDatabaseNames("cromwell", "cbas", "tes")
+    val overrides = aksInterp.buildCromwellChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources,
+      Uri.unsafeFromString("https://relay.com/app"),
+      Some(setUpMockIdentity),
+      storageContainer,
+      BatchAccountKey("batchKey"),
+      "applicationInsightsConnectionString",
+      None,
+      petUserInfo.accessToken.token,
+      IdentityType.WorkloadIdentity,
+      Some(databaseNames)
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.batchAccountKey=batchKey," +
+      "config.batchAccountName=batch," +
+      "config.batchNodesSubnetId=subnet1," +
+      s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "relay.path=https://relay.com/app," +
+      "persistence.storageResourceGroup=mrg," +
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      "persistence.leoAppInstanceName=app," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      "workloadIdentity.enabled=true," +
+      "workloadIdentity.serviceAccountName=identity-name," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
+      "cbas.enabled=true," +
+      "cbasUI.enabled=true," +
+      "cromwell.enabled=true," +
+      "dockstore.baseUrl=https://staging.dockstore.org/," +
+      "fullnameOverride=coa-rel-1," +
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      "postgres.podLocalDatabaseEnabled=false," +
+      s"postgres.host=${lzResources.postgresName.map(_.value).get}.postgres.database.azure.com," +
+      "postgres.user=identity-name," +
+      s"postgres.dbnames.cromwell=${databaseNames.cromwell}," +
+      s"postgres.dbnames.cbas=${databaseNames.cbas}," +
+      s"postgres.dbnames.tes=${databaseNames.tes}"
   }
 
   it should "build wds override values" in {
@@ -560,7 +624,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val cluster = makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext))
     val nodepool = makeNodepool(1, cluster.id)
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
-    val res = aksInterp
+    val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true)))
       .maybeCreateWsmIdentityAndDatabase(app,
                                          workspaceId,
                                          landingZoneResources.copy(postgresName = None),
@@ -573,8 +637,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "not create a WSM database when the app does not support it" in {
     val cluster = makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext))
     val nodepool = makeNodepool(1, cluster.id)
-    val app = makeApp(1, nodepool.id).copy(appType = AppType.Cromwell)
-    val res = aksInterp
+    val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
+    val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = false)))
       .maybeCreateWsmIdentityAndDatabase(app,
                                          workspaceId,
                                          landingZoneResources,
@@ -582,6 +646,30 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res shouldBe (None, None)
+  }
+
+  it should "not create a Cromwell databases when the LZ does not support it" in {
+    val cluster = makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext))
+    val nodepool = makeNodepool(1, cluster.id)
+    val app = makeApp(1, nodepool.id).copy(appType = AppType.Cromwell)
+    val res = newAksInterp(config.copy(coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true)))
+      .maybeCreateCromwellDatabases(app,
+                                    workspaceId,
+                                    landingZoneResources.copy(postgresName = None),
+                                    KubernetesNamespace(NamespaceName("ns1"))
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe None
+  }
+
+  it should "not create a Cromwell databases when the app does not support it" in {
+    val cluster = makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext))
+    val nodepool = makeNodepool(1, cluster.id)
+    val app = makeApp(1, nodepool.id).copy(appType = AppType.Cromwell)
+    val res = newAksInterp(config.copy(coaAppConfig = config.coaAppConfig.copy(databaseEnabled = false)))
+      .maybeCreateCromwellDatabases(app, workspaceId, landingZoneResources, KubernetesNamespace(NamespaceName("ns1")))
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe None
   }
 
   private def setUpMockIdentity: Identity = {
