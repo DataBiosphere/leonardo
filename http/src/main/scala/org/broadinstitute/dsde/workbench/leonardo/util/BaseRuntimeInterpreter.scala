@@ -92,6 +92,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       // Re-upload Jupyter Docker Compose file to init bucket for updating environment variables in Jupyter
       _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, config.clusterResourcesConfig.jupyterDockerCompose)
 
+      // Re-upload jupyter certs to any new/rotated ones automatically get added to bucket
+      _ <- bucketHelper.uploadClusterCertsToInitBucket(params.initBucket)
+
       startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
                                                  params.initBucket,
                                                  welderAction
@@ -129,7 +132,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       isClusterBeforeCutoffDate = runtime.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(runtime: Runtime, initBukcet: GcsBucketName, now: Instant)(implicit
+  private def updateWelder(runtime: Runtime, initBucket: GcsBucketName, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Runtime] =
     for {
@@ -137,7 +140,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(s"Will deploy welder to runtime ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/upgrade")
 
-      _ <- bucketHelper.uploadFileToInitBucket(initBukcet, config.clusterResourcesConfig.welderDockerCompose)
+      _ <- bucketHelper.uploadFileToInitBucket(initBucket, config.clusterResourcesConfig.welderDockerCompose)
       newWelderImageUrl <- Async[F].fromEither(
         runtime.runtimeImages
           .find(_.imageType == Welder)

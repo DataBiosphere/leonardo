@@ -395,6 +395,7 @@ class GceInterpreter[F[_]](
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
+
       res <- opFutureOpt match {
         case None =>
           F.raiseError(new Exception(s"${params.runtimeAndRuntimeConfig.runtime.projectNameString} not found in GCP"))
