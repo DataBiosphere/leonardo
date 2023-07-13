@@ -500,8 +500,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_server_config.py
 
   log 'Starting Jupyter Notebook...'
-  # WARNING WARNING WARNING THIS IS SUPER HACKY
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/jupyter-notebook/jupyter-nbclassic/g' /etc/jupyter/scripts/run-jupyter.sh"
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
   # done start Jupyter
