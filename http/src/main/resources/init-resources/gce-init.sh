@@ -495,9 +495,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
        && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && mkdir -p $JUPYTER_HOME/nbconfig"
 
-  # In new jupyter images, we should update jupyter_server_config.py in terra-docker.
+  # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
   # This is to make it so that older images will still work after we change notebooks location to home dir
-  docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_server_config.py
+  docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
