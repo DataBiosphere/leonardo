@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Dispatcher
 import cats.effect.unsafe.implicits.global
@@ -13,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.httpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO.listResourceResponseDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
 import org.http4s._
@@ -43,6 +44,8 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     .maximumSize(httpSamDaoConfig.petCacheMaxSize)
     .build[UserEmailAndProject, scalacache.Entry[Option[Json]]]()
   val petTokenCache = CaffeineCache[IO, UserEmailAndProject, Option[Json]](underlyingPetTokenCache)
+  val fakeUserId = WorkbenchUserId("afakeid")
+  val fakeToken = OAuth2BearerToken(token="my fake token")
 
   "HttpSamDAO" should "get Sam ok status" in {
     val okResponse =
@@ -138,6 +141,64 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
     res.unsafeRunSync
 
+  }
+
+  it should "identify when a user is NOT an admin" in {
+    val response =
+      """
+        |{
+        |  "causes": [],
+        |  "message": "You must be an admin.",
+        |  "source": "sam",
+        |  "stackTrace": [],
+        |  "statusCode": 403
+        |}
+        |""".stripMargin
+
+    val noAdminSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Forbidden).withEntity(r))))
+    )
+    val samDao = new HttpSamDAO(noAdminSam, config, petTokenCache)
+    val res = samDao.isAdminUser(fakeUserId, fakeToken).map(s => s shouldBe false)
+
+    res.unsafeRunSync
+  }
+
+  it should "identify when a user is an admin" in {
+    val response =
+      """
+        |{
+        |  "enabled": {
+        |    "tosAccepted": true,
+        |    "google": true,
+        |    "ldap": true,
+        |    "allUsersGroup": true,
+        |    "adminEnabled": true
+        |  },
+        |  "userInfo": {
+        |    "userEmail": "someone@broadinstitute.org",
+        |    "userSubjectId": "abc123"
+        |  }
+        |}
+        |""".stripMargin
+
+    val yesAdminSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+    )
+    val samDao = new HttpSamDAO(yesAdminSam, config, petTokenCache)
+    val res = samDao.isAdminUser(fakeUserId, fakeToken).map(s => s shouldBe true)
+
+    res.unsafeRunSync
+  }
+
+  it should "throw an error when we can't tell whether the user is an admin" in {
+    val errorSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO(Response(status = Status.NotFound)))
+    )
+    val samDao = new HttpSamDAO(errorSam, config, petTokenCache)
+    val res = samDao.isAdminUser(fakeUserId, fakeToken)
+
+    assertThrows[AuthProviderException](res.unsafeRunSync)
   }
 
   it should "decode ListResourceResponse properly" in {

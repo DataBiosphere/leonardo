@@ -1,12 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 
@@ -143,6 +144,12 @@ trait SamDAO[F[_]] {
 
   /** Returns whether the provided user is a member or admin of the given Sam group. */
   def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean]
+
+  /** Uses the user's token to query Sam's admin endpoint for their own user info.
+    * Returns true of this query is successful, indicating that the user is an admin in Sam. */
+  def isAdminUser(userId: WorkbenchUserId, userToken: OAuth2BearerToken)(implicit
     ev: Ask[F, TraceId]
   ): F[Boolean]
 }

@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -399,6 +399,10 @@ class MockSamDAO extends SamDAO[IO] {
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
+
+  override def isAdminUser(userId: WorkbenchUserId, userToken: OAuth2BearerToken)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Boolean] = IO.pure(false)
 
   override def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
