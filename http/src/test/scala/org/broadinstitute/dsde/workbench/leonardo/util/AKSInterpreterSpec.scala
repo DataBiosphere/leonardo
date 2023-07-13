@@ -29,8 +29,14 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.db.{KubernetesServiceDbQueries, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appControlledResourceQuery,
+  AppControlledResourceStatus,
+  KubernetesServiceDbQueries,
+  RuntimeServiceDbQueries,
+  TestComponent
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
@@ -537,6 +543,113 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
+  for (appType <- List(AppType.Wds, AppType.Cromwell))
+    it should s"create ${appType} with wsm resources, then successfully delete them" in isolatedDbTest {
+      val mockAzureRelayService = setUpMockAzureRelayService
+
+      val aksInterp = new AKSInterpreter[IO](
+        config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
+                    coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true)
+        ),
+        MockHelm,
+        mockAzureBatchService,
+        mockAzureContainerService,
+        mockAzureApplicationInsightsService,
+        mockAzureRelayService,
+        mockSamDAO,
+        mockCromwellDAO,
+        mockCbasDAO,
+        mockCbasUiDAO,
+        mockWdsDAO,
+        mockHailBatchDAO,
+        mockKube,
+        mockWsm
+      ) {
+        override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
+
+        override private[util] def buildComputeManager(cloudContext: AzureCloudContext) =
+          IO.pure(setUpMockComputeManager)
+      }
+      val res = for {
+        cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+        nodepool <- IO(makeNodepool(1, cluster.id).save())
+        customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace",
+                            "RELAY_HYBRID_CONNECTION_NAME" -> s"app1-${workspaceId.value}"
+        )
+        app = makeApp(1, nodepool.id, customEnvironmentVariables = customEnvVars).copy(
+          appType = appType,
+          appResources = AppResources(
+            namespace = Namespace(
+              NamespaceId(-1),
+              NamespaceName("ns-1")
+            ),
+            disk = None,
+            services = List.empty,
+            kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+          ),
+          appAccessScope = Some(AppAccessScope.WorkspaceShared)
+        )
+        saveApp <- IO(app.save())
+        appId = saveApp.id
+        appName = saveApp.appName
+
+        params = CreateAKSAppParams(appId,
+                                    appName,
+                                    workspaceId,
+                                    cloudContext,
+                                    landingZoneResources,
+                                    Some(storageContainer)
+        )
+        _ <- aksInterp.createAndPollApp(params)
+        app <- KubernetesServiceDbQueries
+          .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), appName)
+          .transaction
+
+        controlledResources <- dbioToIO(
+          appControlledResourceQuery.getAllForApp(appId.id, AppControlledResourceStatus.Created)
+        ).transaction
+      } yield {
+        app shouldBe defined
+        app.get.app.status shouldBe AppStatus.Running
+        app.get.app.appAccessScope shouldBe Some(AppAccessScope.WorkspaceShared)
+        app.get.app.samResourceId.resourceType shouldBe SamResourceType.SharedApp
+        app.get.cluster.asyncFields shouldBe defined
+
+        val expectedControlledResourcesCount = appType match {
+          case AppType.Wds      => 2
+          case AppType.Cromwell => 3
+          case _                => 0
+        }
+        controlledResources.size shouldBe expectedControlledResourcesCount
+
+        app
+      }
+
+      val dbApp = res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      dbApp shouldBe defined
+      val app = dbApp.get.app
+
+      val deletion = for {
+        _ <- aksInterp.deleteApp(DeleteAKSAppParams(app.appName, workspaceId, landingZoneResources, cloudContext))
+        deletedApp <- KubernetesServiceDbQueries
+          .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
+          .transaction
+        controlledResources <- appControlledResourceQuery
+          .getAllForApp(app.id.id, AppControlledResourceStatus.Created)
+          .transaction
+      } yield {
+        controlledResources shouldBe empty
+        deletedApp shouldBe None
+        verify(mockAzureRelayService).deleteRelayHybridConnection(
+          RelayNamespace(ArgumentMatchers.eq(landingZoneResources.relayNamespace.value)),
+          RelayHybridConnectionName(ArgumentMatchers.eq(s"${app.appName.value}-${workspaceId.value}")),
+          ArgumentMatchers.eq(cloudContext)
+        )(any())
+      }
+
+      deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+
   it should "successfully delete an app with old relayHybridConnection naming convention" in isolatedDbTest {
     val mockAzureRelayService = setUpMockAzureRelayService
 
@@ -879,11 +992,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn new CreatedControlledAzureDatabaseResult().resourceId(UUID.randomUUID())
     when {
       api.getCreateAzureDatabaseResult(any, any)
-    } thenReturn new CreatedControlledAzureDatabaseResult()
-      .azureDatabase(new AzureDatabaseResource().metadata(new ResourceMetadata().resourceId(UUID.randomUUID())))
-      .jobReport(
-        new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
-      )
+    } thenAnswer { // thenAnswer is used so that the result of the call is different each time
+      _ =>
+        new CreatedControlledAzureDatabaseResult()
+          .azureDatabase(new AzureDatabaseResource().metadata(new ResourceMetadata().resourceId(UUID.randomUUID())))
+          .jobReport(
+            new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
+          )
+    }
     when {
       wsm.getControlledAzureResourceApi(any)
     } thenReturn api

@@ -410,7 +410,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Delete WSM resources associated with the app
-      _ <- maybeDeleteWsmIdentityAndDatabase(app, params.workspaceId)
+      _ <- deleteAppWsmResources(app, params.workspaceId)
 
       // Delete the namespace only after the helm uninstall completes.
       _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)
@@ -905,7 +905,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         _ <- appControlledResourceQuery
           .save(app.id.id,
                 WsmControlledResourceId(createIdentityResponse.getResourceId),
-                WsmResourceType.AzureManagedIdentity
+                WsmResourceType.AzureManagedIdentity,
+                AppControlledResourceStatus.Created
           )
           .transaction
 
@@ -1008,15 +1009,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Save record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
-        .save(app.id.id,
-              WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
-              WsmResourceType.AzureDatabase
+        .save(
+          app.id.id,
+          WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
+          WsmResourceType.AzureDatabase,
+          AppControlledResourceStatus.Created
         )
         .transaction
     } yield dbName
   }
 
-  private[util] def maybeDeleteWsmIdentityAndDatabase(app: App, workspaceId: WorkspaceId)(implicit
+  private[util] def deleteAppWsmResources(app: App, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -1029,36 +1032,36 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
-      // Delete WSM database, if present
-      wsmDatabase <- appControlledResourceQuery.getWsmRecordForApp(app.id.id, WsmResourceType.AzureDatabase).transaction
-      _ <- wsmDatabase match {
-        case None =>
-          logger
-            .info(ctx.loggingCtx)(
-              s"No WSM controlled Azure Database found for app ${app.appName.value} in workspace ${workspaceId.value}"
-            )
-        case Some(db) =>
-          logger
-            .info(ctx.loggingCtx)(
-              s"Deleting WSM database for Leo app ${app.appName.value} in workspace ${workspaceId.value}"
-            ) >> F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, db.resourceId.value))
-      }
-
-      // Delete WSM identity, if present
-      wsmIdentity <- appControlledResourceQuery
-        .getWsmRecordForApp(app.id.id, WsmResourceType.AzureManagedIdentity)
+      wsmResources <- appControlledResourceQuery
+        .getAllForApp(app.id.id, AppControlledResourceStatus.Created)
         .transaction
-      _ <- wsmIdentity match {
-        case None =>
-          logger
-            .info(ctx.loggingCtx)(
-              s"No WSM controlled Azure managed identity found for app ${app.appName.value} in workspace ${workspaceId.value}"
-            )
-        case Some(db) =>
-          logger
-            .info(ctx.loggingCtx)(
-              s"Deleting WSM managed identity for Leo app ${app.appName.value} in workspace ${workspaceId.value}"
-            ) >> F.delay(wsmApi.deleteAzureManagedIdentity(workspaceId.value, db.resourceId.value))
+
+      _ <- wsmResources.traverse { wsmResource =>
+        deleteWsmResource(workspaceId, app, wsmApi, wsmResource) >>
+          appControlledResourceQuery.delete(app.id.id, wsmResource.resourceId).transaction
+      }
+    } yield ()
+
+  private def deleteWsmResource(workspaceId: WorkspaceId,
+                                app: App,
+                                wsmApi: ControlledAzureResourceApi,
+                                wsmResource: AppControlledResourceRecord
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
+      )
+      _ <- wsmResource.resourceType match {
+        case WsmResourceType.AzureManagedIdentity =>
+          F.delay(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
+        case WsmResourceType.AzureDatabase =>
+          F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
+        case _ =>
+          // only managed identities and databases are supported for now because those are the only that exist now.
+          F.raiseError(new RuntimeException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
     } yield ()
 }
