@@ -5,7 +5,6 @@ import _root_.fs2._
 import _root_.io.circe._
 import _root_.org.typelevel.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCode._
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.{Async, Ref}
 import cats.mtl.Ask
@@ -19,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResou
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
@@ -507,21 +506,21 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           } yield admins.contains(workbenchEmail)
     } yield res
 
-  override def isAdminUser(userId: WorkbenchUserId, userToken: OAuth2BearerToken)(implicit
+  override def isAdminUser(userInfo: UserInfo)(implicit
     ev: Ask[F, TraceId]
   ): F[Boolean] = {
     // Sam's admin endpoints are protected so only admins can access them. Non-admin users get a
-    // 403 response. We don't actually care about the content we get in reponse to our request,
+    // 403 response. We don't actually care about the content we get in response to our request,
     // we only care about the status code.
     // 200 -> This is an admin user
     // 403 -> The request "succeeded" in telling us this is not an admin user
     // other -> The request failed
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userToken.token))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       status <- httpClient.status(
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/${userId.value}")),
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/${userInfo.userId.value}")),
           headers = Headers(authHeader)
         )
       )

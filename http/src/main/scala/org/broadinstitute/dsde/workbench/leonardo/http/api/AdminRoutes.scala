@@ -26,7 +26,7 @@ class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDi
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo) {
-          implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
+          implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
           pathPrefix("admin" / "v2" / "apps" / "update" ) {
             pathEndOrSingleSlash {
               post {
