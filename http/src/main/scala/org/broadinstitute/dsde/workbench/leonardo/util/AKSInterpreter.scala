@@ -578,6 +578,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
+        raw"identity.enabled=${identityType == PodIdentity}",
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
