@@ -278,8 +278,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         s"Creating ${sr.resourceType(resource).asString} resource in sam v2 for ${workspaceId}/${sr.resourceIdAsString(resource)}"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
-      // all app policies inherit from the workspace parent; there are no direct policies
-      policies = Map.empty[SamPolicyName, SamPolicyData]
+      policies = Map[SamPolicyName, SamPolicyData](
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(sr.ownerRoleName(resource)))
+      )
       parent = SerializableSamResource(SamResourceType.Workspace, WorkspaceResourceSamResourceId(workspaceId))
       _ <- httpClient
         .run(
