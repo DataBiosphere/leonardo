@@ -962,7 +962,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[String] = {
     // Build create DB request
     // Use the k8s namespace for the name. Note dashes aren't allowed.
-    val dbName = s"$databaseNamePrefix${namespace.name.value.split('-').head}"
+    val dbName = s"${databaseNamePrefix}_${namespace.name.value.split('-').head}"
     val databaseCommonFields =
       getCommonFields(dbName, s"$databaseNamePrefix database for Leo app ${app.appName.value}", app)
     val createDatabaseParams = new AzureDatabaseCreationParameters()
