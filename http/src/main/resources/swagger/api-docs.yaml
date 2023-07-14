@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "1.3.5"
+  version: "1.3.6"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -1676,7 +1676,7 @@ paths:
           schema:
             type: string
       requestBody:
-        $ref: "#/components/requestBodies/CreateAppRequest"
+        $ref: "#/components/requestBodies/CreateAppV2Request"
       responses:
         "202":
           description: App creation request has been received
@@ -2774,6 +2774,13 @@ components:
             diskConfig:
               name: "disk1"
             appType: "GALAXY"
+    CreateAppV2Request:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CreateAppRequest"
+          example:
+            appType: "CROMWELL"
     CreateAzureRuntimeRequest:
       content:
         application/json:
@@ -2803,6 +2810,8 @@ components:
         - CUSTOM
         - GALAXY
         - WDS
+        - HAIL_BATCH
+        - RSTUDIO
     AppStatus:
       type: string
       enum:
@@ -3064,7 +3073,7 @@ components:
       description: ""
       required:
         - id
-        - googleProject
+        - cloudContext
         - zone
         - name
         - status
@@ -3077,9 +3086,8 @@ components:
         id:
           type: integer
           description: Internal Leonardo ID of the persistent disk
-        googleProject:
-          type: string
-          description: The google project used to create the persistent disk
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
         zone:
           type: string
           description: The google zone in which the persistent disk was created
@@ -3158,6 +3166,7 @@ components:
             - GCE
             - CROMWELL
             - CUSTOM
+            - RSTUDIO
           description: App that formatted disk, missing if unformatted
 
     GetPersistentDiskV2Response:
@@ -3220,6 +3229,7 @@ components:
             - GCE
             - CROMWELL
             - CUSTOM
+            - RSTUDIO
           description: App that formatted disk, missing if unformatted
 
     InstanceKey:
@@ -3370,7 +3380,7 @@ components:
         imageUri:
           type: string
           description: The azure identifier for the vm image uri. Optional, there is an intelligent default. Note this must be in the same region specified in the request Ex, /subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0
-        customEnvironmentVariabales:
+        customEnvironmentVariables:
           type: object
           description: an optional set of key value pairs for environment variables to be injected into the VM
         disk:
@@ -3858,6 +3868,9 @@ components:
           items:
             type: string
           description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
+        sourceWorkspaceId:
+          type: string
+          description: Optional id of source workspace if app is a clone.
 
     GetAppResponse:
       description: the configuration of an app
@@ -3882,8 +3895,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app
@@ -3923,8 +3938,10 @@ components:
         status:
           $ref: "#/components/schemas/AppStatus"
         proxyUrls:
-          type: object
           description: map of service name to proxyUrl
+          type: object
+          additionalProperties:
+            type: string
         diskName:
           type: string
           description: the name of the disk associated with this app

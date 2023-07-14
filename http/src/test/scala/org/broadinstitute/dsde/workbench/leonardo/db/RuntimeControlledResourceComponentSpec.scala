@@ -17,7 +17,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime = makeCluster(1)
@@ -48,7 +48,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime = makeCluster(1)
@@ -75,7 +75,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime1 = makeCluster(1)

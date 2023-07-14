@@ -43,7 +43,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("/leonardo/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("2.5.1")
+  val galaxyChartVersion = ChartVersion("2.5.2")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -53,7 +53,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.218")
+  val coaChartVersion = ChartVersion("0.2.277")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -73,8 +73,12 @@ object KubernetesTestData {
     Map.empty,
     Map.empty,
     None,
-    List.empty
+    List.empty,
+    None
   )
+
+  val customEnvironmentVariables =
+    Map("WORKSPACE_NAME" -> "testWorkspace", "RELAY_HYBRID_CONNECTION_NAME" -> s"app1-${workspaceId.value}")
 
   val testCluster = makeKubeCluster(1)
   val testNodepool = makeNodepool(1, testCluster.id)
@@ -98,7 +102,9 @@ object KubernetesTestData {
       )
       .toVector
 
-  def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest], customEnvVars: Map[String, String]) =
+  def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest],
+                               customEnvVars: Map[String, String] = customEnvironmentVariables
+  ) =
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
@@ -107,7 +113,8 @@ object KubernetesTestData {
       labels = Map.empty,
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
-      extraArgs = List.empty
+      extraArgs = List.empty,
+      None
     )
 
   def makeNodepool(index: Int,
@@ -186,7 +193,7 @@ object KubernetesTestData {
 
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,
-              customEnvironmentVariables: Map[String, String] = Map.empty,
+              customEnvironmentVariables: Map[String, String] = customEnvironmentVariables,
               status: AppStatus = AppStatus.Unspecified,
               appType: AppType = galaxyApp,
               workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID()),
@@ -221,7 +228,8 @@ object KubernetesTestData {
       List.empty,
       customEnvironmentVariables,
       None,
-      List.empty
+      List.empty,
+      None
     )
   }
 

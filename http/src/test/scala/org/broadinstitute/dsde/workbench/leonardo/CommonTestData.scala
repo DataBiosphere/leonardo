@@ -145,8 +145,10 @@ object CommonTestData {
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
   val applicationConfig = Config.applicationConfig
-  val allowlistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
-  val allowlist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  val allowlistAuthConfig = config.getConfig("auth.allowlistProviderConfig")
+  val allowlistAuthConfig2 = config.getConfig("auth.allowlistProviderConfig2")
+  val allowlist = config.as[Set[String]]("auth.allowlistProviderConfig.allowlist").map(_.toLowerCase)
+  val allowlist2 = config.as[Set[String]]("auth.allowlistProviderConfig2.allowlist").map(_.toLowerCase)
   // Let's not use this pattern and directly use `Config.???` going forward :)
   // By using Config.xxx, we'll be actually testing our Config.scala code as well
   val dataprocConfig = Config.dataprocConfig
@@ -233,7 +235,7 @@ object CommonTestData {
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
-  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
+  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
@@ -473,6 +475,7 @@ object CommonTestData {
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider
   val allowListAuthProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider)
+  val allowListAuthProvider2 = new AllowlistAuthProvider(allowlistAuthConfig2, serviceAccountProvider)
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),
@@ -562,14 +565,11 @@ object CommonTestData {
     RelayNamespace("lznamespace"),
     StorageAccountName("lzstorage"),
     NetworkName("lzvnet"),
-    PostgresName("lzpostgres"),
-    LogAnalyticsWorkspaceName("lzloganalytics"),
     SubnetworkName("batchsub"),
     SubnetworkName("akssub"),
-    SubnetworkName("postgressub"),
-    SubnetworkName("computesub"),
     azureRegion,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresName("postgres"))
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.proxyUrlBase
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{proxyUrlBase, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeKubeCluster,
   makeService,
@@ -77,13 +77,13 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
     val app = LeoLenses.appToServices.modify(_ => services)(testApp)
     app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
       ServiceName("service1") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}/service1"
+        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service1"
       ),
       ServiceName("service2") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}/service2"
+        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service2"
       ),
       ServiceName("service3") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}/service3"
+        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service3"
       )
     )
   }
@@ -107,7 +107,7 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
     val app = LeoLenses.appToServices.modify(_ => List(service))(testApp)
     app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
       ServiceName("service1") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}/"
+        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/"
       )
     )
   }

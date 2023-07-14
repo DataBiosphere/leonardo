@@ -16,21 +16,19 @@ set -e -x
 # the image tags are set via jenkins automation
 #
 
-# The versions below don't matter; they are replaced by the Jenkins job
-terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.11"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.1.7"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.1.8"
-terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.24"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.2.9"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.17"
+terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.15"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.1.10"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.1.11"
+terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.27"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.2.14"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.22"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
-anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.16.0"
+anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.17.0"
 
-# The _old variables are NOT replaced by the Jenkins job; they must be manually updated
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.15"
 
-# Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
+# If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
 
 # this array determines which of the above images are baked into the custom image

@@ -3,7 +3,7 @@ package db
 
 import _root_.liquibase.database.jvm.JdbcConnection
 import _root_.liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
-import _root_.liquibase.{Contexts, Liquibase}
+import _root_.liquibase.{Contexts, LabelExpression, Liquibase}
 import cats.effect.std.Semaphore
 import cats.effect.{Async, Resource}
 import cats.syntax.all._
@@ -31,7 +31,8 @@ object DbReference extends LazyLogging {
       val liquibase = new Liquibase(liquibaseConfig.changelog, resourceAccessor, liquibaseConnection)
 
       changelogParameters.foreach { case (key, value) => liquibase.setChangeLogParameter(key, value) }
-      liquibase.update(new Contexts())
+
+      liquibase.update(new Contexts(), new LabelExpression())
     } catch {
       case e: SQLTimeoutException =>
         val isCertProblem = Throwables.getRootCause(e).isInstanceOf[SunCertPathBuilderException]
@@ -111,6 +112,7 @@ object DataAccess {
       TableQuery[ScopeTable].delete andThen
       TableQuery[PatchTable].delete andThen
       TableQuery[RuntimeControlledResourceTable].delete andThen
+      TableQuery[AppControlledResourceTable].delete andThen
       TableQuery[ClusterTable].delete andThen
       RuntimeConfigQueries.runtimeConfigs.delete andThen
       persistentDiskQuery.nullifyDiskIds andThen

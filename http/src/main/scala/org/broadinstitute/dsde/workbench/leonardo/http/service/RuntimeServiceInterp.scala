@@ -990,7 +990,7 @@ object RuntimeServiceInterp {
               case Some(formattedBy) =>
                 if (willBeUsedBy == formattedBy) {
                   formattedBy match {
-                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.RStudio =>
                       appQuery.isDiskAttached(pd.id).transaction
                     case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   }
@@ -1093,7 +1093,7 @@ object RuntimeServiceInterp {
               case Some(formattedBy) =>
                 if (willBeUsedBy == formattedBy) {
                   formattedBy match {
-                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.RStudio =>
                       appQuery.isDiskAttached(pd.id).transaction
                     case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   }
@@ -1204,7 +1204,7 @@ final case class DiskNotSupportedException(traceId: TraceId)
 
 final case class DiskAlreadyAttachedException(cloudContext: CloudContext, name: DiskName, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already attached to another runtime",
+      s"Your persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already attached to another runtime. You might need to wait a few minutes if you just deleted a runtime.",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

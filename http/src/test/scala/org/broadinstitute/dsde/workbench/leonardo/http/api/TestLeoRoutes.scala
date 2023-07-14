@@ -12,8 +12,8 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, Mo
 import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{
   KubernetesDnsCache,
@@ -36,8 +36,14 @@ import java.io.ByteArrayInputStream
 import java.time.Instant
 import scala.concurrent.duration._
 import scala.util.matching.Regex
+import org.scalatestplus.mockito.MockitoSugar
 trait TestLeoRoutes {
-  this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
+  this: ScalatestRouteTest
+    with Matchers
+    with ScalaFutures
+    with LeonardoTestSuite
+    with TestComponent
+    with MockitoSugar =>
   implicit val timeout = RouteTestTimeout(20 seconds)
 
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
@@ -56,6 +62,7 @@ trait TestLeoRoutes {
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val wsmDao = new MockWsmDAO
+  val wsmClientProvider = mock[HttpWsmClientProvider]
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
     petMock.buckets += userScriptBucketName -> Set(
@@ -121,12 +128,14 @@ trait TestLeoRoutes {
   )
 
   val runtimev2Service =
-    new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   allowListAuthProvider,
-                                   new MockWsmDAO,
-                                   new MockSamDAO,
-                                   QueueFactory.makePublisherQueue(),
-                                   QueueFactory.makeDateAccessedQueue()
+    new RuntimeV2ServiceInterp[IO](
+      serviceConfig,
+      allowListAuthProvider,
+      new MockWsmDAO,
+      new MockSamDAO,
+      QueueFactory.makePublisherQueue(),
+      QueueFactory.makeDateAccessedQueue(),
+      wsmClientProvider
     )
 
   val underlyingRuntimeDnsCache =
@@ -168,7 +177,7 @@ trait TestLeoRoutes {
   val statusService =
     new StatusService(mockSamDAO, testDbRef, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
-  val corsSupport = new CorsSupport(contentSecurityPolicy)
+  val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   val statusRoutes = new StatusRoutes(statusService)
   val userInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo

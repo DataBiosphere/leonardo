@@ -899,7 +899,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -952,7 +953,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1048,7 +1050,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         msg2 = CreateAppMessage(
           savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
@@ -1060,7 +1063,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp2.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg1)
@@ -1102,7 +1106,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
@@ -1235,6 +1240,7 @@ class LeoPubsubMessageSubscriberSpec
     }
     val gkeInter = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       mockKubernetesService,
@@ -1323,7 +1329,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1399,6 +1406,7 @@ class LeoPubsubMessageSubscriberSpec
     }
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       mockKubernetesService,
@@ -1428,7 +1436,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1493,7 +1502,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1542,6 +1552,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       mockGKEService,
       new MockKubernetesService(PodStatus.Succeeded),
@@ -1571,7 +1582,8 @@ class LeoPubsubMessageSubscriberSpec
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
           None,
-          Some(tr)
+          Some(tr),
+          false
         )
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       } yield ()
@@ -1644,6 +1656,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       new MockKubernetesService(),
@@ -1745,7 +1758,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appType,
           savedApp1.appResources.namespace.name,
           Some(AppMachineType(5, 4)),
-          Some(tr)
+          Some(tr),
+          false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         // send message twice
@@ -1846,7 +1860,7 @@ class LeoPubsubMessageSubscriberSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -1900,7 +1914,7 @@ class LeoPubsubMessageSubscriberSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -1942,7 +1956,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime <- IO(
@@ -1967,7 +1981,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime <- IO(
@@ -2004,6 +2018,7 @@ class LeoPubsubMessageSubscriberSpec
   ): GKEInterpreter[IO] =
     new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       new MockKubernetesService(PodStatus.Succeeded, appRelease = appRelease),
@@ -2081,7 +2096,8 @@ class LeoPubsubMessageSubscriberSpec
       new MockJupyterDAO(),
       relayService,
       azureVmService,
-      new MockAKSInterp()
+      new MockAKSInterp(),
+      refererConfig
     )
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =

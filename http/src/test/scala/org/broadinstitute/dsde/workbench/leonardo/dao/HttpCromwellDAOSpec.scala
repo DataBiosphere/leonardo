@@ -6,7 +6,6 @@ import cats.effect.unsafe.implicits.global
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpCromwellDAO.statusDecoder
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
@@ -14,7 +13,7 @@ import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite with TestComponent {
+class HttpCromwellDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   "HttpCromwellDAO" should "decode cromwell status endpoint response successfully" in {
     val response =
       """

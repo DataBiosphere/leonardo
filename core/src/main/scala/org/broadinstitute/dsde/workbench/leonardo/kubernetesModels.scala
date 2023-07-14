@@ -322,6 +322,14 @@ object AppType {
     override def toString: String = "WDS"
   }
 
+  case object HailBatch extends AppType {
+    override def toString: String = "HAIL_BATCH"
+  }
+
+  case object RStudio extends AppType {
+    override def toString: String = "RSTUDIO"
+  }
+
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
@@ -329,14 +337,17 @@ object AppType {
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 
-  /** Host formatting for an App. Currently, for Azure there is only 1 configuration,
-   * and FormattedBy.Cromwell is expected. */
+  /**
+   * Disk formatting for an App. Currently, only Galaxy, RStudio and Custom app types
+   * support disk management. So we default all other app types to Cromwell,
+   * but the field is unused.
+   */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy   => FormattedBy.Galaxy
-      case Cromwell => FormattedBy.Cromwell
-      case Custom   => FormattedBy.Custom
-      case Wds      => FormattedBy.Cromwell
+      case Galaxy                     => FormattedBy.Galaxy
+      case Custom                     => FormattedBy.Custom
+      case RStudio                    => FormattedBy.RStudio
+      case Cromwell | Wds | HailBatch => FormattedBy.Cromwell
     }
 }
 
@@ -385,7 +396,8 @@ final case class App(id: AppId,
                      errors: List[AppError],
                      customEnvironmentVariables: Map[String, String],
                      descriptorPath: Option[Uri],
-                     extraArgs: List[String]
+                     extraArgs: List[String],
+                     sourceWorkspaceId: Option[WorkspaceId]
 ) {
 
   def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =
@@ -393,12 +405,17 @@ final case class App(id: AppId,
       // A service can optionally define a path; otherwise, use the name.
       val leafPath = service.config.path.map(_.value).getOrElse(s"/${service.config.name.value}")
       // GCP uses a Leo proxy endpoint: e.g. https://notebooks.firecloud.org/google/v1/apps/{project}/{app}/{service}
-      // Azure uses Azure relay: e.g. https://{namespace}.servicebus.windows.net/{app}/{service}
+      // Azure uses Azure relay: e.g. https://{namespace}.servicebus.windows.net/{app}-{workspaceId}/{service}
       val proxyPathOpt = cluster.cloudContext match {
         case CloudContext.Gcp(project) =>
           Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
         case CloudContext.Azure(_) =>
-          cluster.asyncFields.map(_.loadBalancerIp.asString).map(base => s"${base}${appName.value}${leafPath}")
+          // for backwards compatibility, name used to be just the appName
+          cluster.asyncFields
+            .map(_.loadBalancerIp.asString)
+            .map(base =>
+              s"${base}${customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", appName.value)}${leafPath}"
+            )
         case _ =>
           None
       }

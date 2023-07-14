@@ -139,6 +139,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = ???
 
+  override def isUserWorkspaceReader(workspaceResource: WorkspaceResourceSamResourceId, userInfo: UserInfo)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Boolean] = ???
+
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
   ): IO[WorkbenchEmail] = ???
@@ -160,6 +164,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   ): IO[Unit] = ???
 
   override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Set[WorkspaceResourceSamResourceId]] = ???
+
+  override def filterWorkspaceReader(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
   ): IO[Set[WorkspaceResourceSamResourceId]] = ???
 }

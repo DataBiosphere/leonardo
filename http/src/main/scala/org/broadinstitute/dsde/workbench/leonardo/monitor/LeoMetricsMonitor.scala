@@ -6,14 +6,16 @@ import cats.effect.implicits.concurrentParTraverseOps
 import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import io.kubernetes.client.custom.Quantity
+import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, AzureContainerService}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.LeoLenses.cloudContextToManagedResourceGroup
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ToolDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetric._
-import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
+import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, KubernetesAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.headers.Authorization
@@ -22,6 +24,7 @@ import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
+import scala.jdk.CollectionConverters._
 
 /** Collects metrics about active Leo runtimes and apps. */
 class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
@@ -30,7 +33,10 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               cbasDAO: CbasDAO[F],
                               cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
-                              samDAO: SamDAO[F]
+                              hailBatchDAO: HailBatchDAO[F],
+                              samDAO: SamDAO[F],
+                              kubeAlg: KubernetesAlgebra[F],
+                              azureContainerService: AzureContainerService[F]
 )(implicit
   F: Async[F],
   dbRef: DbReference[F],
@@ -68,6 +74,12 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     appHealth <- countAppsByHealth(clusters)
     _ <- recordMetric(appHealth)
     _ <- logger.info(s"Recorded health metrics for ${appHealth.size} apps")
+    appResources <- getAppK8sResources(clusters)
+    _ <- recordMetric(appResources)
+    _ <- logger.info(s"Recorded ${appResources.size} app k8s resources")
+    nodepoolSize <- getNodepoolSize(clusters)
+    _ <- recordMetric(nodepoolSize)
+    _ <- logger.info(s"Recorded size for ${nodepoolSize.size} Azure nodepools")
   } yield ()
 
   /** Queries the DB for all active runtimes and collects metrics */
@@ -82,10 +94,10 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     _ <- logger.info(s"Recorded health metrics for ${runtimeHealth.size} runtimes")
   } yield ()
 
-  /** Transforms DB apps to AppStatusMetric and computes counts. */
+  /** Counts apps by (cloud, appType, status, chart) */
   private[monitor] def countAppsByDbStatus(
     allClusters: List[KubernetesCluster]
-  ): Map[AppStatusMetric, Int] = {
+  ): Map[AppStatusMetric, Double] = {
     val allApps = for {
       c <- allClusters
       n <- c.nodepools
@@ -97,7 +109,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                       getRuntimeUI(a.labels),
                       getAzureCloudContext(c.cloudContext),
                       a.chart
-      ) -> 1
+      ) -> 1d
     )
 
     // combineAll folds a List[Map[metric -> 1]] structure to a Map[metric -> n]
@@ -105,8 +117,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     allApps.combineAll
   }
 
-  /** Transforms DB runtimes to RuntimeStatusMetric and computes counts. */
-  private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeMetrics]): Map[RuntimeStatusMetric, Int] = {
+  /** Counts runtimes by (cloud, status, image) */
+  private[monitor] def countRuntimesByDbStatus(allRuntimes: List[RuntimeMetrics]): Map[RuntimeStatusMetric, Double] = {
     val allContainers = for {
       r <- allRuntimes
       // Only care about Jupyter, RStudio, or Azure image types.
@@ -120,15 +132,18 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                           r.status,
                           getRuntimeUI(r.labels),
                           getAzureCloudContext(r.cloudContext)
-      ) -> 1
+      ) -> 1d
     )
     allContainers.combineAll
   }
 
-  /** Performs health checks for Running apps, and transforms to AppHealthMetric. */
+  /**
+   * Performs health checks for Running apps, and counts healthy vs not-healthy
+   * by (cloud, appType, chart).
+   */
   private[monitor] def countAppsByHealth(
     allClusters: List[KubernetesCluster]
-  )(implicit ev: Ask[F, AppContext]): F[Map[AppHealthMetric, Int]] = {
+  )(implicit ev: Ask[F, AppContext]): F[Map[AppHealthMetric, Double]] = {
     val allServices = for {
       c <- allClusters if c.asyncFields.isDefined
       n <- c.nodepools
@@ -154,13 +169,14 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                   AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
                 )
                 authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-                relayPath = Uri.unsafeFromString(baseUri.asString) / app.appName.value
+                relayPath = Uri
+                  .unsafeFromString(baseUri.asString) / s"${app.appName.value}-${app.workspaceId.map(_.value.toString).getOrElse("")}"
                 isUp <- serviceName match {
-                  case ServiceName("wds") =>
-                    wdsDAO.getStatus(relayPath, authHeader, app.appType).handleError(_ => false)
                   case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cbas-ui")  => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("batch")    => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case s =>
                     logger.warn(ctx.loggingCtx)(
                       s"Unexpected app service encountered during health checks: ${s.value}"
@@ -188,7 +204,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                           getAzureCloudContext(cloudContext),
                           isUp,
                           app.chart
-          ) -> 1,
+          ) -> 1d,
           AppHealthMetric(cloudContext.cloudProvider,
                           app.appType,
                           serviceName,
@@ -196,16 +212,19 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                           getAzureCloudContext(cloudContext),
                           !isUp,
                           app.chart
-          ) -> 0
+          ) -> 0d
         )
       }
       .map(_.combineAll)
   }
 
-  /** Performs health checks for Running runtimes, and transforms to RuntimeHealthMetric. */
+  /**
+   * Performs health checks for Running runtimes, and counts healthy vs not-healthy by
+   * (cloud, image).
+   */
   private[monitor] def countRuntimesByHealth(
     allRuntimes: List[RuntimeMetrics]
-  )(implicit ev: Ask[F, AppContext]): F[Map[RuntimeHealthMetric, Int]] = {
+  )(implicit ev: Ask[F, AppContext]): F[Map[RuntimeHealthMetric, Double]] = {
     val allContainers = for {
       // Only care about Running runtimes for health checks
       r <- allRuntimes if r.status == RuntimeStatus.Running
@@ -237,22 +256,143 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               getRuntimeUI(runtime.labels),
                               getAzureCloudContext(runtime.cloudContext),
                               isUp
-          ) -> 1,
+          ) -> 1d,
           RuntimeHealthMetric(runtime.cloudContext.cloudProvider,
                               image.imageType,
                               image.imageUrl,
                               getRuntimeUI(runtime.labels),
                               getAzureCloudContext(runtime.cloudContext),
                               !isUp
-          ) -> 0
+          ) -> 0d
         )
+      }
+      .map(_.combineAll)
+  }
+
+  /**
+   * Records the nodepool size per cluster.
+   * Only AKS supported.
+   */
+  private[monitor] def getNodepoolSize(
+    allClusters: List[KubernetesCluster]
+  )(implicit ev: Ask[F, AppContext]): F[Map[NodepoolSizeMetric, Double]] = {
+    // TODO: handle GCP
+    val activeClusters = for {
+      c <- allClusters
+      // Filter out clusters whose apps have all been deleted
+      if c.cloudContext.cloudProvider == CloudProvider.Azure && c.nodepools
+        .flatMap(_.apps)
+        .exists(a => a.status != AppStatus.Deleted)
+    } yield List(c)
+
+    activeClusters.combineAll
+      .parTraverseN(parallelism) { case cluster =>
+        for {
+          ctx <- ev.ask
+          azureCloudContext <- F.fromOption(
+            cloudContextToManagedResourceGroup.get(cluster.cloudContext),
+            new RuntimeException(s"Azure cloud context not found for cluster ${cluster}: ${ctx.traceId}")
+          )
+          clusterName = AKSClusterName(cluster.clusterName.value)
+          cluster <- azureContainerService.getCluster(clusterName, azureCloudContext).attempt
+          res <- cluster match {
+            case Left(_) =>
+              logger
+                .warn(ctx.loggingCtx)(
+                  s"Cluster ${azureCloudContext.asString} / ${clusterName} does not exist. Skipping metrics collection."
+                )
+                .as(List.empty[Map[NodepoolSizeMetric, Double]])
+            case Right(c) =>
+              F.delay(c.agentPools().asScala.toList.map { case (name, pool) =>
+                Map(NodepoolSizeMetric(azureCloudContext, name) -> pool.count.doubleValue)
+              })
+          }
+        } yield res.combineAll
+      }
+      .map(_.combineAll)
+  }
+
+  /**
+   * Records memory/cpu requests/limits by (cloud, appType, service).
+   * Only Azure apps supported.
+   */
+  private[monitor] def getAppK8sResources(allClusters: List[KubernetesCluster])(implicit
+    ev: Ask[F, AppContext]
+  ): F[Map[AppResourcesMetric, Double]] = {
+    val allServices = for {
+      // TODO: handle GCP
+      c <- allClusters if c.cloudContext.cloudProvider == CloudProvider.Azure
+      n <- c.nodepools
+      // Only care about Running apps for resource metrics
+      a <- n.apps if a.status == AppStatus.Running
+    } yield Map((c.clusterName, c.cloudContext) -> List(a))
+
+    allServices.combineAll.toList
+      .parTraverseN(parallelism) { case ((clusterName, cloudContext), apps) =>
+        for {
+          ctx <- ev.ask
+
+          // Build k8s client
+          azureCloudContext <- F.fromOption(
+            cloudContextToManagedResourceGroup.get(cloudContext),
+            new RuntimeException(s"Azure cloud context not found for cluster ${clusterName}: ${ctx.traceId}")
+          )
+          aksClusterName = AKSClusterName(clusterName.value)
+          client <- kubeAlg.createAzureClient(azureCloudContext, aksClusterName).attempt
+
+          res <- client match {
+            case Left(_) =>
+              logger
+                .warn(ctx.loggingCtx)(
+                  s"Cluster ${azureCloudContext.asString} / ${clusterName} does not exist. Skipping metrics collection."
+                )
+                .as(List.empty[Map[AppResourcesMetric, Double]])
+            case Right(client) =>
+              // For each app, query pods by leoAppName label and services by leoServiceName label.
+              // These labels are required for exposing Leo metrics.
+              apps.traverse { app =>
+                val namespace = app.appResources.namespace
+                val labelSelector = s"leoAppName=${app.appName.value}"
+                for {
+                  pods <- F.delay(
+                    client.listNamespacedPod(namespace.name.value,
+                                             null,
+                                             null,
+                                             null,
+                                             null,
+                                             labelSelector,
+                                             null,
+                                             null,
+                                             null,
+                                             null,
+                                             null
+                    )
+                  )
+                  res = pods.getItems.asScala.flatMap { pod =>
+                    pod.getMetadata.getLabels.asScala.get("leoServiceName").toList.flatMap { service =>
+                      pod.getSpec.getContainers.asScala.flatMap { container =>
+                        val resources = Option(container.getResources)
+                        val requests = resources.flatMap(r => Option(r.getRequests)).map(_.asScala.toList)
+                        val limits = resources.flatMap(r => Option(r.getLimits)).map(_.asScala.toList)
+                        val requestMetrics = buildResourcesMetric(cloudContext, app, service, "request", requests)
+                        val limitMetrics = buildResourcesMetric(cloudContext, app, service, "limit", limits)
+                        requestMetrics ++ limitMetrics
+                      }
+                    }
+                  }
+                } yield res.toList.combineAll
+              }
+
+          }
+
+        } yield res.combineAll
       }
       .map(_.combineAll)
   }
 
   /** Records and logs a generic AppMetric */
   private[monitor] def recordMetric[T <: LeoMetric](
-    appMetric: Map[T, Int]
+    appMetric: Map[T, Double]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     appMetric.toList
       .parTraverseN(parallelism) { case (metric, count) =>
@@ -278,6 +418,27 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       case (true, CloudContext.Azure(cc)) => Some(cc)
       case _                              => None
     }
+
+  private def buildResourcesMetric(cloudContext: CloudContext,
+                                   app: App,
+                                   service: String,
+                                   requestOrLimit: String,
+                                   resources: Option[List[(String, Quantity)]]
+  ): List[Map[AppResourcesMetric, Double]] =
+    resources
+      .map(_.map { case (resource, quantity) =>
+        Map(
+          AppResourcesMetric(cloudContext.cloudProvider,
+                             app.appType,
+                             ServiceName(service),
+                             getRuntimeUI(app.labels),
+                             getAzureCloudContext(cloudContext),
+                             requestOrLimit,
+                             resource
+          ) -> quantity.getNumber.doubleValue() // TODO are units consistent?
+        )
+      })
+      .getOrElse(List.empty)
 }
 
 case class LeoMetricsMonitorConfig(enabled: Boolean, checkInterval: FiniteDuration, includeAzureCloudContext: Boolean)
@@ -326,6 +487,34 @@ object LeoMetric {
     )
   }
 
+  final case class AppResourcesMetric(cloudProvider: CloudProvider,
+                                      appType: AppType,
+                                      serviceName: ServiceName,
+                                      runtimeUI: RuntimeUI,
+                                      azureCloudContext: Option[AzureCloudContext],
+                                      requestOrLimit: String,
+                                      k8sResource: String
+  ) extends LeoMetric {
+    override def name: String = "leoAppResources"
+    override def tags: Map[String, String] = Map(
+      "cloudProvider" -> cloudProvider.asString,
+      "appType" -> appType.toString,
+      "serviceName" -> serviceName.value,
+      "uiClient" -> runtimeUI.asString,
+      "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
+      "requestOrLimit" -> requestOrLimit,
+      "k8sResource" -> k8sResource
+    )
+  }
+
+  final case class NodepoolSizeMetric(azureCloudContext: AzureCloudContext, nodepoolName: String) extends LeoMetric {
+    override def name: String = "leoNodepoolSize"
+    override def tags: Map[String, String] = Map(
+      "azureCloudContext" -> azureCloudContext.asString,
+      "nodepoolName" -> nodepoolName
+    )
+  }
+
   final case class RuntimeStatusMetric(cloudProvider: CloudProvider,
                                        imageType: RuntimeImageType,
                                        imageUrl: String,
@@ -363,4 +552,5 @@ object LeoMetric {
         "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse("")
       )
   }
+
 }

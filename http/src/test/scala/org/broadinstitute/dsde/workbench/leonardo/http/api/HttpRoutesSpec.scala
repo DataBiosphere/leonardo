@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, 
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.duration._
 
@@ -36,7 +37,8 @@ class HttpRoutesSpec
     with ScalaFutures
     with Matchers
     with TestComponent
-    with TestLeoRoutes {
+    with TestLeoRoutes
+    with MockitoSugar {
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
 
@@ -67,7 +69,37 @@ class HttpRoutesSpec
       new MockRuntimeV2Interp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      RefererConfig(Set("https://bvdp-saturn-dev.appspot.com/"), true)
+      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
+    )
+
+  val routesWithWildcardReferer =
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
+    )
+
+  val routesWithDisabledRefererConfig =
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      RefererConfig(Set.empty, false)
     )
 
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
@@ -90,14 +122,43 @@ class HttpRoutesSpec
     val req = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
       Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "random"), Map.empty, Map.empty, Map.empty))
     )
+    val validReq = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
+      Some(
+        UserJupyterExtensionConfig(
+          Map("saturn-iframe-extension" -> s"https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"),
+          Map.empty,
+          Map.empty,
+          Map.empty
+        )
+      )
+    )
+
+    // Fail with saturn-iframe-extension outside of strict referer allowlist
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithStrictRefererConfig.route ~> check {
       status shouldEqual StatusCodes.BadRequest
       responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe true
     }
 
+    // Succeed with saturn-iframe-extension in strict allowlist
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
-      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      .withEntity(ContentTypes.`application/json`,
+                  validReq.asJson.spaces2
+      ) ~> routesWithStrictRefererConfig.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+
+    // Succeed with permissive allowlist (has wildcard *)
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routesWithWildcardReferer.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+
+    // Succeed with disabled allowlist
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`,
+                  req.asJson.spaces2
+      ) ~> routesWithDisabledRefererConfig.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
   }

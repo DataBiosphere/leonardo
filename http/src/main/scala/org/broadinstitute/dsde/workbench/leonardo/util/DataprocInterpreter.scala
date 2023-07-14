@@ -154,9 +154,9 @@ class DataprocInterpreter[F[_]: Parallel](
           .compile
           .drain
 
-        resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
-                                                            machineConfig.masterMachineType,
-                                                            machineConfig.region
+        jupyterResourceConstraints <- getDataprocRuntimeResourceContraints(params.runtimeProjectAndName,
+                                                                           machineConfig.masterMachineType,
+                                                                           machineConfig.region
         )
 
         templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
@@ -169,7 +169,7 @@ class DataprocInterpreter[F[_]: Parallel](
           config.proxyConfig,
           config.clusterFilesConfig,
           config.clusterResourcesConfig,
-          Some(resourceConstraints),
+          Some(jupyterResourceConstraints),
           false
         )
         templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now), false)
@@ -267,7 +267,11 @@ class DataprocInterpreter[F[_]: Parallel](
               .getOrElse((None, None))
           } else (None, None)
 
-        softwareConfig = getSoftwareConfig(googleProject, params.runtimeProjectAndName.runtimeName, machineConfig)
+        softwareConfig = getSoftwareConfig(googleProject,
+                                           params.runtimeProjectAndName.runtimeName,
+                                           machineConfig,
+                                           jupyterResourceConstraints
+        )
 
         // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
         // See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
@@ -462,7 +466,7 @@ class DataprocInterpreter[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
       )
-      resourceConstraints <- getClusterResourceContraints(
+      resourceConstraints <- getDataprocRuntimeResourceContraints(
         RuntimeProjectAndName(params.runtimeAndRuntimeConfig.runtime.cloudContext,
                               params.runtimeAndRuntimeConfig.runtime.runtimeName
         ),
@@ -741,9 +745,9 @@ class DataprocInterpreter[F[_]: Parallel](
       List(deleteBucket, deleteCluster, removeIamRoles).parSequence_
     }
 
-  private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
-                                                     machineType: MachineTypeName,
-                                                     region: RegionName
+  private[leonardo] def getDataprocRuntimeResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
+                                                             machineType: MachineTypeName,
+                                                             region: RegionName
   )(implicit
     ev: Ask[F, AppContext]
   ): F[RuntimeResourceConstraints] =
@@ -769,11 +773,19 @@ class DataprocInterpreter[F[_]: Parallel](
       _ <- logger.debug(ctx.loggingCtx)(s"Resolved machine type: ${resolvedMachineType.toString}")
       total = MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
     } yield {
-      // total - dataproc allocated - welder allocated
-      val dataprocAllocated = config.dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
-      val welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
-      val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
-      RuntimeResourceConstraints(result)
+      // For dataproc, we don't need much memory for Jupyter.
+
+      // Hail reserves about 80% of memory available to the machine to the JVM.
+      val sparkMemoryConfigRatio = config.dataprocConfig.sparkMemoryConfigRatio.getOrElse(0.8)
+      // We still want a minimum to run Jupyter and other system processes.
+      val minRuntimeMemoryGb = config.dataprocConfig.minimumRuntimeMemoryInGb.getOrElse(4.0)
+      val runtimeAllocatedMemory =
+        Math.max(
+          (total.bytes * (1 - sparkMemoryConfigRatio)).toLong,
+          MemorySize.fromGb(minRuntimeMemoryGb).bytes
+        )
+
+      RuntimeResourceConstraints(MemorySize(runtimeAllocatedMemory), MemorySize(total.bytes))
     }
 
   /**
@@ -856,14 +868,21 @@ class DataprocInterpreter[F[_]: Parallel](
     }
   }
 
-  private def getSoftwareConfig(googleProject: GoogleProject,
-                                runtimeName: RuntimeName,
-                                machineConfig: RuntimeConfig.DataprocConfig
+  // This file is worth keeping track of. It's the source of truth for hail machine provisioning
+  // https://github.com/hail-is/hail/blob/75f351d43a6c6b2e87e7d37531be63aaf11af9df/hail/python/hailtop/hailctl/dataproc/start.py#L20
+  def getSoftwareConfig(googleProject: GoogleProject,
+                        runtimeName: RuntimeName,
+                        machineConfig: RuntimeConfig.DataprocConfig,
+                        jupyterResourceConstraints: RuntimeResourceConstraints
   ): SoftwareConfig = {
     val dataprocProps = if (machineConfig.numberOfWorkers == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     } else Map.empty[String, String]
+
+    val memoryLimitInMb =
+      (jupyterResourceConstraints.totalMachineMemory.bytes - jupyterResourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes
+    val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${memoryLimitInMb}m")
 
     val yarnProps = Map(
       // Helps with debugging
@@ -893,7 +912,7 @@ class DataprocInterpreter[F[_]: Parallel](
     SoftwareConfig
       .newBuilder()
       .putAllProperties(
-        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ knoxProps ++ machineConfig.properties).asJava
+        (driverMemoryProp ++ dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ knoxProps ++ machineConfig.properties).asJava
       )
       .addOptionalComponents(Component.DOCKER)
       .build()

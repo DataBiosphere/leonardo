@@ -5,7 +5,7 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe._
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppType}
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -34,15 +34,12 @@ class HttpWdsDAO[F[_]](httpClient: Client[F])(implicit
     with Http4sClientDsl[F] {
   import HttpWdsDAO._
 
-  override def getStatus(baseUri: Uri, authHeader: Authorization, appType: AppType)(implicit
+  override def getStatus(baseUri: Uri, authHeader: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter("wds/status")
-      wdsStatusUri: Uri = appType match {
-        case AppType.Wds => baseUri / "status"
-        case _           => baseUri / "wds" / "status" // TODO cromwell check remove after WDS chart migration
-      }
+      wdsStatusUri = baseUri / "status"
       res <- httpClient.expectOr[WdsStatusCheckResponse](
         Request[F](
           method = Method.GET,

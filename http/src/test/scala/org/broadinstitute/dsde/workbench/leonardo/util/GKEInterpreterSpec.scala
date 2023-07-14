@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
@@ -46,9 +46,16 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
 
+  val bucketHelperConfig =
+    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
+
+  val bucketHelper =
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+
   val gkeInterp =
     new GKEInterpreter[IO](
       Config.gkeInterpConfig,
+      bucketHelper,
       vpcInterp,
       MockGKEService,
       MockKubernetesService,
@@ -357,6 +364,50 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/custom-service(/|$)(.*)"""
   }
 
+  it should "build RStudio override values string" in {
+    val savedCluster1 = makeKubeCluster(1)
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
+    val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
+    val res = gkeInterp.buildRStudioAppChartOverrideValuesString(
+      appName = AppName("app1"),
+      cluster = savedCluster1,
+      nodepoolName = NodepoolName("pool1"),
+      namespaceName = NamespaceName("ns"),
+      disk = savedDisk1,
+      ksaName = ServiceAccountName("app1-rstudio-ksa"),
+      userEmail = userEmail2,
+      stagingBucket = GcsBucketName("test-staging-bucket"),
+      envVariables
+    )
+
+    res.mkString(",") shouldBe
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
+      """persistence.size=250G,""" +
+      """persistence.gcePersistentDisk=disk1,""" +
+      """serviceAccount.name=app1-rstudio-ksa,""" +
+      """ingress.enabled=true,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      """ingress.host=1455694897.jupyter.firecloud.org,""" +
+      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
+      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.tls[0].secretName=tls-secret,""" +
+      """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
+      """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
+      """welder.extraEnv[0].value=dsp-leo-test1,""" +
+      """welder.extraEnv[1].name=STAGING_BUCKET,""" +
+      """welder.extraEnv[1].value=test-staging-bucket,""" +
+      """welder.extraEnv[2].name=CLUSTER_NAME,""" +
+      """welder.extraEnv[2].value=app1,""" +
+      """welder.extraEnv[3].name=OWNER_EMAIL,""" +
+      """welder.extraEnv[3].value=user2@example.com,""" +
+      """extraEnv[0].name=WORKSPACE_NAME,""" +
+      """extraEnv[0].value=test-workspace-name"""
+
+  }
+
   it should "check if a pod is done" in {
     gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod1"), PodStatus.Succeeded)) shouldBe true
     gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod2"), PodStatus.Pending)) shouldBe false
@@ -401,6 +452,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val gkeInterpDelete =
       new GKEInterpreter[IO](
         Config.gkeInterpConfig,
+        bucketHelper,
         vpcInterp,
         mockGKEService,
         MockKubernetesService,
@@ -499,7 +551,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .createCluster(
           CreateClusterParams(KubernetesClusterLeoId(-1),
                               GoogleProject("fake"),
-                              List(NodepoolLeoId(-1), NodepoolLeoId(-1))
+                              List(NodepoolLeoId(-1), NodepoolLeoId(-1)),
+                              false
           )
         )
         .attempt
@@ -516,7 +569,11 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val res = for {
       createResult <- gkeInterp
         .createCluster(
-          CreateClusterParams(savedCluster1.id, savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value, List())
+          CreateClusterParams(savedCluster1.id,
+                              savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                              List(),
+                              false
+          )
         )
       r <- gkeInterp
         .pollCluster(
@@ -541,7 +598,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .createCluster(
           CreateClusterParams(savedCluster1.id,
                               savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                              List(NodepoolLeoId(-2))
+                              List(NodepoolLeoId(-2)),
+                              false
           )
         )
         .attempt

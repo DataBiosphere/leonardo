@@ -28,7 +28,8 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   labels: LabelMap = Map.empty,
                                   customEnvironmentVariables: Map[String, String],
                                   descriptorPath: Option[Uri],
-                                  extraArgs: List[String]
+                                  extraArgs: List[String],
+                                  sourceWorkspaceId: Option[WorkspaceId]
 )
 
 final case class GetAppResponse(appName: AppName,

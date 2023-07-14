@@ -124,7 +124,8 @@ object Config {
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("customDataprocImage"),
-      config.getAs[MemorySize]("dataprocReservedMemory"),
+      config.getAs[Double]("sparkMemoryConfigRatio"),
+      config.getAs[Double]("minimumRuntimeMemoryInGb"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
       config.as[Set[RegionName]]("supportedRegions")
     )
@@ -272,7 +273,8 @@ object Config {
     ValueReader.relative { config =>
       RefererConfig(
         config.as[Set[String]]("validHosts"),
-        config.as[Boolean]("enabled")
+        config.as[Boolean]("enabled"),
+        config.as[Boolean]("originStrict")
       )
     }
 
@@ -643,7 +645,8 @@ object Config {
       config.as[GalaxyOrchUrl]("orchUrl"),
       config.as[GalaxyDrsUrl]("drsUrl"),
       config.as[Int]("minMemoryGb"),
-      config.as[Int]("minNumOfCpus")
+      config.as[Int]("minNumOfCpus"),
+      config.as[Boolean]("enabled")
     )
   }
 
@@ -666,7 +669,8 @@ object Config {
       releaseNameSuffix = config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       services = config.as[List[ServiceConfig]]("services"),
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
-      dbPassword = config.as[DbPassword]("dbPassword")
+      dbPassword = config.as[DbPassword]("dbPassword"),
+      enabled = config.as[Boolean]("enabled")
     )
   }
 
@@ -677,7 +681,20 @@ object Config {
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList")
+      config.as[CustomApplicationAllowListConfig]("customApplicationAllowList"),
+      config.as[Boolean]("enabled")
+    )
+  }
+
+  implicit private val rstudioAppConfigReader: ValueReader[RStudioAppConfig] = ValueReader.relative { config =>
+    RStudioAppConfig(
+      config.as[ChartName]("chartName"),
+      config.as[ChartVersion]("chartVersion"),
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      config.as[ReleaseNameSuffix]("releaseNameSuffix"),
+      config.as[List[ServiceConfig]]("services"),
+      config.as[ServiceAccountName]("serviceAccountName"),
+      config.as[Boolean]("enabled")
     )
   }
 
@@ -720,6 +737,7 @@ object Config {
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
+  val gkeRStudioAppConfig = config.as[RStudioAppConfig]("gke.rstudioApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
 
@@ -742,7 +760,8 @@ object Config {
     gkeGalaxyDiskConfig,
     ConfigReader.appConfig.persistentDisk,
     gkeCromwellAppConfig,
-    gkeCustomAppConfig
+    gkeCustomAppConfig,
+    gkeRStudioAppConfig
   )
 
   val appServiceConfig = AppServiceConfig(
@@ -850,6 +869,7 @@ object Config {
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
+      gkeRStudioAppConfig,
       appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,

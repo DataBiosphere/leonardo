@@ -45,7 +45,8 @@ class AppLifecycleSpec
     ),
     appType = appType,
     customEnvironmentVariables = Map("WORKSPACE_NAME" -> workspaceName),
-    descriptorPath = descriptorPath
+    descriptorPath = descriptorPath,
+    sourceWorkspaceId = None
   )
   // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
   //  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
@@ -55,6 +56,11 @@ class AppLifecycleSpec
   "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
+  }
+
+  "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
+    googleProject =>
+      test(googleProject, createAppRequest(AppType.RStudio, "rstudio-test-workspace", None), false, true)
   }
 
   "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>

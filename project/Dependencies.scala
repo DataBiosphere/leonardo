@@ -8,8 +8,7 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
-  // TODO update to 3.2.15 - https://github.com/DataBiosphere/leonardo/pull/3092
-  val scalaTestV = "3.2.14"
+  val scalaTestV = "3.2.16"
   val http4sVersion = "1.0.0-M38"
   val slickV = "3.4.1"
   val guavaV = "31.1-jre"
@@ -29,7 +28,7 @@ object Dependencies {
   val workbenchOauth2V = s"0.3-$workbenchLibsHash"
   val workbenchAzureV = s"0.3-$workbenchLibsHash"
 
-  val helmScalaSdkV = "0.0.4"
+  val helmScalaSdkV = "0.0.8"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
@@ -61,7 +60,9 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.6"
+  val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.3"
+
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.7"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
@@ -73,10 +74,10 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.51.3" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.55.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
-  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-16" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
+  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
@@ -128,7 +129,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.10" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.15" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.2"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
@@ -140,9 +141,19 @@ object Dependencies {
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
-  val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.10.0"
+  val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
+
+  val workSpaceManagerV = "0.254.782-SNAPSHOT"
+
+  def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
+  def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
+  def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi, excludeJakartaXmlBindApi)
+
+  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+
 
   val coreDependencies = List(
+    jose4j,
     workbenchOauth2,
     workbenchOauth2Tests,
     scalaTest,
@@ -160,7 +171,7 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
-    "com.github.pureconfig" %% "pureconfig" % "0.17.2" % Provided,
+    "com.github.pureconfig" %% "pureconfig" % "0.17.4" % Provided,
     sealerate,
     enumeratum,
     circeYaml,
@@ -168,7 +179,8 @@ object Dependencies {
     scalaTestScalaCheck,
     workbenchAzure,
     workbenchAzureTest,
-    logbackClassic
+    logbackClassic,
+    workspaceManager
   )
 
   val httpDependencies = Seq(
@@ -192,7 +204,7 @@ object Dependencies {
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
-    "com.auth0" % "java-jwt" % "4.2.2",
+    "com.auth0" % "java-jwt" % "4.4.0",
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
@@ -201,7 +213,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.14.2" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.0" % "test",
     logbackClassic % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
@@ -233,4 +245,5 @@ object Dependencies {
     http4sCirce,
     scalaTest
   )
+
 }

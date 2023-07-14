@@ -315,7 +315,7 @@ object RuntimeConfig {
 
   // Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
   final case class AzureConfig(machineType: MachineTypeName,
-                               persistentDiskId: DiskId,
+                               persistentDiskId: Option[DiskId],
                                region: com.azure.core.management.Region
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.AzureVm
@@ -529,9 +529,13 @@ final case class MemorySize(bytes: Long) extends AnyVal {
   override def toString: String = bytes.toString + "b"
 }
 object MemorySize {
-  def fromKb(kb: Double): MemorySize = MemorySize((kb * 1024).toLong)
-  def fromMb(mb: Double): MemorySize = MemorySize((mb * 1048576).toLong)
-  def fromGb(gb: Double): MemorySize = MemorySize((gb * 1073741824).toLong)
+  val kbInBytes = 1024
+  val mbInBytes = 1048576
+  val gbInBytes = 1073741824
+
+  def fromKb(kb: Double): MemorySize = MemorySize((kb * kbInBytes).toLong)
+  def fromMb(mb: Double): MemorySize = MemorySize((mb * mbInBytes).toLong)
+  def fromGb(gb: Double): MemorySize = MemorySize((gb * gbInBytes).toLong)
 }
 
 /**
@@ -539,7 +543,7 @@ object MemorySize {
  * See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
  * for other types of resources we may want to add here.
  */
-final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
+final case class RuntimeResourceConstraints(memoryLimit: MemorySize, totalMachineMemory: MemorySize)
 
 final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,

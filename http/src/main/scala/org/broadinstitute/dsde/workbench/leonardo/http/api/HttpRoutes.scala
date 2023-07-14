@@ -40,7 +40,7 @@ class HttpRoutes(
   refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val statusRoutes = new StatusRoutes(statusService)
-  private val corsSupport = new CorsSupport(contentSecurityPolicy)
+  private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
   private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)

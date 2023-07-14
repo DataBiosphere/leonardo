@@ -256,11 +256,29 @@ class ProxyService(
   def invalidateAccessToken(token: String): IO[Unit] =
     googleTokenCache.remove(token)
 
-  def proxyRequest(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName, request: HttpRequest)(
-    implicit ev: Ask[IO, AppContext]
+  def proxyRequest(userInfo: UserInfo,
+                   cloudContext: CloudContext,
+                   runtimeName: RuntimeName,
+                   workspaceId: Option[WorkspaceId],
+                   request: HttpRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
+
+      hasWorkspacePermission <- workspaceId match {
+        case Some(wid) =>
+          authProvider
+            .isUserWorkspaceReader(
+              WorkspaceResourceSamResourceId(wid),
+              userInfo
+            )
+        case None => IO.pure(true)
+      }
+
+      _ <- IO.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(cloudContext, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission[RuntimeSamResourceId, RuntimeAction](
@@ -315,7 +333,7 @@ class ProxyService(
           IO.unit
         else
           jupyterDAO.createTerminal(googleProject, runtimeName)
-      r <- proxyRequest(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
+      r <- proxyRequest(userInfo, CloudContext.Gcp(googleProject), runtimeName, None, request)
       result = if (r.status.isSuccess()) "success" else "failure"
 
       tool = RuntimeContainerServiceType.values
@@ -340,6 +358,19 @@ class ProxyService(
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
+
+      hasWorkspacePermission <- workspaceId match {
+        case Some(wid) =>
+          authProvider
+            .isUserWorkspaceReader(
+              WorkspaceResourceSamResourceId(wid),
+              userInfo
+            )
+        case None => IO.pure(true)
+      }
+
+      _ <- IO.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
       samResource <- getCachedAppSamResource(AppCacheKey(cloudContext, appName, workspaceId))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](samResource,
