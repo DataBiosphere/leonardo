@@ -625,6 +625,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         // Sam configs
         raw"sam.url=${config.samConfig.server}",
 
+        // Leo configs
+        raw"leonardo.url=${config.leoUrlBase}",
+
         // workspace manager
         raw"workspacemanager.url=${config.wsmConfig.uri.renderString}",
 

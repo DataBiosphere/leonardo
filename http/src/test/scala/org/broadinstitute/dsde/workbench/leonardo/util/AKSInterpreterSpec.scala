@@ -216,6 +216,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "workloadIdentity.enabled=false," +
       "workloadIdentity.serviceAccountName=none," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
@@ -256,6 +257,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "workloadIdentity.enabled=false," +
       "workloadIdentity.serviceAccountName=none," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
@@ -294,6 +296,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "workloadIdentity.enabled=true," +
       "workloadIdentity.serviceAccountName=ksa," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
