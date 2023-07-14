@@ -285,7 +285,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Map.empty[SamPolicyName, SamPolicyData]
         case _ =>
           // Other types set an explicit ownerRoleName() policy. As of this writing, the only other resource type
-          // handled by this case clause is SamResourceType.App ("kubernetes-app"); his is controlled by
+          // handled by this case clause is SamResourceType.App ("kubernetes-app"); this is controlled by
           // SamAuthProvider.notifyResourceCreatedV2().
           Map[SamPolicyName, SamPolicyData](
             SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(sr.ownerRoleName(resource)))
