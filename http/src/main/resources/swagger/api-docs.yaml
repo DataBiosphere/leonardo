@@ -1884,16 +1884,18 @@ paths:
 
   "/api/admin/v2/apps/update":
     post:
-      summary: Updates a designated collection of apps (both v1 and v2)
-      description: Updates apps
+      summary: Updates apps
+      description: Updates a designated collection of apps (both v1 and v2)
       operationId: updateApps
       tags:
         - admin
       requestBody:
         $ref: "#/components/requestBodies/UpdateAppsRequest"
       responses:
+        "200":
+          description: Dry run results successfully returned
         "202":
-            description: App(s) update request accepted
+          description: App(s) update request accepted
         "500":
           description: Internal Error
           content:
@@ -2819,6 +2821,8 @@ components:
           schema:
             $ref: "#/components/schemas/UpdateAppsRequest"
           example:
+            appType: CROMWELL
+            cloudProvider: AZURE
             dryRun: true
 
   securitySchemes:
@@ -3079,8 +3083,8 @@ components:
           description: The user-supplied name for the runtime
         auditInfo:
           allOf:
-          - $ref: "#/components/schemas/AuditInfo"
-          - type: object
+            - $ref: "#/components/schemas/AuditInfo"
+            - type: object
         googleProject:
           type: string
           description: Deprecated. The Google Project used to create the runtime
@@ -3904,11 +3908,39 @@ components:
 
     UpdateAppsRequest:
       description: a request to update a specific set of apps (v1 or v2)
+      required:
+        - appType
+        - cloudProvider
       type: object
       properties:
+        appType:
+          $ref: '#/components/schemas/AppType'
+        cloudProvider:
+          $ref: '#/components/schemas/CloudProvider'
+        appVersionsInclude:
+          type: array
+          description: Apps currently running these chart versions will be updated. Applied after a config-level default exclusion list.
+          items:
+            type: string
+        appVersionsExclude:
+          type: array
+          description: Apps currently running these chart versions will NOT be updated. Applied after a config-level default exclusion list.
+          items:
+            type: string
+        googleProject:
+          type: string
+          description: If provided, update apps in this Google project
+        workspaceId:
+          type: string
+          description: If provided, update apps in this workspace
+        appNames:
+          type: array
+          description: If provided, apps with these names will be updated
+          items:
+            type: string
         dryRun:
-            type: boolean
-            description: If true, report on what apps would be updated but take no action.
+          type: boolean
+          description: If true, report on what apps would be updated but take no action. Defaults to false.
 
     GetAppResponse:
       description: the configuration of an app

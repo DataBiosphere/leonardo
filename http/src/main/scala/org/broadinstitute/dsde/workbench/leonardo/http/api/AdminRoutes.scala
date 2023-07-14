@@ -13,12 +13,14 @@ import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AdminRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AdminService
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
-//import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsp.ChartVersion
 
 import java.util.UUID
 
-class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDirectives)/*(implicit metrics: OpenTelemetryMetrics[IO])*/ {
+class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDirectives) {
 
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
@@ -48,17 +50,25 @@ class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDi
   ): IO[ToResponseMarshallable] = for {
     ctx <- ev.ask[AppContext]
     apiCall = adminService.updateApps(userInfo, req)
-    // TODO metrics?
     resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApps").use(_ => apiCall))
   } yield StatusCodes.Accepted -> resp
 }
 
 object AdminRoutes {
 
+  implicit val chartVersionDecoder: Decoder[ChartVersion] = Decoder.decodeString.map(ChartVersion)
+
   implicit val updateAppsDecoder: Decoder[UpdateAppsRequest] =
     Decoder.instance { x =>
       for {
-        d <- x.downField("dryRun").as[Boolean]
-      } yield UpdateAppsRequest(d)
+        at <- x.downField("appType").as[AppType]
+        cp <- x.downField("cloudProvider").as[CloudProvider]
+        avi <- x.downField("appVersionsInclude").as[List[ChartVersion]]
+        ave <- x.downField("appVersionsExclude").as[List[ChartVersion]]
+        gp <- x.downField("googleProject").as[Option[GoogleProject]]
+        wid <- x.downField("workspaceId").as[Option[WorkspaceId]]
+        aids <- x.downField("appNames").as[List[AppName]]
+        dr <- x.downField("dryRun").as[Boolean]
+      } yield UpdateAppsRequest(at, cp, avi, ave, gp, wid, aids, dr)
     }
 }
