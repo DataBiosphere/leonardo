@@ -34,8 +34,8 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   hostStatusCache: Cache[F, KubernetesDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: KubernetesDnsCacheKey): F[HostStatus] = {
-    sleep(Random.between(1, 6) seconds)
-    hostStatusCache.cachingF(key)(None)(getHostStatusHelper(key))
+    sleep(Random.between(4, 6) seconds)
+    return hostStatusCache.cachingF(key)(None)(getHostStatusHelper(key))
   }
   private def getHostStatusHelper(key: KubernetesDnsCacheKey): F[HostStatus] =
     for {

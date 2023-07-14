@@ -34,8 +34,8 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   runtimeDnsCache: Cache[F, RuntimeDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] = {
-    sleep(Random.between(1, 6) seconds)
-    runtimeDnsCache.cachingF(key)(None)(getHostStatusHelper(key))
+    sleep(Random.between(4, 6) seconds)
+    return runtimeDnsCache.cachingF(key)(None)(getHostStatusHelper(key))
   }
 
   private def getHostStatusHelper(key: RuntimeDnsCacheKey): F[HostStatus] =
