@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dns
 
 import akka.http.scaladsl.model.Uri.Host
+import cats.effect.IO.sleep
 import cats.effect.{Async, Ref}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -11,9 +12,11 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, ClusterRecor
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
+import scala.concurrent.duration._
 import scalacache.Cache
 
 import scala.concurrent.ExecutionContext
+import scala.util.Random
 
 final case class RuntimeDnsCacheKey(cloudContext: CloudContext, runtimeName: RuntimeName)
 
@@ -30,8 +33,10 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   hostToIpMapping: Ref[F, Map[Host, IP]],
   runtimeDnsCache: Cache[F, RuntimeDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
-  def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
+  def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] = {
+    sleep(Random.between(1, 6) seconds)
     runtimeDnsCache.cachingF(key)(None)(getHostStatusHelper(key))
+  }
 
   private def getHostStatusHelper(key: RuntimeDnsCacheKey): F[HostStatus] =
     for {
