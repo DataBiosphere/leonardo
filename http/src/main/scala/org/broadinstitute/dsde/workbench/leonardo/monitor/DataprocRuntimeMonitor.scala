@@ -168,7 +168,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                       case Some(dataprocInstance) =>
                         dataprocInstance.ip match {
                           case Some(ip) =>
-                            // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                            // It takes a bit for jupyter to startup, hence wait some seconds before we check jupyter
                             F.sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                                    runtimeAndRuntimeConfig,
                                                                    ip,
@@ -321,7 +321,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 case UserScriptsValidationResult.Success =>
                   main.flatMap(_._1.ip) match {
                     case Some(ip) =>
-                      // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                      // It takes a bit for jupyter to startup, hence wait some seconds before we check jupyter
                       F.sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                              runtimeAndRuntimeConfig,
                                                              ip,

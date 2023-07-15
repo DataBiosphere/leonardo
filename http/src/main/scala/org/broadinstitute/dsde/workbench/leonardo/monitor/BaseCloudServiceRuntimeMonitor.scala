@@ -596,7 +596,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
     openTelemetry.time(
       "tools_start_up_time",
-      List(5 seconds, 20 seconds, 30 seconds, 1 minutes, 2 minutes),
+      List(5005 milliseconds, 20 seconds, 30 seconds, 1 minutes, 2 minutes),
       Map("cloud_service" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString)
     )(res)
   }

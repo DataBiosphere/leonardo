@@ -1141,14 +1141,14 @@ class LeoPubsubMessageSubscriber[F[_]](
                   streamUntilDoneOrTimeout(
                     getDiskDetachStatus(postgresOriginalDetachTimestampOpt, getPostgresDisk),
                     50,
-                    5 seconds,
+                    5006 milliseconds,
                     "The postgres disk failed to detach within the time limit, cannot proceed with delete disk"
                   )
                 else F.unit
               _ <- streamUntilDoneOrTimeout(
                 getDiskDetachStatus(dataDiskOriginalDetachTimestampOpt, getDataDisk),
                 50,
-                5 seconds,
+                5007 milliseconds,
                 "The data disk failed to detach within the time limit, cannot proceed with delete disk"
               )
             } yield ()).adaptError { case e =>

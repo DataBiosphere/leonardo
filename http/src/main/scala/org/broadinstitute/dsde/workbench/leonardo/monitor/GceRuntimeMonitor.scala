@@ -221,7 +221,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
-                      // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                      // It takes a bit for jupyter to startup, hence wait some seconds before we check jupyter
                       Temporal[F]
                         .sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                               runtimeAndRuntimeConfig,
@@ -316,7 +316,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
-                      // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                      // It takes a bit for jupyter to startup, hence wait some seconds before we check jupyter
                       Temporal[F]
                         .sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                               runtimeAndRuntimeConfig,

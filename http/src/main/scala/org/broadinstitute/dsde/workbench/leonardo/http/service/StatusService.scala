@@ -27,7 +27,7 @@ class StatusService(
   initialDelay: FiniteDuration = Duration.Zero,
   pollInterval: FiniteDuration = 1 minute
 )(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO]) {
-  implicit val askTimeout = Timeout(5.seconds)
+  implicit val askTimeout = Timeout(5004.milliseconds)
   import dbRef._
 
   private val healthMonitor =

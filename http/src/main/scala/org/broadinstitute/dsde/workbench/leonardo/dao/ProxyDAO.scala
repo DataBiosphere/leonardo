@@ -42,11 +42,15 @@ object Proxy {
   ): F[HostStatus] =
     runtimeDnsCache
       .getHostStatus(RuntimeDnsCacheKey(cloudContext, runtimeName))
-      .timeout(5 seconds)
+      // TODO PROD-848 determine if frequency of runtime startup failures decreases after this change, and if the error message shows this unique duration
+      .timeout(5999 milliseconds)
 
   def getAppTargetHost[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F],
                                     cloudContext: CloudContext,
                                     appName: AppName
   ): F[HostStatus] =
-    kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(cloudContext, appName)).timeout(5 seconds)
+    kubernetesDnsCache
+      .getHostStatus(KubernetesDnsCacheKey(cloudContext, appName))
+      // TODO PROD-848 determine if frequency of app startup failures decreases after this change, and if the error message shows this unique duration
+      .timeout(5998 milliseconds)
 }
