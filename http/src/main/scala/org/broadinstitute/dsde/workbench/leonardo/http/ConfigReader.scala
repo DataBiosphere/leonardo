@@ -2,13 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  CoaAppConfig,
-  HailBatchAppConfig,
-  HttpWsmDaoConfig,
-  PersistentDiskConfig,
-  WdsAppConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
@@ -22,6 +16,12 @@ object ConfigReader {
     ConfigSource
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
+
+  // Encapsulates config for all apps Leo administers
+  lazy val adminAppConfig =
+    ConfigSource
+      .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
+      .loadOrThrow[AdminAppConfig]
 }
 
 final case class AzureConfig(
@@ -64,3 +64,26 @@ final case class AppConfig(
   drs: DrsConfig,
   metrics: LeoMetricsMonitorConfig
 )
+
+final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
+                                cromwellAppConfig: CromwellAppConfig,
+                                customAppConfig: CustomAppConfig,
+                                galaxyAppConfig: GalaxyAppConfig,
+                                hailBatchAppConfig: HailBatchAppConfig,
+                                rstudioAppConfig: RStudioAppConfig,
+                                wdsAppConfig: WdsAppConfig
+) {
+
+  def configForTypeAndCloud(appType: AppType, cloudProvider: CloudProvider): Option[KubernetesAppConfig] =
+    asList.find(c => c.appType == appType && c.cloudProvider == cloudProvider)
+
+  private lazy val asList: List[KubernetesAppConfig] = List (
+    coaAppConfig,
+    cromwellAppConfig,
+    customAppConfig,
+    galaxyAppConfig,
+    hailBatchAppConfig,
+    rstudioAppConfig,
+    wdsAppConfig
+  )
+}
