@@ -19,7 +19,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
-  val expectedHailVersion = "0.2.109"
+  val expectedHailVersion = "0.2.119"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
   override val cloudService: Option[CloudService] = Some(CloudService.Dataproc)
