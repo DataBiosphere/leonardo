@@ -1,15 +1,15 @@
-package org.broadinstitute.dsde.workbench.leonardo.http.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import cats.Parallel
 import cats.effect.Async
 //import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.AppContext
 //import org.broadinstitute.dsde.workbench.leonardo.config.CustomAppConfig
 //import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 //import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.http.UpdateAppsRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotAnAdminError}
 //import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -38,7 +38,6 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
       hasPermission: Boolean <- authProvider.isAdminUser(userInfo)
       _ <- F.raiseWhen(!hasPermission)(NotAnAdminError(userInfo.userEmail, Option(ctx.traceId)))
       // TODO get latest chart version from config
-    } yield ctx.traceId
-    F.unit
+    } yield ()
   }
 }
