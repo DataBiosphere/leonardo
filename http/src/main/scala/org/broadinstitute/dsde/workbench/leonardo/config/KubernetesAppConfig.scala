@@ -87,7 +87,8 @@ final case class CoaAppConfig(chartName: ChartName,
                               services: List[ServiceConfig],
                               instrumentationEnabled: Boolean,
                               enabled: Boolean,
-                              dockstoreBaseUrl: URL
+                              dockstoreBaseUrl: URL,
+                              databaseEnabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)

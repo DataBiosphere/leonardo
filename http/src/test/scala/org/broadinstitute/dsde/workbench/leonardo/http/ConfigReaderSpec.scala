@@ -87,7 +87,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          dockstoreBaseUrl = new URL("https://staging.dockstore.org/")
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
+          databaseEnabled = false
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
