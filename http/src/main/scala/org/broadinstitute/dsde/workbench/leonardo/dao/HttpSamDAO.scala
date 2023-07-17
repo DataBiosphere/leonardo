@@ -278,8 +278,19 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         s"Creating ${sr.resourceType(resource).asString} resource in sam v2 for ${workspaceId}/${sr.resourceIdAsString(resource)}"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType(resource).asString}")
-      // all app policies inherit from the workspace parent; there are no direct policies
-      policies = Map.empty[SamPolicyName, SamPolicyData]
+      policies = sr.resourceType(resource) match {
+        case SamResourceType.SharedApp =>
+          // SamResourceType.SharedApp (kubernetes-app-shared") inherits all its policies from the parent workspace,
+          // so should have no direct roles.
+          Map.empty[SamPolicyName, SamPolicyData]
+        case _ =>
+          // Other types set an explicit ownerRoleName() policy. As of this writing, the only other resource type
+          // handled by this case clause is SamResourceType.App ("kubernetes-app"); this is controlled by
+          // SamAuthProvider.notifyResourceCreatedV2().
+          Map[SamPolicyName, SamPolicyData](
+            SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(sr.ownerRoleName(resource)))
+          )
+      }
       parent = SerializableSamResource(SamResourceType.Workspace, WorkspaceResourceSamResourceId(workspaceId))
       _ <- httpClient
         .run(
