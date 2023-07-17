@@ -700,6 +700,7 @@ class GKEInterpreter[F[_]](
         .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace.name))
         .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
 
+      // [PROD-848] unique duration for debugging TimeoutException
       _ <- streamUntilDoneOrTimeout(fa, 30, 5008 milliseconds, "delete namespace timed out")
       _ <- logger.info(ctx.loggingCtx)(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"

@@ -27,6 +27,7 @@ class StatusService(
   initialDelay: FiniteDuration = Duration.Zero,
   pollInterval: FiniteDuration = 1 minute
 )(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO]) {
+  // [PROD-848] unique duration for debugging TimeoutException
   implicit val askTimeout = Timeout(5004.milliseconds)
   import dbRef._
 

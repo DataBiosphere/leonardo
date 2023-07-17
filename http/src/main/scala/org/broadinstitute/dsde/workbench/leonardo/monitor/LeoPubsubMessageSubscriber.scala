@@ -1141,6 +1141,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   streamUntilDoneOrTimeout(
                     getDiskDetachStatus(postgresOriginalDetachTimestampOpt, getPostgresDisk),
                     50,
+                    // [PROD-848] unique duration for debugging TimeoutException
                     5006 milliseconds,
                     "The postgres disk failed to detach within the time limit, cannot proceed with delete disk"
                   )
@@ -1148,6 +1149,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               _ <- streamUntilDoneOrTimeout(
                 getDiskDetachStatus(dataDiskOriginalDetachTimestampOpt, getDataDisk),
                 50,
+                // [PROD-848] unique duration for debugging TimeoutException
                 5007 milliseconds,
                 "The data disk failed to detach within the time limit, cannot proceed with delete disk"
               )
