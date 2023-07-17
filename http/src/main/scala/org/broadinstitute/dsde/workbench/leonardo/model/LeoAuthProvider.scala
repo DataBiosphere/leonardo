@@ -237,4 +237,6 @@ trait LeoAuthProvider[F[_]] {
   def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Unit]
 
   def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean]
+
+  def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean]
 }

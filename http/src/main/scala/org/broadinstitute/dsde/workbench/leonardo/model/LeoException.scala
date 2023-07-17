@@ -45,6 +45,13 @@ case class ForbiddenError(email: WorkbenchEmail, traceId: Option[TraceId] = None
       traceId = traceId
     )
 
+case class NotAnAdminError(email: WorkbenchEmail, traceId: Option[TraceId] = None)
+  extends LeoException(
+    s"${email.value} is not a Terra admin.",
+    StatusCodes.Forbidden,
+    traceId = traceId
+  )
+
 final case class LeoInternalServerError(msg: String, traceId: Option[TraceId])
     extends LeoException(
       s"${msg}",
