@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="dvoet" id="drop_IDX_APP_CONTROLLED_RESOURCE_UNIQUE">
+        <dropUniqueConstraint constraintName="IDX_APP_CONTROLLED_RESOURCE_UNIQUE" tableName="APP_CONTROLLED_RESOURCE"/>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="dvoet" id="APP_CONTROLLED_RESOURCE_PK">
+        <addPrimaryKey columnNames="resourceId" tableName="APP_CONTROLLED_RESOURCE"/>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="dvoet" id="APP_CONTROLLED_RESOURCE_STATUS_COL">
+        <addColumn tableName="APP_CONTROLLED_RESOURCE">
+            <column name="status" type="VARCHAR(254)" defaultValue="CREATED">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="dvoet" id="IDX_APP_CONTROLLED_RESOURCE_APP_ID">
+        <createIndex indexName="IDX_APP_CONTROLLED_RESOURCE_APP_ID" tableName="APP_CONTROLLED_RESOURCE">
+            <column name="appId"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
