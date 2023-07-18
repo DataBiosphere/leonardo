@@ -942,6 +942,26 @@ class HttpRoutesSpec
     }
   }
 
+  it should "run a dry run app update request" in {
+    Post(s"/api/admin/v2/apps/update")
+      .withEntity(
+        ContentTypes.`application/json`,
+        UpdateAppsRequest(AppType.Galaxy,
+          CloudProvider.Gcp,
+          List.empty,
+          List.empty,
+          None,
+          None,
+          List.empty,
+          dryRun = true
+        )
+          .asJson
+          .spaces2
+      ) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+  }
+
   // Validate encoding/decoding of RuntimeConfigRequest types
   // TODO should these decoders move to JsonCodec in core module?
 

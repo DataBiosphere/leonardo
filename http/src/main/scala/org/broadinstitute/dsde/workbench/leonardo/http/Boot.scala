@@ -207,9 +207,7 @@ object Boot extends IOApp {
       val adminService = new AdminServiceInterp[IO](
         appDependencies.authProvider,
         appDependencies.publisherQueue,
-        gkeCustomAppConfig,
-        appDependencies.wsmDAO,
-        appDependencies.samDAO
+        ConfigReader.adminAppConfig
       )
 
       val httpRoutes = new HttpRoutes(

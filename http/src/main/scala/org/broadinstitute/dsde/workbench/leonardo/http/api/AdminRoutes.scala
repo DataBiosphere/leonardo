@@ -9,7 +9,7 @@ import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.Decoder
+import io.circe.{Decoder, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AdminRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AdminService
@@ -51,7 +51,8 @@ class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDi
     ctx <- ev.ask[AppContext]
     apiCall = adminService.updateApps(userInfo, req)
     resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApps").use(_ => apiCall))
-  } yield StatusCodes.Accepted -> resp
+    retCode = if (req.dryRun) StatusCodes.OK else StatusCodes.Accepted
+  } yield retCode -> resp
 }
 
 object AdminRoutes {
@@ -71,4 +72,33 @@ object AdminRoutes {
         dr <- x.downField("dryRun").as[Boolean]
       } yield UpdateAppsRequest(at, cp, avi, ave, gp, wid, aids, dr)
     }
+
+  implicit val appIdEncoder: Encoder[AppId] = Encoder.encodeLong.contramap(_.id)
+  implicit val chartEncoder: Encoder[Chart] = Encoder.encodeString.contramap(_.toString)
+
+  implicit val listUpdateableAppsResponseEncoder: Encoder[ListUpdateableAppsResponse] =
+    Encoder.forProduct10(
+      "workspaceId",
+      "cloudContext",
+      "status",
+      "appId",
+      "appName",
+      "appType",
+      "auditInfo",
+      "chart",
+      "accessScope",
+      "labels"
+    )(x =>
+       (x.workspaceId,
+        x.cloudContext,
+        x.status,
+        x.appId,
+        x.appName,
+        x.appType,
+        x.auditInfo,
+        x.chart,
+        x.accessScope,
+        x.labels
+      )
+    )
 }

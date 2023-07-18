@@ -159,4 +159,6 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       }
     }
   } yield filteredResources.toSet
+
+  override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
