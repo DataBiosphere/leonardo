@@ -1894,8 +1894,16 @@ paths:
       responses:
         "200":
           description: Dry run results successfully returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUpdateableAppsResponse"
         "202":
           description: App(s) update request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUpdateableAppsResponse"
         "500":
           description: Internal Error
           content:
@@ -4027,6 +4035,37 @@ components:
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
+
+    ListUpdateableAppsResponse:
+      description: out-of-date apps
+      type: object
+      properties:
+        workspaceId:
+          type: string
+          description: workspaceId
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
+        status:
+          $ref: "#/components/schemas/AppStatus"
+        appId:
+          type: number
+          description: the id of the app
+        appName:
+          type: string
+          description: the name of the app
+        appType:
+          $ref: '#/components/schemas/AppType'
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        chart:
+          type: string
+          description: the currently installed chart version
+        accessScope:
+          $ref: '#/components/schemas/AppAccessScope'
+        labels:
+          type: object
+          description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
+
 
     CloudContext:
       description: Cloud platform which holds context for a workspace.
