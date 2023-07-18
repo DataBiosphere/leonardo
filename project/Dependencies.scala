@@ -143,7 +143,7 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
-  val workSpaceManagerV = "0.254.782-SNAPSHOT"
+  val workSpaceManagerV = "0.254.824-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
