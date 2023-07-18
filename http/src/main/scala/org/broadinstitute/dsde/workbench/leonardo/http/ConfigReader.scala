@@ -19,9 +19,15 @@ object ConfigReader {
 
   // Encapsulates config for all apps Leo administers
   lazy val adminAppConfig =
-    ConfigSource
-      .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
-      .loadOrThrow[AdminAppConfig]
+    AdminAppConfig(
+      appConfig.azure.coaAppConfig,
+      Config.gkeCromwellAppConfig,
+      Config.gkeCustomAppConfig,
+      Config.gkeGalaxyAppConfig,
+      appConfig.azure.hailBatchAppConfig,
+      Config.gkeRStudioAppConfig,
+      appConfig.azure.wdsAppConfig
+    )
 }
 
 final case class AzureConfig(
