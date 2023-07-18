@@ -301,6 +301,14 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val diskLinkColumnType: BaseColumnType[DiskLink] =
       MappedColumnType
         .base[DiskLink, String](_.asString, DiskLink.apply)
+
+    implicit val appControlledResourceStatusColumnType: BaseColumnType[AppControlledResourceStatus] =
+      MappedColumnType.base[AppControlledResourceStatus, String](
+        _.toString,
+        s =>
+          AppControlledResourceStatus.stringToObject
+            .getOrElse(s, throw ColumnDecodingException(s"invalid app controlled resource status ${s}"))
+      )
   }
 
   case class ColumnDecodingException(message: String) extends Exception
