@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.kubernetesProxyHost
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.Release
-private[leonardo] object BuildHelmChartInputs {
+private[leonardo] object BuildHelmChartValues {
   def buildGalaxyChartOverrideValuesString(config: GKEInterpreterConfig,
                                            appName: AppName,
                                            release: Release,

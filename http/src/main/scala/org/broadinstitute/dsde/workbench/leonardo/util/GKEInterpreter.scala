@@ -38,7 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartInputs.{
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
   buildCromwellAppChartOverrideValuesString,
   buildCustomChartOverrideValuesString,
   buildGalaxyChartOverrideValuesString,

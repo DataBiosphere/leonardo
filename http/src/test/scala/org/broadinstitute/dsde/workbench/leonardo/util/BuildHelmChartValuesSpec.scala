@@ -8,15 +8,15 @@ import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makePersistentDisk, userEmail, userEmail2}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeCustomAppService, makeKubeCluster}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartInputs._
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartInputs.buildCromwellAppChartOverrideValuesString
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues._
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellAppChartOverrideValuesString
 import org.broadinstitute.dsde.workbench.leonardo.{FormattedBy, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.Release
 import org.scalatest.flatspec.AnyFlatSpecLike
 
-class BuildHelmChartInputsSpec extends AnyFlatSpecLike with LeonardoTestSuite {
+class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   it should "build Galaxy override values string" in {
     val savedCluster1 = makeKubeCluster(1)
