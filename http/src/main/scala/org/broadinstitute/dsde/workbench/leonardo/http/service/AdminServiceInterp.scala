@@ -36,12 +36,18 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
   )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppsResponse]] = {
     for {
       ctx: AppContext <- as.ask
+
+      // Ensure the user is a Terra admin
       hasPermission: Boolean <- authProvider.isAdminUser(userInfo)
       _ <- F.raiseWhen(!hasPermission)(NotAnAdminError(userInfo.userEmail, Option(ctx.traceId)))
+
+      // Find the config relevant to this cloud and app type
       appConfig: KubernetesAppConfig <- adminAppConfig.configForTypeAndCloud(req.appType, req.cloudProvider) match {
         case Some(conf) => F.pure(conf)
         case None => F.raiseError(NoMatchingAppError(req.appType, req.cloudProvider, Option(ctx.traceId)))
       }
+
+      // Query the database for the collection of updateable apps matching filters
       excludedVersions = (appConfig.chartVersionsToExcludeFromUpdates ++ req.appVersionsExclude).distinct
       matchingApps <- KubernetesServiceDbQueries.listAppsForUpdate(appConfig.chart,
                                                                    req.appType,
@@ -52,6 +58,8 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
                                                                    req.workspaceId,
                                                                    req.appNames).transaction
       responseList = ListUpdateableAppsResponse.fromClusters(matchingApps).toVector
+
+      // If not a dry run, enqueue messages requesting app update.
       _ <- {
         if (req.dryRun)
           F.unit

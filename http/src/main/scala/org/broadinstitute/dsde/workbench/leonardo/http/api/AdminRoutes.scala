@@ -20,6 +20,9 @@ import org.broadinstitute.dsp.ChartVersion
 
 import java.util.UUID
 
+/**
+  * Routes intended to be used by Terra admins to manage system state
+  */
 class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDirectives) {
 
   val routes: server.Route = traceRequestForService(serviceData) { span =>
