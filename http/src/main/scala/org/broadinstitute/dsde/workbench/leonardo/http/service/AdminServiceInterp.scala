@@ -42,11 +42,12 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
         case Some(conf) => F.pure(conf)
         case None => F.raiseError(NoMatchingAppError(req.appType, req.cloudProvider, Option(ctx.traceId)))
       }
+      excludedVersions = (appConfig.chartVersionsToExcludeFromUpdates ++ req.appVersionsExclude).distinct
       matchingApps <- KubernetesServiceDbQueries.listAppsForUpdate(appConfig.chart,
                                                                    req.appType,
                                                                    req.cloudProvider,
                                                                    req.appVersionsInclude.map(Chart(appConfig.chartName, _)),
-                                                                   req.appVersionsExclude.map(Chart(appConfig.chartName, _)),
+                                                                   excludedVersions.map(Chart(appConfig.chartName, _)),
                                                                    req.googleProject,
                                                                    req.workspaceId,
                                                                    req.appNames).transaction
