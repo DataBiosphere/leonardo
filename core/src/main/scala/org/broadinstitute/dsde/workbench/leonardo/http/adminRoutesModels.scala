@@ -14,24 +14,24 @@ final case class UpdateAppsRequest(appType: AppType,
                                    dryRun: Boolean
 )
 
-final case class ListUpdateableAppsResponse(workspaceId: Option[WorkspaceId],
-                                            cloudContext: CloudContext,
-                                            status: AppStatus,
-                                            appId: AppId,
-                                            appName: AppName,
-                                            appType: AppType,
-                                            auditInfo: AuditInfo,
-                                            chart: Chart,
-                                            accessScope: Option[AppAccessScope],
-                                            labels: LabelMap
+final case class ListUpdateableAppResponse(workspaceId: Option[WorkspaceId],
+                                           cloudContext: CloudContext,
+                                           status: AppStatus,
+                                           appId: AppId,
+                                           appName: AppName,
+                                           appType: AppType,
+                                           auditInfo: AuditInfo,
+                                           chart: Chart,
+                                           accessScope: Option[AppAccessScope],
+                                           labels: LabelMap
 )
 
-object ListUpdateableAppsResponse {
-  def fromClusters(clusters: List[KubernetesCluster]): List[ListUpdateableAppsResponse] = for {
+object ListUpdateableAppResponse {
+  def fromClusters(clusters: List[KubernetesCluster]): List[ListUpdateableAppResponse] = for {
     cluster <- clusters
     nodepool <- cluster.nodepools
     app <- nodepool.apps
-    resp = ListUpdateableAppsResponse(
+    resp = ListUpdateableAppResponse(
       app.workspaceId,
       cluster.cloudContext,
       app.status,

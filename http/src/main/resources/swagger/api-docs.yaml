@@ -1884,8 +1884,8 @@ paths:
 
   "/api/admin/v2/apps/update":
     post:
-      summary: Updates apps
-      description: Updates a designated collection of apps (both v1 and v2)
+      summary: Updates Kubernetes apps
+      description: Updates a designated collection of Kubernetes apps (both v1 and v2)
       operationId: updateApps
       tags:
         - admin
@@ -1897,13 +1897,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListUpdateableAppsResponse"
+                $ref: "#/components/schemas/ListUpdateableAppResponse"
         "202":
           description: App(s) update request accepted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListUpdateableAppsResponse"
+                $ref: "#/components/schemas/ListUpdateableAppResponse"
+        "403":
+          description: Forbidden (user is not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "412":
+          description: Precondition failed (the app type and cloud provider in the request didn't match any app profiles)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
         "500":
           description: Internal Error
           content:
@@ -3927,12 +3939,12 @@ components:
           $ref: '#/components/schemas/CloudProvider'
         appVersionsInclude:
           type: array
-          description: Apps currently running these chart versions will be updated. Applied after a config-level default exclusion list.
+          description: If provided, apps currently running these chart versions will be updated. Applied after a config-level default exclusion list.
           items:
             type: string
         appVersionsExclude:
           type: array
-          description: Apps currently running these chart versions will NOT be updated. Applied after a config-level default exclusion list.
+          description: If provided, apps currently running these chart versions will NOT be updated. Applied after a config-level default exclusion list.
           items:
             type: string
         googleProject:
@@ -4036,8 +4048,8 @@ components:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
 
-    ListUpdateableAppsResponse:
-      description: out-of-date apps
+    ListUpdateableAppResponse:
+      description: out-of-date app properties
       type: object
       properties:
         workspaceId:

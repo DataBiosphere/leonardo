@@ -68,7 +68,7 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
     res.length shouldEqual 1
     res.map(_.appName.value).contains("app2") shouldBe true
 
-    // Verify that no update message was send
+    // Verify that no update message was sent
     publisherQueue.tryTake.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe None
 
   }
@@ -96,7 +96,7 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
     res.length shouldEqual 1
     res.map(_.appName.value).contains("app2") shouldBe true
 
-    // Verify that no update message was send
+    // Verify that the update message was sent
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     message.messageType shouldBe LeoPubsubMessageType.UpdateApp
     val updateMsg = message.asInstanceOf[UpdateAppMessage]

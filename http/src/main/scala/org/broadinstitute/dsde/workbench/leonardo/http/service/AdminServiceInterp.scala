@@ -33,7 +33,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
   def updateApps (
     userInfo: UserInfo,
     req: UpdateAppsRequest
-  )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppsResponse]] = {
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppResponse]] = {
     for {
       ctx: AppContext <- as.ask
 
@@ -57,7 +57,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
                                                                    req.googleProject,
                                                                    req.workspaceId,
                                                                    req.appNames).transaction
-      responseList = ListUpdateableAppsResponse.fromClusters(matchingApps).toVector
+      responseList = ListUpdateableAppResponse.fromClusters(matchingApps).toVector
 
       // If not a dry run, enqueue messages requesting app update.
       _ <- {
@@ -75,7 +75,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
     } yield responseList
   }
 
-  private def makeUpdateAppMessage(updateableApp: ListUpdateableAppsResponse, traceId: TraceId): UpdateAppMessage =
+  private def makeUpdateAppMessage(updateableApp: ListUpdateableAppResponse, traceId: TraceId): UpdateAppMessage =
     UpdateAppMessage(updateableApp.appId,
                      updateableApp.appName,
                      updateableApp.cloudContext,

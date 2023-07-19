@@ -61,9 +61,9 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-    * List all RUNNING apps that are not on the given chart version. Used to decide which apps to update.
+    * List all RUNNING apps that are not on the given target chart version. Used to decide which apps to update.
     */
-  def listAppsForUpdate(currentVersion: Chart,
+  def listAppsForUpdate(targetVersion: Chart,
                         appType: AppType,
                         cloudProvider: CloudProvider,
                         chartVersionsToInclude: List[Chart] = List(),
@@ -82,7 +82,7 @@ object KubernetesServiceDbQueries {
       appQuery
         .filter(_.status === (AppStatus.Running: AppStatus))
         .filter(_.appType === appType)
-        .filter(_.chart =!= currentVersion)
+        .filter(_.chart =!= targetVersion)
         .filterIf(chartVersionsToInclude.nonEmpty)(_.chart inSetBind chartVersionsToInclude)
         .filterIf(chartVersionsToExclude.nonEmpty)(t => !(t.chart inSetBind chartVersionsToExclude))
         .filterOpt(workspaceId){ case (appTable, wId) => appTable.workspaceId === wId }

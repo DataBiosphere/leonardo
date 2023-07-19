@@ -79,7 +79,7 @@ object AdminRoutes {
   implicit val appIdEncoder: Encoder[AppId] = Encoder.encodeLong.contramap(_.id)
   implicit val chartEncoder: Encoder[Chart] = Encoder.encodeString.contramap(_.toString)
 
-  implicit val listUpdateableAppsResponseEncoder: Encoder[ListUpdateableAppsResponse] =
+  implicit val listUpdateableAppsResponseEncoder: Encoder[ListUpdateableAppResponse] =
     Encoder.forProduct10(
       "workspaceId",
       "cloudContext",
