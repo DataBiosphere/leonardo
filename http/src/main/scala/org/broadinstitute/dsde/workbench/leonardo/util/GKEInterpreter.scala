@@ -1,17 +1,17 @@
-package org.broadinstitute.dsde.workbench
-package leonardo
+package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.api.services.container.model
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
@@ -34,15 +34,20 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
-import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
+  buildCromwellAppChartOverrideValuesString,
+  buildCustomChartOverrideValuesString,
+  buildGalaxyChartOverrideValuesString,
+  buildRStudioAppChartOverrideValuesString
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
@@ -122,7 +127,8 @@ class GKEInterpreter[F[_]](
       kubeNetwork = KubernetesNetwork(googleProject, network)
       kubeSubNetwork = KubernetesSubNetwork(googleProject, dbCluster.region, subnetwork)
 
-      networkConfig = new model.NetworkConfig().setEnableIntraNodeVisibility(params.enableIntraNodeVisibility)
+      networkConfig = new com.google.api.services.container.model.NetworkConfig()
+        .setEnableIntraNodeVisibility(params.enableIntraNodeVisibility)
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
         .setInitialClusterVersion(config.clusterConfig.version.value)
@@ -1086,6 +1092,7 @@ class GKEInterpreter[F[_]](
       )
 
       chartValues = buildGalaxyChartOverrideValuesString(
+        config,
         appName,
         release,
         dbCluster,
@@ -1170,7 +1177,8 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getClusterId.toString}"
       )
 
-      chartValues = buildCromwellAppChartOverrideValuesString(appName,
+      chartValues = buildCromwellAppChartOverrideValuesString(config,
+                                                              appName,
                                                               cluster,
                                                               nodepoolName,
                                                               namespaceName,
@@ -1259,7 +1267,8 @@ class GKEInterpreter[F[_]](
         .compile
         .drain
 
-      chartValues = buildRStudioAppChartOverrideValuesString(appName,
+      chartValues = buildRStudioAppChartOverrideValuesString(config,
+                                                             appName,
                                                              cluster,
                                                              nodepoolName,
                                                              namespaceName,
@@ -1367,6 +1376,7 @@ class GKEInterpreter[F[_]](
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
       chartValues = buildCustomChartOverrideValuesString(
+        config,
         appName,
         release,
         nodepoolName,
@@ -1522,7 +1532,6 @@ class GKEInterpreter[F[_]](
     googleProject: GoogleProject,
     projectLabels: Option[Map[String, String]]
   ): com.google.api.services.container.model.NodePool = {
-    import scala.jdk.CollectionConverters._
     val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
 
     val legacyGoogleNodepool = new com.google.api.services.container.model.NodePool()
@@ -1562,289 +1571,8 @@ class GKEInterpreter[F[_]](
     )
   }
 
-  private[util] def buildCromwellAppChartOverrideValuesString(
-    appName: AppName,
-    cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
-    namespaceName: NamespaceName,
-    disk: PersistentDisk,
-    ksaName: ServiceAccountName,
-    gsa: WorkbenchEmail,
-    customEnvironmentVariables: Map[String, String]
-  ): List[String] = {
-    val proxyPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/cromwell-service"
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val gcsBucket = customEnvironmentVariables.getOrElse("WORKSPACE_BUCKET", "<no workspace bucket defined>")
-
-    val rewriteTarget = "$2"
-    val ingress = List(
-      raw"""ingress.enabled=true""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.path=${proxyPath}""",
-      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.hosts[0].paths[0]=${proxyPath}${"(/|$)(.*)"}""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""db.password=${config.cromwellAppConfig.dbPassword.value}"""
-    )
-
-    List(
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Persistence
-      raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      raw"""env.swaggerBasePath=$proxyPath/cromwell""",
-      // cromwellConfig
-      raw"""config.gcsProject=${cluster.cloudContext.asString}""",
-      raw"""config.gcsBucket=$gcsBucket/cromwell-execution""",
-      // Service Account
-      raw"""config.serviceAccount.name=${ksaName.value}""",
-      raw"""config.serviceAccount.annotations.gcpServiceAccount=${gsa.value}"""
-    ) ++ ingress
-  }
-
-  private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
-                                                         release: Release,
-                                                         cluster: KubernetesCluster,
-                                                         nodepoolName: NodepoolName,
-                                                         userEmail: WorkbenchEmail,
-                                                         customEnvironmentVariables: Map[String, String],
-                                                         ksa: ServiceAccountName,
-                                                         namespaceName: NamespaceName,
-                                                         nfsDisk: PersistentDisk,
-                                                         postgresDiskName: DiskName,
-                                                         machineType: AppMachineType,
-                                                         galaxyRestore: Option[GalaxyRestore]
-  ): List[String] = {
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/galaxy"
-    val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
-    val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
-    // Machine type info
-    val maxLimitMemory = machineType.memorySizeInGb
-    val maxLimitCpu = machineType.numOfCpus
-    val maxRequestMemory = maxLimitMemory - 22
-    val maxRequestCpu = maxLimitCpu - 6
-
-    // Custom EV configs
-    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
-      List(
-        raw"""configs.$k=$v""",
-        raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.asString}-galaxykubeman-configs""",
-        raw"""extraEnv[$i].valueFrom.configMapKeyRef.key=$k"""
-      )
-    }
-
-    val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
-      List(
-        raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
-        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-galaxy-pvc"""
-      )
-    )
-    // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
-    // value override special characters such as '.'
-    // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
-    List(
-      // Storage class configs
-      raw"""nfs.storageClass.name=nfs-${release.asString}""",
-      raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
-      // Node selector config: this ensures the app is run on the user's nodepool
-      raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      raw"""galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: ${nodepoolName.value}""",
-      raw"""galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Ingress configs
-      raw"""galaxy.ingress.path=${ingressPath}""",
-      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
-      raw"""galaxy.ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""galaxy.ingress.hosts[0].paths[0].path=${ingressPath}""",
-      raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
-      // CVMFS configs
-      raw"""cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-${release.asString}""",
-      raw"""cvmfs.cvmfscsi.cache.alien.pvc.name=cvmfs-alien-cache""",
-      // Galaxy configs
-      raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
-      raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
-      raw"""galaxy.terra.launch.workspace=${workspaceName}""",
-      raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
-      raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
-      raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
-      // Tusd ingress configs
-      raw"""galaxy.tusd.ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""galaxy.tusd.ingress.hosts[0].paths[0].path=${ingressPath}/api/upload/resumable_upload""",
-      raw"""galaxy.tusd.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""galaxy.tusd.ingress.tls[0].secretName=tls-secret""",
-      // Set RabbitMQ storage class
-      raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
-      // Set Machine Type specs
-      raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
-      raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
-      raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
-      raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
-      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=${maxRequestMemory}""",
-      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=${maxRequestCpu}""",
-      // RBAC configs
-      raw"""galaxy.serviceAccount.create=false""",
-      raw"""galaxy.serviceAccount.name=${ksa.value}""",
-      raw"""rbac.serviceAccount=${ksa.value}""",
-      // Persistence configs
-      raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
-      raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
-      raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
-      raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
-      raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword.value}""",
-      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName.value}""",
-      raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
-      raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
-      raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
-      raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
-      // Note Galaxy pvc claim is the nfs disk size minus 50G
-      raw"""galaxy.persistence.size=${(nfsDisk.size.gb - 50).toString}Gi"""
-    ) ++ configs ++ galaxyRestoreSettings
-  }
-
-  private[util] def buildRStudioAppChartOverrideValuesString(
-    appName: AppName,
-    cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
-    namespaceName: NamespaceName,
-    disk: PersistentDisk,
-    ksaName: ServiceAccountName,
-    userEmail: WorkbenchEmail,
-    stagingBucket: GcsBucketName,
-    customEnvironmentVariables: Map[String, String]
-  ): List[String] = {
-    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
-    val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-
-    // Custom EV configs
-    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
-      List(
-        raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].value=$v"""
-      )
-    }
-
-    val rewriteTarget = "$2"
-    val ingress = List(
-      raw"""ingress.enabled=true""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${rstudioIngressPath}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-      raw"""ingress.host=${k8sProxyHost}""",
-      raw"""ingress.rstudio.path=${rstudioIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
-    )
-
-    val welder = List(
-      raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",
-      raw"""welder.extraEnv[0].value=${cluster.cloudContext.asString}""",
-      raw"""welder.extraEnv[1].name=STAGING_BUCKET""",
-      raw"""welder.extraEnv[1].value=${stagingBucket.value}""",
-      raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
-      raw"""welder.extraEnv[2].value=${appName.value}""",
-      raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
-      raw"""welder.extraEnv[3].value=${userEmail.value}"""
-    )
-
-    List(
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Persistence
-      raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      // Service Account
-      raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder ++ configs
-  }
-
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
-
-  private[util] def buildCustomChartOverrideValuesString(appName: AppName,
-                                                         release: Release,
-                                                         nodepoolName: NodepoolName,
-                                                         serviceName: String,
-                                                         cluster: KubernetesCluster,
-                                                         namespaceName: NamespaceName,
-                                                         service: CustomAppService,
-                                                         extraArgs: List[String],
-                                                         disk: PersistentDisk,
-                                                         ksaName: ServiceAccountName,
-                                                         customEnvironmentVariables: Map[String, String]
-  ): String = {
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/${serviceName}"
-
-    // Command and args
-    val command = service.command.zipWithIndex.map { case (c, i) =>
-      raw"""image.command[$i]=$c"""
-    }
-    val args = service.args.zipWithIndex.map { case (a, i) =>
-      raw"""image.args[$i]=$a"""
-    } ++ extraArgs.zipWithIndex.map { case (a, i) =>
-      raw"""image.args[${i + service.args.length}]=$a"""
-    }
-
-    // Custom EVs
-    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
-      List(
-        raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].value=$v"""
-      )
-    }
-
-    val rewriteTarget = "$2"
-    // These nginx an ingress rules are condition.
-    // Some apps do not like behind behind a reverse proxy in this way, and require routing specified via this baseUrl
-    // The two methods are mutually exclusive
-    val ingress = service.baseUrl match {
-      case "/" =>
-        List(
-          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
-          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-          raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}"""
-        )
-      case _ => List(raw"""ingress.hosts[0].paths[0]=${service.baseUrl}""")
-    }
-
-    (List(
-      raw"""nameOverride=${serviceName}""",
-      // Image
-      raw"""image.image=${service.image.imageUrl}""",
-      raw"""image.port=${service.port}""",
-      raw"""image.baseUrl=${service.baseUrl}""",
-      // Ingress
-      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Persistence
-      raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      raw"""persistence.mountPath=${service.pdMountPath}""",
-      raw"""persistence.accessMode=${service.pdAccessMode}""",
-      raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ command ++ args ++ configs ++ ingress).mkString(",")
-  }
 
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
