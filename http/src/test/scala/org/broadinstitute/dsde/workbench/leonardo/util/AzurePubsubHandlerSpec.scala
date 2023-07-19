@@ -493,7 +493,7 @@ class AzurePubsubHandlerSpec
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
           .transaction
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         msg = DeleteAzureRuntimeMessage(runtime.id,
                                         Some(disk.id),
@@ -787,7 +787,7 @@ class AzurePubsubHandlerSpec
 
         // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
@@ -860,7 +860,7 @@ class AzurePubsubHandlerSpec
 
         // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
@@ -920,7 +920,7 @@ class AzurePubsubHandlerSpec
 
         // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)

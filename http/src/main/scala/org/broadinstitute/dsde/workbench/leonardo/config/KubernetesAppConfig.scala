@@ -98,6 +98,7 @@ final case class CoaAppConfig(chartName: ChartName,
                               instrumentationEnabled: Boolean,
                               enabled: Boolean,
                               dockstoreBaseUrl: URL,
+                              databaseEnabled: Boolean,
                               chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))

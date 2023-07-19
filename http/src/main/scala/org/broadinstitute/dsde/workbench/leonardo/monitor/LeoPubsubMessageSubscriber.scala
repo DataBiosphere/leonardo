@@ -936,7 +936,11 @@ class LeoPubsubMessageSubscriber[F[_]](
             // initial the createCluster call synchronously
             createClusterResultOpt <- gkeAlg
               .createCluster(
-                CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId))
+                CreateClusterParams(clusterId,
+                                    msg.project,
+                                    List(defaultNodepoolId, nodepoolId),
+                                    msg.enableIntraNodeVisibility
+                )
               )
               .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
               .adaptError { case e =>

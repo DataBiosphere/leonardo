@@ -70,6 +70,7 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
+export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 GPU_ENABLED=$(gpuEnabled)
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
@@ -252,19 +253,33 @@ function failScriptIfError() {
 function validateCert() {
   certFileDirectory=$1
   ## This helps when we need to rotate certs.
-  notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+  notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul  4 20:31:52 2026 GMT`
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-  if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
+  if [[ "$notAfter" != *"notAfter=Jul  4"* ]] ; then
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
-    if [ "$certFileDirectory" = "/etc" ]
+    IMAGES_TO_RESTART=(-f /var/docker-compose-files/proxy-docker-compose-gce.yaml)
+    DATAPROC_IMAGES_TO_RESTART=(-f /etc/proxy-docker-compose.yaml)
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ]; then
+      IMAGES_TO_RESTART+=(-f /var/docker-compose-files/welder-docker-compose-gce.yaml)
+      DATAPROC_IMAGES_TO_RESTART+=(-f /etc/welder-docker-compose.yaml)
+    fi
+    if [[ ! -z "$RSTUDIO_DOCKER_IMAGE" ]] ; then
+      IMAGES_TO_RESTART+=(-f /var/docker-compose-files/rstudio-docker-compose-gce.yaml)
+    fi
+    if [[ ! -z "$JUPYTER_DOCKER_IMAGE" ]] ; then
+      IMAGES_TO_RESTART+=(-f /var/docker-compose-files/jupyter-docker-compose-gce.yaml)
+      DATAPROC_IMAGES_TO_RESTART+=(-f /etc/jupyter-docker-compose.yaml )
+    fi
+
+    if [ "$certFileDirectory" = "/certs" ] #if its dataproc the cert directory is '/certs', and we can assume the docker images present
     then
-      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+      ${DOCKER_COMPOSE} "${DATAPROC_IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     else
-      ${DOCKER_COMPOSE} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+      ${DOCKER_COMPOSE} --env-file=/var/variables.env "${IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     fi
 
     failScriptIfError ${GSUTIL_CMD}

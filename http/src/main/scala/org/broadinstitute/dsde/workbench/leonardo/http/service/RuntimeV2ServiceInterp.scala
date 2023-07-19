@@ -258,11 +258,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
 
-      hasPermission <- checkSamPermission(
-        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
-        userInfo,
-        WsmResourceAction.Read
-      ).map(_._1)
+      hasPermission <-
+        if (runtime.auditInfo.creator == userInfo.userEmail)
+          F.pure(true)
+        else
+          checkSamPermission(
+            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+            userInfo,
+            WsmResourceAction.Read
+          ).map(_._1)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F

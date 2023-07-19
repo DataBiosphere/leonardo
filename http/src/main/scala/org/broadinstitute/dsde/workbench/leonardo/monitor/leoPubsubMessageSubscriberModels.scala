@@ -274,7 +274,8 @@ object LeoPubsubMessage {
     machineType: Option[
       AppMachineType
     ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
-    traceId: Option[TraceId]
+    traceId: Option[TraceId],
+    enableIntraNodeVisibility: Boolean
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
@@ -534,16 +535,18 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppMessageDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct10("project",
-                         "clusterNodepoolAction",
-                         "appId",
-                         "appName",
-                         "createDisk",
-                         "customEnvironmentVariables",
-                         "appType",
-                         "namespaceName",
-                         "machineType",
-                         "traceId"
+    Decoder.forProduct11(
+      "project",
+      "clusterNodepoolAction",
+      "appId",
+      "appName",
+      "createDisk",
+      "customEnvironmentVariables",
+      "appType",
+      "namespaceName",
+      "machineType",
+      "traceId",
+      "enableIntraNodeVisibility"
     )(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -906,7 +909,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct11(
+    Encoder.forProduct12(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -917,7 +920,8 @@ object LeoPubsubCodec {
       "appType",
       "namespaceName",
       "machineType",
-      "traceId"
+      "traceId",
+      "enableIntraNodeVisibility"
     )(x =>
       (x.messageType,
        x.project,
@@ -929,7 +933,8 @@ object LeoPubsubCodec {
        x.appType,
        x.namespaceName,
        x.machineType,
-       x.traceId
+       x.traceId,
+       x.enableIntraNodeVisibility
       )
     )
 

@@ -257,10 +257,11 @@ object Boot extends IOApp {
 
         val backLeoOnlyProcesses = {
           val monitorAtBoot =
-            new MonitorAtBoot[IO](appDependencies.publisherQueue,
-                                  googleDependencies.googleComputeService,
-                                  appDependencies.samDAO,
-                                  appDependencies.wsmDAO
+            new MonitorAtBoot[IO](
+              appDependencies.publisherQueue,
+              googleDependencies.googleComputeService,
+              appDependencies.samDAO,
+              appDependencies.wsmDAO
             )
 
           val autopauseMonitor = AutopauseMonitor(
