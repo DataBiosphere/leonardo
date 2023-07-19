@@ -570,6 +570,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
+        mockWsmDAO,
         mockKube,
         mockWsm
       ) {
