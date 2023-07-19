@@ -631,6 +631,7 @@ class GKEInterpreter[F[_]](
             appMachineType = AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)
 
             chartValues = buildGalaxyChartOverrideValuesString(
+              config,
               app.appName,
               app.release,
               dbCluster,
@@ -664,6 +665,7 @@ class GKEInterpreter[F[_]](
             ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
 
             chartValues = buildCromwellAppChartOverrideValuesString(
+              config,
               app.appName,
               dbCluster,
               nodepoolName,
@@ -685,6 +687,7 @@ class GKEInterpreter[F[_]](
               .drain
 
             chartValues = buildRStudioAppChartOverrideValuesString(
+              config,
               app.appName,
               dbCluster,
               nodepoolName,
@@ -719,6 +722,7 @@ class GKEInterpreter[F[_]](
             (serviceName, serviceConfig) = descriptor.services.head
 
             chartValues = buildCustomChartOverrideValuesString(
+              config,
               params.appName,
               app.release,
               nodepoolName,
