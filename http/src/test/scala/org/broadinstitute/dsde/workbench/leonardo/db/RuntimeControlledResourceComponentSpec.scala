@@ -27,7 +27,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
       _ <- controlledResourceQuery
-        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
         .transaction
       _ <- controlledResourceQuery
         .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
@@ -38,7 +38,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
         .transaction
     } yield {
       controlledResources.length shouldBe 2
-      controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureNetwork)
+      controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureDatabase)
       controlledStorageContainerResource.isDefined shouldBe true
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -58,10 +58,10 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
       _ <- controlledResourceQuery
-        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
         .transaction
       _ <- controlledResourceQuery
-        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
         .transaction
     } yield ()
 

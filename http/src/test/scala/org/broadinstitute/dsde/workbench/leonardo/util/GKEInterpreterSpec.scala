@@ -553,7 +553,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .createCluster(
           CreateClusterParams(KubernetesClusterLeoId(-1),
                               GoogleProject("fake"),
-                              List(NodepoolLeoId(-1), NodepoolLeoId(-1))
+                              List(NodepoolLeoId(-1), NodepoolLeoId(-1)),
+                              false
           )
         )
         .attempt
@@ -570,7 +571,11 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val res = for {
       createResult <- gkeInterp
         .createCluster(
-          CreateClusterParams(savedCluster1.id, savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value, List())
+          CreateClusterParams(savedCluster1.id,
+                              savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                              List(),
+                              false
+          )
         )
       r <- gkeInterp
         .pollCluster(
@@ -595,7 +600,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .createCluster(
           CreateClusterParams(savedCluster1.id,
                               savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                              List(NodepoolLeoId(-2))
+                              List(NodepoolLeoId(-2)),
+                              false
           )
         )
         .attempt
