@@ -690,15 +690,16 @@ object Config {
     )
   }
 
-  implicit private val rstudioAppConfigReader: ValueReader[RStudioAppConfig] = ValueReader.relative { config =>
-    RStudioAppConfig(
+  implicit private val aouAppConfigReader: ValueReader[AoUAppConfig] = ValueReader.relative { config =>
+    AoUAppConfig(
       config.as[ChartName]("chartName"),
-      config.as[ChartVersion]("chartVersion"),
+      config.as[ChartVersion]("rstudioChartVersion"),
+      config.as[ChartVersion]("sasChartVersion"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
+      config.as[ServiceAccountName]("serviceAccountName")
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[Boolean]("enabled"),
       config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
@@ -742,7 +743,7 @@ object Config {
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
-  val gkeRStudioAppConfig = config.as[RStudioAppConfig]("gke.rstudioApp")
+  val gkeAllowedAppConfig = config.as[AoUAppConfig]("gke.allowedApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
 
@@ -766,7 +767,7 @@ object Config {
     ConfigReader.appConfig.persistentDisk,
     gkeCromwellAppConfig,
     gkeCustomAppConfig,
-    gkeRStudioAppConfig
+    gkeAllowedAppConfig
   )
 
   val appServiceConfig = AppServiceConfig(
@@ -875,7 +876,7 @@ object Config {
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
-      gkeRStudioAppConfig,
+      gkeAllowedAppConfig,
       appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,

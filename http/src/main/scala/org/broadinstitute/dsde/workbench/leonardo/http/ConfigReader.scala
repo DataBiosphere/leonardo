@@ -2,7 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  CoaAppConfig,
+  HailBatchAppConfig,
+  HttpWsmDaoConfig,
+  PersistentDiskConfig,
+  WdsAppConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
@@ -30,15 +36,16 @@ object ConfigReader {
     )
 }
 
-final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
-                             wsm: HttpWsmDaoConfig,
-                             appRegistration: AzureAppRegistrationConfig,
-                             coaAppConfig: CoaAppConfig,
-                             wdsAppConfig: WdsAppConfig,
-                             hailBatchAppConfig: HailBatchAppConfig,
-                             aadPodIdentityConfig: AadPodIdentityConfig,
-                             allowedSharedApps: List[String],
-                             tdr: TdrConfig
+final case class AzureConfig(
+  pubsubHandler: AzurePubsubHandlerConfig,
+  wsm: HttpWsmDaoConfig,
+  appRegistration: AzureAppRegistrationConfig,
+  coaAppConfig: CoaAppConfig,
+  wdsAppConfig: WdsAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  allowedSharedApps: List[AppType],
+  tdr: TdrConfig
 )
 
 final case class OidcAuthConfig(
@@ -61,12 +68,13 @@ final case class TdrConfig(url: String)
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
-final case class AppConfig(terraAppSetupChart: TerraAppSetupChartConfig,
-                           persistentDisk: PersistentDiskConfig,
-                           azure: AzureConfig,
-                           oidc: OidcAuthConfig,
-                           drs: DrsConfig,
-                           metrics: LeoMetricsMonitorConfig
+final case class AppConfig(
+  terraAppSetupChart: TerraAppSetupChartConfig,
+  persistentDisk: PersistentDiskConfig,
+  azure: AzureConfig,
+  oidc: OidcAuthConfig,
+  drs: DrsConfig,
+  metrics: LeoMetricsMonitorConfig
 )
 
 final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
