@@ -375,6 +375,9 @@ END
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
       fi
 
+      # Reinstall spark properly 0 Hail is not playing nice with the built-n spark version from the dataproc cluster
+      docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "pip3 uninstall -y pyspark && pip3 install 'pyspark<3.4'"
+
       # Install notebook.json
       if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
         log 'Copy Jupyter frontend notebook config...'
