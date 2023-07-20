@@ -31,7 +31,7 @@ ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.276
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.276
-ENV WDS_CHART_VERSION 0.19.0
+ENV WDS_CHART_VERSION 0.29.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.2.0
 
@@ -56,8 +56,8 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add aou-rstudio-chart https://storage.googleapis.com/terra-app-helm/aou-rstudio-chart && \
     helm repo update
 
-COPY ./wds-0.19.0.tgz /leonardo
-RUN tar -xzf /leonardo/wds-0.19.0.tgz -C /leonardo
+COPY ./wds-0.29.0.tgz /leonardo
+RUN tar -xzf /leonardo/wds-0.29.0.tgz -C /leonardo
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
