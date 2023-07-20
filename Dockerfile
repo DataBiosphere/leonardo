@@ -58,13 +58,8 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add aou-rstudio-chart https://storage.googleapis.com/terra-app-helm/aou-rstudio-chart && \
     helm repo update
 
-<<<<<<< HEAD
 COPY ./wds-0.29.0.tgz /leonardo
 RUN tar -xzf /leonardo/wds-0.29.0.tgz -C /leonardo
-=======
-COPY ./wds-0.26.0.tgz /leonardo
-RUN tar -xzf /leonardo/wds-0.26.0.tgz -C /leonardo
->>>>>>> 9c164ac9b595badc6676693f46e9f4eb29d0cd3c
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
