@@ -118,7 +118,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       GalaxyDrsUrl("https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"),
       5,
       3,
-      true
+      true,
+      List()
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }

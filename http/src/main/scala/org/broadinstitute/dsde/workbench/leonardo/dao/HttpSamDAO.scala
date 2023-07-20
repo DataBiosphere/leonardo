@@ -27,7 +27,7 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{`Content-Type`, Authorization}
+import org.http4s.headers.{Authorization, `Content-Type`}
 import scalacache.Cache
 
 import java.io.ByteArrayInputStream
@@ -515,6 +515,33 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             )(onError)
           } yield admins.contains(workbenchEmail)
     } yield res
+
+  override def isAdminUser(userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] = {
+    // Sam's admin endpoints are protected so only admins can access them. Non-admin users get a
+    // 403 response. We don't actually care about the content we get in response to our request,
+    // we only care about the status code.
+    // 200 -> This is an admin user
+    // 403 -> The request "succeeded" in telling us this is not an admin user
+    // other -> The request failed
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      status <- httpClient.status(
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/${userInfo.userId.value}")),
+          headers = Headers(authHeader)
+        )
+      )
+      traceId <- ev.ask
+      isAdmin <- status match {
+        case Status.Ok => F.pure(true)
+        case Status.Forbidden => F.pure(false)
+        case _ => F.raiseError(AuthProviderException(traceId, "", status.code))
+      }
+    } yield isAdmin
+  }
 
   private def getLeoAuthTokenInternal: F[com.google.auth.oauth2.AccessToken] =
     credentialResource(

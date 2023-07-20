@@ -88,7 +88,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List()
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
@@ -101,7 +102,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          databaseEnabled = false
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List()
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
@@ -112,7 +114,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           List(
             ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
           ),
-          false
+          false,
+          chartVersionsToExcludeFromUpdates = List()
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),

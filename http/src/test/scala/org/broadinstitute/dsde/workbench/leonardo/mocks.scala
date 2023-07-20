@@ -170,6 +170,8 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def filterWorkspaceReader(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
   ): IO[Set[WorkspaceResourceSamResourceId]] = ???
+
+  override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider

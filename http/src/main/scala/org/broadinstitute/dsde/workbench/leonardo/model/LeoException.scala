@@ -45,6 +45,20 @@ case class ForbiddenError(email: WorkbenchEmail, traceId: Option[TraceId] = None
       traceId = traceId
     )
 
+case class NotAnAdminError(email: WorkbenchEmail, traceId: Option[TraceId] = None)
+  extends LeoException(
+    s"${email.value} is not a Terra admin.",
+    StatusCodes.Forbidden,
+    traceId = traceId
+  )
+
+case class NoMatchingAppError(appType: AppType, cloudProvider: CloudProvider, traceId: Option[TraceId] = None)
+  extends LeoException(
+    s"No matching app config found for appType ${appType.toString} and cloud provider ${cloudProvider.asString}. Leo likely doesn't deploy this app on this cloud.",
+    StatusCodes.PreconditionFailed,
+    traceId = traceId
+  )
+
 final case class LeoInternalServerError(msg: String, traceId: Option[TraceId])
     extends LeoException(
       s"${msg}",
