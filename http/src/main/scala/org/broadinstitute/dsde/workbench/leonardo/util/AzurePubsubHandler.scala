@@ -146,8 +146,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           wsStorageContainerUrl,
           applicationConfig.leoUrlBase,
           params.runtime.runtimeName.asString,
-          s"'${refererConfig.validHosts.mkString("','")}'",
-          applicationConfig.leoServiceAccountEmail.value
+          s"'${refererConfig.validHosts.mkString("','")}'"
         )
 
         val cmdToExecute =
