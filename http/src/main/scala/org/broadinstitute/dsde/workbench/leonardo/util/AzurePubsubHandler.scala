@@ -147,7 +147,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           applicationConfig.leoUrlBase,
           params.runtime.runtimeName.asString,
           s"'${refererConfig.validHosts.mkString("','")}'",
-          applicationConfig.leoServiceAccountEmail
+          applicationConfig.leoServiceAccountEmail.value
         )
 
         val cmdToExecute =
