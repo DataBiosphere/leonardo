@@ -174,7 +174,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
           withWebDriver { implicit driver =>
             withOpenNotebook(runtimeFixture.runtime, localizedFile, 5.minutes) { notebookPage =>
               val contents =
-                "{\n      'cells': [],\n      'metadata': {\n        'kernelspec': {\n        'display_name': 'Python 3',\n        'language': 'python',\n        'name': 'python3'\n      },\n        'language_info': {\n        'codemirror_mode': {\n        'name': 'ipython',\n        'version': 3\n      },\n        'file_extension': '.py',\n        'mimetype': 'text/x-python',\n        'name': 'python',\n        'nbconvert_exporter': 'python',\n        'pygments_lexer': 'ipython3',\n        'version': '3.10.9'\n      }\n      },\n      'nbformat': 4,\n      'nbformat_minor': 2\n    }"
+                "{\n      'cells': [],\n      'metadata': {\n        'kernelspec': {\n        'display_name': 'Python 3',\n        'language': 'python',\n        'name': 'python3'\n      },\n        'language_info': {\n        'codemirror_mode': {\n        'name': 'ipython',\n        'version': 3\n      },\n        'file_extension': '.py',\n        'mimetype': 'text/x-python',\n        'name': 'python',\n        'nbconvert_exporter': 'python',\n        'pygments_lexer': 'ipython3',\n        'version': '3.10.11'\n      }\n      },\n      'nbformat': 4,\n      'nbformat_minor': 2\n    }"
               setObjectContents(runtimeFixture.runtime.googleProject,
                                 gcsPath.bucketName,
                                 GcsBlobName(gcsPath.objectName.value),

@@ -404,7 +404,7 @@ pipeline {
                                         def dp_version_formatted = dp_version.replace(".", "-")
                                         // Dataproc 1.2 is used for the legacy image and must have python 3.6 installed
                                         // Otherwise, a terra-docker image is used which must have python 3.10 installed
-                                        def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.10.9"
+                                        def python_version = dp_version.startsWith("1.2") ? "3.6.8" : "3.10.11"
                                         println("Installing Python $python_version on Dataproc $dp_version...")
                                         sh(
                                             script: """
