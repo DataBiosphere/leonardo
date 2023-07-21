@@ -52,7 +52,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
       headers <- cloudContext match {
         case _: CloudContext.Azure =>
-          samDAO.getLeoAuthToken.map(x => Headers(x))
+          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
       }
