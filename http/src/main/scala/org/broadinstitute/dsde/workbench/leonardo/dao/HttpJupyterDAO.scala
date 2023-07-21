@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.{Header, Headers, Method, Request}
+import org.typelevel.ci.CIString
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
@@ -19,14 +20,14 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   F: Async[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
+  private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header = Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
+
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
       headers <- cloudContext match {
-        case _: CloudContext.Azure => {
-          samDAO.getLeoAuthToken.map(x => Headers(x)) ++
-          Headers.of(Header.Raw("X-SetDateAccessedInspector-Action", "ignore"))
-        }
+        case _: CloudContext.Azure =>
+          samDAO.getLeoAuthToken.map(x => Headers(x)) ++ Headers.of(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE)
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
       }
