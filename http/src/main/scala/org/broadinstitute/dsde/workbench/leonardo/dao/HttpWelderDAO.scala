@@ -19,7 +19,8 @@ class HttpWelderDAO[F[_]: Logger](
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends WelderDAO[F] {
-  private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header = Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
+  private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header.Raw =
+    Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
 
   def flushCache(cloudContext: CloudContext, runtimeName: RuntimeName): F[Unit] =
     for {
@@ -58,7 +59,7 @@ class HttpWelderDAO[F[_]: Logger](
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
       headers <- cloudContext match {
         case _: CloudContext.Azure =>
-          samDAO.getLeoAuthToken.map(x => Headers(x)) ++ Headers.of(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE)
+          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
       }
