@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
-import org.http4s.{Headers, Method, Request}
+import org.http4s.{Header, Headers, Method, Request}
 import org.typelevel.log4cats.Logger
 
 class HttpWelderDAO[F[_]: Logger](
@@ -55,8 +55,10 @@ class HttpWelderDAO[F[_]: Logger](
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
       headers <- cloudContext match {
-        case _: CloudContext.Azure =>
-          samDAO.getLeoAuthToken.map(x => Headers(x))
+        case _: CloudContext.Azure => {
+          samDAO.getLeoAuthToken.map(x => Headers(x)) ++
+          Headers.of(Header.Raw("X-SetDateAccessedInspector-Action", "ignore"))
+        }
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
       }
