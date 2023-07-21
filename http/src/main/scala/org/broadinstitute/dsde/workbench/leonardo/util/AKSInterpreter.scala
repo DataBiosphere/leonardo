@@ -831,6 +831,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                               app: App
   ): bio.terra.workspace.model.ControlledResourceCommonFields = {
     val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
+      .resourceId(UUID.randomUUID())
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
@@ -889,6 +890,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         _ <- logger.info(ctx.loggingCtx)(s"WSM create identity request: ${createIdentityRequest}")
 
+        _ <- appControlledResourceQuery
+          .insert(
+            app.id.id,
+            WsmControlledResourceId(createIdentityRequest.getCommon.getResourceId),
+            WsmResourceType.AzureManagedIdentity,
+            AppControlledResourceStatus.Created
+          )
+          .transaction
+
         // Execute WSM call
         createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
 
@@ -896,10 +906,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Save record in APP_CONTROLLED_RESOURCE table
         _ <- appControlledResourceQuery
-          .save(app.id.id,
-                WsmControlledResourceId(createIdentityResponse.getResourceId),
-                WsmResourceType.AzureManagedIdentity,
-                AppControlledResourceStatus.Created
+          .updateStatus(WsmControlledResourceId(createIdentityResponse.getResourceId),
+                        AppControlledResourceStatus.Created
           )
           .transaction
 
@@ -974,6 +982,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       _ <- logger.info(ctx.loggingCtx)(s"WSM create database request: ${createDatabaseRequest}")
 
+      _ <- appControlledResourceQuery
+        .insert(
+          app.id.id,
+          WsmControlledResourceId(createDatabaseRequest.getCommon.getResourceId),
+          WsmResourceType.AzureDatabase,
+          AppControlledResourceStatus.Creating
+        )
+        .transaction
+
       // Execute WSM call
       createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
 
@@ -1002,10 +1019,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Save record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
-        .save(
-          app.id.id,
-          WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
-          WsmResourceType.AzureDatabase,
+        .updateStatus(
+          WsmControlledResourceId(result.getResourceId),
           AppControlledResourceStatus.Created
         )
         .transaction
@@ -1026,12 +1041,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
       wsmResources <- appControlledResourceQuery
-        .getAllForApp(app.id.id, AppControlledResourceStatus.Created)
+        .getAllForApp(app.id.id, AppControlledResourceStatus.Created, AppControlledResourceStatus.Creating)
         .transaction
 
       _ <- wsmResources.traverse { wsmResource =>
         deleteWsmResource(workspaceId, app, wsmApi, wsmResource) >>
-          appControlledResourceQuery.delete(app.id.id, wsmResource.resourceId).transaction
+          appControlledResourceQuery.delete(wsmResource.resourceId).transaction
       }
     } yield ()
 
