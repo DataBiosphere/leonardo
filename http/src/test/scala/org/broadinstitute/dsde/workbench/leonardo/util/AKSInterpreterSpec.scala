@@ -1011,7 +1011,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenAnswer { // thenAnswer is used so that the result of the call is different each time
       invocation =>
         new CreatedControlledAzureDatabaseResult()
-          .resourceId(dbUUIDsByName(invocation.getArgument[String](1)))
+          .azureDatabase(new AzureDatabaseResource().metadata(new ResourceMetadata().resourceId(dbUUIDsByName(invocation.getArgument[String](1)))))
           .jobReport(
             new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
           )

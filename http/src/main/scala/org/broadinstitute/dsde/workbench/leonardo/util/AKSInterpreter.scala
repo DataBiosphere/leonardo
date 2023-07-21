@@ -1020,7 +1020,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Save record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
         .updateStatus(
-          WsmControlledResourceId(result.getResourceId),
+          WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
           AppControlledResourceStatus.Created
         )
         .transaction
