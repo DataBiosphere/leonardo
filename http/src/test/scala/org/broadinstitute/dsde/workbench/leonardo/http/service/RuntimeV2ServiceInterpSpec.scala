@@ -11,8 +11,8 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -43,7 +43,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
+class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val serviceConfig = RuntimeServiceConfig(
     Config.proxyConfig.proxyUrlBase,
     imageConfig,
@@ -575,6 +575,112 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "get a runtime when caller is creator" in isolatedDbTest {
+
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allowlisted
+
+    implicit val mockSamResourceAction: SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] =
+      mock[SamResourceAction[WsmResourceSamResourceId, WsmResourceAction]]
+
+    // test: user does not have access permission for this resource (but they are the creator)
+    val mockAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
+    // User passes isUserWorkspaceReader
+    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(true))
+    // Calls to a method on a mock which is not stubbed explicitly will return null;
+    // the user cannot pass mockAuthProvider.hasPermission unless we stub it
+
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+
+    val setupAzureService = makeInterp(publisherQueue)
+    val testAzureService = makeInterp(publisherQueue, mockAuthProvider)
+
+    val res = for {
+      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+
+      _ <- setupAzureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq
+        )
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      cluster = clusterOpt.get
+      getResponse <- testAzureService.getRuntime(userInfo, runtimeName, workspaceId)
+    } yield {
+      getResponse.clusterName shouldBe runtimeName
+      getResponse.auditInfo.creator shouldBe userInfo.userEmail
+
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to get a runtime when caller has workspace permission, lacks resource permissions, and is not creator" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allowlisted
+    val userInfoNoncreator =
+      UserInfo(OAuth2BearerToken(""), WorkbenchUserId("anotherUserId"), WorkbenchEmail("another_user@example.com"), 0)
+
+    implicit val mockSamResourceAction: SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] =
+      mock[SamResourceAction[WsmResourceSamResourceId, WsmResourceAction]]
+
+    // test: user does not have access permission for this resource (and they are not the creator)
+    val mockAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
+    // User passes isUserWorkspaceReader
+    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(true))
+    when(mockAuthProvider.hasPermission(any(), any(), any())(any(), any())).thenReturn(IO.pure(false))
+
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+
+    val setupAzureService = makeInterp(publisherQueue)
+    val testAzureService = makeInterp(publisherQueue, mockAuthProvider)
+
+    val res = for {
+      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+
+      _ <- setupAzureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq
+        )
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      cluster = clusterOpt.get
+      _ <- testAzureService.getRuntime(userInfoNoncreator, runtimeName, workspaceId)
+    } yield ()
+
+    the[RuntimeNotFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   it should "fail to get a runtime when caller has no permission" in isolatedDbTest {
