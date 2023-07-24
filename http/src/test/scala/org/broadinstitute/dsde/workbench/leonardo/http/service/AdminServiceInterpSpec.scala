@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.{NoMatchingAppError, NotAnAdminError}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessageType
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.UpdateAppMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}

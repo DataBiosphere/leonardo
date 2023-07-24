@@ -33,7 +33,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   appControlledResourceQuery,
   AppControlledResourceStatus,
   KubernetesServiceDbQueries,
-  RuntimeServiceDbQueries,
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}

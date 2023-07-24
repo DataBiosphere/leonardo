@@ -30,7 +30,7 @@ class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDi
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo) {
           implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
-          pathPrefix("admin" / "v2" / "apps" / "update" ) {
+          pathPrefix("admin" / "v2" / "apps" / "update") {
             pathEndOrSingleSlash {
               post {
                 entity(as[UpdateAppsRequest]) { req =>
@@ -48,9 +48,9 @@ class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDi
 
   private[api] def updateAppsHandler(userInfo: UserInfo,
                                      req: UpdateAppsRequest
-  )(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] = for {
+                                    )(implicit
+                                      ev: Ask[IO, AppContext]
+                                    ): IO[ToResponseMarshallable] = for {
     ctx <- ev.ask[AppContext]
     apiCall = adminService.updateApps(userInfo, req)
     resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApps").use(_ => apiCall))
@@ -92,7 +92,7 @@ object AdminRoutes {
       "accessScope",
       "labels"
     )(x =>
-       (x.workspaceId,
+      (x.workspaceId,
         x.cloudContext,
         x.status,
         x.appId,

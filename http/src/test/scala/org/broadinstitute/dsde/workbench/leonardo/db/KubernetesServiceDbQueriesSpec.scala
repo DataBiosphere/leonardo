@@ -595,8 +595,9 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     makeApp(1, nodepool1.id, workspaceId = workspaceId).save()
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(WorkspaceId(UUID.randomUUID()),
-                                                                         AppName("fakeApp")
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(
+        WorkspaceId(UUID.randomUUID()),
+        AppName("fakeApp")
       )
     }
     getApp shouldBe None

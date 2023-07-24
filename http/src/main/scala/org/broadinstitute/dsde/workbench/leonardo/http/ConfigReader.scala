@@ -30,31 +30,28 @@ object ConfigReader {
     )
 }
 
-final case class AzureConfig(
-  pubsubHandler: AzurePubsubHandlerConfig,
-  wsm: HttpWsmDaoConfig,
-  appRegistration: AzureAppRegistrationConfig,
-  coaAppConfig: CoaAppConfig,
-  wdsAppConfig: WdsAppConfig,
-  hailBatchAppConfig: HailBatchAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig,
-  allowedSharedApps: List[String],
-  tdr: TdrConfig
-)
+final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
+                             wsm: HttpWsmDaoConfig,
+                             appRegistration: AzureAppRegistrationConfig,
+                             coaAppConfig: CoaAppConfig,
+                             wdsAppConfig: WdsAppConfig,
+                             hailBatchAppConfig: HailBatchAppConfig,
+                             aadPodIdentityConfig: AadPodIdentityConfig,
+                             allowedSharedApps: List[String],
+                             tdr: TdrConfig)
 
 final case class OidcAuthConfig(
-  authorityEndpoint: Uri,
-  clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId,
-  clientSecret: Option[org.broadinstitute.dsde.workbench.oauth2.ClientSecret],
-  legacyGoogleClientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
-)
+                                 authorityEndpoint: Uri,
+                                 clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId,
+                                 clientSecret: Option[org.broadinstitute.dsde.workbench.oauth2.ClientSecret],
+                                 legacyGoogleClientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
+                               )
 
 final case class AadPodIdentityConfig(namespace: Namespace,
                                       release: Release,
                                       chartName: ChartName,
                                       chartVersion: ChartVersion,
-                                      values: Values
-)
+                                      values: Values)
 
 final case class DrsConfig(url: String)
 
@@ -62,14 +59,12 @@ final case class TdrConfig(url: String)
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
-final case class AppConfig(
-  terraAppSetupChart: TerraAppSetupChartConfig,
-  persistentDisk: PersistentDiskConfig,
-  azure: AzureConfig,
-  oidc: OidcAuthConfig,
-  drs: DrsConfig,
-  metrics: LeoMetricsMonitorConfig
-)
+final case class AppConfig(terraAppSetupChart: TerraAppSetupChartConfig,
+                           persistentDisk: PersistentDiskConfig,
+                           azure: AzureConfig,
+                           oidc: OidcAuthConfig,
+                           drs: DrsConfig,
+                           metrics: LeoMetricsMonitorConfig)
 
 final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
                                 cromwellAppConfig: CromwellAppConfig,
@@ -77,13 +72,12 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
                                 galaxyAppConfig: GalaxyAppConfig,
                                 hailBatchAppConfig: HailBatchAppConfig,
                                 rstudioAppConfig: RStudioAppConfig,
-                                wdsAppConfig: WdsAppConfig
-) {
+                                wdsAppConfig: WdsAppConfig) {
 
   def configForTypeAndCloud(appType: AppType, cloudProvider: CloudProvider): Option[KubernetesAppConfig] =
     asList.find(c => c.appType == appType && c.cloudProvider == cloudProvider)
 
-  private lazy val asList: List[KubernetesAppConfig] = List (
+  private lazy val asList: List[KubernetesAppConfig] = List(
     coaAppConfig,
     cromwellAppConfig,
     customAppConfig,

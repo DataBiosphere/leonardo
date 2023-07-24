@@ -32,7 +32,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import scala.concurrent.duration._
 
 class HttpRoutesSpec
-    extends AnyFlatSpec
+  extends AnyFlatSpec
     with ScalatestRouteTest
     with LeonardoTestSuite
     with ScalaFutures
@@ -116,7 +116,7 @@ class HttpRoutesSpec
   "RuntimeRoutes" should "create runtime id1" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`,
-                  defaultCreateRuntimeRequest.asJson.spaces2
+        defaultCreateRuntimeRequest.asJson.spaces2
       ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -148,7 +148,7 @@ class HttpRoutesSpec
     // Succeed with saturn-iframe-extension in strict allowlist
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`,
-                  validReq.asJson.spaces2
+        validReq.asJson.spaces2
       ) ~> routesWithStrictRefererConfig.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
@@ -162,7 +162,7 @@ class HttpRoutesSpec
     // Succeed with disabled allowlist
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`,
-                  req.asJson.spaces2
+        req.asJson.spaces2
       ) ~> routesWithDisabledRefererConfig.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
@@ -179,7 +179,7 @@ class HttpRoutesSpec
   it should s"reject create a cluster if cluster name is invalid" in {
     val invalidClusterName = "MyCluster"
     Post(s"/api/google/v1/runtimes/googleProject1/$invalidClusterName",
-         defaultCreateRuntimeRequest.asJson.spaces2
+      defaultCreateRuntimeRequest.asJson.spaces2
     ) ~> httpRoutes.route ~> check {
       val expectedResponse =
         """Invalid name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names"""
@@ -234,15 +234,15 @@ class HttpRoutesSpec
         clusterServiceAccountFromProject(GoogleProject(googleProject)).map { sa =>
           Map("clusterServiceAccount" -> sa.value)
         } getOrElse Map.empty
-      ) ++ (
+        ) ++ (
         notebookServiceAccountFromProject(GoogleProject(googleProject)).map { sa =>
           Map("notebookServiceAccount" -> sa.value)
         } getOrElse Map.empty
-      )
+        )
 
     for (i <- 1 to 10)
       Post(s"/api/google/v1/runtimes/${googleProject}/${clusterName}-$i",
-           runtimesWithLabels(i).asJson
+        runtimesWithLabels(i).asJson
       ) ~> httpRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
@@ -316,7 +316,7 @@ class HttpRoutesSpec
   it should "delete a runtime and disk if deleteDisk is true" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(implicit
-        as: Ask[IO, AppContext]
+                                                                             as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteRuntime =
           DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), true)
@@ -340,7 +340,7 @@ class HttpRoutesSpec
   it should "keep disk when deleting runtime if deleteDisk is false" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(implicit
-        as: Ask[IO, AppContext]
+                                                                             as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteRuntime =
           DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
@@ -359,7 +359,7 @@ class HttpRoutesSpec
   it should "not delete disk when deleting a runtime with PD enabled if deleteDisk is not set" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(implicit
-        as: Ask[IO, AppContext]
+                                                                             as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteRuntime =
           DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
@@ -441,11 +441,11 @@ class HttpRoutesSpec
   it should "not handle patch with invalid runtime config" in {
     val negative =
       UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(-100)))),
-                           false,
-                           None,
-                           None,
-                           Map.empty,
-                           Set.empty
+        false,
+        None,
+        None,
+        Map.empty,
+        Set.empty
       )
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
@@ -455,11 +455,11 @@ class HttpRoutesSpec
     }
     val oneWorker =
       UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(1), None)),
-                           false,
-                           None,
-                           None,
-                           Map.empty,
-                           Set.empty
+        false,
+        None,
+        None,
+        Map.empty,
+        Set.empty
       )
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, oneWorker.asJson.spaces2) ~> routes.route ~> check {
@@ -472,7 +472,7 @@ class HttpRoutesSpec
   "RuntimeRoutesV2" should "create azure runtime" in {
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
       .withEntity(ContentTypes.`application/json`,
-                  defaultCreateAzureRuntimeReq.asJson.spaces2
+        defaultCreateAzureRuntimeReq.asJson.spaces2
       ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -482,7 +482,7 @@ class HttpRoutesSpec
   it should "reject azure runtime with invalid workspaceId" in {
     Post(s"/api/v2/runtimes/invalidWorkspaceId/azure/azureruntime1")
       .withEntity(ContentTypes.`application/json`,
-                  defaultCreateAzureRuntimeReq.asJson.spaces2
+        defaultCreateAzureRuntimeReq.asJson.spaces2
       ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String should include(
@@ -494,7 +494,7 @@ class HttpRoutesSpec
   it should "reject azure runtime with invalid runtimeName" in {
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/invalidRuntime")
       .withEntity(ContentTypes.`application/json`,
-                  defaultCreateAzureRuntimeReq.asJson.spaces2
+        defaultCreateAzureRuntimeReq.asJson.spaces2
       ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String should include(
@@ -558,10 +558,12 @@ class HttpRoutesSpec
   it should "list runtimes v2 with labels" in isolatedDbTest {
 
     def testAzureCloudContext = AzureCloudContext(TenantId(workspaceId.toString),
-                                                  SubscriptionId(workspaceId.toString),
-                                                  ManagedResourceGroupName(workspaceId.toString)
+      SubscriptionId(workspaceId.toString),
+      ManagedResourceGroupName(workspaceId.toString)
     )
+
     def saLabels = Map("clusterServiceAccount" -> "user1@example.com")
+
     def runtimesWithLabels(i: Int) =
       defaultCreateAzureRuntimeReq
         .copy(
@@ -570,7 +572,7 @@ class HttpRoutesSpec
         )
 
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-1",
-         runtimesWithLabels(1).asJson
+      runtimesWithLabels(1).asJson
     ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
@@ -589,7 +591,7 @@ class HttpRoutesSpec
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-2",
-         runtimesWithLabels(2).asJson
+      runtimesWithLabels(2).asJson
     ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
@@ -874,7 +876,7 @@ class HttpRoutesSpec
   it should "create an app V2" in {
     Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
       .withEntity(ContentTypes.`application/json`,
-                  createAppRequest.copy(accessScope = Some(AppAccessScope.WorkspaceShared)).asJson.spaces2
+        createAppRequest.copy(accessScope = Some(AppAccessScope.WorkspaceShared)).asJson.spaces2
       ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
@@ -927,18 +929,18 @@ class HttpRoutesSpec
       .withEntity(
         ContentTypes.`application/json`,
         UpdateAppsRequest(AppType.Galaxy,
-                          CloudProvider.Gcp,
-                          List.empty,
-                          List.empty,
-                          None,
-                          None,
-                          List.empty,
-                          dryRun = false
+          CloudProvider.Gcp,
+          List.empty,
+          List.empty,
+          None,
+          None,
+          List.empty,
+          dryRun = false
         )
           .asJson
           .spaces2
       ) ~> httpRoutes.route ~> check {
-        status shouldEqual StatusCodes.Accepted
+      status shouldEqual StatusCodes.Accepted
     }
   }
 
@@ -968,9 +970,9 @@ class HttpRoutesSpec
   it should "decode and encode RuntimeConfigRequest.GceConfig" in {
     val test =
       RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-8")),
-                                     Some(DiskSize(100)),
-                                     Some(ZoneName("europe-west1-b")),
-                                     None
+        Some(DiskSize(100)),
+        Some(ZoneName("europe-west1-b")),
+        None
       )
     decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
   }
