@@ -46,11 +46,9 @@ class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDi
     }
   }
 
-  private[api] def updateAppsHandler(userInfo: UserInfo,
-                                     req: UpdateAppsRequest
-                                    )(implicit
-                                      ev: Ask[IO, AppContext]
-                                    ): IO[ToResponseMarshallable] = for {
+  private[api] def updateAppsHandler(userInfo: UserInfo, req: UpdateAppsRequest)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] = for {
     ctx <- ev.ask[AppContext]
     apiCall = adminService.updateApps(userInfo, req)
     resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApps").use(_ => apiCall))
@@ -93,15 +91,15 @@ object AdminRoutes {
       "labels"
     )(x =>
       (x.workspaceId,
-        x.cloudContext,
-        x.status,
-        x.appId,
-        x.appName,
-        x.appType,
-        x.auditInfo,
-        x.chart,
-        x.accessScope,
-        x.labels
+       x.cloudContext,
+       x.status,
+       x.appId,
+       x.appName,
+       x.appType,
+       x.auditInfo,
+       x.chart,
+       x.accessScope,
+       x.labels
       )
     )
 }

@@ -8,8 +8,8 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 trait AdminService[F[_]] {
 
   def updateApps(
-                  userInfo: UserInfo,
-                  req: UpdateAppsRequest
-                )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppResponse]]
+    userInfo: UserInfo,
+    req: UpdateAppsRequest
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppResponse]]
 
 }

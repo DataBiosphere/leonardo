@@ -33,9 +33,9 @@ object KubernetesServiceDbQueries {
                    labelFilter: LabelMap = Map(),
                    includeDeleted: Boolean = false,
                    creatorOnly: Option[WorkbenchEmail] = None
-                  )(implicit
-                    ec: ExecutionContext
-                  ): DBIO[List[KubernetesCluster]] =
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
       listClustersByCloudContext(cloudContext),
       nodepoolQuery,
@@ -50,9 +50,9 @@ object KubernetesServiceDbQueries {
   def listFullAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
                                 labelFilter: LabelMap = Map(),
                                 includeDeleted: Boolean = false
-                               )(implicit
-                                 ec: ExecutionContext
-                               ): DBIO[List[KubernetesCluster]] =
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
       kubernetesClusterQuery,
       nodepoolQuery,
@@ -71,13 +71,15 @@ object KubernetesServiceDbQueries {
                         googleProject: Option[GoogleProject] = None,
                         workspaceId: Option[WorkspaceId] = None,
                         appNames: List[AppName] = List()
-                       )(implicit
-                         ec: ExecutionContext
-                       ): DBIO[List[KubernetesCluster]] = {
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
       kubernetesClusterQuery
         .filter(_.cloudProvider === cloudProvider)
-        .filterOpt(googleProject) { case (clusterTable, gp) => clusterTable.cloudContextDb === CloudContextDb(gp.value) },
+        .filterOpt(googleProject) { case (clusterTable, gp) =>
+          clusterTable.cloudContextDb === CloudContextDb(gp.value)
+        },
       nodepoolQuery,
       appQuery
         .filter(_.status === (AppStatus.Running: AppStatus))
@@ -88,13 +90,12 @@ object KubernetesServiceDbQueries {
         .filterOpt(workspaceId) { case (appTable, wId) => appTable.workspaceId === wId }
         .filterIf(appNames.nonEmpty)(_.appName inSetBind appNames)
     )
-  }
 
   /**
     * List all apps that need monitoring. Called by MonitorAtBoot.
     */
   def listMonitoredApps(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
-  // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status
+    // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status
     joinFullAppAndUnmarshal(
       kubernetesClusterQuery,
       nodepoolQuery,
@@ -116,8 +117,8 @@ object KubernetesServiceDbQueries {
     * Throws an error if the cluster is in creating status.
     */
   def saveOrGetClusterForApp(
-                              saveKubernetesCluster: SaveKubernetesCluster
-                            )(implicit ec: ExecutionContext): DBIO[SaveClusterResult] =
+    saveKubernetesCluster: SaveKubernetesCluster
+  )(implicit ec: ExecutionContext): DBIO[SaveClusterResult] =
     for {
       clusterOpt <- kubernetesClusterQuery.getMinimalActiveClusterByCloudContext(saveKubernetesCluster.cloudContext)
 
@@ -145,12 +146,12 @@ object KubernetesServiceDbQueries {
     * This method should be used by v1 app routes. v2 apps should use `getActiveFullAppByWorkspaceIdAndAppName`.
     */
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
-                                                                                                          ec: ExecutionContext
+    ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
     getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
-      nodepoolQuery,
-      appQuery.findActiveByNameQuery(appName),
-      labelFilter
+                     nodepoolQuery,
+                     appQuery.findActiveByNameQuery(appName),
+                     labelFilter
     )
 
   /**
@@ -160,9 +161,9 @@ object KubernetesServiceDbQueries {
   def getActiveFullAppByWorkspaceIdAndAppName(workspaceId: WorkspaceId,
                                               appName: AppName,
                                               labelFilter: LabelMap = Map()
-                                             )(implicit
-                                               ec: ExecutionContext
-                                             ): DBIO[Option[GetAppResult]] =
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[GetAppResult]] =
     getActiveFullApp(
       kubernetesClusterQuery,
       nodepoolQuery,
@@ -174,12 +175,12 @@ object KubernetesServiceDbQueries {
     * Gets an app by ID. This method is safe to use for both v1 and v2 routes.
     */
   def getFullAppById(cloudContext: CloudContext, appId: AppId, labelFilter: LabelMap = Map())(implicit
-                                                                                              ec: ExecutionContext
+    ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
     getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
-      nodepoolQuery,
-      appQuery.getByIdQuery(appId),
-      labelFilter
+                     nodepoolQuery,
+                     appQuery.getByIdQuery(appId),
+                     labelFilter
     )
 
   /**
@@ -187,7 +188,7 @@ object KubernetesServiceDbQueries {
     * in progress.
     */
   def hasClusterOperationInProgress(clusterId: KubernetesClusterLeoId)(implicit
-                                                                       ec: ExecutionContext
+    ec: ExecutionContext
   ): DBIO[Boolean] =
     for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(clusterId)
@@ -209,9 +210,9 @@ object KubernetesServiceDbQueries {
                                    nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq],
                                    appQuery: Query[AppTable, AppRecord, Seq],
                                    labelFilter: LabelMap = Map()
-                                  )(implicit
-                                    ec: ExecutionContext
-                                  ): DBIO[Option[GetAppResult]] =
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[GetAppResult]] =
     for {
       clusters <- joinFullAppAndUnmarshal(clusterQuery, nodepoolQuery, appQuery, labelFilter)
       _ <-
@@ -253,9 +254,9 @@ object KubernetesServiceDbQueries {
                           clusterId: Option[KubernetesClusterLeoId],
                           defaultNodepoolId: Option[NodepoolLeoId],
                           nodepoolId: Option[NodepoolLeoId]
-                         )(implicit
-                           ec: ExecutionContext
-                         ): DBIO[Unit] =
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[Unit] =
     for {
       _ <- clusterId.traverse(id => kubernetesClusterQuery.updateStatus(id, KubernetesClusterStatus.Provisioning))
       _ <- defaultNodepoolId.traverse(id => nodepoolQuery.updateStatus(id, NodepoolStatus.Provisioning))
@@ -269,7 +270,7 @@ object KubernetesServiceDbQueries {
     } yield ()
 
   def markPendingAppDeletion(appId: AppId, diskId: Option[DiskId], now: Instant)(implicit
-                                                                                 ec: ExecutionContext
+    ec: ExecutionContext
   ): DBIO[Unit] =
     for {
       _ <- appQuery.markPendingDeletion(appId)
@@ -277,8 +278,8 @@ object KubernetesServiceDbQueries {
     } yield ()
 
   private[db] def listClustersByCloudContext(
-                                              cloudContext: Option[CloudContext]
-                                            ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
+    cloudContext: Option[CloudContext]
+  ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
     cloudContext match {
       case Some(context) =>
         kubernetesClusterQuery
@@ -288,11 +289,11 @@ object KubernetesServiceDbQueries {
     }
 
   private[db] def joinFullAppAndUnmarshal(
-                                           baseQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],
-                                           nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq],
-                                           appQuery: Query[AppTable, AppRecord, Seq],
-                                           labelFilter: LabelMap = Map()
-                                         )(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
+    baseQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],
+    nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq],
+    appQuery: Query[AppTable, AppRecord, Seq],
+    labelFilter: LabelMap = Map()
+  )(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     joinFullApp(baseQuery, nodepoolQuery, appQuery, labelFilter).result
       .map(rec => aggregateJoinedApp(rec).toList)
 
@@ -300,26 +301,26 @@ object KubernetesServiceDbQueries {
                               baseNodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq],
                               baseAppQuery: Query[AppTable, AppRecord, Seq],
                               labelFilter: LabelMap
-                             ) = {
+  ) = {
     val query = for {
       (((((((((app, nodepool), cluster), label), clusterNamespaces), appNamespace), services), disks), diskLabels),
-      appError
-        ) <- baseAppQuery join
+       appError
+      ) <- baseAppQuery join
         baseNodepoolQuery on (_.nodepoolId === _.id) join
         baseClusterQuery on (_._2.clusterId === _.id) joinLeft
         labelQuery on { case (c, lbl) =>
-        val resourceTypeFilter = lbl.resourceId
-          .mapTo[AppId] === c._1._1.id && lbl.resourceType === LabelResourceType.app
-        resourceTypeFilter
-      } joinLeft
+          val resourceTypeFilter = lbl.resourceId
+            .mapTo[AppId] === c._1._1.id && lbl.resourceType === LabelResourceType.app
+          resourceTypeFilter
+        } joinLeft
         namespaceQuery on (_._1._2.id === _.clusterId) join
         namespaceQuery on (_._1._1._1._1.namespaceId === _.id) joinLeft
         serviceQuery on (_._1._1._1._1._1.id === _.appId) joinLeft
         persistentDiskQuery.tableQuery on (_._1._1._1._1._1._1.diskId === _.id) joinLeft
         labelQuery on { case (c, lbl) =>
-        lbl.resourceId
-          .mapTo[DiskId] === c._1._1._1._1._1._1._1.diskId && lbl.resourceType === LabelResourceType.persistentDisk
-      } joinLeft
+          lbl.resourceId
+            .mapTo[DiskId] === c._1._1._1._1._1._1._1.diskId && lbl.resourceType === LabelResourceType.persistentDisk
+        } joinLeft
         appErrorQuery on (_._1._1._1._1._1._1._1._1.id === _.appId)
     } yield (cluster, nodepool, app, label, clusterNamespaces, appNamespace, services, disks, diskLabels, appError)
 
@@ -337,33 +338,33 @@ object KubernetesServiceDbQueries {
   }
 
   private[db] def aggregateJoinedApp(
-                                      records: Seq[
-                                        (KubernetesClusterRecord,
-                                          NodepoolRecord,
-                                          AppRecord,
-                                          Option[LabelRecord],
-                                          Option[NamespaceRecord],
-                                          NamespaceRecord,
-                                          Option[ServiceRecord],
-                                          Option[PersistentDiskRecord],
-                                          Option[LabelRecord],
-                                          Option[AppErrorRecord]
-                                          )
-                                      ]
-                                    ): Seq[KubernetesCluster] = {
+    records: Seq[
+      (KubernetesClusterRecord,
+       NodepoolRecord,
+       AppRecord,
+       Option[LabelRecord],
+       Option[NamespaceRecord],
+       NamespaceRecord,
+       Option[ServiceRecord],
+       Option[PersistentDiskRecord],
+       Option[LabelRecord],
+       Option[AppErrorRecord]
+      )
+    ]
+  ): Seq[KubernetesCluster] = {
 
     val map = records.toList.foldMap {
       case (clusterRecord,
-      nodepoolRecord,
-      appRecord,
-      labelRecordOpt,
-      clusterNamespaceRecordOpt,
-      appNamespaceRecord,
-      serviceRecord,
-      diskRecordOpt,
-      diskLabelOpt,
-      appErrorOpt
-        ) =>
+            nodepoolRecord,
+            appRecord,
+            labelRecordOpt,
+            clusterNamespaceRecordOpt,
+            appNamespaceRecord,
+            serviceRecord,
+            diskRecordOpt,
+            diskLabelOpt,
+            appErrorOpt
+          ) =>
         val labelMap = labelRecordOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
         val diskLabelMap = diskLabelOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
         val diskMap = diskRecordOpt.fold[Map[PersistentDiskRecord, Map[String, Chain[String]]]](Map())(disk =>
@@ -389,15 +390,15 @@ object KubernetesServiceDbQueries {
   }
 
   private def unmarshalNodepoolMap(
-                                    nodepools: Map[NodepoolRecord, Map[AppRecord,
-                                      (Chain[ServiceRecord],
+    nodepools: Map[NodepoolRecord, Map[AppRecord,
+                                       (Chain[ServiceRecord],
                                         Chain[NamespaceRecord],
                                         Map[String, Chain[String]],
                                         Map[PersistentDiskRecord, Map[String, Chain[String]]],
                                         Chain[AppErrorRecord]
-                                        )
-                                    ]]
-                                  ): List[Nodepool] =
+                                       )
+    ]]
+  ): List[Nodepool] =
     nodepools
       .map { case (nodepoolRec, appMap) =>
         unmarshalNodepool(nodepoolRec, unmarshalAppMap(appMap))
@@ -406,15 +407,15 @@ object KubernetesServiceDbQueries {
       .toList
 
   private def unmarshalAppMap(
-                               apps: Map[AppRecord,
-                                 (Chain[ServiceRecord],
-                                   Chain[NamespaceRecord],
-                                   Map[String, Chain[String]],
-                                   Map[PersistentDiskRecord, Map[String, Chain[String]]],
-                                   Chain[AppErrorRecord]
-                                   )
-                               ]
-                             ): List[App] =
+    apps: Map[AppRecord,
+              (Chain[ServiceRecord],
+               Chain[NamespaceRecord],
+               Map[String, Chain[String]],
+               Map[PersistentDiskRecord, Map[String, Chain[String]]],
+               Chain[AppErrorRecord]
+              )
+    ]
+  ): List[App] =
     apps
       .map { case (appRec, (services, namespaces, labelMap, diskMap, errors)) =>
         appQuery.unmarshalApp(
@@ -442,11 +443,11 @@ sealed trait SaveClusterResult {
 }
 
 final case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool)
-  extends SaveClusterResult
+    extends SaveClusterResult
 
 final case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
 
 final case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError, traceId = None)
 
 final case class KubernetesAppCreationException(msg: String, traceId: Option[TraceId])
-  extends LeoException(msg, StatusCodes.Conflict, traceId = traceId)
+    extends LeoException(msg, StatusCodes.Conflict, traceId = traceId)

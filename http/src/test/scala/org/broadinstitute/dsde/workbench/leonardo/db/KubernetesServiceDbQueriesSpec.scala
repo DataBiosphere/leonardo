@@ -337,8 +337,20 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
 
     val cluster1 = makeKubeCluster(1).save()
     val nodepool1 = makeNodepool(1, cluster1.id).save()
-    makeApp(1, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart, workspaceId = workspace1).save()
-    makeApp(2, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart, workspaceId = workspace2).save()
+    makeApp(1,
+            nodepool1.id,
+            status = AppStatus.Running,
+            appType = AppType.Custom,
+            chart = v1Chart,
+            workspaceId = workspace1
+    ).save()
+    makeApp(2,
+            nodepool1.id,
+            status = AppStatus.Running,
+            appType = AppType.Custom,
+            chart = v1Chart,
+            workspaceId = workspace2
+    ).save()
 
     val withWorkspaceIdFilter = dbFutureValue(
       KubernetesServiceDbQueries.listAppsForUpdate(

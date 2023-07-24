@@ -62,7 +62,8 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
       config
     )
 
-    val res = interp.updateApps(userInfo, updateAppsRequest.copy(dryRun = true))
+    val res = interp
+      .updateApps(userInfo, updateAppsRequest.copy(dryRun = true))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     res.length shouldEqual 1
@@ -82,7 +83,6 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
     makeApp(1, savedNodepool.id, status = AppStatus.Running, appType = AppType.Cromwell, chart = v1Chart).save()
     makeApp(2, savedNodepool.id, status = AppStatus.Running, appType = AppType.Cromwell, chart = v2Chart).save()
 
-
     val publisherQueue = QueueFactory.makePublisherQueue()
     val interp = new AdminServiceInterp[IO](
       mockAdminAuthProvider,
@@ -90,7 +90,8 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
       config
     )
 
-    val res = interp.updateApps(userInfo, updateAppsRequest.copy(dryRun = false))
+    val res = interp
+      .updateApps(userInfo, updateAppsRequest.copy(dryRun = false))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     res.length shouldEqual 1
@@ -112,7 +113,8 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
     )
 
     an[NotAnAdminError] should be thrownBy {
-      interp.updateApps(userInfo, updateAppsRequest)
+      interp
+        .updateApps(userInfo, updateAppsRequest)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -131,7 +133,8 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
     )
 
     an[NoMatchingAppError] should be thrownBy {
-      interp.updateApps(userInfo, request)
+      interp
+        .updateApps(userInfo, request)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }

@@ -20,20 +20,20 @@ import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
-final class AdminServiceInterp[F[_] : Parallel](authProvider: LeoAuthProvider[F],
-                                                publisherQueue: Queue[F, LeoPubsubMessage],
-                                                adminAppConfig: AdminAppConfig
-                                               )(implicit
-                                                 F: Async[F],
-                                                 log: StructuredLogger[F],
-                                                 dbReference: DbReference[F],
-                                                 ec: ExecutionContext
-                                               ) extends AdminService[F] {
+final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
+                                               publisherQueue: Queue[F, LeoPubsubMessage],
+                                               adminAppConfig: AdminAppConfig
+)(implicit
+  F: Async[F],
+  log: StructuredLogger[F],
+  dbReference: DbReference[F],
+  ec: ExecutionContext
+) extends AdminService[F] {
 
   def updateApps(
-                  userInfo: UserInfo,
-                  req: UpdateAppsRequest
-                )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppResponse]] = {
+    userInfo: UserInfo,
+    req: UpdateAppsRequest
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppResponse]] =
     for {
       ctx: AppContext <- as.ask
 
@@ -44,19 +44,23 @@ final class AdminServiceInterp[F[_] : Parallel](authProvider: LeoAuthProvider[F]
       // Find the config relevant to this cloud and app type
       appConfig: KubernetesAppConfig <- adminAppConfig.configForTypeAndCloud(req.appType, req.cloudProvider) match {
         case Some(conf) => F.pure(conf)
-        case None => F.raiseError(NoMatchingAppError(req.appType, req.cloudProvider, Option(ctx.traceId)))
+        case None       => F.raiseError(NoMatchingAppError(req.appType, req.cloudProvider, Option(ctx.traceId)))
       }
 
       // Query the database for the collection of updateable apps matching filters
       excludedVersions = (appConfig.chartVersionsToExcludeFromUpdates ++ req.appVersionsExclude).distinct
-      matchingApps <- KubernetesServiceDbQueries.listAppsForUpdate(appConfig.chart,
-        req.appType,
-        req.cloudProvider,
-        req.appVersionsInclude.map(Chart(appConfig.chartName, _)),
-        excludedVersions.map(Chart(appConfig.chartName, _)),
-        req.googleProject,
-        req.workspaceId,
-        req.appNames).transaction
+      matchingApps <- KubernetesServiceDbQueries
+        .listAppsForUpdate(
+          appConfig.chart,
+          req.appType,
+          req.cloudProvider,
+          req.appVersionsInclude.map(Chart(appConfig.chartName, _)),
+          excludedVersions.map(Chart(appConfig.chartName, _)),
+          req.googleProject,
+          req.workspaceId,
+          req.appNames
+        )
+        .transaction
       responseList = ListUpdateableAppResponse.fromClusters(matchingApps).toVector
 
       // If not a dry run, enqueue messages requesting app update.
@@ -65,7 +69,9 @@ final class AdminServiceInterp[F[_] : Parallel](authProvider: LeoAuthProvider[F]
           F.unit
         else {
           val appNames = responseList.map(_.appName.value).mkString(", ")
-          log.info(s"Triggering update of ${responseList.length} apps of type ${req.cloudProvider}/${req.appType}: ${appNames}")
+          log.info(
+            s"Triggering update of ${responseList.length} apps of type ${req.cloudProvider}/${req.appType}: ${appNames}"
+          )
           responseList
             .map(makeUpdateAppMessage(_, ctx.traceId))
             .map(publisherQueue.offer)
@@ -73,16 +79,16 @@ final class AdminServiceInterp[F[_] : Parallel](authProvider: LeoAuthProvider[F]
         }
       }
     } yield responseList
-  }
 
   private def makeUpdateAppMessage(updateableApp: ListUpdateableAppResponse, traceId: TraceId): UpdateAppMessage =
-    UpdateAppMessage(updateableApp.appId,
+    UpdateAppMessage(
+      updateableApp.appId,
       updateableApp.appName,
       updateableApp.cloudContext,
       updateableApp.workspaceId,
       updateableApp.cloudContext match {
         case CloudContext.Gcp(googleProject) => Option(googleProject)
-        case _ => None
+        case _                               => None
       },
       Option(traceId)
     )

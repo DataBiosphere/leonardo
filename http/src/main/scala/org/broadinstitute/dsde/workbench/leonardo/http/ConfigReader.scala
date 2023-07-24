@@ -38,20 +38,22 @@ final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
                              hailBatchAppConfig: HailBatchAppConfig,
                              aadPodIdentityConfig: AadPodIdentityConfig,
                              allowedSharedApps: List[String],
-                             tdr: TdrConfig)
+                             tdr: TdrConfig
+)
 
 final case class OidcAuthConfig(
-                                 authorityEndpoint: Uri,
-                                 clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId,
-                                 clientSecret: Option[org.broadinstitute.dsde.workbench.oauth2.ClientSecret],
-                                 legacyGoogleClientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
-                               )
+  authorityEndpoint: Uri,
+  clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId,
+  clientSecret: Option[org.broadinstitute.dsde.workbench.oauth2.ClientSecret],
+  legacyGoogleClientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
+)
 
 final case class AadPodIdentityConfig(namespace: Namespace,
                                       release: Release,
                                       chartName: ChartName,
                                       chartVersion: ChartVersion,
-                                      values: Values)
+                                      values: Values
+)
 
 final case class DrsConfig(url: String)
 
@@ -64,7 +66,8 @@ final case class AppConfig(terraAppSetupChart: TerraAppSetupChartConfig,
                            azure: AzureConfig,
                            oidc: OidcAuthConfig,
                            drs: DrsConfig,
-                           metrics: LeoMetricsMonitorConfig)
+                           metrics: LeoMetricsMonitorConfig
+)
 
 final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
                                 cromwellAppConfig: CromwellAppConfig,
@@ -72,7 +75,8 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
                                 galaxyAppConfig: GalaxyAppConfig,
                                 hailBatchAppConfig: HailBatchAppConfig,
                                 rstudioAppConfig: RStudioAppConfig,
-                                wdsAppConfig: WdsAppConfig) {
+                                wdsAppConfig: WdsAppConfig
+) {
 
   def configForTypeAndCloud(appType: AppType, cloudProvider: CloudProvider): Option[KubernetesAppConfig] =
     asList.find(c => c.appType == appType && c.cloudProvider == cloudProvider)
