@@ -3,7 +3,6 @@ package dao
 
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.Async
-import cats.effect.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.http4s.Uri
 
