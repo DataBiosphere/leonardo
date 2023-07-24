@@ -7,8 +7,6 @@ import cats.effect.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.http4s.Uri
 
-import scala.concurrent.duration._
-
 sealed trait HostStatus extends Product with Serializable
 object HostStatus {
   final case object HostNotFound extends HostStatus
