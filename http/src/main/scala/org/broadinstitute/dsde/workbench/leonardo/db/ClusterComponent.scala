@@ -268,6 +268,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   ) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === clusterName)
       .filter(_.destroyedDate === destroyedDate)
@@ -310,6 +311,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   ) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === clusterName)
       .filter(_.destroyedDate === destroyedDate)
@@ -462,6 +464,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[ClusterRecord]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
@@ -475,6 +478,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[RuntimeSamResourceId]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
@@ -485,6 +489,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[GcsPath]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .map(_.initBucket)
@@ -495,6 +500,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[StagingBucket]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .map(x => (x.cloudProvider, x.stagingBucket))
