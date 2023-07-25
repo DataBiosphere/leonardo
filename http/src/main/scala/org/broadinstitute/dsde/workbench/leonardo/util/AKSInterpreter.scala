@@ -270,7 +270,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               .installChart(
                 app.release,
                 app.chart.name,
-                None,
+                ChartVersion(""),
                 buildWdsChartOverrideValues(
                   app.release,
                   params.appName,
