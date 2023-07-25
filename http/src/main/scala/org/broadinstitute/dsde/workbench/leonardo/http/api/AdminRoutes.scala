@@ -65,12 +65,12 @@ object AdminRoutes {
       for {
         at <- x.downField("appType").as[AppType]
         cp <- x.downField("cloudProvider").as[CloudProvider]
-        avi <- x.downField("appVersionsInclude").as[List[ChartVersion]]
-        ave <- x.downField("appVersionsExclude").as[List[ChartVersion]]
+        avi <- x.downField("appVersionsInclude").as[Option[List[ChartVersion]]].map(_.getOrElse(List()))
+        ave <- x.downField("appVersionsExclude").as[Option[List[ChartVersion]]].map(_.getOrElse(List()))
         gp <- x.downField("googleProject").as[Option[GoogleProject]]
         wid <- x.downField("workspaceId").as[Option[WorkspaceId]]
-        aids <- x.downField("appNames").as[List[AppName]]
-        dr <- x.downField("dryRun").as[Boolean]
+        aids <- x.downField("appNames").as[Option[List[AppName]]].map(_.getOrElse(List()))
+        dr <- x.downField("dryRun").as[Option[Boolean]].map(_.getOrElse(false))
       } yield UpdateAppsRequest(at, cp, avi, ave, gp, wid, aids, dr)
     }
 
