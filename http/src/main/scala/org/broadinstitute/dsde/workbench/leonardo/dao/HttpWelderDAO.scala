@@ -7,7 +7,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
-import org.http4s.{Headers, Method, Request}
+import org.http4s.{Header, Headers, Method, Request}
+import org.typelevel.ci.CIString
 import org.typelevel.log4cats.Logger
 
 class HttpWelderDAO[F[_]: Logger](
@@ -18,6 +19,8 @@ class HttpWelderDAO[F[_]: Logger](
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends WelderDAO[F] {
+  private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header.Raw =
+    Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
 
   def flushCache(cloudContext: CloudContext, runtimeName: RuntimeName): F[Unit] =
     for {
@@ -56,7 +59,7 @@ class HttpWelderDAO[F[_]: Logger](
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
       headers <- cloudContext match {
         case _: CloudContext.Azure =>
-          samDAO.getLeoAuthToken.map(x => Headers(x))
+          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
       }
