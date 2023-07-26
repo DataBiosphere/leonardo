@@ -530,7 +530,8 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       status <- httpClient.status(
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/email/${userInfo.userEmail.value}")),
+          uri =
+            config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/email/${userInfo.userEmail.value}")),
           headers = Headers(authHeader)
         )
       )
