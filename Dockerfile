@@ -9,7 +9,7 @@ RUN mkdir /helm-go-lib-build && \
     cd /helm-go-lib-build && \
     git clone https://github.com/broadinstitute/helm-scala-sdk.git && \
     cd helm-scala-sdk && \
-    git checkout master && \
+    git checkout indy-wds-testing && \
     cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
