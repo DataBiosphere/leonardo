@@ -26,8 +26,7 @@ final case class DeleteAKSAppParams(
   appName: AppName,
   workspaceId: WorkspaceId,
   landingZoneResourcesOpt: LandingZoneResources,
-  cloudContext: AzureCloudContext,
-  keepHistory: Boolean = false
+  cloudContext: AzureCloudContext
 )
 
 /** Enumerates the possible identity modes for an AKS app. */
