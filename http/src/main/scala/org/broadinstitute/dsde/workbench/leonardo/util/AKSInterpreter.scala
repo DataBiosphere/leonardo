@@ -2,12 +2,15 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import akka.http.scaladsl.model.StatusCodes
 import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model._
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.core.management.AzureEnvironment
+import com.azure.core.management.exception.ManagementException
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
@@ -356,7 +359,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield ()
 
   override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext, keepHistory) = params
+    val DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext) = params
     for {
       ctx <- ev.ask
 
@@ -371,10 +374,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Deleting app $appName in workspace $workspaceId")
 
       app = dbApp.app
+
+      // Delete WSM resources associated with the app
+      // Ideally an app only consists of WSM resources, as more resources are moved into WSM
+      // everything between deleteAppWsmResources and appQuery.markAsDeleted should be removed
+      _ <- deleteAppWsmResources(app, params.workspaceId)
+
       namespaceName = app.appResources.namespace.name
       kubernetesNamespace = KubernetesNamespace(namespaceName)
-
-      clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
 
       // Delete hybrid connection for this app
       // for backwards compatibility, name used to be just the appName
@@ -386,33 +393,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           RelayHybridConnectionName(name),
           cloudContext
         )
-
-      // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
-
-      // Uninstall the app chart and setup chart
-      _ <- helmClient.uninstall(app.release, keepHistory).run(authContext)
-      _ <- helmClient
-        .uninstall(
-          getTerraAppSetupChartReleaseName(app.release),
-          keepHistory
-        )
-        .run(authContext)
+        .handleErrorWith {
+          case e: ManagementException if e.getResponse.getStatusCode == StatusCodes.NotFound.intValue =>
+            logger.info(s"${name} does not exist to delete in ${cloudContext}")
+          case e => F.raiseError[Unit](e)
+        }
 
       client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
 
-      // Poll until all pods in the app namespace are deleted
-      _ <- streamUntilDoneOrTimeout(
-        kubeAlg.listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
-        config.appMonitorConfig.deleteApp.maxAttempts,
-        config.appMonitorConfig.deleteApp.interval,
-        "helm deletion timed out"
-      )
-
-      // Delete WSM resources associated with the app
-      _ <- deleteAppWsmResources(app, params.workspaceId)
-
-      // Delete the namespace only after the helm uninstall completes.
+      // Delete the namespace which should delete all resources in it
       _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)
 
       // Poll until the namespace is actually deleted
@@ -439,10 +428,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       _ <- logger.info(
-        s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterName}"
+        s"Delete app operation has finished for app ${app.appName.value} in workspace ${app.workspaceId}"
       )
 
-      _ <- appQuery.updateStatus(app.id, AppStatus.Deleted).transaction
+      _ <- appQuery.markAsDeleted(app.id, ctx.now).transaction
 
       _ <- logger.info(s"Done deleting app $appName in workspace $workspaceId")
     } yield ()
@@ -842,6 +831,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                               app: App
   ): bio.terra.workspace.model.ControlledResourceCommonFields = {
     val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
+      .resourceId(UUID.randomUUID())
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
@@ -900,6 +890,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         _ <- logger.info(ctx.loggingCtx)(s"WSM create identity request: ${createIdentityRequest}")
 
+        _ <- appControlledResourceQuery
+          .insert(
+            app.id.id,
+            WsmControlledResourceId(createIdentityRequest.getCommon.getResourceId),
+            WsmResourceType.AzureManagedIdentity,
+            AppControlledResourceStatus.Created
+          )
+          .transaction
+
         // Execute WSM call
         createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
 
@@ -907,10 +906,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Save record in APP_CONTROLLED_RESOURCE table
         _ <- appControlledResourceQuery
-          .save(app.id.id,
-                WsmControlledResourceId(createIdentityResponse.getResourceId),
-                WsmResourceType.AzureManagedIdentity,
-                AppControlledResourceStatus.Created
+          .updateStatus(WsmControlledResourceId(createIdentityResponse.getResourceId),
+                        AppControlledResourceStatus.Created
           )
           .transaction
 
@@ -985,6 +982,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       _ <- logger.info(ctx.loggingCtx)(s"WSM create database request: ${createDatabaseRequest}")
 
+      _ <- appControlledResourceQuery
+        .insert(
+          app.id.id,
+          WsmControlledResourceId(createDatabaseRequest.getCommon.getResourceId),
+          WsmResourceType.AzureDatabase,
+          AppControlledResourceStatus.Creating
+        )
+        .transaction
+
       // Execute WSM call
       createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
 
@@ -1013,10 +1019,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Save record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
-        .save(
-          app.id.id,
+        .updateStatus(
           WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
-          WsmResourceType.AzureDatabase,
           AppControlledResourceStatus.Created
         )
         .transaction
@@ -1037,12 +1041,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
       wsmResources <- appControlledResourceQuery
-        .getAllForApp(app.id.id, AppControlledResourceStatus.Created)
+        .getAllForApp(app.id.id, AppControlledResourceStatus.Created, AppControlledResourceStatus.Creating)
         .transaction
 
       _ <- wsmResources.traverse { wsmResource =>
         deleteWsmResource(workspaceId, app, wsmApi, wsmResource) >>
-          appControlledResourceQuery.delete(app.id.id, wsmResource.resourceId).transaction
+          appControlledResourceQuery.delete(wsmResource.resourceId).transaction
       }
     } yield ()
 
@@ -1052,8 +1056,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                 wsmResource: AppControlledResourceRecord
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
+  ): F[Unit] = {
+    val delete = for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(
         s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
@@ -1068,6 +1072,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           F.raiseError(new RuntimeException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
     } yield ()
+
+    delete.handleErrorWith {
+      case e: ApiException if e.getCode == StatusCodes.NotFound.intValue =>
+        // If the resource doesn't exist, that's fine. We're deleting it anyway.
+        F.unit
+      case e => F.raiseError(e)
+    }
+  }
 }
 
 final case class AKSInterpreterConfig(
