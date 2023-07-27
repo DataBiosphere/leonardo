@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.azure
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
-import org.broadinstitute.dsde.workbench.google2.{streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}

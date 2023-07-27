@@ -673,7 +673,9 @@ trait LeonardoTestUtils
     testCode(response)
   }
 
-  private def workspaceResponse(projectName: String, workspaceName: String)(implicit authToken: AuthToken): IO[WorkspaceResponse] = for {
+  private def workspaceResponse(projectName: String, workspaceName: String)(implicit
+    authToken: AuthToken
+  ): IO[WorkspaceResponse] = for {
     responseString <- IO.pure(Rawls.workspaces.getWorkspaceDetails(projectName, workspaceName))
     json <- IO.fromEither(parser.parse(responseString))
     parsedResponse <- IO.fromEither(json.as[WorkspaceResponse])
