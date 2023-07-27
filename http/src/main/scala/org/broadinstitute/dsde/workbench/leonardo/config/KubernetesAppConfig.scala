@@ -104,7 +104,7 @@ final case class CoaAppConfig(chartName: ChartName,
 }
 
 final case class WdsAppConfig(chartName: ChartName,
-                              chartVersion: ChartVersion = ChartVersion(""),
+                              chartVersion: ChartVersion,
                               releaseNameSuffix: ReleaseNameSuffix,
                               namespaceNameSuffix: NamespaceNameSuffix,
                               ksaName: KsaName,
