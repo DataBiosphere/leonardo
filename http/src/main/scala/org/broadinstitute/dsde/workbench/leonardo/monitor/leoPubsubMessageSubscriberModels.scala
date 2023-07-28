@@ -1178,12 +1178,6 @@ object PubsubHandleMessageError {
 
     val isRetryable: Boolean = false
   }
-  final case class AppInvalidState(appId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"Unable to process transition finished message ${message}for app ${appId} because its status was not RUNNING"
-
-    val isRetryable: Boolean = false
-  }
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)

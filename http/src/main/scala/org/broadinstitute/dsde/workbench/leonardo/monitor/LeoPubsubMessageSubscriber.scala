@@ -1345,16 +1345,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         F.raiseError[GetAppResult](PubsubHandleMessageError.AppNotFound(msg.appId.id, msg))
       )(F.pure)
 
-      // We can only update apps while they are RUNNING
-      _ = println(appResult.app.status)
-      _ = println(AppStatus.Running)
-      _ <-
-        if (appResult.app.status != AppStatus.Running)
-          F.raiseError[Unit](
-            PubsubHandleMessageError.AppInvalidState(msg.appId.id, msg)
-          )
-        else F.unit
-
       latestAppChartVersion <- (appResult.app.appType, msg.cloudContext.cloudProvider) match {
         case (Galaxy, CloudProvider.Gcp) => F.pure(appServiceConfig.leoKubernetesConfig.galaxyAppConfig.chartVersion)
         case (Custom, CloudProvider.Gcp) => F.pure(appServiceConfig.leoKubernetesConfig.customAppConfig.chartVersion)
