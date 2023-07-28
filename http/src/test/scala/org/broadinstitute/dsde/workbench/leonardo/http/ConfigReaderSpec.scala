@@ -134,7 +134,20 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           databaseEnabled = false,
-          chartVersionsToExcludeFromUpdates = List()
+          chartVersionsToExcludeFromUpdates = List(
+            ChartVersion("0.3.0"),
+            ChartVersion("0.7.0"),
+            ChartVersion("0.13.0"),
+            ChartVersion("0.16.0"),
+            ChartVersion("0.17.0"),
+            ChartVersion("0.19.0"),
+            ChartVersion("0.20.0"),
+            ChartVersion("0.21.0"),
+            ChartVersion("0.22.0"),
+            ChartVersion("0.24.0"),
+            ChartVersion("0.26.0"),
+            ChartVersion("0.27.0")
+          )
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
