@@ -88,7 +88,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false
+          databaseEnabled = true
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
@@ -101,7 +101,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          databaseEnabled = false
+          databaseEnabled = true
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
