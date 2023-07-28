@@ -17,16 +17,16 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
 
-  private val workbenchLibsHash = "01a11c3"
-  val serviceTestV = s"2.1-$workbenchLibsHash"
-  val workbenchModelV = s"0.17-$workbenchLibsHash"
+  private val workbenchLibsHash = "d764a9b"
+  val serviceTestV = s"3.1-$workbenchLibsHash"
+  val workbenchModelV = s"0.18-$workbenchLibsHash"
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
   val workbenchGoogleV = s"0.23-4b46aac"
-  val workbenchGoogle2V = s"0.26-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.4-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.3-$workbenchLibsHash"
-  val workbenchAzureV = s"0.3-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.30-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.5-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.4-$workbenchLibsHash"
+  val workbenchAzureV = s"0.4-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.8"
 
@@ -79,7 +79,7 @@ object Dependencies {
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
-  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-4-1" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -131,7 +131,8 @@ object Dependencies {
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.15" % Test // brought in for FakeStorageInterpreter
 
-  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.2"
+  // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
+  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion

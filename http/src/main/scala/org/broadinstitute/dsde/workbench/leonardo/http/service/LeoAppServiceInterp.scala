@@ -746,27 +746,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     }
 
     _ <-
-      if (app.status == AppStatus.Error) {
-        for {
-          _ <- appQuery.markAsDeleted(app.id, ctx.now).transaction >> authProvider
-            .notifyResourceDeletedV2(app.samResourceId, userInfo)
-            .void
-        } yield ()
-      } else {
-        for {
-          _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
-          deleteMessage = DeleteAppV2Message(
-            app.id,
-            app.appName,
-            workspaceId,
-            cloudContext,
-            diskOpt,
-            landingZoneResourcesOpt,
-            Some(ctx.traceId)
-          )
-          _ <- publisherQueue.offer(deleteMessage)
-        } yield ()
-      }
+      for {
+        _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
+        deleteMessage = DeleteAppV2Message(
+          app.id,
+          app.appName,
+          workspaceId,
+          cloudContext,
+          diskOpt,
+          landingZoneResourcesOpt,
+          Some(ctx.traceId)
+        )
+        _ <- publisherQueue.offer(deleteMessage)
+      } yield ()
   } yield ()
 
   private[service] def getSavableCluster(

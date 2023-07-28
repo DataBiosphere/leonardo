@@ -37,8 +37,8 @@ object DiskServiceDbQueries {
     val diskQueryFilteredByProject =
       cloudContextOpt.fold(diskQueryFilteredByDeletion)(p =>
         diskQueryFilteredByDeletion
-          .filter(_.cloudContext === p.asCloudContextDb)
           .filter(_.cloudProvider === p.cloudProvider)
+          .filter(_.cloudContext === p.asCloudContextDb)
       )
 
     val diskQueryFilteredByWorkspace =
