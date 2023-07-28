@@ -452,7 +452,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- as.ask
       appOpt <- getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
-      app <- F.fromOption(
+      appResult <- F.fromOption(
         appOpt,
         AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
       )
@@ -462,18 +462,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-      hasResourcePermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
+      hasResourcePermission <- authProvider.hasPermission[AppSamResourceId, AppAction](appResult.app.samResourceId,
                                                                                        AppAction.GetAppStatus,
                                                                                        userInfo
       )
       _ <-
-        if (hasResourcePermission) F.unit
+        // Creator can access an app they created per IA-4431
+        if (hasResourcePermission || appResult.app.auditInfo.creator == userInfo.userEmail) F.unit
         else
           log.info(ctx.loggingCtx)(
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
           ) >> F
             .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
+    } yield GetAppResponse.fromDbResult(appResult, Config.proxyConfig.proxyUrlBase)
 
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
     implicit as: Ask[F, AppContext]
@@ -809,7 +810,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
    * @param googleProject
    * @param descriptorPath
    * @param ev
-   * @return 
+   * @return
    */
   private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
                                                    googleProject: GoogleProject,
