@@ -56,7 +56,9 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add aou-rstudio-chart https://storage.googleapis.com/terra-app-helm/aou-rstudio-chart && \
     helm repo update
 
-RUN apk add --update --no-cache curl jq
+# Install jq
+RUN wget -O /usr/local/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 \
+    && chmod +x /usr/local/bin/jq
 ENV WDS_CHART_VERSION $(helm search repo terra-helm/wds --output json | jq -r '.[0].version')
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
