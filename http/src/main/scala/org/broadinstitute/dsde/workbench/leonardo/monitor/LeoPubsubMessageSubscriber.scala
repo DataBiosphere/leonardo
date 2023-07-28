@@ -1346,6 +1346,8 @@ class LeoPubsubMessageSubscriber[F[_]](
       )(F.pure)
 
       // We can only update apps while they are RUNNING
+      _ = println(appResult.app.status)
+      _ = println(AppStatus.Running)
       _ <-
         if (appResult.app.status != AppStatus.Running)
           F.raiseError[Unit](
