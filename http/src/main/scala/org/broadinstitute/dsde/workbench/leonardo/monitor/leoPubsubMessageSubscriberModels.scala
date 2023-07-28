@@ -559,7 +559,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
-    Decoder.forProduct6("appId", "appName", "cloudcontext", "workspaceId", "googleProject", "traceId")(
+    Decoder.forProduct6("appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
       UpdateAppMessage.apply
     )
 
