@@ -61,7 +61,7 @@ jobs:
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leo-release-tag": "${{ steps.tag.outputs.tag }}" }'
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
 
       - name: Render Leo version
         id: render-leo-version
@@ -69,7 +69,7 @@ jobs:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
           echo "$GITHUB_CONTEXT"
-          echo "custom-version-json={\\\"leo\\\":{\\\"appVersion\\\":\\\"${{ steps.tag.outputs.tag }}\\\"}}" >> $GITHUB_OUTPUT
+          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
 
   create-bee-workflow:
     runs-on: ubuntu-latest
@@ -112,7 +112,7 @@ jobs:
           leo_test_command: "sbt \"project automation\" \"testOnly *AzureRuntimeSpec\""
         uses: broadinstitute/workflow-dispatch@v3
         with:
-          workflow: .github/workflows/rawls-swat-tests.yaml
+          workflow: .github/workflows/leonardo-swat-tests.yaml
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
