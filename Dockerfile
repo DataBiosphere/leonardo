@@ -63,7 +63,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
-COPY ../cromwhelm/cromwell-on-azure-0.2.296-jgd.tgz /leonardo
+COPY ./cromwell-on-azure-0.2.296-jgd.tgz /leonardo
 RUN tar -xzf /leonardo/cromwell-on-azure-0.2.296-jgd.tgz -C /leonardo
 RUN cd /leonardo && \
     helm repo update && \
