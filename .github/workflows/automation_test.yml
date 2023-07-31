@@ -8,7 +8,7 @@ on:
       branch:
         description: 'Branch of leo to run tests on'
         required: true
-        default: 'develop'
+        default: 'jc-azure-auto-tests'
         type: string
       delete-bee:
         description: 'Delete created bee after running tests'
