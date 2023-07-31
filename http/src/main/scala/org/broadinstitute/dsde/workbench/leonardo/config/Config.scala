@@ -676,6 +676,19 @@ object Config {
     )
   }
 
+  implicit private val workflowsAppConfigReader: ValueReader[CromwellAppConfig] = ValueReader.relative { config =>
+    WorkflowsAppConfig(
+      chartName = config.as[ChartName]("chartName"),
+      chartVersion = config.as[ChartVersion]("chartVersion"),
+      namespaceNameSuffix = config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      releaseNameSuffix = config.as[ReleaseNameSuffix]("releaseNameSuffix"),
+      services = config.as[List[ServiceConfig]]("services"),
+      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
+      dbPassword = config.as[DbPassword]("dbPassword"),
+      enabled = config.as[Boolean]("enabled")
+    )
+  }
+
   implicit private val customAppConfigReader: ValueReader[CustomAppConfig] = ValueReader.relative { config =>
     CustomAppConfig(
       config.as[ChartName]("chartName"),

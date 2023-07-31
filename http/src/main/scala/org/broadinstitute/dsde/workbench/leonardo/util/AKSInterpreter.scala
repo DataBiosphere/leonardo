@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -117,7 +117,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // If configured for the app type, call WSM to create a managed identity and postgres database.
       // This returns a KSA authorized to access the database.
-      (maybeKsaFromDatabaseCreation, maybeDbName) <- maybeCreateWsmIdentityAndDatabase(app,
+      (maybeKsaFromDatabaseCreation, maybeDbName) <- maybeCreateWsmIdentityAndDatabases(app,
                                                                                        params.workspaceId,
                                                                                        params.landingZoneResources,
                                                                                        kubernetesNamespace
@@ -698,7 +698,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .toList
           .sequence
           .map(_.forall(identity))
-      case AppType.Wds =>
+      case AppType.WorkflowsApp =>
+          config.workflowsAppConfig.workflowsAppServices
+            .collect {
+              case Cromwell =>
+                cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+              case Cbas =>
+                cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+            }
+            .toList
+            .sequence
+            .map(_.forall(identity))
+        case AppType.CromwellRunnerApp =>
+          cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        case AppType.Wds =>
         wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       case AppType.HailBatch =>
         hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
@@ -1108,24 +1121,30 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private[util] def maybeCreateWsmIdentityAndDatabase(app: App,
-                                                      workspaceId: WorkspaceId,
-                                                      landingZoneResources: LandingZoneResources,
-                                                      namespace: KubernetesNamespace
+  private[util] def maybeCreateWsmIdentityAndDatabases(app: App,
+                                                       workspaceId: WorkspaceId,
+                                                       landingZoneResources: LandingZoneResources,
+                                                       namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[(Option[ServiceAccountName], Option[String])] = {
-    val databaseConfigEnabled = app.appType match {
-      case AppType.Wds => config.wdsAppConfig.databaseEnabled
-      case _           => false
+  ): F[(Option[ServiceAccountName], Option[CreatedDatabaseNames])] = {
+    val needsWorkspaceIdentity = app.appType match {
+      case AppType.Wds | AppType.WorkflowsApp => true
+      case _ => false
     }
+
+    val needsLzPostgresDb = app.appType match {
+      case AppType.Wds                => config.wdsAppConfig.databaseEnabled
+      case AppType.WorkflowsApp       => config.workflowsAppConfig.databaseEnabled
+      case AppType.CromwellRunnerApp  => config.cromwellRunnerAppConfig.databaseEnabled
+      case AppType.Cromwell           => config.coaAppConfig.databaseEnabled
+      case _                          => false
+    }
+
     val landingZoneSupportsDatabase = landingZoneResources.postgresName.isDefined
-    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
+    if (needsLzPostgresDb && landingZoneSupportsDatabase) {
       for {
         ctx <- ev.ask
-        _ <- logger.info(ctx.loggingCtx)(
-          s"Creating WSM identity for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
-        )
 
         // Build WSM client
         auth <- samDao.getLeoAuthToken
@@ -1135,32 +1154,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
         wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
-        // Build create managed identity request.
         // Use the k8s namespace for the name. Note dashes aren't allowed.
         identityName = s"id${namespace.name.value.split('-').head}"
-        identityCommonFields = getCommonFields(identityName, s"Identity for Leo app ${app.appName.value}", app)
-        createIdentityParams = new AzureManagedIdentityCreationParameters().name(
-          identityName
-        )
-        createIdentityRequest = new CreateControlledAzureManagedIdentityRequestBody()
-          .common(identityCommonFields)
-          .azureManagedIdentity(createIdentityParams)
-
-        _ <- logger.info(ctx.loggingCtx)(s"WSM create identity request: ${createIdentityRequest}")
-
-        _ <- appControlledResourceQuery
-          .insert(
-            app.id.id,
-            WsmControlledResourceId(createIdentityRequest.getCommon.getResourceId),
-            WsmResourceType.AzureManagedIdentity,
-            AppControlledResourceStatus.Created
-          )
-          .transaction
-
-        // Execute WSM call
-        createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
-
-        _ <- logger.info(ctx.loggingCtx)(s"WSM create identity response: ${createIdentityResponse}")
+        createIdentityResponse <- createWsmIdentity(app, ctx, workspaceId, landingZoneResources, namespace, identityName, wsmApi)
 
         // Save record in APP_CONTROLLED_RESOURCE table
         _ <- appControlledResourceQuery
@@ -1179,6 +1175,43 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       } yield (Some(ServiceAccountName(identityName)), Some(dbName))
     } else F.pure((None, None))
   }
+
+  private def createWsmIdentity(app: App,
+                                ctx: AppContext,
+                                workspaceId: WorkspaceId,
+                                landingZoneResources: LandingZoneResources,
+                                namespace: KubernetesNamespace,
+                                identityName: String,
+                                wsmApi: ControlledAzureResourceApi
+                               ): F[CreatedControlledAzureManagedIdentity] = for {
+    _ <- logger.info(ctx.loggingCtx)(
+      s"Creating WSM identity for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+    )
+    // Build create managed identity request.
+    identityCommonFields = getCommonFields(identityName, s"Identity for Leo app ${app.appName.value}", app)
+    createIdentityParams = new AzureManagedIdentityCreationParameters().name(
+      identityName
+    )
+    createIdentityRequest = new CreateControlledAzureManagedIdentityRequestBody()
+      .common(identityCommonFields)
+      .azureManagedIdentity(createIdentityParams)
+
+    _ <- logger.info(ctx.loggingCtx)(s"WSM create identity request: ${createIdentityRequest}")
+
+    _ <- appControlledResourceQuery
+      .insert(
+        app.id.id,
+        WsmControlledResourceId(createIdentityRequest.getCommon.getResourceId),
+        WsmResourceType.AzureManagedIdentity,
+        AppControlledResourceStatus.Created
+      )
+      .transaction
+
+    // Execute WSM call
+    createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
+
+    _ <- logger.info(ctx.loggingCtx)(s"WSM create identity response: ${createIdentityResponse}")
+  } yield createIdentityResponse
 
   private[util] def maybeCreateCromwellDatabases(app: App,
                                                  workspaceId: WorkspaceId,
@@ -1340,9 +1373,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   }
 }
 
-final case class AKSInterpreterConfig(
+final case class AKSInterpreterConfig
+(
   terraAppSetupChartConfig: TerraAppSetupChartConfig,
   coaAppConfig: CoaAppConfig,
+  workflowsAppConfig: WorkflowsAppConfig,
+  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
   wdsAppConfig: WdsAppConfig,
   hailBatchAppConfig: HailBatchAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
@@ -1356,4 +1392,8 @@ final case class AKSInterpreterConfig(
   tdr: TdrConfig
 )
 
-final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
+sealed trait CreatedDatabaseNames
+final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String) extends CreatedDatabaseNames
+final case class WdsDatabaseNames(wds: String) extends CreatedDatabaseNames
+final case class WorkflowsDatabaseNames(cromwell: String, cbas: String) extends CreatedDatabaseNames
+final case class CromwellRunnerDatabaseNames(cromwell: String, tes: String) extends CreatedDatabaseNames

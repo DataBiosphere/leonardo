@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
@@ -107,7 +107,7 @@ final case class CoaAppConfig(chartName: ChartName,
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.Cromwell
 
-  def coaServices: Set[CoaService] = services
+  def coaServices: Set[WorkflowsAppService] = services
     .map(_.name)
     .collect {
       case ServiceName("cbas")     => Cbas
@@ -115,6 +115,44 @@ final case class CoaAppConfig(chartName: ChartName,
       case ServiceName("cromwell") => Cromwell
     }
     .toSet
+}
+
+final case class WorkflowsAppConfig(chartName: ChartName,
+                                    chartVersion: ChartVersion,
+                                    releaseNameSuffix: ReleaseNameSuffix,
+                                    namespaceNameSuffix: NamespaceNameSuffix,
+                                    ksaName: KsaName,
+                                    services: List[ServiceConfig],
+                                    instrumentationEnabled: Boolean,
+                                    enabled: Boolean,
+                                    dockstoreBaseUrl: URL,
+                                    databaseEnabled: Boolean
+                                   ) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
+
+  def workflowsAppServices: Set[WorkflowsAppService] = services
+    .map(_.name)
+    .collect {
+      case ServiceName("cbas")     => Cbas
+      case ServiceName("cromwell") => Cromwell
+    }
+    .toSet
+}
+
+final case class CromwellRunnerAppConfig(chartName: ChartName,
+                                         chartVersion: ChartVersion,
+                                         releaseNameSuffix: ReleaseNameSuffix,
+                                         namespaceNameSuffix: NamespaceNameSuffix,
+                                         ksaName: KsaName,
+                                         services: List[ServiceConfig],
+                                         instrumentationEnabled: Boolean,
+                                         enabled: Boolean,
+                                         dockstoreBaseUrl: URL,
+                                         databaseEnabled: Boolean
+                                        ) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
 }
 
 final case class WdsAppConfig(chartName: ChartName,
@@ -166,14 +204,10 @@ final case class RStudioAppConfig(chartName: ChartName,
   val appType: AppType = AppType.RStudio
 }
 
-sealed trait CoaService
+sealed trait WorkflowsAppService
 
-object CoaService {
-  final case object Cbas extends CoaService
-
-  final case object CbasUI extends CoaService
-
-  final case object Cromwell extends CoaService
-
-  final case object Tes extends CoaService
+object WorkflowsAppService {
+  final case object Cbas extends WorkflowsAppService
+  final case object Cromwell extends WorkflowsAppService
+  final case object CbasUI extends WorkflowsAppService
 }
