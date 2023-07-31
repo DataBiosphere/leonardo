@@ -809,7 +809,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
    * @param googleProject
    * @param descriptorPath
    * @param ev
-   * @return 
+   * @return
    */
   private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
                                                    googleProject: GoogleProject,
@@ -1067,6 +1067,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
         case (RStudio, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.rstudioAppConfig)
         case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (WorkflowsApp, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.workflowsAppConfig)
+        case (CromwellRunnerApp, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
         case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
         case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
         case _ => Left(AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId))

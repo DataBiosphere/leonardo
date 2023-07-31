@@ -2866,6 +2866,8 @@ components:
         - WDS
         - HAIL_BATCH
         - RSTUDIO
+        - WORKFLOWS_APP
+        - CROMWELL_RUNNER_APP
     AppStatus:
       type: string
       enum:
