@@ -62,6 +62,7 @@ object RuntimeServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[Option[RuntimeStatus]] = {
     val res = clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
