@@ -207,15 +207,7 @@ class RuntimeDataprocSpec
         // preemptibles should be added in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
-        // check output of yarn node -list command
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list""")
-              output.get should include("Total Nodes:")
-            }
-          }
-        )
+        // TODO PR comment: we probably dont want to use selenium to verify the cluster/node status
 
         // startup script should have run again
         startScriptOutputs <- dep.storage
