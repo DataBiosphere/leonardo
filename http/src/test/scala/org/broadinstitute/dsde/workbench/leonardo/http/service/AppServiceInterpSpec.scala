@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -16,13 +17,19 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceServic
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.{
+  BadRequestException,
+  ForbiddenError,
+  LeoException,
+  SamResourceAction
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
   CreateAppV2Message,
@@ -36,17 +43,20 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.when
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
-final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
@@ -1903,7 +1913,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "V2 GCP - get app" in isolatedDbTest {
+  it should "V2 GCP - get app works" in isolatedDbTest {
+    // setup: two users, a creator (userInfo) and a reader
+    // userInfo = common value, a user permitted to do anything by the allowlistAuthProvider
+    val userInfoReader =
+      UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId_app_reader"), WorkbenchEmail("app_reader@example.com"), 0)
+
+    // setup: a running app app1 with a disk in a workspace (created with the blanket allowlistAuthProvider)
     val appName1 = AppName("app1")
     val diskName1 = DiskName("newDiskName1")
     val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
@@ -1919,46 +1935,44 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
-    val appName2 = AppName("app2")
-    val diskName2 = DiskName("newDiskName2")
-    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
-    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
+    // setup: mock authProvider
+    implicit val mockSamResourceAction: SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] =
+      mock[SamResourceAction[WsmResourceSamResourceId, WsmResourceAction]]
+    val mockAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
 
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appName3 = AppName("app3")
-    val diskName3 = DiskName("newDiskName3")
-    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
-    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
-
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    // New service where the userInfo is not part of the allowlist and therefore not a workspace reader
-    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
-
-    val getApp1 =
-      appServiceInterp.getAppV2(userInfo, workspaceId, appName1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    getApp1.diskName shouldBe Some(diskName1)
-    a[ForbiddenError] should be thrownBy azureService2
+    // expect: creator who cannot read workspace cannot see app
+    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(false))
+    val gcpAppServiceInterpDenyWorkspace = makeInterp(QueueFactory.makePublisherQueue(), mockAuthProvider, gcpWsmDao)
+    a[ForbiddenError] should be thrownBy gcpAppServiceInterpDenyWorkspace
       .getAppV2(userInfo, workspaceId, appName1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val getApp2 =
-      appServiceInterp.getAppV2(userInfo, workspaceId, appName2).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    getApp2.diskName shouldBe Some(diskName2)
-    a[ForbiddenError] should be thrownBy azureService2
-      .getAppV2(userInfo, workspaceId, appName2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    // expect: non-creator with workspace and app access can see app
+    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(true))
+    when(mockAuthProvider.hasPermission(any(), any(), any())(any(), any())).thenReturn(IO.pure(true))
+    val gcpAppServiceInterpAllowAll = makeInterp(QueueFactory.makePublisherQueue(), mockAuthProvider, gcpWsmDao)
+    val getAppV2AllowAll =
+      gcpAppServiceInterpAllowAll
+        .getAppV2(userInfoReader, workspaceId, appName1)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    getAppV2AllowAll.diskName shouldBe Some(diskName1)
 
-    val getApp3 =
-      appServiceInterp.getAppV2(userInfo, workspaceId3, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    getApp3.diskName shouldBe Some(diskName3)
-    a[ForbiddenError] should be thrownBy azureService2
-      .getAppV2(userInfo, workspaceId3, appName3)
+    // expect: creator with workspace access and NO app access can see app
+    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(true))
+    when(mockAuthProvider.hasPermission(any(), any(), any())(any(), any())).thenReturn(IO.pure(false))
+    val gcpAppServiceInterpDenyAppCreator = makeInterp(QueueFactory.makePublisherQueue(), mockAuthProvider, gcpWsmDao)
+    val getAppV2DenyAppCreator =
+      gcpAppServiceInterpDenyAppCreator
+        .getAppV2(userInfo, workspaceId, appName1)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    getAppV2DenyAppCreator.diskName shouldBe Some(diskName1)
+
+    // expect: non-creator with workspace access and NO app access cannot see app
+    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(true))
+    when(mockAuthProvider.hasPermission(any(), any(), any())(any(), any())).thenReturn(IO.pure(false))
+    val gcpAppServiceInterpDenyApp = makeInterp(QueueFactory.makePublisherQueue(), mockAuthProvider, gcpWsmDao)
+    a[AppNotFoundByWorkspaceIdException] should be thrownBy gcpAppServiceInterpDenyApp
+      .getAppV2(userInfoReader, workspaceId, appName1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
