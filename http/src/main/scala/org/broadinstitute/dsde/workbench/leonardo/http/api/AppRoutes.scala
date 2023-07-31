@@ -214,7 +214,7 @@ object AppRoutes {
                                s,
                                d,
                                l.getOrElse(Map.empty),
-                               cv.getOrElse(Map.empty),
+                               cv.getOrElse(Map("foo" -> "bar").filter(e => e._1 == "baz")),
                                dp,
                                ea.getOrElse(List.empty),
                                swi
