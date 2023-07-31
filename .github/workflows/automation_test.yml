@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch of rawls to run tests on'
+        description: 'Branch of leo to run tests on'
         required: true
         default: 'develop'
         type: string
@@ -57,7 +57,7 @@ jobs:
       - name: dispatch build to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v3
         with:
-          workflow: leo-build
+          workflow: leonardo-build
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
@@ -78,7 +78,7 @@ jobs:
       contents: 'read'
       id-token: 'write'
     steps:
-      - name: Echo Rawls version
+      - name: Echo Leo version
         run: |
           echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
 #      - name: dispatch to terra-github-workflows
