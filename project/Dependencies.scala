@@ -11,7 +11,7 @@ object Dependencies {
   val scalaTestV = "3.2.16"
   val http4sVersion = "1.0.0-M38"
   val slickV = "3.4.1"
-  val guavaV = "31.1-jre"
+  val guavaV = "32.1.2-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
