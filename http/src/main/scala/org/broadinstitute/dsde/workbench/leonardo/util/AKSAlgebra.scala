@@ -2,9 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
+import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.AppWorkloadIdentity
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, LandingZoneResources, WorkspaceId}
 import org.broadinstitute.dsp.ChartVersion
+
+import java.util.UUID
 
 trait AKSAlgebra[F[_]] {
 
@@ -40,20 +44,34 @@ final case class DeleteAKSAppParams(
 )
 
 /** Enumerates the possible identity modes for an AKS app. */
-sealed trait IdentityType
+sealed trait IdentityType {
+  def getResourceId: Option[UUID] = this match {
+    case AppWorkloadIdentity(_, resourceId) => Some(resourceId)
+    case _ => None
+  }
+
+}
+
 object IdentityType {
+  // Trait representing the types which run the app with Workload Identity.
+  // Currently this is done for apps who provision a database.
+  sealed trait WorkloadIdentityType extends IdentityType
+
+  // For apps whose workload identity (to access databases) is linked to an individual user rather than the app itself
+  case object UserWorkloadIdentity extends WorkloadIdentityType
+
+  // For apps whose workload identity (to access databases) is linked to the app itself rather than an individual user
+  case class AppWorkloadIdentity(identity: ServiceAccountName, resourceId: UUID) extends WorkloadIdentityType
+
   // Runs the app with aad-pod-identity.
   // Currently this is only done for single-user applications who don't provision a database.
   // The pet UAMI is linked to the app.
   // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
   case object PodIdentity extends IdentityType
 
-  // Runs the app with Workload Identity.
-  // Currently this is only done for apps who provision a database.
-  // The WSM-managed identity is linked to the app
-  case object WorkloadIdentity extends IdentityType
-
   // Runs the app with no identity.
   // This is done for multi-user applications who do _not_ provision a database.
   case object NoIdentity extends IdentityType
 }
+
+case class AppIdentityAndDatabases(identityType: IdentityType, databases: CreatedDatabaseNames)

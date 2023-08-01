@@ -216,7 +216,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "applicationInsightsConnectionString",
       None,
       petUserInfo.accessToken.token,
-      IdentityType.WorkloadIdentity,
+      IdentityType.WorkspaceWorkloadIdentity,
       Some(databaseNames)
     )
     overrides.asString shouldBe
@@ -352,7 +352,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "applicationInsightsConnectionString",
       None,
       petUserInfo.accessToken.token,
-      IdentityType.WorkloadIdentity,
+      IdentityType.WorkspaceWorkloadIdentity,
       Some(ServiceAccountName("ksa")),
       Some("dbname")
     )
