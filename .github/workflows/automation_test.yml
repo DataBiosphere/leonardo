@@ -118,7 +118,7 @@ jobs:
           token: ${{ env.TOKEN }}
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
 #          inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}", "ENV": "${{ matrix.testing-env }}", "sbt-test-command": "\"testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab\"" }'
-          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17" }'
+          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17", "ref": "${{ needs.init-github-context.outputs.branch }}" }'
 
   destroy-bee-workflow:
     runs-on: ubuntu-latest
