@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
+import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -119,7 +120,24 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       5,
       3,
       true,
-      List()
+      List(
+        ChartVersion("0.7.3"),
+        ChartVersion("0.8.0"),
+        ChartVersion("1.2.0"),
+        ChartVersion("1.2.1"),
+        ChartVersion("1.2.2"),
+        ChartVersion("1.6.0"),
+        ChartVersion("1.6.1"),
+        ChartVersion("2.1.0"),
+        ChartVersion("2.4.4"),
+        ChartVersion("2.4.6"),
+        ChartVersion("2.4.7"),
+        ChartVersion("2.4.8"),
+        ChartVersion("2.4.9"),
+        ChartVersion("2.5.0"),
+        ChartVersion("2.5.1"),
+        ChartVersion("2.5.2")
+      )
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }
