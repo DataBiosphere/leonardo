@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 }
 
 import scala.concurrent.duration._
-
 //@DoNotDiscover
 class AzureRuntimeSpec
     extends AzureBillingBeforeAndAfter
