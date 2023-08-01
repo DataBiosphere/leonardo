@@ -109,7 +109,7 @@ jobs:
     steps:
       - name: dispatch to terra-github-workflows
         env:
-          leo_test_command: "sbt \"project automation\" \"testOnly *AzureRuntimeSpec\""
+          leo_test_command: 'sbt "project automation" "testOnly *AzureRuntimeSpec"'
         uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: .github/workflows/leonardo-swat-tests.yaml
