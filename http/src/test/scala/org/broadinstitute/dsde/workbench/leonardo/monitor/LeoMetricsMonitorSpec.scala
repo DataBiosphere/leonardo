@@ -80,6 +80,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val rstudioDAO = setUpMockRStudioDAO
   val welderDAO = setUpMockWelderDAO
   val hailBatchDAO = setUpMockHailBatchDAO
+  val relayListenerDAO = setUpMockRelayListenerDAO
   val kube = setUpMockKubeDAO
   val containerService = setUpMockAzureContainerService
 
@@ -96,6 +97,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     cbasUiDAO,
     cromwellDAO,
     hailBatchDAO,
+    relayListenerDAO,
     samDAO,
     kube,
     containerService
@@ -286,6 +288,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       cbasUiDAO,
       cromwellDAO,
       hailBatchDAO,
+      relayListenerDAO,
       samDAO,
       kube,
       containerService
@@ -585,6 +588,14 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       batch.getDriverStatus(any, any)(any)
     } thenReturn IO.pure(true)
     batch
+  }
+
+  private def setUpMockRelayListenerDAO: RelayListenerDAO[IO] = {
+    val listener = mock[RelayListenerDAO[IO]]
+    when {
+      listener.getStatus(any)(any)
+    } thenReturn IO.pure(true)
+    listener
   }
 
   private def setUpMockKubeDAO: KubernetesAlgebra[IO] = {
