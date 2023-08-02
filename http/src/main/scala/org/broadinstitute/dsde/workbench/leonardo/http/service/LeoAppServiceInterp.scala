@@ -12,7 +12,7 @@ import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.azure.AKSClusterName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GoogleComputeService,
@@ -825,7 +825,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
    * @param googleProject
    * @param descriptorPath
    * @param ev
-   * @return 
+   * @return
    */
   private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
                                                    googleProject: GoogleProject,
@@ -1170,11 +1170,21 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         .getOrElse(potentialNewChart)
 
       release <- lastUsedApp.fold(
-        KubernetesName.withValidation(
-          s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
-          Release.apply
-        )
+        KubernetesName
+          .withValidation(
+            s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
+            Release.apply
+          )
       )(app => app.release.asRight[Throwable])
+      services =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) {
+          gkeAppConfig.kubernetesServices.appended(
+            KubernetesService(
+              ServiceId(-1),
+              ServiceConfig(ServiceName("relay-listener"), KubernetesServiceKindName("ClusterIP"))
+            )
+          )
+        } else gkeAppConfig.kubernetesServices
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1196,7 +1206,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             namespaceName
           ),
           diskOpt,
-          gkeAppConfig.kubernetesServices,
+          services,
           Option(gkeAppConfig.serviceAccountName)
         ),
         List.empty,
