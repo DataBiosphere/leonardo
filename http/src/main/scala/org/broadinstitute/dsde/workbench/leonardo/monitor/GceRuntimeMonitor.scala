@@ -168,12 +168,12 @@ class GceRuntimeMonitor[F[_]: Parallel](
     case None =>
       nowInstant
         .flatMap { now =>
-          if (now.toEpochMilli - monitorContext.start.toEpochMilli > 60000)
+          if (now.toEpochMilli - monitorContext.start.toEpochMilli > 60000) // 1 minute
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
               RuntimeErrorDetails(
-                "Creation may have failed due to temporary resource unavailability in Google Cloud Platform (`ZONE_RESOURCE_POOL_EXHAUSTED` error). Please try again later or refer to http://broad.io/different-zone for creating a cloud environment in a different zone.",
+                "Compute resource was not found in the Google Cloud Platform. Creation may have failed due to temporary resource unavailability in Google Cloud Platform (`ZONE_RESOURCE_POOL_EXHAUSTED` error). Please try again later or refer to http://broad.io/different-zone for creating a cloud environment in a different zone.",
                 shortMessage = Some("fail_to_create")
               ),
               None
