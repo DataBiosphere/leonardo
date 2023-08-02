@@ -308,11 +308,10 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
 
     println(s"withRawlsWorkspace: Rawls workspace create called, response: ${response}")
 
-    try {
+    try
       testCode(response)
-    } finally {
+    finally
       Rawls.workspaces.delete(projectName.value, workspaceName)
-    }
   }
 
   private def workspaceResponse(projectName: String, workspaceName: String)(implicit

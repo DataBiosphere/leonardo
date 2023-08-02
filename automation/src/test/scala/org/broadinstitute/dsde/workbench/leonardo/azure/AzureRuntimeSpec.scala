@@ -8,7 +8,12 @@ import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, L
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{AzureDiskConfig, DiskStatus, CreateAzureRuntimeRequest, ClusterStatus}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{
+  AzureDiskConfig,
+  ClusterStatus,
+  CreateAzureRuntimeRequest,
+  DiskStatus
+}
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 
 import scala.concurrent.duration._
