@@ -22,6 +22,7 @@ import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.getAuthTokenAndAuthorization
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
 
 import java.util.UUID
@@ -252,11 +253,13 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 final case class AzureBillingProjectName(value: String) extends AnyVal
 trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAfterAll {
   this: TestSuite =>
-  override type FixtureParam = AzureBillingProjectName
+  import io.circe.{parser, Decoder}
+  import org.broadinstitute.dsde.workbench.auth.AuthToken
+  import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
+  override type FixtureParam = WorkspaceResponse
 
   val azureBillingProjectKey = "leonardo.azureBillingProject"
 
-  implicit val (authToken, authorization) = getAuthTokenAndAuthorization(Hermione)
   // These are static coordinates for this managed app in the azure portal: https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview
   // Note that the final 'optional' field for a pre-created landing zone is not technically optional
   // If you fail to include a landing zone, the wb-libs call to create the billing project will fail, timing out due to landing zone creation not being an expected part of creation
@@ -269,27 +272,113 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
   )
 
   // Needed for wb-libs
-  implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override def withFixture(test: OneArgTest): Outcome = {
-    def runTestAndCheckOutcome(projectName: AzureBillingProjectName) =
-      super.withFixture(test.toNoArgTest(projectName))
+    def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
+      super.withFixture(test.toNoArgTest(workspace))
 
-    sys.props.get(azureBillingProjectKey) match {
-      case None =>
-        throw new RuntimeException(
-          s"${azureBillingProjectKey} system property is not set, indicating a problem with azure billing project setup"
-        )
-      case Some(projectName) => runTestAndCheckOutcome(AzureBillingProjectName(projectName))
+    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
+      withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
+        runTestAndCheckOutcome(workspace)
+      }
     }
   }
 
-  override def beforeAll(): Unit =
-    // hardcode this if you want to use a static azure billing project
-    // val projectName = "tmp-billing-project-beddf71a74"
-    withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
-      sys.props.put(azureBillingProjectKey, projectName)
-    }
+  def withRawlsWorkspace[T](
+    projectName: AzureBillingProjectName
+  )(testCode: WorkspaceResponse => T)(implicit authToken: AuthToken): T = {
+    // hardcode this if you want to use a static workspace
+    //    val workspaceName = "ddf3f5fa-a80e-4b2f-ab6e-9bd07817fad1-azure-test-workspace"
+
+    val workspaceName = generateWorkspaceName()
+
+    println(s"withRawlsWorkspace: Calling create rawls workspace with name ${workspaceName}")
+
+    Rawls.workspaces.create(
+      projectName.value,
+      workspaceName,
+      Set.empty,
+      Map("disableAutomaticAppCreation" -> "true")
+    )
+
+    val response =
+      workspaceResponse(projectName.value, workspaceName).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    println(s"withRawlsWorkspace: Rawls workspace create called, response: ${response}")
+
+    testCode(response)
+  }
+
+  private def workspaceResponse(projectName: String, workspaceName: String)(implicit
+    authToken: AuthToken
+  ): IO[WorkspaceResponse] = for {
+    responseString <- IO.pure(Rawls.workspaces.getWorkspaceDetails(projectName, workspaceName))
+    json <- IO.fromEither(parser.parse(responseString))
+    parsedResponse <- IO.fromEither(json.as[WorkspaceResponse])
+  } yield parsedResponse
+
+  case class WorkspaceResponse(accessLevel: Option[String],
+                               canShare: Option[Boolean],
+                               canCompute: Option[Boolean],
+                               catalog: Option[Boolean],
+                               workspace: WorkspaceDetails,
+                               owners: Option[Set[String]],
+                               azureContext: Option[AzureCloudContext]
+  )
+
+  implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
+    for {
+      tenantId <- c.downField("tenantId").as[String]
+      subscriptionId <- c.downField("subscriptionId").as[String]
+      resourceGroupId <- c.downField("managedResourceGroupId").as[String]
+    } yield AzureCloudContext(TenantId(tenantId),
+                              SubscriptionId(subscriptionId),
+                              ManagedResourceGroupName(resourceGroupId)
+    )
+  }
+
+  implicit val workspaceDetailsDecoder: Decoder[WorkspaceDetails] = Decoder.forProduct10(
+    "namespace",
+    "name",
+    "workspaceId",
+    "bucketName",
+    "createdDate",
+    "lastModified",
+    "createdBy",
+    "isLocked",
+    "billingAccountErrorMessage",
+    "errorMessage"
+  )(WorkspaceDetails.apply)
+
+  implicit val workspaceResponseDecoder: Decoder[WorkspaceResponse] = Decoder.forProduct7(
+    "accessLevel",
+    "canShare",
+    "canCompute",
+    "catalog",
+    "workspace",
+    "owners",
+    "azureContext"
+  )(WorkspaceResponse.apply)
+
+  // Note this isn't the full model available, we only need a few fields
+  // The full model lives in rawls here https://github.com/broadinstitute/rawls/blob/develop/model/src/main/scala/org/broadinstitute/dsde/rawls/model/WorkspaceModel.scala#L712
+  case class WorkspaceDetails(
+    namespace: String,
+    name: String,
+    workspaceId: String,
+    bucketName: String,
+    createdDate: String,
+    lastModified: String,
+    createdBy: String,
+    isLocked: Boolean = false,
+    billingAccountErrorMessage: Option[String] = None,
+    errorMessage: Option[String] = None
+  )
+
+  private def generateWorkspaceName(): String =
+    s"${UUID.randomUUID().toString()}-azure-test-workspace"
 }
 
 final class LeonardoSuite

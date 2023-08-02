@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   CreateAzureRuntimeRequest,
   DiskStatus
 }
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
 
 import scala.concurrent.duration._
 //@DoNotDiscover
@@ -25,99 +26,97 @@ class AzureRuntimeSpec
     with Retries
     with CleanUp {
 
-  "create, get, delete azure runtime" in { projectName =>
-    withRawlsWorkspace(projectName) { workspaceDetails =>
-      val workspaceId = workspaceDetails.workspace.workspaceId
+  "create, get, delete azure runtime" in { workspaceDetails =>
+    val workspaceId = workspaceDetails.workspace.workspaceId
 
-      val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
-      labelMap.put("automation", "true")
+    val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
+    labelMap.put("automation", "true")
 
-      val runtimeName = randomClusterName
-      val res =
-        for {
-          _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
-          runtimeClient <- GeneratedLeonardoClient.generateRuntimesApi
-          diskClient <- GeneratedLeonardoClient.generateDisksApi
+    val runtimeName = randomClusterName
+    val res =
+      for {
+        _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
+        runtimeClient <- GeneratedLeonardoClient.generateRuntimesApi
+        diskClient <- GeneratedLeonardoClient.generateDisksApi
 
-          createReq = new CreateAzureRuntimeRequest()
-            .labels(labelMap)
-            .machineSize("Standard_DS1_v2")
-            .disk(
-              new AzureDiskConfig()
-                .name(generateAzureDiskName())
-                .size(50)
-                .labels(labelMap)
-            )
-
-          _ <- IO(runtimeClient.createAzureRuntime(workspaceId, runtimeName.asString, false, createReq))
-          _ <- loggerIO.info(s"AzureRuntimeSpec: Create runtime request submitted. Starting to poll GET")
-
-          // Verify the initial getRuntime call
-          _ <- IO.sleep(5 seconds)
-          callGetRuntime = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
-
-          intitialGetRuntimeResponse <- callGetRuntime
-          _ <- loggerIO.info(s"initial get runtime response ${intitialGetRuntimeResponse}")
-          _ = intitialGetRuntimeResponse.getStatus shouldBe ClusterStatus.CREATING
-
-          _ <- loggerIO.info(
-            s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} in creating status detected"
+        createReq = new CreateAzureRuntimeRequest()
+          .labels(labelMap)
+          .machineSize("Standard_DS1_v2")
+          .disk(
+            new AzureDiskConfig()
+              .name(generateAzureDiskName())
+              .size(50)
+              .labels(labelMap)
           )
 
-          _ <- loggerIO.info("AzureRuntimeSpec: verifying get disk response")
-          diskId = intitialGetRuntimeResponse.getRuntimeConfig.getAzureConfig.getPersistentDiskId
-          getDisk = IO(diskClient.getDiskV2(diskId.toBigInteger.intValue()))
-          diskDuringRuntimeCreate <- getDisk
-          _ = diskDuringRuntimeCreate.getStatus shouldBe DiskStatus.CREATING
+        _ <- IO(runtimeClient.createAzureRuntime(workspaceId, runtimeName.asString, false, createReq))
+        _ <- loggerIO.info(s"AzureRuntimeSpec: Create runtime request submitted. Starting to poll GET")
 
-          _ <- loggerIO.info(
-            s"AzureRuntimeSpec: disk ${workspaceId}/${diskDuringRuntimeCreate.getId()} in creating status detected"
-          )
+        // Verify the initial getRuntime call
+        _ <- IO.sleep(5 seconds)
+        callGetRuntime = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
 
-          // Verify the runtime eventually becomes Running
-          monitorCreateResult <- streamUntilDoneOrTimeout(
-            callGetRuntime,
-            120,
-            10 seconds,
-            s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 20 minutes"
-          )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
+        intitialGetRuntimeResponse <- callGetRuntime
+        _ <- loggerIO.info(s"initial get runtime response ${intitialGetRuntimeResponse}")
+        _ = intitialGetRuntimeResponse.getStatus shouldBe ClusterStatus.CREATING
 
-          _ <- loggerIO.info(
-            s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} create monitor result: $monitorCreateResult"
-          )
-          _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} in creating status detected"
+        )
 
-          _ <- loggerIO.info(
-            s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete starting"
-          )
-          // Delete the runtime
-          _ <- IO(runtimeClient.deleteAzureRuntime(workspaceId, runtimeName.asString, true))
+        _ <- loggerIO.info("AzureRuntimeSpec: verifying get disk response")
+        diskId = intitialGetRuntimeResponse.getRuntimeConfig.getAzureConfig.getPersistentDiskId
+        getDisk = IO(diskClient.getDiskV2(diskId.toBigInteger.intValue()))
+        diskDuringRuntimeCreate <- getDisk
+        _ = diskDuringRuntimeCreate.getStatus shouldBe DiskStatus.CREATING
 
-          _ <- loggerIO.info(
-            s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
-          )
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: disk ${workspaceId}/${diskDuringRuntimeCreate.getId()} in creating status detected"
+        )
 
-          monitorDeleteResult <- streamUntilDoneOrTimeout(
-            callGetRuntime,
-            120,
-            10 seconds,
-            s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 20 minutes"
-          )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
+        // Verify the runtime eventually becomes Running
+        monitorCreateResult <- streamUntilDoneOrTimeout(
+          callGetRuntime,
+          120,
+          10 seconds,
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 20 minutes"
+        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
-          _ <- loggerIO.info(
-            s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete monitor result: $monitorDeleteResult"
-          )
-          _ = monitorDeleteResult.getStatus() shouldBe ClusterStatus.DELETED
+        _ <- loggerIO.info(
+          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} create monitor result: $monitorCreateResult"
+        )
+        _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
-          diskAfterRuntimeDelete <- getDisk
-          _ = diskAfterRuntimeDelete.getStatus shouldBe DiskStatus.DELETED
+        _ <- loggerIO.info(
+          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete starting"
+        )
+        // Delete the runtime
+        _ <- IO(runtimeClient.deleteAzureRuntime(workspaceId, runtimeName.asString, true))
 
-          _ <- loggerIO.info(
-            s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
-          )
-        } yield ()
-      res.unsafeRunSync()
-    }
+        _ <- loggerIO.info(
+          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
+        )
+
+        monitorDeleteResult <- streamUntilDoneOrTimeout(
+          callGetRuntime,
+          120,
+          10 seconds,
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 20 minutes"
+        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
+
+        _ <- loggerIO.info(
+          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete monitor result: $monitorDeleteResult"
+        )
+        _ = monitorDeleteResult.getStatus() shouldBe ClusterStatus.DELETED
+
+        diskAfterRuntimeDelete <- getDisk
+        _ = diskAfterRuntimeDelete.getStatus shouldBe DiskStatus.DELETED
+
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
+        )
+      } yield ()
+    res.unsafeRunSync()
   }
 
 }
