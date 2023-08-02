@@ -49,7 +49,10 @@ sealed trait IdentityType {
     case AppWorkloadIdentity(_, resourceId) => Some(resourceId)
     case _ => None
   }
-
+  def getServiceAccountName: Option[ServiceAccountName] = this match {
+    case AppWorkloadIdentity(identity, _) => Some(identity)
+    case _ => None
+  }
 }
 
 object IdentityType {
@@ -61,7 +64,7 @@ object IdentityType {
   case object UserWorkloadIdentity extends WorkloadIdentityType
 
   // For apps whose workload identity (to access databases) is linked to the app itself rather than an individual user
-  case class AppWorkloadIdentity(identity: ServiceAccountName, resourceId: UUID) extends WorkloadIdentityType
+  case class AppWorkloadIdentity(serviceAccountName: ServiceAccountName, resourceId: UUID) extends WorkloadIdentityType
 
   // Runs the app with aad-pod-identity.
   // Currently this is only done for single-user applications who don't provision a database.

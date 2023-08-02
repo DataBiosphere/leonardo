@@ -117,7 +117,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // If configured for the app type, call WSM to create a managed identity and postgres database.
       // This returns a KSA authorized to access the database.
-      appIdentityAndDatabases <- maybeCreateWsmIdentityAndDatabases(
+      appIdentityAndDatabases <- getIdentityTypeAndDatabases(
         app,
         params.workspaceId,
         params.landingZoneResources,
@@ -130,7 +130,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Deploy aad-pod-identity chart
       // This only needs to be done once per cluster, but multiple helm installs have no effect.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
-      _ <- identityType match {
+      _ <- appIdentityAndDatabases.identityType match {
         case PodIdentity =>
           helmClient
             .installChart(
@@ -202,7 +202,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // If we're configured to use pod identity with the pet for this app assign pet to the VM scale set.
       // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity
       // for all app types.
-      _ <- (identityType, petMi) match {
+      _ <- (appIdentityAndDatabases.identityType, petMi) match {
         case (PodIdentity, Some(identity)) =>
           assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, identity)
         case _ => F.pure(None)
@@ -248,8 +248,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   applicationInsightsComponent.connectionString(),
                   app.sourceWorkspaceId,
                   userToken,
-                  identityType,
-                  maybeCromwellDatabaseNames
+                  appIdentityAndDatabases.identityType,
+                  appIdentityAndDatabases.databases.asCromwellDatabaseNames,
                 ),
                 createNamespace = true
               )
@@ -272,9 +272,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   applicationInsightsComponent.connectionString(),
                   app.sourceWorkspaceId,
                   userToken, // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
-                  identityType,
-                  maybeKsaFromDatabaseCreation,
-                  maybeDbName
+                  appIdentityAndDatabases.identityType,
+                  appIdentityAndDatabases.identityType.getServiceAccountName,
+                  appIdentityAndDatabases.databases.asWdsDatabaseName
                 ),
                 createNamespace = true
               )
@@ -451,10 +451,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             }
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
-            identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeDbNames) match {
-              case (Some(_), _, _)                      => WorkspaceWorkloadIdentity
+            identityType: IdentityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeDbNames) match {
+              case (Some(ksa), _, _)                    => AppWorkloadIdentity(ksa, UUID.fromString(app.samResourceId.resourceId))
               case (None, SamResourceType.SharedApp, _) => NoIdentity
-              case (None, _, Some(_))                   => WorkspaceWorkloadIdentity
+              case (None, _, Some(_))                   => UserWorkloadIdentity
               case (None, _, _)                         => PodIdentity
             }
 
@@ -506,7 +506,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
             identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType) match {
-              case (Some(_), _)                      => WorkspaceWorkloadIdentity
+              case (Some(ksa), _)                      => AppWorkloadIdentity(ksa, UUID.fromString(app.samResourceId.resourceId))
               case (None, SamResourceType.SharedApp) => NoIdentity
               case (None, _)                         => PodIdentity
             }
@@ -879,7 +879,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                 userAccessToken: String,
                                                 identityType: IdentityType,
                                                 ksaName: Option[ServiceAccountName],
-                                                wdsDbName: Option[String]
+                                                wdsDbName: Option[WdsDatabaseName]
   ): Values = {
     val valuesList =
       List(
@@ -1108,10 +1108,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private[util] def maybeCreateWsmIdentityAndDatabases(app: App,
-                                                       workspaceId: WorkspaceId,
-                                                       landingZoneResources: LandingZoneResources,
-                                                       namespace: KubernetesNamespace
+  private[util] def getIdentityTypeAndDatabases(app: App,
+                                                workspaceId: WorkspaceId,
+                                                landingZoneResources: LandingZoneResources,
+                                                namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
   ): F[AppIdentityAndDatabases] = {
@@ -1193,7 +1193,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               AppControlledResourceStatus.Created
             )
             .transaction
-      } yield AppWorkloadIdentity(ServiceAccountName(identityName))
+      } yield AppWorkloadIdentity(ServiceAccountName(identityName), createIdentityResponse.getResourceId)
     }
   }
 
@@ -1423,7 +1423,16 @@ final case class AKSInterpreterConfig
   tdr: TdrConfig
 )
 
-sealed trait CreatedDatabaseNames
+sealed trait CreatedDatabaseNames {
+  def asCromwellDatabaseNames: Option[CromwellDatabaseNames] = this match {
+    case c: CromwellDatabaseNames => Option(c)
+    case _ => None
+  }
+  def asWdsDatabaseName: Option[WdsDatabaseName] = this match {
+    case wds: WdsDatabaseName => Option(wds)
+    case _ => None
+  }
+}
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String) extends CreatedDatabaseNames
 final case class WdsDatabaseName(wds: String) extends CreatedDatabaseNames
 final case class WorkflowsDatabaseNames(cromwell: String, cbas: String) extends CreatedDatabaseNames

@@ -748,7 +748,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val nodepool = makeNodepool(1, cluster.id)
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
     val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true)))
-      .maybeCreateWsmIdentityAndDatabases(app,
+      .getIdentityTypeAndDatabases(app,
                                          workspaceId,
                                          landingZoneResources.copy(postgresName = None),
                                          KubernetesNamespace(NamespaceName("ns1"))
@@ -762,7 +762,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val nodepool = makeNodepool(1, cluster.id)
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
     val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = false)))
-      .maybeCreateWsmIdentityAndDatabases(app,
+      .getIdentityTypeAndDatabases(app,
                                          workspaceId,
                                          landingZoneResources,
                                          KubernetesNamespace(NamespaceName("ns1"))
