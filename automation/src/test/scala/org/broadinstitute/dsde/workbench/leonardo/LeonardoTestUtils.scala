@@ -661,6 +661,9 @@ trait LeonardoTestUtils
 //    val workspaceName = "ddf3f5fa-a80e-4b2f-ab6e-9bd07817fad1-azure-test-workspace"
 
     val workspaceName = generateWorkspaceName()
+
+    println(s"withRawlsWorkspace: Calling create rawls workspace with name ${workspaceName}")
+
     Rawls.workspaces.create(
       projectName.value,
       workspaceName,
@@ -670,6 +673,9 @@ trait LeonardoTestUtils
 
     val response =
       workspaceResponse(projectName.value, workspaceName).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    println(s"withRawlsWorkspace: Rawls workspace create called, response: ${response}")
+
     testCode(response)
   }
 
