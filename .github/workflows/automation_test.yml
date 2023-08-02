@@ -1,8 +1,13 @@
 name: leo-build-tag-publish-and-run-tests
 
 on:
-  pull_request:
-    branches: [ develop ]
+#  pull_request:
+#    branches: [ develop ]
+# if you want to debug this and trigger it on PRs against dev, you will need to add `github.head_ref` to the `branch=` line in `init-github-context` job
+# i.e. `echo "branch=${{ github.head_ref || inputs.branch }}" >> "$GITHUB_OUTPUT"`
+  schedule:
+    # run twice a day at 10:00 and 22:00 UTC every day of the week
+    - cron: "0 10/12 * * *"
   workflow_dispatch:
     inputs:
       branch:
@@ -30,7 +35,7 @@ jobs:
       - name: Get inputs or use defaults
         id: extract-inputs
         run: |
-          echo "branch=${{ github.head_ref || 'develop' }}" >> "$GITHUB_OUTPUT"
+          echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
 
 
@@ -81,16 +86,6 @@ jobs:
       - name: Echo Leo version
         run: |
           echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
-#      - name: dispatch to terra-github-workflows
-#        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
-#        with:
-#          workflow: bee-create
-#          repo: broadinstitute/terra-github-workflows
-#          ref: refs/heads/main
-#          token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
-#          # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
-#          # Note: There is a hard limit of bee-name not exceeding 32 characters
-#          inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}", "version-template": "${{ matrix.terra-env }}", "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}" }'
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v3
         with:
@@ -117,7 +112,6 @@ jobs:
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
-#          inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}", "ENV": "${{ matrix.testing-env }}", "sbt-test-command": "\"testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab\"" }'
           inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17", "ref": "${{ needs.init-github-context.outputs.branch }}" }'
 
   destroy-bee-workflow:
@@ -137,16 +131,16 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{ "bee-name": "${{ env.BEE_NAME }}" }'
 
-#  notify-slack-on-failure:
-#    runs-on: ubuntu-latest
-#    needs: [ init-github-context, rawls-build-tag-publish-job, create-bee-workflow, leo-automation-test-job, destroy-bee-workflow ] # Want to notify regardless of which step fails
-#    if: ${{ failure() }}
-#    steps:
-#      - name: Notify slack
-#        uses: slackapi/slack-github-action@v1.23.0
-#        with:
-#          # Channel is for #dsp-workspaces-test-alerts
-#          channel-id: 'C03F21QEWV7'
-#          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-#        env:
-#          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
+  notify-slack-on-failure:
+    runs-on: ubuntu-latest
+    needs: [ init-github-context, leo-build-tag-publish-job, create-bee-workflow, leo-automation-test-job, destroy-bee-workflow ] # Want to notify regardless of which step fails
+    if: ${{ github.event_name == 'schedule' && failure() }}
+    steps:
+      - name: Notify slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          # Channel is for #ia-notification-test
+          channel-id: 'C03ATF4QXEV'
+          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
