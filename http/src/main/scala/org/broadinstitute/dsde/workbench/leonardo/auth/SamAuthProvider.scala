@@ -144,7 +144,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield resources.filter(r => res.exists(_._1 == r))
   }
 
-  def filterUserVisibleWithProjectFallback[R](
+  def filterResourceProjectVisible[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(implicit
@@ -155,17 +155,33 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
     for {
-      projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
-      owningProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
+      projectPolicies <- samDao
+        .getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
+      readingProjects = projectPolicies.map(_._1.googleProject)
+      _ <- logger.info(s"Reading: $readingProjects")
+      ownedProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
         r.googleProject
       }
+      _ <- logger.info(s"Owned: $ownedProjects")
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
+      _ <- logger.info(s"resourcePolicies: $resourcePolicies")
       res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
     } yield resources.filter { case (project, r) =>
-      owningProjects.contains(project) || res.exists(_._1 == r)
+      // user must be reader on project and resource, or a project owner
+      (readingProjects.contains(project) && res.exists(_._1 == r)) || ownedProjects.contains(project)
     }
+  }
+
+  override def isUserProjectReader(cloudContext: CloudContext, userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] = {
+    val samProjectResource = ProjectSamResourceId(GoogleProject(cloudContext.asString))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      roles <- samDao.getResourceRoles(authHeader, samProjectResource)
+    } yield roles.nonEmpty
   }
 
   def filterWorkspaceOwner(

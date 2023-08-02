@@ -242,9 +242,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[GetAppResponse] =
     for {
       ctx <- as.ask
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
       app <- F.fromOption(appOpt, AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB"))
 
+      // throw 404 if no GetAppStatus permission
       hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
                                                                                AppAction.GetAppStatus,
                                                                                userInfo
@@ -254,8 +262,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else
           log.info(ctx.loggingCtx)(
             s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
-          ) >> F
-            .raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "permission denied"))
+          ) >>
+            F.raiseError[Unit](
+              AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied")
+            )
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
@@ -270,7 +280,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
-      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3) // TODO (LM) filterProjectReader
     } yield res
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
@@ -278,6 +288,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       appOpt <- KubernetesServiceDbQueries
         .getActiveFullAppByName(cloudContext, appName)
         .transaction
@@ -290,12 +307,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no GetAppStatus permission
-      hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+      hasPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
       _ <-
-        if (hasReadPermission) F.unit
+        if (hasPermission) F.unit
         else
           F.raiseError[Unit](
-            AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission")
+            AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied")
           )
 
       // throw 403 if no DeleteApp permission
@@ -350,6 +367,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
       appResult <- F.fromOption(appOpt,
                                 AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
@@ -391,6 +415,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
       appResult <- F.fromOption(appOpt,
                                 AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
@@ -1188,18 +1219,24 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     implicit as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] = for {
     _ <- as.ask
-    samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
+    samResources = allClusters.map(a =>
+      // Need the project to filter projects not visible to user
+      (GoogleProject(a.cloudContext.toString), a.nodepools.flatMap(_.apps.map(_.samResourceId)))
+    )
+    apps = samResources.flatMap { case (gp, srList) =>
+      srList.map(sr => (gp, sr))
+    }
+
     // Partition apps by shared vs. private access scope and make a separate Sam call for each, then re-combine them.
     // The reason we do this shared vs. private app access scope is represented by different Sam resource types/actions,
     // and therefore needs different decoders to process the result list.
-    partition = samResources
-      .map(sr => sr.copy(accessScope = sr.accessScope.orElse(Some(AppAccessScope.UserPrivate))))
-      .partition(_.accessScope == Some(AppAccessScope.WorkspaceShared))
+    partition = apps
+      .partition(_._2.accessScope == Some(AppAccessScope.WorkspaceShared))
     samVisibleSharedAppsOpt <- NonEmptyList.fromList(partition._1).traverse { apps =>
-      authProvider.filterUserVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
+      authProvider.filterResourceProjectVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
     }
     samVisiblePrivateAppsOpt <- NonEmptyList.fromList(partition._2).traverse { apps =>
-      authProvider.filterUserVisible(apps, userInfo)(implicitly, appSamIdDecoder, implicitly)
+      authProvider.filterResourceProjectVisible(apps, userInfo)(implicitly, appSamIdDecoder, implicitly)
     }
     samVisibleAppsOpt = (samVisiblePrivateAppsOpt, samVisibleSharedAppsOpt) match {
       case (Some(a), Some(b)) => Some(a ++ b)
@@ -1219,11 +1256,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               nodepools = c.nodepools
                 .map { n =>
                   n.copy(apps = n.apps.filter { a =>
-                    // Making the assumption that users will always be able to access apps that they create
-                    // Fix for https://github.com/DataBiosphere/leonardo/issues/821
                     val sr =
                       a.samResourceId.copy(accessScope = a.appAccessScope.orElse(Some(AppAccessScope.UserPrivate)))
-                    samVisibleAppsSet.contains(sr) || a.auditInfo.creator == userInfo.userEmail
+                    samVisibleAppsSet.exists { case (_, samResourceId) => samResourceId == sr }
                   })
                 }
                 .filterNot(_.apps.isEmpty)

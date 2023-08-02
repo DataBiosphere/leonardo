@@ -168,7 +168,7 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[R]]
 
-  def filterUserVisibleWithProjectFallback[R](
+  def filterResourceProjectVisible[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(implicit
@@ -176,6 +176,11 @@ trait LeoAuthProvider[F[_]] {
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]]
+
+  def isUserProjectReader(
+    cloudContext: CloudContext,
+    userInfo: UserInfo
+  )(implicit ev: Ask[F, TraceId]): F[Boolean]
 
   def filterWorkspaceOwner(
     resources: NonEmptyList[WorkspaceResourceSamResourceId],

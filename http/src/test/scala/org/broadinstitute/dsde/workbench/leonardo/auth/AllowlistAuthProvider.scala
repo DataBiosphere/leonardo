@@ -66,7 +66,7 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       }
     }
 
-  def filterUserVisibleWithProjectFallback[R](
+  def filterResourceProjectVisible[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(implicit
@@ -80,6 +80,12 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
         case false => None
       }
     }
+
+  override def isUserProjectReader(
+    cloudContext: CloudContext,
+    userInfo: UserInfo
+  )(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+    checkAllowlist(userInfo)
 
   // Creates a resource in Sam
   def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
