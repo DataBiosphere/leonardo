@@ -30,7 +30,7 @@ final case class RuntimeDnsCacheKey(cloudContext: CloudContext, runtimeName: Run
 class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
-  hostToIpMapping: Ref[F, Map[Host, IP]],
+  hostToIpMapping: Ref[F, Map[String, IP]],
   runtimeDnsCache: Cache[F, RuntimeDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
@@ -81,7 +81,7 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
     hostAndIpOpt match {
       case Some((h, ip)) =>
         hostToIpMapping
-          .getAndUpdate(_ + (h -> ip))
+          .getAndUpdate(_ + (h.address -> ip))
           .as[HostStatus](
             HostReady(h, s"${cloudContext.asString}/${runtimeName.asString}", CloudProvider.Gcp)
           )
