@@ -265,6 +265,7 @@ private[leonardo] object BuildHelmChartValues {
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${rstudioIngressPath}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None"""",
       raw"""ingress.host=${k8sProxyHost}""",
       raw"""ingress.rstudio.path=${rstudioIngressPath}${"(/|$)(.*)"}""",
       raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",

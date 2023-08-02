@@ -92,11 +92,13 @@ class RuntimeDnsCacheSpec
 
     hostToIpMapping.get
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
+      .get(runningClusterHost.address) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
     hostToIpMapping.get
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .get(clusterBeingCreatedHost) shouldBe None
-    hostToIpMapping.get.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).get(stoppedClusterHost) shouldBe None
+      .get(clusterBeingCreatedHost.address) shouldBe None
+    hostToIpMapping.get
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .get(stoppedClusterHost.address) shouldBe None
 
     val cacheKeys = Set(cacheKeyForClusterBeingCreated, cacheKeyForRunningCluster, cacheKeyForStoppedCluster)
 

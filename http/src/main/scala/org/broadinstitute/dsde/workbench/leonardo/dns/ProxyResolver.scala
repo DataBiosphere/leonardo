@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
-import akka.http.scaladsl.model.Uri.Host
 import cats.effect.Async
 import cats.effect.Ref
 import cats.effect.std.Dispatcher
@@ -27,13 +26,13 @@ trait ProxyResolver[F[_]] {
 }
 
 object ProxyResolver {
-  def apply[F[_]: Async](hostToIpMapping: Ref[F, Map[Host, IP]], dispatcher: Dispatcher[F]): ProxyResolver[F] =
+  def apply[F[_]: Async](hostToIpMapping: Ref[F, Map[String, IP]], dispatcher: Dispatcher[F]): ProxyResolver[F] =
     new ProxyResolverInterp(hostToIpMapping, dispatcher)
 
   /**
-   * Implementation of ProxyResolver using a Map[Host, IP] stored in a Ref.
+   * Implementation of ProxyResolver using a Map[String, IP] stored in a Ref.
    */
-  private class ProxyResolverInterp[F[_]](hostToIpMapping: Ref[F, Map[Host, IP]], dispatcher: Dispatcher[F])(implicit
+  private class ProxyResolverInterp[F[_]](hostToIpMapping: Ref[F, Map[String, IP]], dispatcher: Dispatcher[F])(implicit
     F: Async[F]
   ) extends ProxyResolver[F] {
 
@@ -52,7 +51,7 @@ object ProxyResolver {
       for {
         mapping <- hostToIpMapping.get
         // Use the IP if we have a mapping for it; otherwise fall back to default host name resolution
-        h = mapping.get(Host(host)).map(_.asString).getOrElse(host)
+        h = mapping.get(host).map(_.asString).getOrElse(host)
         res <- F.delay(new InetSocketAddress(h, port))
       } yield res
   }
