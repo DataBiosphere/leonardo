@@ -501,7 +501,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               .transaction
             maybeDbName = wsmDatabase match {
               case None    => None
-              case Some(_) => Some(s"wds${kubernetesNamespace.name.value.split('-').head}")
+              case Some(_) => Some(WdsDatabaseName(s"wds${kubernetesNamespace.name.value.split('-').head}"))
             }
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
@@ -829,7 +829,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-        raw"workloadIdentity.enabled=${identityType == WorkspaceWorkloadIdentity}",
+        raw"workloadIdentity.enabled=${identityType.isInstanceOf[WorkloadIdentityType]}",
         raw"workloadIdentity.serviceAccountName=${petManagedIdentity.map(_.name).getOrElse("none")}",
 
         // Sam configs
@@ -900,7 +900,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
         raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
         raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-        raw"workloadIdentity.enabled=${identityType == WorkspaceWorkloadIdentity}",
+        raw"workloadIdentity.enabled=${identityType.isInstanceOf[WorkloadIdentityType]}",
         raw"workloadIdentity.serviceAccountName=${ksaName.map(_.value).getOrElse("none")}",
 
         // Sam configs
