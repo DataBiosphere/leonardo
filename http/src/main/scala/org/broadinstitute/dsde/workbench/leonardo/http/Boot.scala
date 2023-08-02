@@ -3,7 +3,6 @@ package http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.Uri.Host
 import cats.effect._
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.mtl.Ask
@@ -353,7 +352,7 @@ object Boot extends IOApp {
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits)
 
       // Set up DNS caches
-      hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
+      hostToIpMapping <- Resource.eval(Ref.of(Map.empty[String, IP]))
       proxyResolver <- Dispatcher.parallel[F].map(d => ProxyResolver(hostToIpMapping, d))
 
       underlyingRuntimeDnsCache = buildCache[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]](
