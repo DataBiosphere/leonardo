@@ -296,6 +296,7 @@ object Boot extends IOApp {
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
             appDependencies.hailBatchDAO,
+            appDependencies.relayListenerDAO,
             appDependencies.samDAO,
             appDependencies.kubeAlg,
             appDependencies.azureContainerService
@@ -407,6 +408,11 @@ object Boot extends IOApp {
       )
       hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
         .map(client => new HttpHailBatchDAO[F](client))
+      relayListenerDao <- buildHttpClient(sslContext,
+                                          proxyResolver.resolveHttp4s,
+                                          Some("leo_relay_listener_client"),
+                                          false
+      ).map(client => new HttpRelayListenerDAO[F](client))
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -425,9 +431,8 @@ object Boot extends IOApp {
       appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
-      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
-        new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
-      )
+      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true)
+        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
@@ -787,6 +792,7 @@ object Boot extends IOApp {
         cbasUiDao,
         cromwellDao,
         hailBatchDao,
+        relayListenerDao,
         wsmClientProvider,
         kubeAlg,
         azureContainerService
@@ -911,6 +917,7 @@ final case class AppDependencies[F[_]](
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
+  relayListenerDAO: RelayListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider,
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]
