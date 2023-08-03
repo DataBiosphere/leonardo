@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsp.ChartVersion
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
@@ -749,6 +750,36 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
             ctx.now,
             ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
+    } yield ()
+
+  override def updateAndPollApp(appId: AppId,
+                                appName: AppName,
+                                appChartVersion: ChartVersion,
+                                workspaceId: Option[WorkspaceId],
+                                cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
+      _ <- aksAlgebra.updateAndPollApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error updating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.UpdateApp,
             ErrorSource.App,
             None,
             Some(ctx.traceId)

@@ -1168,7 +1168,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true
+        true,
+        List()
       ),
       wsmDao,
       samDao
@@ -1209,7 +1210,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true
+        true,
+        List()
       ),
       wsmDao,
       samDao
@@ -1252,7 +1254,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true
+        true,
+        List()
       ),
       wsmDao,
       samDao
@@ -1294,7 +1297,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true
+        true,
+        List()
       ),
       wsmDao,
       samDao
@@ -1333,7 +1337,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true
+        true,
+        List()
       ),
       wsmDao,
       samDao
@@ -1378,7 +1383,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true
+        true,
+        List()
       ),
       wsmDao,
       samDao
@@ -1423,7 +1429,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true
+        true,
+        List()
       ),
       wsmDao,
       samDao

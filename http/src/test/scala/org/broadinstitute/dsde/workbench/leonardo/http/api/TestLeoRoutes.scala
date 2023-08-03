@@ -207,6 +207,7 @@ trait TestLeoRoutes {
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
+      MockAdminServiceInterp,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -222,6 +223,7 @@ trait TestLeoRoutes {
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

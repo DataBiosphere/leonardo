@@ -203,6 +203,12 @@ object Boot extends IOApp {
         appDependencies.wsmClientProvider
       )
 
+      val adminService = new AdminServiceInterp[IO](
+        appDependencies.authProvider,
+        appDependencies.publisherQueue,
+        ConfigReader.adminAppConfig
+      )
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -212,6 +218,7 @@ object Boot extends IOApp {
         diskV2Service,
         leoKubernetesService,
         azureService,
+        adminService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig
@@ -657,7 +664,8 @@ object Boot extends IOApp {
         googleDiskService,
         appDescriptorDAO,
         nodepoolLock,
-        googleDependencies.googleResourceService
+        googleDependencies.googleResourceService,
+        googleDependencies.googleComputeService
       )
 
       val aksAlg = new AKSInterpreter[F](
@@ -687,6 +695,7 @@ object Boot extends IOApp {
         cbasUiDao,
         wdsDao,
         hailBatchDao,
+        wsmDao,
         kubeAlg,
         wsmClientProvider
       )
