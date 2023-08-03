@@ -3,7 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AppType,
   Chart,
+  CloudProvider,
   DbPassword,
   GalaxyDrsUrl,
   GalaxyOrchUrl,
@@ -171,8 +173,6 @@ final case class AoUAppConfig(chartName: ChartName,
                               services: List[ServiceConfig],
                               serviceAccountName: ServiceAccountName
 ) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Allowed
 
@@ -182,6 +182,8 @@ final case class AoUAppConfig(chartName: ChartName,
   def chartVersion: ChartVersion = ChartVersion(
     "dummy"
   ) // For AoU apps, chart version will vary, and will be populated from user request
+
+  override def chartVersionsToExcludeFromUpdates: List[ChartVersion] = ???
 }
 
 sealed trait CoaService

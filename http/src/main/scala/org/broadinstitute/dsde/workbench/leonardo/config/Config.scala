@@ -698,7 +698,6 @@ object Config {
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
-      config.as[ServiceAccountName]("serviceAccountName")
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
