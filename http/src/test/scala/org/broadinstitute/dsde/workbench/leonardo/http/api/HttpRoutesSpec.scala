@@ -579,7 +579,7 @@ class HttpRoutesSpec
 
     val now = IO.realTimeInstant.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime = RuntimeServiceDbQueries
-      .getActiveRuntime(workspaceId, RuntimeName("azureruntime-1"))(
+      .getRuntimeByWorkspaceId(workspaceId, RuntimeName("azureruntime-1"))(
         scala.concurrent.ExecutionContext.global
       )
       .transaction

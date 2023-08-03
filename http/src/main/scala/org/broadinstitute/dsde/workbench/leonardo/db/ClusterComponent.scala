@@ -286,11 +286,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, error, label, extension, image, scopes, patch)
   }
 
-  def getActiveRuntimeQueryByWorkspaceId(workspaceId: WorkspaceId, clusterName: RuntimeName) = {
+  def getRuntimeQueryByWorkspaceId(workspaceId: WorkspaceId, clusterName: RuntimeName) = {
     val baseQuery = clusterQuery
       .filterOpt(Some(workspaceId))(_.workspaceId === _)
       .filter(_.runtimeName === clusterName)
-      .filter(_.destroyedDate === dummyDate)
 
     for {
       ((((((cluster, error), label), extension), image), scopes), patch) <- baseQuery joinLeft
