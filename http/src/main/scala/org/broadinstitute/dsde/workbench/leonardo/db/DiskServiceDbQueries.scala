@@ -120,7 +120,7 @@ object DiskServiceDbQueries {
   def getGetPersistentDiskResponseV2(diskId: DiskId, traceId: TraceId)(implicit
     executionContext: ExecutionContext
   ): DBIO[GetPersistentDiskV2Response] = {
-    val diskQuery = persistentDiskQuery.findActiveByIdQuery(diskId)
+    val diskQuery = persistentDiskQuery.findByIdQuery(diskId)
     val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
 
     diskQueryJoinedWithLabels.result.flatMap { x =>

@@ -51,14 +51,49 @@ Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do th
 	- If the `Spec` extends `ClusterFixtureSpec`/`RuntimeFixtureSpec`, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to `ClusterFixtureSpec`/`RuntimeFixtureSpec`. 
 	- If not, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to the `Spec` directly.
 
-### Developing locally
+### Developing azure automation tests locally
 
-If you are developing a test that uses ClusterFixture to re-use the same cluster between tests, you can speed up development significantly by reusing the same cluster between runs:
-- running the tests once with the lines `deleteRonCluster()
-  deleteWorkspaceAndBillingProject()` commented out in the function `afterAll()` within the file `ClusterFixtureSpec.scala`
-- adding these lines to the Spec you are working in, where the project and cluster name are the project and cluster generated in the previous test 
+When running azure automation tests locally against a fresh [bee](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/104399223/Callisto+Developer+Handbook#Running-in-a-BEE), you will have to perform a few extra steps:
 
+- Change all sections of `application.conf` to have the proper bee/terra URLS. For example, for a bee named `jc-bee-10`:
 ```
-debug = true
-mockedCluster = mockCluster("[GOOGLE_PROJECT]","[CLUSTER_NAME]")
+fireCloud {
+  baseUrl = "https://firecloud.jc-bee-10.bee.envs-terra.bio/"
+  orchApiUrl = "https://firecloudorch.jc-bee-10.bee.envs-terra.bio/"
+
+
+  orchApiUrl = "https://firecloudorch.jc-bee-10.bee.envs-terra.bio/"
+  rawlsApiUrl = "https://rawls.jc-bee-10.bee.envs-terra.bio/"
+  samApiUrl = "https://sam.jc-bee-10.bee.envs-terra.bio/"
+  thurloeApiUrl = "https://thurloe.jc-bee-10.bee.envs-terra.bio/"
+
+  fireCloudId = "4c717998-7442-11e6-8b77-86f30ca893d3"
+
+  # TODO more Config class nonsense
+  tcgaAuthDomain = “TCGA-dbGaP-Authorized”
+
+
+  gpAllocApiUrl = "https://gpalloc-qa.dsp-techops.broadinstitute.org/api/"
+
+}
+
+leonardo {
+
+  apiUrl = "https://leonardo.jc-bee-10.bee.envs-terra.bio/"
+
+  notebooksServiceAccountEmail = "leonardo-qa@broad-dsde-qa.iam.gserviceaccount.com"
+
+}
 ```
+
+This above will allow the tests to run against a fresh bee. Then, tests can be run via `sbt  "project automation" "testOnly *[my-file-name]"`
+
+To save time developing, you will likely want to reference the billing project and rawls workspace created in the first run of the tests.
+To do so:
+- Find the appropriate comment in `beforeAll` within `AzureBillingBeforeAndAfter` to override the billing project
+- Find the appropriate comment in `withRawlsWorkspace` to override the workspace
+
+If the test fails with some intermediate resources remaining:
+- Be sure to check the `staticTestingMrg` in the [azure portal](https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview) periodically to ensure you are not leaking resources when testing
+- It may be helpful to clean up your BEE's leonardo DB since only one runtime can exist per workspace. You can find instructions to get shell mysql access to your BEE in the [leonardo handbook](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/104399223/Callisto+Developer+Handbook#Connecting-to-your-BEE%E2%80%99s-databases%3Ahttps://broadworkbench.atlassian.net/wiki/spaces/IA/pages/104399223/Callisto+Developer+Handbook#Connecting-to-your-BEE%E2%80%99s-databases%3A).
+  - Once you have shell access to your BEE's leonardo mysql, run the following *to delete all Leo runtime records*: `DELETE FROM CLUSTER_ERROR WHERE 1=1; DELETE FROM CLUSTER_IMAGE WHERE 1=1; DELETE FROM RUNTIME_CONTROLLED_RESOURCE WHERE 1=1; DELETE FROM CLUSTER WHERE 1=1;`
