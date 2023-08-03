@@ -165,13 +165,14 @@ final case class HailBatchAppConfig(chartName: ChartName,
   val appType: AppType = AppType.HailBatch
 }
 
-final case class AoUAppConfig(chartName: ChartName,
-                              rstudioChartVersion: ChartVersion,
-                              sasChartVersion: ChartVersion,
-                              namespaceNameSuffix: NamespaceNameSuffix,
-                              releaseNameSuffix: ReleaseNameSuffix,
-                              services: List[ServiceConfig],
-                              serviceAccountName: ServiceAccountName
+final case class AllowedAppConfig(chartName: ChartName,
+                                  rstudioChartVersion: ChartVersion,
+                                  sasChartVersion: ChartVersion,
+                                  namespaceNameSuffix: NamespaceNameSuffix,
+                                  releaseNameSuffix: ReleaseNameSuffix,
+                                  services: List[ServiceConfig],
+                                  serviceAccountName: ServiceAccountName,
+                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Allowed
@@ -182,8 +183,6 @@ final case class AoUAppConfig(chartName: ChartName,
   def chartVersion: ChartVersion = ChartVersion(
     "dummy"
   ) // For AoU apps, chart version will vary, and will be populated from user request
-
-  override def chartVersionsToExcludeFromUpdates: List[ChartVersion] = ???
 }
 
 sealed trait CoaService

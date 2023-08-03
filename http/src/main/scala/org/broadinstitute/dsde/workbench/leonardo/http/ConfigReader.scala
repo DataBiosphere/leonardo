@@ -3,9 +3,15 @@ package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AllowedAppConfig,
   CoaAppConfig,
+  Config,
+  CromwellAppConfig,
+  CustomAppConfig,
+  GalaxyAppConfig,
   HailBatchAppConfig,
   HttpWsmDaoConfig,
+  KubernetesAppConfig,
   PersistentDiskConfig,
   WdsAppConfig
 }
@@ -31,7 +37,7 @@ object ConfigReader {
       Config.gkeCustomAppConfig,
       Config.gkeGalaxyAppConfig,
       appConfig.azure.hailBatchAppConfig,
-      Config.gkeRStudioAppConfig,
+      Config.gkeAllowedAppConfig,
       appConfig.azure.wdsAppConfig
     )
 }
@@ -82,7 +88,7 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
                                 customAppConfig: CustomAppConfig,
                                 galaxyAppConfig: GalaxyAppConfig,
                                 hailBatchAppConfig: HailBatchAppConfig,
-                                rstudioAppConfig: RStudioAppConfig,
+                                allowedAppConfig: AllowedAppConfig,
                                 wdsAppConfig: WdsAppConfig
 ) {
 
@@ -95,7 +101,7 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
     customAppConfig,
     galaxyAppConfig,
     hailBatchAppConfig,
-    rstudioAppConfig,
+    allowedAppConfig,
     wdsAppConfig
   )
 }

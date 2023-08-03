@@ -324,6 +324,15 @@ object AllowedChartName {
     def asString: String = "aou-sas-chart"
   }
   def stringToObject: Map[String, AllowedChartName] = sealerate.values[AllowedChartName].map(v => v.asString -> v).toMap
+
+  // Chartname from DB has the following format: /leonardo/cromwell-0.2.291
+  def fromChartName(chartName: ChartName): Option[AllowedChartName] = {
+    val splittedString = chartName.asString.split("/")
+    if (splittedString.size == 3) {
+      val splitChartNameAndVersion = splittedString(2).split("-")
+      stringToObject.get(splitChartNameAndVersion.dropRight(1).mkString("-"))
+    } else None
+  }
 }
 
 sealed abstract class AppType

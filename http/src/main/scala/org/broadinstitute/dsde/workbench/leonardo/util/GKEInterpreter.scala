@@ -607,10 +607,9 @@ class GKEInterpreter[F[_]](
             )
 
             appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(nfsDisk.id).transaction
-            galaxyRestore: Option[GalaxyRestore] = appRestore.flatMap {
-              case a: GalaxyRestore   => Some(a)
-              case _: CromwellRestore => None
-              case _: RStudioRestore  => None
+            galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+              case a: AppRestore.GalaxyRestore => Some(a)
+              case _: AppRestore.Other         => None
             }
 
             machineType <- computeService
@@ -676,9 +675,8 @@ class GKEInterpreter[F[_]](
             )
 
           } yield (chartValues.mkString(","), last)
-        case AppType.RStudio =>
+        case AppType.Allowed =>
           for {
-
             // Create the throwaway staging bucket to be used by Welder
             _ <- bucketHelper
               .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
@@ -699,7 +697,7 @@ class GKEInterpreter[F[_]](
             )
 
             last <- streamFUntilDone(
-              config.rStudioAppConfig.services
+              config.allowedAppConfig.services
                 .map(_.name)
                 .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
               config.monitorConfig.updateApp.maxAttempts,
@@ -1140,7 +1138,7 @@ class GKEInterpreter[F[_]](
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
         case AppType.Allowed =>
           streamFUntilDone(
-            config.aouAppConfig.services
+            config.allowedAppConfig.services
               .map(_.name)
               .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
             config.monitorConfig.startApp.maxAttempts,
@@ -1545,7 +1543,7 @@ class GKEInterpreter[F[_]](
 
       // Poll the app until it starts up
       last <- streamFUntilDone(
-        config.aouAppConfig.services
+        config.allowedAppConfig.services
           .map(_.name)
           .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
@@ -1884,7 +1882,7 @@ final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
                                       customAppConfig: CustomAppConfig,
-                                      aouAppConfig: AoUAppConfig,
+                                      allowedAppConfig: AllowedAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,

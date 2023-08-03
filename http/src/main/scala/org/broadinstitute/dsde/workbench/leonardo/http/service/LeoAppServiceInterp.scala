@@ -1079,7 +1079,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case (Galaxy, CloudProvider.Gcp)          => Right(config.leoKubernetesConfig.galaxyAppConfig)
         case (Custom, CloudProvider.Gcp)          => Right(config.leoKubernetesConfig.customAppConfig)
         case (Cromwell, CloudProvider.Gcp)        => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (AppType.Allowed, CloudProvider.Gcp) => Right(config.leoKubernetesConfig.aoUAppConfig)
+        case (AppType.Allowed, CloudProvider.Gcp) => Right(config.leoKubernetesConfig.allowedAppConfig)
         case (Cromwell, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.coaAppConfig)
         case (Wds, CloudProvider.Azure)           => Right(ConfigReader.appConfig.azure.wdsAppConfig)
         case (HailBatch, CloudProvider.Azure)     => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
@@ -1144,8 +1144,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       potentialNewChart =
         if (req.appType == AppType.Allowed) {
           val chartVersion = req.allowedChartName.get match {
-            case AllowedChartName.RStudio => config.leoKubernetesConfig.aoUAppConfig.rstudioChartVersion
-            case AllowedChartName.Sas     => config.leoKubernetesConfig.aoUAppConfig.sasChartVersion
+            case AllowedChartName.RStudio => config.leoKubernetesConfig.allowedAppConfig.rstudioChartVersion
+            case AllowedChartName.Sas     => config.leoKubernetesConfig.allowedAppConfig.sasChartVersion
           }
           gkeAppConfig.chart
             .lens(_.name)
@@ -1272,7 +1272,7 @@ object LeoAppServiceInterp {
                                  diskConfig: PersistentDiskConfig,
                                  cromwellAppConfig: CromwellAppConfig,
                                  customAppConfig: CustomAppConfig,
-                                 aoUAppConfig: AoUAppConfig
+                                 allowedAppConfig: AllowedAppConfig
   )
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {

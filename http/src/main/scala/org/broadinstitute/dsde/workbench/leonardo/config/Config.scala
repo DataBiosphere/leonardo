@@ -690,8 +690,8 @@ object Config {
     )
   }
 
-  implicit private val aouAppConfigReader: ValueReader[AoUAppConfig] = ValueReader.relative { config =>
-    AoUAppConfig(
+  implicit private val aouAppConfigReader: ValueReader[AllowedAppConfig] = ValueReader.relative { config =>
+    AllowedAppConfig(
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("rstudioChartVersion"),
       config.as[ChartVersion]("sasChartVersion"),
@@ -742,7 +742,7 @@ object Config {
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
-  val gkeAllowedAppConfig = config.as[AoUAppConfig]("gke.allowedApp")
+  val gkeAllowedAppConfig = config.as[AllowedAppConfig]("gke.allowedApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
 
