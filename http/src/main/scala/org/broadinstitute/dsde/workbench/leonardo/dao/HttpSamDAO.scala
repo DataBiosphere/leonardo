@@ -516,6 +516,34 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           } yield admins.contains(workbenchEmail)
     } yield res
 
+  override def isAdminUser(userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] = {
+    // Sam's admin endpoints are protected so only admins can access them. Non-admin users get a
+    // 403 response. We don't actually care about the content we get in response to our request,
+    // we only care about the status code.
+    // 200 -> This is an admin user
+    // 403 -> The request "succeeded" in telling us this is not an admin user
+    // other -> The request failed
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      status <- httpClient.status(
+        Request[F](
+          method = Method.GET,
+          uri =
+            config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/email/${userInfo.userEmail.value}")),
+          headers = Headers(authHeader)
+        )
+      )
+      traceId <- ev.ask
+      isAdmin <- status match {
+        case Status.Ok        => F.pure(true)
+        case Status.Forbidden => F.pure(false)
+        case _                => F.raiseError(AuthProviderException(traceId, "", status.code))
+      }
+    } yield isAdmin
+  }
+
   private def getLeoAuthTokenInternal: F[com.google.auth.oauth2.AccessToken] =
     credentialResource(
       config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
@@ -604,10 +632,12 @@ object HttpSamDAO {
 
   implicit val samResourceEncoder: Encoder[SerializableSamResource] =
     Encoder.forProduct2("resourceTypeName", "resourceId")(x => (x.resourceTypeName, x.resourceId))
+
   implicit def createSamResourceRequestEncoder[R: Encoder]: Encoder[CreateSamResourceRequest[R]] =
     Encoder.forProduct5("resourceId", "policies", "authDomain", "returnResource", "parent")(x =>
       (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
     )
+
   implicit val getPetManagedIdentityEncoder: Encoder[AzureCloudContext] =
     Encoder.forProduct3("tenantId", "subscriptionId", "managedResourceGroupName")(x =>
       (x.tenantId.value, x.subscriptionId.value, x.managedResourceGroupName.value)
@@ -652,6 +682,7 @@ object HttpSamDAO {
   }
 
   implicit val samRoleActionDecoder: Decoder[SamRoleAction] = Decoder.forProduct1("roles")(SamRoleAction.apply)
+
   implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
     for {
       resourceId <- x.downField("resourceId").as[R]
@@ -688,8 +719,11 @@ final case class CreateSamResourceRequest[R](samResourceId: R,
                                              authDomain: List[String] = List.empty,
                                              returnResource: Boolean = false
 )
+
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
+
 final case class ListResourceResponse[R](samResourceId: R, samPolicyNames: Set[SamPolicyName])
+
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
@@ -698,12 +732,17 @@ final case class HttpSamDaoConfig(samUri: Uri,
 )
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
+
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
+
 final case class SamRoleAction(roles: List[SamPolicyName])
 
 final case class SamUserInfo(userSubjectId: UserSubjectId, userEmail: WorkbenchEmail, enabled: Boolean)
+
 final case object NotFoundException extends NoStackTrace
+
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))
     with NoStackTrace
+
 final case class RegisterInfoResponse(enabled: Boolean)

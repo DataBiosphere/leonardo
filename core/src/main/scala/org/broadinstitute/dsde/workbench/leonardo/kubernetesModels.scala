@@ -267,6 +267,10 @@ object ErrorAction {
     override def toString: String = "startApp"
   }
 
+  case object UpdateApp extends ErrorAction {
+    override def toString: String = "updateApp"
+  }
+
   case object DeleteNodepool extends ErrorAction {
     override def toString: String = "deleteNodepool"
   }
@@ -475,6 +479,10 @@ object AppStatus {
 
   final case object Starting extends AppStatus {
     override def toString: String = "STARTING"
+  }
+
+  final case object Updating extends AppStatus {
+    override def toString: String = "UPDATING"
   }
 
   def values: Set[AppStatus] = sealerate.values[AppStatus]
