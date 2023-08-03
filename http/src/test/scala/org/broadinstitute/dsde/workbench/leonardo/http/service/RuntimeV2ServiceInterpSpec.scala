@@ -88,7 +88,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     for {
       now <- IO.realTimeInstant
       runtime <- RuntimeServiceDbQueries
-        .getActiveRuntime(workspaceId, name)
+        .getRuntimeByWorkspaceId(workspaceId, name)
         .transaction
 
       _ <- clusterQuery
@@ -489,7 +489,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val updateRuntimeStatus = for {
       now <- IO.realTimeInstant
       runtime <- RuntimeServiceDbQueries
-        .getActiveRuntime(workspaceId, name0)
+        .getRuntimeByWorkspaceId(workspaceId, name0)
         .transaction
       _ <- clusterQuery
         .updateClusterStatus(runtime.id, RuntimeStatus.Deleting, now)

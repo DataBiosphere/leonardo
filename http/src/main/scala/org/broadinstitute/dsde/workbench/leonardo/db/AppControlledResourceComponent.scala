@@ -76,4 +76,11 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
       .filter(_.status inSet statuses)
       .result
       .map(_.toList)
+
+  def getWsmRecordForApp(appId: Long, resourceType: WsmResourceType): DBIO[Option[AppControlledResourceRecord]] =
+    appControlledResourceQuery
+      .filter(_.appId === appId)
+      .filter(_.resourceType === resourceType)
+      .result
+      .headOption
 }

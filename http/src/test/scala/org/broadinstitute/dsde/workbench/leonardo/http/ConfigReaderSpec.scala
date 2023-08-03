@@ -88,7 +88,39 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List(
+            ChartVersion("0.2.232"),
+            ChartVersion("0.2.231"),
+            ChartVersion("0.2.229"),
+            ChartVersion("0.2.225"),
+            ChartVersion("0.2.223"),
+            ChartVersion("0.2.220"),
+            ChartVersion("0.2.219"),
+            ChartVersion("0.2.218"),
+            ChartVersion("0.2.217"),
+            ChartVersion("0.2.216"),
+            ChartVersion("0.2.215"),
+            ChartVersion("0.2.213"),
+            ChartVersion("0.2.212"),
+            ChartVersion("0.2.211"),
+            ChartVersion("0.2.210"),
+            ChartVersion("0.2.209"),
+            ChartVersion("0.2.204"),
+            ChartVersion("0.2.201"),
+            ChartVersion("0.2.199"),
+            ChartVersion("0.2.197"),
+            ChartVersion("0.2.195"),
+            ChartVersion("0.2.192"),
+            ChartVersion("0.2.191"),
+            ChartVersion("0.2.187"),
+            ChartVersion("0.2.184"),
+            ChartVersion("0.2.179"),
+            ChartVersion("0.2.160"),
+            ChartVersion("0.2.159"),
+            ChartVersion("0.2.148"),
+            ChartVersion("0.2.39")
+          )
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
@@ -101,7 +133,21 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          databaseEnabled = false
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List(
+            ChartVersion("0.3.0"),
+            ChartVersion("0.7.0"),
+            ChartVersion("0.13.0"),
+            ChartVersion("0.16.0"),
+            ChartVersion("0.17.0"),
+            ChartVersion("0.19.0"),
+            ChartVersion("0.20.0"),
+            ChartVersion("0.21.0"),
+            ChartVersion("0.22.0"),
+            ChartVersion("0.24.0"),
+            ChartVersion("0.26.0"),
+            ChartVersion("0.27.0")
+          )
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
@@ -112,7 +158,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           List(
             ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
           ),
-          false
+          false,
+          chartVersionsToExcludeFromUpdates = List()
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),

@@ -212,11 +212,12 @@ object Dependencies {
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
+  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-563edbd-SNAP"//"1.3.6-9d5d754"
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.0" % "test",
     logbackClassic % "test",
-
+    leonardoClient,
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,

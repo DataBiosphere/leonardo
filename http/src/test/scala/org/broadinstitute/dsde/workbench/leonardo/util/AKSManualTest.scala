@@ -19,7 +19,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   HailBatchDAO,
   SamDAO,
   WdsDAO,
-  WsmApiClientProvider
+  WsmApiClientProvider,
+  WsmDao
 }
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
@@ -179,6 +180,7 @@ object AKSManualTest {
     mock[CbasUiDAO[IO]],
     mock[WdsDAO[IO]],
     mock[HailBatchDAO[IO]],
+    mock[WsmDao[IO]],
     mock[KubernetesAlgebra[IO]],
     mock[WsmApiClientProvider]
   )

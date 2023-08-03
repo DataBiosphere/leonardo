@@ -1,0 +1,146 @@
+name: leo-build-tag-publish-and-run-tests
+
+on:
+#  pull_request:
+#    branches: [ develop ]
+# if you want to debug this and trigger it on PRs against dev, you will need to add `github.head_ref` to the `branch=` line in `init-github-context` job
+# i.e. `echo "branch=${{ github.head_ref || inputs.branch }}" >> "$GITHUB_OUTPUT"`
+  schedule:
+    # run twice a day at 10:00 and 22:00 UTC every day of the week
+    - cron: "0 10/12 * * *"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch of leo to run tests on'
+        required: true
+        default: 'develop'
+        type: string
+      delete-bee:
+        description: 'Delete created bee after running tests'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-dev'
+  TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # github token for access to kick off a job in the private repo
+
+jobs:
+  init-github-context:
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.extract-inputs.outputs.branch }}
+      delete-bee: ${{ steps.extract-inputs.outputs.delete-bee }}
+    steps:
+      - name: Get inputs or use defaults
+        id: extract-inputs
+        run: |
+          echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
+          echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
+
+
+  leo-build-tag-publish-job:
+    runs-on: ubuntu-latest
+    needs: [ init-github-context ]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    outputs:
+      custom-version-json: ${{ steps.render-leo-version.outputs.custom-version-json }}
+    steps:
+      - uses: 'actions/checkout@v3'
+
+      - name: Bump the tag to a new version
+        uses: databiosphere/github-actions/actions/bumper@bumper-0.2.0
+        id: tag
+        env:
+          DEFAULT_BUMP: patch
+          GITHUB_TOKEN: ${{ env.TOKEN }}
+          RELEASE_BRANCHES: main
+          WITH_V: true
+
+      - name: dispatch build to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v3
+        with:
+          workflow: leonardo-build
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ env.TOKEN }}
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
+
+      - name: Render Leo version
+        id: render-leo-version
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+        run: |
+          echo "$GITHUB_CONTEXT"
+          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
+
+  create-bee-workflow:
+    runs-on: ubuntu-latest
+    needs: [leo-build-tag-publish-job]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: Echo Leo version
+        run: |
+          echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
+      - name: dispatch to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v3
+        with:
+          workflow: bee-create
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ env.TOKEN }}
+          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "bee-template-name": "rawls-e2e-azure-tests", "version-template": "dev", "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}" }'
+
+  leo-automation-test-job:
+    runs-on: ubuntu-latest
+    needs: [ create-bee-workflow, init-github-context ]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: dispatch to terra-github-workflows
+        env:
+          leo_test_command: "testOnly -n org.broadinstitute.dsde.workbench.leonardo.azure.AzureRuntimeSpec"
+        uses: broadinstitute/workflow-dispatch@v3
+        with:
+          workflow: .github/workflows/leonardo-swat-tests.yaml
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ env.TOKEN }}
+          # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
+          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17", "ref": "${{ needs.init-github-context.outputs.branch }}" }'
+
+  destroy-bee-workflow:
+    runs-on: ubuntu-latest
+    needs: [ leo-automation-test-job, init-github-context ]
+    if: ${{ needs.init-github-context.outputs.delete-bee && always() }} # always run to confirm bee is destroyed unless explicitly requested not to
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: dispatch to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v3
+        with:
+          workflow: bee-destroy
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ env.TOKEN }}
+          inputs: '{ "bee-name": "${{ env.BEE_NAME }}" }'
+
+  notify-slack-on-failure:
+    runs-on: ubuntu-latest
+    needs: [ init-github-context, leo-build-tag-publish-job, create-bee-workflow, leo-automation-test-job, destroy-bee-workflow ] # Want to notify regardless of which step fails
+    if: ${{ github.event_name == 'schedule' && failure() }}
+    steps:
+      - name: Notify slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          # Channel is for #ia-notification-test
+          channel-id: 'C03ATF4QXEV'
+          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}

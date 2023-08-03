@@ -33,7 +33,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   appControlledResourceQuery,
   AppControlledResourceStatus,
   KubernetesServiceDbQueries,
-  RuntimeServiceDbQueries,
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
@@ -77,6 +76,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockWsmDAO = new MockWsmDAO
   val mockHailBatchDAO = setUpMockHailBatchDAO
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
@@ -98,6 +98,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCbasUiDAO,
     mockWdsDAO,
     mockHailBatchDAO,
+    mockWsmDAO,
     mockKube,
     mockWsm
   ) {
@@ -477,6 +478,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
+        mockWsmDAO,
         mockKube,
         mockWsm
       ) {
@@ -568,6 +570,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
+        mockWsmDAO,
         mockKube,
         mockWsm
       ) {
@@ -672,6 +675,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockCbasUiDAO,
       mockWdsDAO,
       mockHailBatchDAO,
+      mockWsmDAO,
       mockKube,
       mockWsm
     ) {
