@@ -194,7 +194,7 @@ class DataprocInterpreter[F[_]: Parallel](
         // We need to maintain the old version of the dataproc image to uncouple the terra from the aou release
         imageUrls = params.runtimeImages.map(_.imageUrl)
         dataprocImage =
-          if (imageUrls.contains("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.22"))
+          if (imageUrls.contains("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.15"))
             config.dataprocConfig.legacyAouCustomDataprocImage
           else config.dataprocConfig.customDataprocImage
 
