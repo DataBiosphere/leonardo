@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.time.Instant
@@ -232,6 +233,204 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     listWithWorkspace3.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 0
   }
 
+  "listAppsForUpdate" should "correctly apply version filters" in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+
+    val v1Chart = Chart.fromString("fancyApp-0.1").get
+    val v2Chart = Chart.fromString("fancyApp-0.2").get
+    val v3Chart = Chart.fromString("fancyApp-0.3").get
+    val v4Chart = Chart.fromString("fancyApp-0.4").get
+    val v5Chart = Chart.fromString("fancyApp-0.5").get
+    val v6Chart = Chart.fromString("fancyApp-0.6").get
+    makeApp(1, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+    makeApp(2, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v2Chart).save()
+    makeApp(3, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v3Chart).save()
+    makeApp(4, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v4Chart).save()
+    makeApp(5, nodepool1.id, status = AppStatus.Error, appType = AppType.Custom, chart = v4Chart).save()
+    makeApp(6, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v5Chart).save()
+
+    val listAllApps = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(v6Chart, AppType.Custom, cluster1.cloudContext.cloudProvider)
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    listAllApps.length shouldEqual 5
+    listAllApps.map(_.appName.value).sorted shouldEqual List("app1", "app2", "app3", "app4", "app6")
+
+    val withIncludeApps = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v5Chart,
+        AppType.Custom,
+        cluster1.cloudContext.cloudProvider,
+        chartVersionsToInclude = List(v4Chart, v3Chart)
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withIncludeApps.length shouldEqual 2
+    withIncludeApps.map(_.appName.value).sorted shouldEqual List("app3", "app4")
+
+    val withExcludeApps = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v5Chart,
+        AppType.Custom,
+        cluster1.cloudContext.cloudProvider,
+        chartVersionsToExclude = List(v1Chart, v2Chart)
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withExcludeApps.length shouldEqual 2
+    withExcludeApps.map(_.appName.value).sorted shouldEqual List("app3", "app4")
+
+    val withExcludeInclude = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v5Chart,
+        AppType.Custom,
+        cluster1.cloudContext.cloudProvider,
+        chartVersionsToInclude = List(v4Chart, v3Chart),
+        chartVersionsToExclude = List(v4Chart, v2Chart)
+      )
+    )
+    val withExcludeIncludeApps = withExcludeInclude.flatMap(_.nodepools).flatMap(_.apps)
+    withExcludeIncludeApps.length shouldEqual 1
+    withExcludeIncludeApps.map(_.appName.value).sorted shouldEqual List("app3")
+  }
+
+  "listAppsForUpdate" should "correctly filter on google project" in isolatedDbTest {
+
+    val v1Chart = Chart.fromString("fancyApp-0.1").get
+    val v2Chart = Chart.fromString("fancyApp-0.2").get
+
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+    makeApp(1, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+
+    val cluster2 = makeKubeCluster(2).save()
+    val nodepool2 = makeNodepool(2, cluster2.id).save()
+    makeApp(2, nodepool2.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+
+    val withGoogleFilter = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v2Chart,
+        AppType.Custom,
+        cluster1.cloudContext.cloudProvider,
+        googleProject = Option(GoogleProject(cluster1.cloudContext.asCloudContextDb.value))
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withGoogleFilter.length shouldEqual 1
+    withGoogleFilter.map(_.appName.value).sorted shouldEqual List("app1")
+
+    val withoutGoogleFilter = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v2Chart,
+        AppType.Custom,
+        cluster1.cloudContext.cloudProvider
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withoutGoogleFilter.length shouldEqual 2
+    withoutGoogleFilter.map(_.appName.value).sorted shouldEqual List("app1", "app2")
+  }
+
+  "listAppsForUpdate" should "correctly filter on workspace id" in isolatedDbTest {
+
+    val v1Chart = Chart.fromString("fancyApp-0.1").get
+    val v2Chart = Chart.fromString("fancyApp-0.2").get
+
+    val workspace1 = WorkspaceId(UUID.randomUUID())
+    val workspace2 = WorkspaceId(UUID.randomUUID())
+
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+    makeApp(1,
+            nodepool1.id,
+            status = AppStatus.Running,
+            appType = AppType.Custom,
+            chart = v1Chart,
+            workspaceId = workspace1
+    ).save()
+    makeApp(2,
+            nodepool1.id,
+            status = AppStatus.Running,
+            appType = AppType.Custom,
+            chart = v1Chart,
+            workspaceId = workspace2
+    ).save()
+
+    val withWorkspaceIdFilter = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v2Chart,
+        AppType.Custom,
+        cluster1.cloudContext.cloudProvider,
+        workspaceId = Option(workspace1)
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withWorkspaceIdFilter.length shouldEqual 1
+    withWorkspaceIdFilter.map(_.appName.value).sorted shouldEqual List("app1")
+
+    val withoutWorkspaceFilter = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v2Chart,
+        AppType.Custom,
+        cluster1.cloudContext.cloudProvider
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withoutWorkspaceFilter.length shouldEqual 2
+    withoutWorkspaceFilter.map(_.appName.value).sorted shouldEqual List("app1", "app2")
+  }
+
+  "listAppsForUpdate" should "correctly filter on cloud provider" in isolatedDbTest {
+
+    val v1Chart = Chart.fromString("fancyApp-0.1").get
+    val v2Chart = Chart.fromString("fancyApp-0.2").get
+
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+    makeApp(1, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+
+    val cluster2 = makeAzureCluster(2).save()
+    val nodepool2 = makeNodepool(2, cluster2.id).save()
+    makeApp(2, nodepool2.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+
+    val withGoogleFilter = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v2Chart,
+        AppType.Custom,
+        CloudProvider.Gcp
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withGoogleFilter.length shouldEqual 1
+    withGoogleFilter.map(_.appName.value).sorted shouldEqual List("app1")
+
+    val withAzureFilter = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v2Chart,
+        AppType.Custom,
+        CloudProvider.Azure
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withAzureFilter.length shouldEqual 1
+    withAzureFilter.map(_.appName.value).sorted shouldEqual List("app2")
+  }
+
+  "listAppsForUpdate" should "correctly filter on app name" in isolatedDbTest {
+
+    val v1Chart = Chart.fromString("fancyApp-0.1").get
+    val v2Chart = Chart.fromString("fancyApp-0.2").get
+
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+    makeApp(1, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+    makeApp(2, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+    makeApp(3, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
+
+    val withAppNameFilter = dbFutureValue(
+      KubernetesServiceDbQueries.listAppsForUpdate(
+        v2Chart,
+        AppType.Custom,
+        CloudProvider.Gcp,
+        appNames = List(AppName("app1"), AppName("app2"))
+      )
+    ).flatMap(_.nodepools).flatMap(_.apps)
+    withAppNameFilter.length shouldEqual 2
+    withAppNameFilter.map(_.appName.value).sorted shouldEqual List("app1", "app2")
+  }
+
   "saveOrGetClusterForApp" should "get cluster if exists for project" in isolatedDbTest {
     val makeCluster1 = makeKubeCluster(1)
     val makeCluster2 = makeCluster1.copy(clusterName = kubeName0)
@@ -408,8 +607,9 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     makeApp(1, nodepool1.id, workspaceId = workspaceId).save()
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(WorkspaceId(UUID.randomUUID()),
-                                                                         AppName("fakeApp")
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(
+        WorkspaceId(UUID.randomUUID()),
+        AppName("fakeApp")
       )
     }
     getApp shouldBe None

@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   NodepoolLeoId
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsp.ChartVersion
 
 trait GKEAlgebra[F[_]] {
 
@@ -51,6 +52,8 @@ trait GKEAlgebra[F[_]] {
 
   /** Starts an app and polls for completion */
   def startAndPollApp(params: StartAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+
+  def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 }
 
 object GKEAlgebra {
@@ -117,3 +120,9 @@ object StopAppParams {
 }
 
 final case class StartAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)
+
+final case class UpdateAppParams(appId: AppId,
+                                 appName: AppName,
+                                 appChartVersion: ChartVersion,
+                                 googleProject: Option[GoogleProject]
+)
