@@ -35,12 +35,12 @@ final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
                              appRegistration: AzureAppRegistrationConfig,
                              coaAppConfig: CoaAppConfig,
                              workflowsAppConfig: WorkflowsAppConfig,
-  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
-  wdsAppConfig: WdsAppConfig,
-  hailBatchAppConfig: HailBatchAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig,
-  allowedSharedApps: List[String],
-  tdr: TdrConfig
+                             cromwellRunnerAppConfig: CromwellRunnerAppConfig,
+                             wdsAppConfig: WdsAppConfig,
+                             hailBatchAppConfig: HailBatchAppConfig,
+                             aadPodIdentityConfig: AadPodIdentityConfig,
+                             allowedSharedApps: List[String],
+                             tdr: TdrConfig
 )
 
 final case class OidcAuthConfig(

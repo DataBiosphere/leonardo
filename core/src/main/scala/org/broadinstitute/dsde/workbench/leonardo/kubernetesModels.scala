@@ -354,10 +354,10 @@ object AppType {
    */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy                                                         => FormattedBy.Galaxy
-      case Custom                                                         => FormattedBy.Custom
-      case RStudio                                                        => FormattedBy.RStudio
-      case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp  => FormattedBy.Cromwell
+      case Galaxy                                                        => FormattedBy.Galaxy
+      case Custom                                                        => FormattedBy.Custom
+      case RStudio                                                       => FormattedBy.RStudio
+      case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp => FormattedBy.Cromwell
     }
 }
 
