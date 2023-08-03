@@ -126,10 +126,14 @@ final case class WorkflowsAppConfig(chartName: ChartName,
                                     instrumentationEnabled: Boolean,
                                     enabled: Boolean,
                                     dockstoreBaseUrl: URL,
-                                    databaseEnabled: Boolean
+                                    databaseEnabled: Boolean,
+                                    chartVersionsToExcludeFromUpdates: List[ChartVersion]
                                    ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
+
+  val cloudProvider: CloudProvider = CloudProvider.Azure
+  val appType: AppType = AppType.WorkflowsApp
 
   def workflowsAppServices: Set[WorkflowsAppService] = services
     .map(_.name)
@@ -149,10 +153,13 @@ final case class CromwellRunnerAppConfig(chartName: ChartName,
                                          instrumentationEnabled: Boolean,
                                          enabled: Boolean,
                                          dockstoreBaseUrl: URL,
-                                         databaseEnabled: Boolean
+                                         databaseEnabled: Boolean,
+                                         chartVersionsToExcludeFromUpdates: List[ChartVersion]
                                         ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
+  val cloudProvider: CloudProvider = CloudProvider.Azure
+  val appType: AppType = AppType.CromwellRunnerApp
 }
 
 final case class WdsAppConfig(chartName: ChartName,

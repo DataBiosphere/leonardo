@@ -762,6 +762,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       case AppType.HailBatch => "http://batch:8080"
       case AppType.Galaxy | AppType.Custom | AppType.RStudio =>
         F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
+      case AppType.WorkflowsApp | AppType.CromwellRunnerApp =>
+        F.raiseError(AppCreationException(s"App type $appType needs to have a relay target host defined"))
     }
 
     // Hail batch serves requests on /{appName}/batch and uses relative redirects,
