@@ -94,7 +94,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               }
             case None =>
               F.raiseError(
-                BadRequestException("when AppType is AoU, allowedChartName needs to be specified", Some(ctx.traceId))
+                BadRequestException("when AppType is ALLOWED, allowedChartName needs to be specified",
+                                    Some(ctx.traceId)
+                )
               )
           }
         case AppType.Custom =>
