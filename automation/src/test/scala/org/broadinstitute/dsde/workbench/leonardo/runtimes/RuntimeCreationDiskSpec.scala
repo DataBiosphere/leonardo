@@ -332,7 +332,7 @@ class RuntimeCreationDiskSpec
         notebookPage.executeCell(persistedData).get should include("this should save")
         val persistedPackage = "! pip show simplejson"
         notebookPage.executeCell(persistedPackage).get should include(
-          "/home/jupyter/.local/lib/python3.7/site-packages"
+          "/home/jupyter/.local/lib/python3.10/site-packages"
         )
 
         val res = notebookPage

@@ -30,9 +30,9 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
                 |bx.bitset.sys.copyright""".stripMargin
             val getPandasLocation = "! pip3 show pandas"
             notebookPage.executeCell("1+1") shouldBe Some("2")
-            notebookPage.executeCell(getPythonVersion).get should include("3.7")
+            notebookPage.executeCell(getPythonVersion).get should include("3.10")
             notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
-            notebookPage.executeCell(getPandasLocation).get should include("/opt/conda/lib/python3.7/site-packages")
+            notebookPage.executeCell(getPandasLocation).get should include("/opt/conda/lib/python3.10/site-packages")
             notebookPage.executeCell("! pwd").get shouldBe "/home/jupyter"
           }
         }
@@ -54,7 +54,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             // user installed packages should be in directory where PD is mounted
             val getFuzzyWuzzyLocation = "! pip3 show fuzzywuzzy"
             notebookPage.executeCell(getFuzzyWuzzyLocation, cellNumberOpt = Some(1)).get should include(
-              "/home/jupyter/.local/lib/python3.7/site-packages"
+              "/home/jupyter/.local/lib/python3.10/site-packages"
             )
           }
         }
