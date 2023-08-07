@@ -1001,29 +1001,51 @@ class GKEInterpreter[F[_]](
         if (dbNodepool.autoscalingEnabled) {
           nodepoolLock.withKeyLock(dbCluster.getClusterId) {
             for {
-              op <- gkeService.setNodepoolAutoscaling(
-                nodepoolId,
-                NodePoolAutoscaling.newBuilder().setEnabled(false).build()
-              )
-              _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
-              lastOp <- gkeService
-                .pollOperation(
-                  KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                  config.monitorConfig.scalingDownNodepool.interval,
-                  config.monitorConfig.scalingDownNodepool.maxAttempts
+              opOrError <- gkeService
+                .setNodepoolAutoscaling(
+                  nodepoolId,
+                  NodePoolAutoscaling.newBuilder().setEnabled(false).build()
                 )
-                .compile
-                .lastOrError
-              _ <-
-                if (lastOp.isDone)
-                  logger.info(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
-                  )
-                else
-                  logger.error(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
-                  ) >>
-                    F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+                .attempt
+              _ <- opOrError match {
+                case Left(e: com.google.api.gax.rpc.NotFoundException) =>
+                  // Mark the app as `DELETED` instead of bubbling this error up to generic error handler
+                  for {
+                    _ <- appErrorQuery
+                      .save(
+                        dbApp.app.id,
+                        AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
+                      )
+                      .transaction
+                    _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
+                    _ <-
+                      nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now).transaction
+                  } yield ()
+                case Left(e) => F.raiseError(e)
+                case Right(op) =>
+                  for {
+                    _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
+                    lastOp <- gkeService
+                      .pollOperation(
+                        KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+                        config.monitorConfig.scalingDownNodepool.interval,
+                        config.monitorConfig.scalingDownNodepool.maxAttempts
+                      )
+                      .compile
+                      .lastOrError
+                    _ <-
+                      if (lastOp.isDone)
+                        logger.info(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
+                        )
+                      else
+                        logger.error(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
+                        ) >>
+                          F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+
+                  } yield ()
+              }
             } yield ()
           }
         } else F.unit

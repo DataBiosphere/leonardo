@@ -15,7 +15,7 @@ tags:
   - name: disks
     description: Persistent Disks API.
   - name: apps
-    description: Experimental App API, Support for Google Kubernetes Engine and Azure Kubernetes Service. Under active Development.
+    description: Apps API. Support Google Kubernetes Engine and Azure Kubernetes Service.
   - name: proxy
     description: Proxy API
   - name: admin

@@ -329,8 +329,7 @@ object AllowedChartName {
   def fromChartName(chartName: ChartName): Option[AllowedChartName] = {
     val splittedString = chartName.asString.split("/")
     if (splittedString.size == 3) {
-      val splitChartNameAndVersion = splittedString(2).split("-")
-      stringToObject.get(splitChartNameAndVersion.dropRight(1).mkString("-"))
+      stringToObject.get(splittedString(2))
     } else None
   }
 }

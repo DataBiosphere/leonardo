@@ -1345,7 +1345,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         case (AppType.Cromwell, CloudProvider.Gcp) =>
           F.pure(appServiceConfig.leoKubernetesConfig.cromwellAppConfig.chartVersion)
         case (AppType.Allowed, CloudProvider.Gcp) =>
-          // TODO: fix this
           AllowedChartName.fromChartName(appResult.app.chart.name) match {
             case Some(AllowedChartName.RStudio) =>
               F.pure(appServiceConfig.leoKubernetesConfig.allowedAppConfig.rstudioChartVersion)
