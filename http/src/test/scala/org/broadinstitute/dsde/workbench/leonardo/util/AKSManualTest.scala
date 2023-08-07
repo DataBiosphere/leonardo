@@ -152,7 +152,6 @@ object AKSManualTest {
     helmConcurrency <- Resource.eval(Semaphore[IO](20L))
     helmClient = new HelmInterpreter[IO](helmConcurrency)
     config = AKSInterpreterConfig(
-      ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
       ConfigReader.appConfig.azure.workflowsAppConfig,
       ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
@@ -166,7 +165,8 @@ object AKSManualTest {
       ConfigReader.appConfig.drs,
       new URL("https://leo-dummy-url.org"),
       ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-      ConfigReader.appConfig.azure.tdr
+      ConfigReader.appConfig.azure.tdr,
+      ConfigReader.appConfig.azure.relayListenerChartConfig
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(

@@ -675,7 +675,6 @@ object Boot extends IOApp {
 
       val aksAlg = new AKSInterpreter[F](
         AKSInterpreterConfig(
-          ConfigReader.appConfig.terraAppSetupChart,
           ConfigReader.appConfig.azure.coaAppConfig,
           ConfigReader.appConfig.azure.workflowsAppConfig,
           ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
@@ -689,7 +688,8 @@ object Boot extends IOApp {
           ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.azure.tdr
+          ConfigReader.appConfig.azure.tdr,
+          ConfigReader.appConfig.azure.relayListenerChartConfig
         ),
         helmClient,
         azureBatchService,
