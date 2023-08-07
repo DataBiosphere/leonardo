@@ -39,7 +39,7 @@ final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
                              aadPodIdentityConfig: AadPodIdentityConfig,
                              allowedSharedApps: List[String],
                              tdr: TdrConfig,
-relayListenerChartConfig: RelayListenerChartConfig
+                             relayListenerChartConfig: RelayListenerChartConfig
 )
 
 final case class OidcAuthConfig(
