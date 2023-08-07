@@ -38,7 +38,8 @@ final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
                              hailBatchAppConfig: HailBatchAppConfig,
                              aadPodIdentityConfig: AadPodIdentityConfig,
                              allowedSharedApps: List[String],
-                             tdr: TdrConfig
+                             tdr: TdrConfig,
+relayListenerChartConfig: RelayListenerChartConfig
 )
 
 final case class OidcAuthConfig(
@@ -58,6 +59,8 @@ final case class AadPodIdentityConfig(namespace: Namespace,
 final case class DrsConfig(url: String)
 
 final case class TdrConfig(url: String)
+
+final case class RelayListenerChartConfig(chartName: ChartName, chartVersion: ChartVersion)
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html

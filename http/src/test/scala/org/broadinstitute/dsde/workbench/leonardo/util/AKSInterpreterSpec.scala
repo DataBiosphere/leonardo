@@ -56,7 +56,6 @@ import scala.jdk.CollectionConverters._
 class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite with MockitoSugar {
 
   val config = AKSInterpreterConfig(
-    ConfigReader.appConfig.terraAppSetupChart,
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.wdsAppConfig,
     ConfigReader.appConfig.azure.hailBatchAppConfig,
@@ -68,7 +67,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.drs,
     new URL("https://leo-dummy-url.org"),
     ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-    ConfigReader.appConfig.azure.tdr
+    ConfigReader.appConfig.azure.tdr,
+    ConfigReader.appConfig.azure.relayListenerChartConfig
   )
 
   val mockSamDAO = setUpMockSamDAO
