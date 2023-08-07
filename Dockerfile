@@ -23,7 +23,7 @@ EXPOSE 5050
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
-ENV TERRA_APP_SETUP_VERSION 0.0.20
+ENV TERRA_APP_SETUP_VERSION 0.1.0
 ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
 ENV GALAXY_VERSION 2.5.2
@@ -35,6 +35,7 @@ ENV WDS_CHART_VERSION 0.35.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.2.0
 ENV SAS_CHART_VERSION 0.1.0
+ENV RELAY_LISTENER_CHART_VERSION 0.1.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -63,17 +64,18 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
-COPY ./terra-app-setup-0.0.20.tgz /leonardo
-RUN tar -xzf /leonardo/terra-app-setup-0.0.20.tgz -C/leonardo
+COPY ./relay-listener-0.1.0.tgz /leonardo
+RUN tar -xzf /leonardo/relay-listener-0.1.0.tgz -C/leonardo
 RUN cd /leonardo && \
     helm repo update && \
-    # helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
+    helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
+    # helm pull terra-helm/relay-listener --version $RELAY_LISTENER_CHART_VERSION --untar && \
     helm pull aou-rstudio-chart/aou-rstudio-chart --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull aou-sas-chart/aou-sas-chart --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \

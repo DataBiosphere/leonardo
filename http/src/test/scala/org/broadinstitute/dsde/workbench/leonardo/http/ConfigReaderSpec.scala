@@ -169,7 +169,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Values("operationMode=managed")
         ),
         List(AppType.Wds),
-        TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
+        TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
+        RelayListenerChartConfig(ChartName("/leonardo/relay-listener"), ChartVersion("0.1.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

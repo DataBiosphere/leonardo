@@ -82,8 +82,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   implicit private def createDatabaseDoneCheckable: DoneCheckable[CreatedControlledAzureDatabaseResult] =
     _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
 
-  private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
-    Release(s"${appReleaseName.asString}-setup-rls")
+  private def getRelayListenerReleaseName(appReleaseName: Release): Release =
+    Release(s"${appReleaseName.asString}-relay-listener-rls")
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -167,7 +167,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
-      values = buildSetupChartOverrideValues(
+      values = BuildHelmChartValues.buildRelayListenerChartOverrideValuesString(
         app.release,
         app.samResourceId,
         params.landingZoneResources.relayNamespace,
@@ -176,18 +176,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app.appType,
         params.workspaceId,
         app.appName,
-        refererConfig.validHosts + relayDomain
+        refererConfig.validHosts + relayDomain,
+        config.samConfig,
+        config.listenerImage,
+        config.leoUrlBase
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Setup chart values for app ${params.appName.value} are ${values.asString}"
+        s"Relay listener values for app ${params.appName.value} are ${values.asString}"
       )
 
       _ <- helmClient
         .installChart(
-          getTerraAppSetupChartReleaseName(app.release),
-          config.terraAppSetupChartConfig.chartName,
-          config.terraAppSetupChartConfig.chartVersion,
+          getRelayListenerReleaseName(app.release),
+          config.relayListenerChartConfig.chartName,
+          config.relayListenerChartConfig.chartVersion,
           values,
           true
         )
@@ -733,56 +736,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
     } yield appOk.isDone
 
-  private[util] def buildSetupChartOverrideValues(release: Release,
-                                                  samResourceId: AppSamResourceId,
-                                                  relayNamespace: RelayNamespace,
-                                                  relayHcName: RelayHybridConnectionName,
-                                                  relayPrimaryKey: PrimaryKey,
-                                                  appType: AppType,
-                                                  workspaceId: WorkspaceId,
-                                                  appName: AppName,
-                                                  validHosts: Set[String]
-  ): Values = {
-    val relayTargetHost = appType match {
-      case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
-      case AppType.HailBatch => "http://batch:8080"
-      case AppType.Galaxy | AppType.Custom | AppType.Allowed =>
-        F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
-    }
-
-    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
-    // so requires that we don't strip the entity path. For other app types we do
-    // strip the entity path.
-    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
-
-    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
-    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
-      raw"relaylistener.validHosts[$idx]=$elem"
-    }
-
-    Values(
-      List(
-        raw"cloud=azure",
-        // relay configs
-        raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
-        raw"relaylistener.connectionName=${relayHcName.value}",
-        raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
-        raw"relaylistener.targetHost=$relayTargetHost",
-        raw"relaylistener.samUrl=${config.samConfig.server}",
-        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceType=${samResourceId.resourceType.asString}",
-        raw"relaylistener.samAction=connect",
-        raw"relaylistener.workspaceId=${workspaceId.value.toString}",
-        raw"relaylistener.runtimeName=${appName.value}",
-        raw"relaylistener.image=${config.listenerImage}",
-        raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-
-        // general configs
-        raw"fullnameOverride=setup-${release.asString}"
-      ).concat(validHostValues).mkString(",")
-    )
-  }
 
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      appName: AppName,
@@ -1341,7 +1294,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 }
 
 final case class AKSInterpreterConfig(
-  terraAppSetupChartConfig: TerraAppSetupChartConfig,
   coaAppConfig: CoaAppConfig,
   wdsAppConfig: WdsAppConfig,
   hailBatchAppConfig: HailBatchAppConfig,
@@ -1353,7 +1305,8 @@ final case class AKSInterpreterConfig(
   drsConfig: DrsConfig,
   leoUrlBase: URL,
   listenerImage: String,
-  tdr: TdrConfig
+  tdr: TdrConfig,
+  relayListenerChartConfig: RelayListenerChartConfig
 )
 
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
