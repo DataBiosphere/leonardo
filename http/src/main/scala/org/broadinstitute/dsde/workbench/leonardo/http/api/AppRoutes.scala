@@ -124,7 +124,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       )
       _ <- req.allowedChartName match {
         case Some(cn) =>
-          val tags = Map("appType" -> req.appType.toString) ++ ("chartName" -> cn.asString)
+          val tags = Map("appType" -> req.appType.toString) + ("chartName" -> cn.asString)
           metrics.incrementCounter("createAllowedApp",
                                    1,
                                    tags
