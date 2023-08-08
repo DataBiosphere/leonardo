@@ -330,7 +330,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   it should "build relay listener override values string" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val res = buildRelayListenerChartOverrideValuesString(
+    val res = buildListenerChartOverrideValuesString(
       Release("rl-rls"),
       AppSamResourceId("sam-id", Some(AppAccessScope.WorkspaceShared)),
       RelayNamespace("relay-ns"),
