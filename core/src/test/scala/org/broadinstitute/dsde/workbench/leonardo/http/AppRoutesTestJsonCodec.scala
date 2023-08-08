@@ -11,9 +11,10 @@ import org.http4s.Uri
 object AppRoutesTestJsonCodec {
   implicit val descriptorEncoder: Encoder[Uri] = Encoder.encodeString.contramap(_.toString)
 
-  implicit val createAppEncoder: Encoder[CreateAppRequest] = Encoder.forProduct8(
+  implicit val createAppEncoder: Encoder[CreateAppRequest] = Encoder.forProduct9(
     "kubernetesRuntimeConfig",
     "appType",
+    "allowedChartName",
     "accessScope",
     "diskConfig",
     "labels",
@@ -24,6 +25,7 @@ object AppRoutesTestJsonCodec {
     (
       x.kubernetesRuntimeConfig,
       x.appType,
+      x.allowedChartName,
       x.accessScope,
       x.diskConfig,
       x.labels,
