@@ -34,7 +34,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
                               hailBatchDAO: HailBatchDAO[F],
-                              relayListenerDAO: RelayListenerDAO[F],
+                              listenerDAO: ListenerDAO[F],
                               samDAO: SamDAO[F],
                               kubeAlg: KubernetesAlgebra[F],
                               azureContainerService: AzureContainerService[F]
@@ -178,7 +178,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                   case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("batch")    => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("relay-listener") => relayListenerDAO.getStatus(relayPath).handleError(_ => false)
+                  case ListenerChartConfig.service.config.name =>
+                    listenerDAO.getStatus(relayPath).handleError(_ => false)
                   case s =>
                     logger.warn(ctx.loggingCtx)(
                       s"Unexpected app service encountered during health checks: ${s.value}"

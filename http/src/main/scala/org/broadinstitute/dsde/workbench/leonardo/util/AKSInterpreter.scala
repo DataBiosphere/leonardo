@@ -82,8 +82,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   implicit private def createDatabaseDoneCheckable: DoneCheckable[CreatedControlledAzureDatabaseResult] =
     _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
 
-  private def getRelayListenerReleaseName(appReleaseName: Release): Release =
-    Release(s"${appReleaseName.asString}-relay-listener-rls")
+  private def getListenerReleaseName(appReleaseName: Release): Release =
+    Release(s"${appReleaseName.asString}-listener-rls")
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -167,7 +167,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
-      values = BuildHelmChartValues.buildRelayListenerChartOverrideValuesString(
+      values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
         app.release,
         app.samResourceId,
         params.landingZoneResources.relayNamespace,
@@ -188,9 +188,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       _ <- helmClient
         .installChart(
-          getRelayListenerReleaseName(app.release),
-          config.relayListenerChartConfig.chartName,
-          config.relayListenerChartConfig.chartVersion,
+          getListenerReleaseName(app.release),
+          config.listenerChartConfig.chartName,
+          config.listenerChartConfig.chartVersion,
           values,
           true
         )
@@ -429,14 +429,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
       // Update the relay listener deployment
-      _ <- updateRelayListener(authContext,
-                               app,
-                               landingZoneResources,
-                               workspaceId,
-                               hcName,
-                               relayPrimaryKey,
-                               relayDomain
-      )
+      _ <- updateListener(authContext, app, landingZoneResources, workspaceId, hcName, relayPrimaryKey, relayDomain)
 
       // Generate the app values to pass to helm at the upgrade chart step
       chartOverrideValues <- app.appType match {
@@ -1319,19 +1312,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private def updateRelayListener(authContext: AuthContext,
-                                  app: App,
-                                  landingZoneResources: LandingZoneResources,
-                                  workspaceId: WorkspaceId,
-                                  hcName: RelayHybridConnectionName,
-                                  primaryKey: PrimaryKey,
-                                  relayDomain: String
+  private def updateListener(authContext: AuthContext,
+                             app: App,
+                             landingZoneResources: LandingZoneResources,
+                             workspaceId: WorkspaceId,
+                             hcName: RelayHybridConnectionName,
+                             primaryKey: PrimaryKey,
+                             relayDomain: String
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     // Update the Relay Listener if the app tracks it as a service.
-    // We're not tracking the relay listener version in the DB so we can't really pick and choose which versions to update.
+    // We're not tracking the listener version in the DB so we can't really pick and choose which versions to update.
     // We started tracking it as a service when we switched the chart over to terra-helmfile.
-    if (app.appResources.services.contains(RelayListenerChartConfig.service)) {
-      val values = BuildHelmChartValues.buildRelayListenerChartOverrideValuesString(
+    if (app.appResources.services.contains(ListenerChartConfig.service)) {
+      val values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
         app.release,
         app.samResourceId,
         landingZoneResources.relayNamespace,
@@ -1348,13 +1341,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       for {
         ctx <- ev.ask
         _ <- logger.info(ctx.loggingCtx)(
-          s"Relay listener values for app ${app.appName.value} are ${values.asString}"
+          s"Listener values for app ${app.appName.value} are ${values.asString}"
         )
         _ <- helmClient
           .upgradeChart(
-            getRelayListenerReleaseName(app.release),
-            config.relayListenerChartConfig.chartName,
-            config.relayListenerChartConfig.chartVersion,
+            getListenerReleaseName(app.release),
+            config.listenerChartConfig.chartName,
+            config.listenerChartConfig.chartVersion,
             values
           )
           .run(authContext)
@@ -1379,7 +1372,7 @@ final case class AKSInterpreterConfig(
   leoUrlBase: URL,
   listenerImage: String,
   tdr: TdrConfig,
-  relayListenerChartConfig: RelayListenerChartConfig
+  listenerChartConfig: ListenerChartConfig
 )
 
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)

@@ -58,7 +58,7 @@ final case class AzureConfig(
   aadPodIdentityConfig: AadPodIdentityConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
-relayListenerChartConfig: RelayListenerChartConfig
+  relayListenerChartConfig: RelayListenerChartConfig
 )
 
 final case class OidcAuthConfig(
@@ -79,11 +79,11 @@ final case class DrsConfig(url: String)
 
 final case class TdrConfig(url: String)
 
-final case class RelayListenerChartConfig(chartName: ChartName, chartVersion: ChartVersion)
-object RelayListenerChartConfig {
+final case class ListenerChartConfig(chartName: ChartName, chartVersion: ChartVersion)
+object ListenerChartConfig {
   val service = KubernetesService(
     ServiceId(-1),
-    ServiceConfig(ServiceName("relay-listener"), KubernetesServiceKindName("ClusterIP"))
+    ServiceConfig(ServiceName("listener"), KubernetesServiceKindName("ClusterIP"))
   )
 }
 
