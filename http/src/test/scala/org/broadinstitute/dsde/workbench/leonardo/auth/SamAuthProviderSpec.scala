@@ -435,8 +435,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     )
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(appSamId, newApp), projectOwnerUserInfo)(implicitly,
-        appSamIdDecoder,
-        implicitly
+                                                                                  appSamIdDecoder,
+                                                                                  implicitly
       )
       .unsafeRunSync() shouldBe List(
       appSamId,
@@ -447,16 +447,16 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     mockSam.createResourceWithWorkspaceParent(newSharedApp, userEmail3, userInfo, workspaceId).unsafeRunSync()
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), userInfo)(implicitly,
-        sharedAppSamIdDecoder,
-        implicitly
+                                                                                  sharedAppSamIdDecoder,
+                                                                                  implicitly
       )
       .unsafeRunSync() shouldBe List(
       sharedAppSamId
     )
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), workspaceOwnerUserInfo)(implicitly,
-        sharedAppSamIdDecoder,
-        implicitly
+                                                                                                sharedAppSamIdDecoder,
+                                                                                                implicitly
       )
       .unsafeRunSync() shouldBe List(
       sharedAppSamId,
@@ -478,14 +478,14 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(appSamId, newApp), unauthorizedUserInfo)(implicitly,
-        appSamIdDecoder,
-        implicitly
+                                                                                  appSamIdDecoder,
+                                                                                  implicitly
       )
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
       .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), unauthorizedUserInfo)(implicitly,
-        sharedAppSamIdDecoder,
-        implicitly
+                                                                                              sharedAppSamIdDecoder,
+                                                                                              implicitly
       )
       .unsafeRunSync() shouldBe List.empty
   }
@@ -517,10 +517,14 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     // negative tests
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), unauthorizedUserInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
+                                    unauthorizedUserInfo
+      )
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)), unauthorizedUserInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
+                                    unauthorizedUserInfo
+      )
       .unsafeRunSync() shouldBe List.empty
   }
 
@@ -540,7 +544,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List((project, runtimeSamResource))
     samAuthProvider
       .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-        projectOwnerUserInfo
+                                    projectOwnerUserInfo
       )
       .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
   }

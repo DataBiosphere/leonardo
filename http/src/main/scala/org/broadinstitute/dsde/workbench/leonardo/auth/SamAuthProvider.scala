@@ -158,15 +158,12 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
       projectPolicies <- samDao
         .getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
       readingProjects = projectPolicies.map(_._1.googleProject)
-      _ <- logger.info(s"Reading: $readingProjects")
       ownedProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
         r.googleProject
       }
-      _ <- logger.info(s"Owned: $ownedProjects")
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
-      _ <- logger.info(s"resourcePolicies: $resourcePolicies")
       res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
     } yield resources.filter { case (project, r) =>
       // user must be reader on project and resource, or a project owner
@@ -181,7 +178,6 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       roles <- samDao.getResourceRoles(authHeader, samProjectResource)
-      _ = println(s"roles = $roles")
     } yield roles.nonEmpty
   }
 

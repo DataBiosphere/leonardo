@@ -776,6 +776,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     exc shouldBe a[RuntimeNotFoundException]
   }
 
+  it should "fail to get a runtime when users don't have access to the project" in isolatedDbTest {
+    val exc = runtimeService
+      .getRuntime(userInfo4, cloudContextGcp, RuntimeName("cluster"))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+    exc shouldBe a[ForbiddenError]
+  }
+
   it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
@@ -1141,6 +1152,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     ) // this email is allowlisted
     val runtimeService = makeRuntimeService(publisherQueue, allowListAuthProvider = allowListAuthProvider2)
     val res = for {
+      context <- appContext.ask[AppContext]
       pd <- makePersistentDisk().save()
       testRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
@@ -1158,7 +1170,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           DeleteRuntimeRequest(userInfo, GoogleProject(cloudContextGcp.asString), testRuntime.runtimeName, false)
         )
         .attempt
-    } yield r shouldBe Left(ForbiddenError(userInfo.userEmail))
+    } yield r shouldBe Left(ForbiddenError(userInfo.userEmail, Some(context.traceId)))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

@@ -972,7 +972,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName3 = AppName("app3")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      diskConfig = Some(createDiskConfig1)
+                                        diskConfig = Some(createDiskConfig1)
     )
     val diskName2 = DiskName("newDiskName")
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
@@ -999,6 +999,28 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .listApp(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listAllApps.length shouldEqual 0
+  }
+
+  it should "list only apps in a project if user has project access" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        diskConfig = Some(createDiskConfig1)
+    )
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    a[ForbiddenError] should be thrownBy
+      appServiceInterp
+        .listApp(userInfo4, Some(cloudContextGcp), Map("includeLabels" -> "key1,key2,key4"))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list apps with labels" in isolatedDbTest {
@@ -1133,6 +1155,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     an[AppNotFoundException] should be thrownBy {
       appServiceInterp
         .getApp(userInfo, cloudContextGcp, AppName("schrodingersApp"))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "error on get app if user doesn't have project permission" in isolatedDbTest {
+    an[ForbiddenError] should be thrownBy {
+      appServiceInterp
+        .getApp(userInfo4, cloudContextGcp, AppName("schrodingersApp"))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }

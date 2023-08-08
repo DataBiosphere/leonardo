@@ -376,6 +376,25 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "fail to get a disk when user doesn't have project access" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(None).copy(samResource = samResource).save()
+      getResponse <- diskService.getDisk(userInfo4, disk.cloudContext, disk.name)
+    } yield getResponse
+
+    a[ForbiddenError] should be thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "list disks" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -450,7 +469,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list disks only in projects user has access to" in isolatedDbTest {
+  it should "list disks belonging to other users" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
@@ -622,7 +641,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         )
       )
       err <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name).attempt
-    } yield err shouldBe Left(ForbiddenError(userInfo.userEmail))
+    } yield err shouldBe Left(ForbiddenError(userInfo.userEmail, Some(t.traceId)))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
