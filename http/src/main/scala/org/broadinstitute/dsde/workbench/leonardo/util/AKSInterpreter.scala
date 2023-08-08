@@ -414,11 +414,28 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           } yield Some(petMi)
       }
 
-      // Get relay hybrid connection pool information
+      // Get relay hybrid connection information
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${workspaceId.value}")
       relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
+      relayPrimaryKey <- azureRelayService.getRelayHybridConnectionKey(landingZoneResources.relayNamespace,
+                                                                       hcName,
+                                                                       params.cloudContext
+      )
+
+      // Authenticate helm client
+      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+
+      // Update the relay listener deployment
+      _ <- updateRelayListener(authContext,
+                               app,
+                               landingZoneResources,
+                               workspaceId,
+                               hcName,
+                               relayPrimaryKey,
+                               relayDomain
+      )
 
       // Generate the app values to pass to helm at the upgrade chart step
       chartOverrideValues <- app.appType match {
@@ -558,9 +575,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
         case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on Azure", Some(ctx.traceId)))
       }
-
-      // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
       // Upgrade app chart version and explicitly pass the values
       _ <- helmClient
@@ -1290,6 +1304,50 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       case e => F.raiseError(e)
     }
   }
+
+  private def updateRelayListener(authContext: AuthContext,
+                                  app: App,
+                                  landingZoneResources: LandingZoneResources,
+                                  workspaceId: WorkspaceId,
+                                  hcName: RelayHybridConnectionName,
+                                  primaryKey: PrimaryKey,
+                                  relayDomain: String
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    // Update the Relay Listener if the app tracks it as a service.
+    // We're not tracking the relay listener version in the DB so we can't really pick and choose which versions to update.
+    // We started tracking it as a service when we switched the chart over to terra-helmfile.
+    if (app.appResources.services.contains(RelayListenerChartConfig.service)) {
+      val values = BuildHelmChartValues.buildRelayListenerChartOverrideValuesString(
+        app.release,
+        app.samResourceId,
+        landingZoneResources.relayNamespace,
+        hcName,
+        primaryKey,
+        app.appType,
+        workspaceId,
+        app.appName,
+        refererConfig.validHosts + relayDomain,
+        config.samConfig,
+        config.listenerImage,
+        config.leoUrlBase
+      )
+      for {
+        ctx <- ev.ask
+        _ <- logger.info(ctx.loggingCtx)(
+          s"Relay listener values for app ${app.appName.value} are ${values.asString}"
+        )
+        _ <- helmClient
+          .upgradeChart(
+            getRelayListenerReleaseName(app.release),
+            config.relayListenerChartConfig.chartName,
+            config.relayListenerChartConfig.chartVersion,
+            values
+          )
+          .run(authContext)
+      } yield ()
+    } else {
+      ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
+    }
 }
 
 final case class AKSInterpreterConfig(
