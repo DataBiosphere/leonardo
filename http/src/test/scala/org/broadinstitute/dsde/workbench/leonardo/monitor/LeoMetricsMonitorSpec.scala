@@ -590,8 +590,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     batch
   }
 
-  private def setUpMockRelayListenerDAO: RelayListenerDAO[IO] = {
-    val listener = mock[RelayListenerDAO[IO]]
+  private def setUpMockRelayListenerDAO: ListenerDAO[IO] = {
+    val listener = mock[ListenerDAO[IO]]
     when {
       listener.getStatus(any)(any)
     } thenReturn IO.pure(true)
