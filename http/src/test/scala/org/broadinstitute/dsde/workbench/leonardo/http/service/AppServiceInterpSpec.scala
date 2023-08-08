@@ -71,6 +71,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
+  val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), allowlistAuthProvider = allowListAuthProvider2)
   val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -821,6 +822,30 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
+  it should "error on delete if user is removed from app's project" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName)
+    }
+
+    // TODO: update this once create publishes pubsub message
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+
+    an[ForbiddenError] should be thrownBy {
+      appServiceInterp2
+        .deleteApp(userInfo, cloudContextGcp, appName, false)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "delete an app in Error status" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
@@ -939,6 +964,41 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .listApp(userInfo, Some(CloudContext.Gcp(GoogleProject("fakeProject"))), Map())
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listProject3Apps.length shouldBe 0
+  }
+
+  it should "list only apps for projects user has access to" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val appName2 = AppName("app2")
+    val appName3 = AppName("app3")
+    val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+      diskConfig = Some(createDiskConfig1)
+    )
+    val diskName2 = DiskName("newDiskName")
+    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
+    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName2, appReq2)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    appServiceInterp
+      .createApp(userInfo, cloudContext2Gcp, appName3, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val listAllApps =
+      appServiceInterp2
+        .listApp(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    listAllApps.length shouldEqual 0
   }
 
   it should "list apps with labels" in isolatedDbTest {

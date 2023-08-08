@@ -413,92 +413,80 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     val newRuntime = RuntimeSamResourceId("new_runtime")
     mockSam.createResourceAsGcpPet(newRuntime, userEmail2, project).unsafeRunSync()
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), userInfo)
+      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), userInfo)
       .unsafeRunSync() shouldBe List(
-      (project, runtimeSamResource)
+      runtimeSamResource
     )
 
     val newDisk = PersistentDiskSamResourceId("new_disk")
     mockSam.createResourceAsGcpPet(newDisk, userEmail2, project).unsafeRunSync()
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)), userInfo)
+      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), userInfo)
       .unsafeRunSync() shouldBe List(
-      (project, diskSamResource)
+      diskSamResource
     )
 
     val newApp = AppSamResourceId("new_app", None)
     mockSam.createResourceWithGoogleProjectParent(newApp, userEmail2, project).unsafeRunSync()
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, appSamId), (project, newApp)), userInfo)(implicitly,
-                                                                                                       appSamIdDecoder,
-                                                                                                       implicitly
-      )
+      .filterUserVisible(NonEmptyList.of(appSamId, newApp), userInfo)(implicitly, appSamIdDecoder, implicitly)
       .unsafeRunSync() shouldBe List(
-      (project, appSamId)
+      appSamId
     )
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, appSamId), (project, newApp)), projectOwnerUserInfo)(
-        implicitly,
+      .filterUserVisible(NonEmptyList.of(appSamId, newApp), projectOwnerUserInfo)(implicitly,
         appSamIdDecoder,
         implicitly
       )
       .unsafeRunSync() shouldBe List(
-      (project, appSamId),
-      (project, newApp)
+      appSamId,
+      newApp
     )
 
     val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.WorkspaceShared))
     mockSam.createResourceWithWorkspaceParent(newSharedApp, userEmail3, userInfo, workspaceId).unsafeRunSync()
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, appSamId), (project, newSharedApp)), userInfo)(
-        implicitly,
+      .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), userInfo)(implicitly,
         sharedAppSamIdDecoder,
         implicitly
       )
       .unsafeRunSync() shouldBe List(
-      (project, newSharedApp)
+      sharedAppSamId
     )
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, sharedAppSamId), (project, newSharedApp)),
-                                    workspaceOwnerUserInfo
-      )(implicitly, sharedAppSamIdDecoder, implicitly)
+      .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), workspaceOwnerUserInfo)(implicitly,
+        sharedAppSamIdDecoder,
+        implicitly
+      )
       .unsafeRunSync() shouldBe List(
-      (project, sharedAppSamId),
-      (project, newSharedApp)
+      sharedAppSamId,
+      newSharedApp
     )
 
     // negative tests
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-                                    unauthorizedUserInfo
-      )
+      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-                                    projectOwnerUserInfo
-      )
+      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), projectOwnerUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
-                                    unauthorizedUserInfo
-      )
+      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
-                                    projectOwnerUserInfo
-      )
+      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), projectOwnerUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, appSamId), (project, newApp)), unauthorizedUserInfo)(
-        implicitly,
+      .filterUserVisible(NonEmptyList.of(appSamId, newApp), unauthorizedUserInfo)(implicitly,
         appSamIdDecoder,
         implicitly
       )
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterResourceProjectVisible(NonEmptyList.of((project, sharedAppSamId), (project, newSharedApp)),
-                                    unauthorizedUserInfo
-      )(implicitly, sharedAppSamIdDecoder, implicitly)
+      .filterUserVisible(NonEmptyList.of(sharedAppSamId, newSharedApp), unauthorizedUserInfo)(implicitly,
+        sharedAppSamIdDecoder,
+        implicitly
+      )
       .unsafeRunSync() shouldBe List.empty
   }
 
@@ -529,35 +517,32 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     // negative tests
     samAuthProvider
-      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), unauthorizedUserInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), unauthorizedUserInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
   }
 
   it should "filter user visible resources by project access" in {
     val newRuntime = RuntimeSamResourceId("new_runtime")
-    mockSam.createResourceAsGcpPet(newRuntime, userEmail, project).unsafeRunSync()
+    mockSam.createResourceAsGcpPet(newRuntime, userEmail2, project).unsafeRunSync()
 
-    println(s"users: ${mockSam.projectUsers}")
-    println(s"owners: ${mockSam.projectOwners}")
-    println(s"userinfo: $userInfo")
     // negative tests
     samAuthProvider
-      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), userInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), userInfo)
       .unsafeRunSync() shouldBe List.empty
 
     // positive tests
-//    mockSam.addUserToProject(userInfo.userEmail, project).unsafeRunSync()
-//    samAuthProvider
-//      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), userInfo)
-//      .unsafeRunSync() shouldBe List((project, runtimeSamResource))
-//    samAuthProvider
-//      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-//        projectOwnerUserInfo
-//      )
-//      .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
+    mockSam.addUserToProject(userInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), userInfo)
+      .unsafeRunSync() shouldBe List((project, runtimeSamResource))
+    samAuthProvider
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
+        projectOwnerUserInfo
+      )
+      .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
   }
 
   it should "tell if user is enabled" in {

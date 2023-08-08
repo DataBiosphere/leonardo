@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   BadRequestException,
@@ -54,7 +55,8 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   )
 
   private def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
-                              googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO
+                              googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
+                              allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
   ) = {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
@@ -306,6 +308,12 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ).thenReturn(IO.pure(true))
 
     when(
+      authProviderMock.isUserProjectReader(ArgumentMatchers.eq(CloudContext.Gcp(googleProject)),
+                                           ArgumentMatchers.eq(userInfoCloner)
+      )(any())
+    ).thenReturn(IO.pure(true))
+
+    when(
       googleDiskServiceMock.getDisk(googleProject, ConfigReader.appConfig.persistentDisk.defaultZone, diskName)
     ).thenReturn(IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build())))
 
@@ -342,7 +350,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           emptyCreateDiskReq.copy(sourceDisk = Some(SourceDiskRequest(googleProject, diskName)))
         )
         .attempt
-    } yield cloneAttempt shouldBe (Left(BadRequestException("source disk does not exist", Some(context.traceId))))
+    } yield cloneAttempt shouldBe Left(BadRequestException("source disk does not exist", Some(context.traceId)))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -406,6 +414,24 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "list disks with project access" in isolatedDbTest {
+    val (diskService, _) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
+      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(CloudContext.Gcp(project2))).save()
+      _ <- makePersistentDisk(None, cloudContextOpt = Some(CloudContext.Gcp(GoogleProject("non-default")))).save()
+      listResponse <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
+    } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id)
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "list disks with parameters" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -424,7 +450,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list disks belonging to other users" in isolatedDbTest {
+  it should "list disks only in projects user has access to" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
@@ -435,7 +461,9 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     // Make disks belonging to different users than the calling user
     val res = for {
       disk1 <- LeoLenses.diskToCreator
-        .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d1"))))
+        .set(WorkbenchEmail("a_different_user@example.com"))(
+          makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(CloudContext.Gcp(project2)))
+        )
         .save()
       disk2 <- LeoLenses.diskToCreator
         .set(WorkbenchEmail("a_different_user2@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
@@ -567,6 +595,34 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       )
       err <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name).attempt
     } yield err shouldBe Left(DiskAlreadyAttachedException(CloudContext.Gcp(project), disk.name, t.traceId))
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a disk if user lost project access" in isolatedDbTest {
+    val (diskService, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2)
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      t <- ctx.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
+      _ <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                                        Some(disk.id),
+                                        bootDiskSize = DiskSize(50),
+                                        zone = ZoneName("us-west2-b"),
+                                        None
+          )
+        )
+      )
+      err <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name).attempt
+    } yield err shouldBe Left(ForbiddenError(userInfo.userEmail))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

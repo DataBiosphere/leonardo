@@ -181,6 +181,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       roles <- samDao.getResourceRoles(authHeader, samProjectResource)
+      _ = println(s"roles = $roles")
     } yield roles.nonEmpty
   }
 

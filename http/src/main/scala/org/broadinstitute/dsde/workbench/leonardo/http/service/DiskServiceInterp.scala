@@ -255,6 +255,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         cloudContext,
         userInfo
       )
+
+      _ = println(s"project permission: $hasProjectPermission")
       _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
 
       // throw 404 if not existent
