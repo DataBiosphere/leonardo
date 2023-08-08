@@ -23,6 +23,8 @@ import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesService
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 
 object ConfigReader {
@@ -78,6 +80,12 @@ final case class DrsConfig(url: String)
 final case class TdrConfig(url: String)
 
 final case class RelayListenerChartConfig(chartName: ChartName, chartVersion: ChartVersion)
+object RelayListenerChartConfig {
+  val service = KubernetesService(
+    ServiceId(-1),
+    ServiceConfig(ServiceName("relay-listener"), KubernetesServiceKindName("ClusterIP"))
+  )
+}
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html

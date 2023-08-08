@@ -1182,12 +1182,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )(app => app.release.asRight[Throwable])
       services =
         if (cloudContext.cloudProvider == CloudProvider.Azure) {
-          gkeAppConfig.kubernetesServices.appended(
-            KubernetesService(
-              ServiceId(-1),
-              ServiceConfig(ServiceName("relay-listener"), KubernetesServiceKindName("ClusterIP"))
-            )
-          )
+          gkeAppConfig.kubernetesServices.appended(RelayListenerChartConfig.service)
         } else gkeAppConfig.kubernetesServices
     } yield SaveApp(
       App(
