@@ -122,9 +122,17 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
         appName,
         req
       )
-      chartName = req.allowedChartName.map(cn => "chartName" -> cn.asString)
-      tags = Map("appType" -> req.appType.toString) ++ chartName
-      _ <- metrics.incrementCounter("createApp", 1, tags)
+      _ <- req.allowedChartName match {
+        case Some(cn) =>
+          val tags = Map("appType" -> req.appType.toString) ++ ("chartName" -> cn.asString)
+          metrics.incrementCounter("createAllowedApp",
+                                   1,
+                                   tags
+          ) // Prometheus doesn't support modifying existing labels. Hence create new metrics for ALLOWED app
+        case None =>
+          val tags = Map("appType" -> req.appType.toString)
+          metrics.incrementCounter("createApp", 1, tags)
+      }
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
