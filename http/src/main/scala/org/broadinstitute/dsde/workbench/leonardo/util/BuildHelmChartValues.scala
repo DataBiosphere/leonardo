@@ -300,18 +300,18 @@ private[leonardo] object BuildHelmChartValues {
     ) ++ ingress ++ welder ++ configs
   }
 
-  def buildRelayListenerChartOverrideValuesString(release: Release,
-                                                  samResourceId: AppSamResourceId,
-                                                  relayNamespace: RelayNamespace,
-                                                  relayHcName: RelayHybridConnectionName,
-                                                  relayPrimaryKey: PrimaryKey,
-                                                  appType: AppType,
-                                                  workspaceId: WorkspaceId,
-                                                  appName: AppName,
-                                                  validHosts: Set[String],
-                                                  samConfig: SamConfig,
-                                                  listenerImage: String,
-                                                  leoUrlBase: URL
+  def buildListenerChartOverrideValuesString(release: Release,
+                                             samResourceId: AppSamResourceId,
+                                             relayNamespace: RelayNamespace,
+                                             relayHcName: RelayHybridConnectionName,
+                                             relayPrimaryKey: PrimaryKey,
+                                             appType: AppType,
+                                             workspaceId: WorkspaceId,
+                                             appName: AppName,
+                                             validHosts: Set[String],
+                                             samConfig: SamConfig,
+                                             listenerImage: String,
+                                             leoUrlBase: URL
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
