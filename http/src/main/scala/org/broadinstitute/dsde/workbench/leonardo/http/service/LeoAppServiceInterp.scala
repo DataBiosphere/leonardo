@@ -12,7 +12,7 @@ import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.azure.AKSClusterName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GoogleComputeService,
