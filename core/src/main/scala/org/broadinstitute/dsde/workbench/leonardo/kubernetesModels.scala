@@ -326,6 +326,10 @@ object AppType {
     override def toString: String = "HAIL_BATCH"
   }
 
+  case object RStudio extends AppType {
+    override def toString: String = "RSTUDIO"
+  }
+
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
@@ -334,7 +338,7 @@ object AppType {
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 
   /**
-   * Disk formatting for an App. Currently, only Galaxy and Custom app types
+   * Disk formatting for an App. Currently, only Galaxy, RStudio and Custom app types
    * support disk management. So we default all other app types to Cromwell,
    * but the field is unused.
    */
@@ -342,6 +346,7 @@ object AppType {
     appType match {
       case Galaxy                     => FormattedBy.Galaxy
       case Custom                     => FormattedBy.Custom
+      case RStudio                    => FormattedBy.RStudio
       case Cromwell | Wds | HailBatch => FormattedBy.Cromwell
     }
 }

@@ -58,6 +58,11 @@ class AppLifecycleSpec
       test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
   }
 
+  "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
+    googleProject =>
+      test(googleProject, createAppRequest(AppType.RStudio, "rstudio-test-workspace", None), false, true)
+  }
+
   "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
     test(
       googleProject,

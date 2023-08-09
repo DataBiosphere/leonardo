@@ -565,14 +565,11 @@ object CommonTestData {
     RelayNamespace("lznamespace"),
     StorageAccountName("lzstorage"),
     NetworkName("lzvnet"),
-    PostgresName("lzpostgres"),
-    LogAnalyticsWorkspaceName("lzloganalytics"),
     SubnetworkName("batchsub"),
     SubnetworkName("akssub"),
-    SubnetworkName("postgressub"),
-    SubnetworkName("computesub"),
     azureRegion,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresName("postgres"))
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

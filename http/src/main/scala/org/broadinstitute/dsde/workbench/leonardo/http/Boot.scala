@@ -200,7 +200,8 @@ object Boot extends IOApp {
         appDependencies.wsmDAO,
         appDependencies.samDAO,
         appDependencies.publisherQueue,
-        appDependencies.dateAccessedUpdaterQueue
+        appDependencies.dateAccessedUpdaterQueue,
+        appDependencies.wsmClientProvider
       )
 
       val httpRoutes = new HttpRoutes(
@@ -249,10 +250,11 @@ object Boot extends IOApp {
 
         val backLeoOnlyProcesses = {
           val monitorAtBoot =
-            new MonitorAtBoot[IO](appDependencies.publisherQueue,
-                                  googleDependencies.googleComputeService,
-                                  appDependencies.samDAO,
-                                  appDependencies.wsmDAO
+            new MonitorAtBoot[IO](
+              appDependencies.publisherQueue,
+              googleDependencies.googleComputeService,
+              appDependencies.samDAO,
+              appDependencies.wsmDAO
             )
 
           val autopauseMonitor = AutopauseMonitor(
@@ -287,7 +289,10 @@ object Boot extends IOApp {
             appDependencies.cbasDAO,
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
-            appDependencies.samDAO
+            appDependencies.hailBatchDAO,
+            appDependencies.samDAO,
+            appDependencies.kubeAlg,
+            appDependencies.azureContainerService
           )
 
           List(
@@ -419,6 +424,8 @@ object Boot extends IOApp {
       )
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
+      wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
+
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
@@ -521,6 +528,7 @@ object Boot extends IOApp {
       )
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
+
       // Use a low concurrency for helm because it can generate very chatty network traffic
       // (especially for Galaxy) and cause issues at high concurrency.
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
@@ -631,8 +639,15 @@ object Boot extends IOApp {
 
       implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
 
+      val kubeAlg = new KubernetesInterpreter[F](
+        azureContainerService,
+        googleDependencies.gkeService,
+        googleDependencies.credentials
+      )
+
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
+        bucketHelper,
         vpcInterp,
         googleDependencies.gkeService,
         kubeService,
@@ -660,7 +675,7 @@ object Boot extends IOApp {
           ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.tdr
+          ConfigReader.appConfig.azure.tdr
         ),
         helmClient,
         azureBatchService,
@@ -672,7 +687,9 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         wdsDao,
-        hailBatchDao
+        hailBatchDao,
+        kubeAlg,
+        wsmClientProvider
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -686,7 +703,8 @@ object Boot extends IOApp {
         jupyterDao,
         azureRelay,
         azureVmService,
-        aksAlg
+        aksAlg,
+        refererConfig
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
@@ -758,7 +776,10 @@ object Boot extends IOApp {
         cbasDao,
         cbasUiDao,
         cromwellDao,
-        hailBatchDao
+        hailBatchDao,
+        wsmClientProvider,
+        kubeAlg,
+        azureContainerService
       )
     }
 
@@ -879,5 +900,8 @@ final case class AppDependencies[F[_]](
   cbasDAO: CbasDAO[F],
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
-  hailBatchDAO: HailBatchDAO[F]
+  hailBatchDAO: HailBatchDAO[F],
+  wsmClientProvider: HttpWsmClientProvider,
+  kubeAlg: KubernetesAlgebra[F],
+  azureContainerService: AzureContainerService[F]
 )

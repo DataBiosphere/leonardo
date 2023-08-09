@@ -6,13 +6,7 @@ import cats.effect.std.Queue
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
-  customEnvironmentVariables,
-  makeApp,
-  makeAzureCluster,
-  makeKubeCluster,
-  makeNodepool
-}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.{
@@ -144,7 +138,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
-        None
+        None,
+        false
       )
       (msg eqv Some(expected)) shouldBe true
     }
@@ -195,7 +190,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
-        None
+        None,
+        false
       )
       (msg eqv Some(expected)) shouldBe true
     }
@@ -246,7 +242,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
         Some(defaultFakeAppMachineType),
-        None
+        None,
+        false
       )
       (msg eqv Some(expected)) shouldBe true
     }

@@ -12,23 +12,17 @@ import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
-import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  AzureDiskResourceDeletionError,
-  AzureRuntimeCreationError,
-  AzureRuntimeStartingError,
-  AzureRuntimeStoppingError,
-  PubsubKubernetesError
-}
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.HelmException
 import org.http4s.headers.Authorization
@@ -39,9 +33,10 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
+
 import java.net.URL
 import java.nio.file.Paths
-import java.time.ZonedDateTime
+import java.time.{Instant, ZonedDateTime}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -87,7 +82,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -102,6 +97,85 @@ class AzurePubsubHandlerSpec
         } yield {
           getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
           getRuntime.status shouldBe RuntimeStatus.Running
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        storageContainerResourceId,
+                                        landingZoneResources,
+                                        false,
+                                        None,
+                                        "WorkspaceName",
+                                        ContainerName("dummy")
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azurePubsubHandler.createAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+      } yield {
+        controlledResources.length shouldBe 2
+        val resourceTypes = controlledResources.map(_.resourceType)
+        resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
+        resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "create azure vm properly when WSM is slow" in isolatedDbTest {
+    val vmReturn = mock[VirtualMachine]
+    val ipReturn: PublicIpAddress = mock[PublicIpAddress]
+
+    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+
+    val stubIp = "0.0.0.0"
+    when(vmReturn.getPrimaryPublicIPAddress()).thenReturn(ipReturn)
+    when(ipReturn.ipAddress()).thenReturn(stubIp)
+
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val startTime: Instant = Instant.now
+    val mockLatencyMillis = 5000
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] = {
+        Thread.sleep(mockLatencyMillis)
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId))),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
+            None
+          )
+        )
+      }
+    }
+    val azurePubsubHandler =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       azureRegion
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+        } yield {
+          getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
+          getRuntime.status shouldBe RuntimeStatus.Running
+          getRuntime.auditInfo.dateAccessed.isAfter(startTime.plusMillis(mockLatencyMillis)) shouldBe true
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id,
@@ -161,7 +235,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Restoring).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime1 = makeCluster(1)
@@ -248,7 +322,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -321,7 +395,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -390,7 +464,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(2)
@@ -419,7 +493,7 @@ class AzurePubsubHandlerSpec
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
           .transaction
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         msg = DeleteAzureRuntimeMessage(runtime.id,
                                         Some(disk.id),
@@ -471,7 +545,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(2)
@@ -535,7 +609,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -595,7 +669,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -652,7 +726,7 @@ class AzurePubsubHandlerSpec
         _ <- persistentDiskQuery.updateWSMResourceId(disk.id, resourceId, now).transaction
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(1)
@@ -678,7 +752,7 @@ class AzurePubsubHandlerSpec
           AzureRuntimeCreationError(
             runtime.id,
             workspaceId,
-            s"WSMResource:${resourceId} not found for disk id:${disk.id.value}",
+            s"WSMResource:${resourceId.value} not found for disk id:${disk.id.value}",
             true
           )
         )
@@ -701,7 +775,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(2)
@@ -713,7 +787,7 @@ class AzurePubsubHandlerSpec
 
         // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
@@ -774,7 +848,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(2)
@@ -786,7 +860,7 @@ class AzurePubsubHandlerSpec
 
         // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
@@ -834,7 +908,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(2)
@@ -846,7 +920,7 @@ class AzurePubsubHandlerSpec
 
         // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
@@ -898,7 +972,7 @@ class AzurePubsubHandlerSpec
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime = makeCluster(1)
@@ -940,7 +1014,7 @@ class AzurePubsubHandlerSpec
       ctx <- appContext.ask[AppContext]
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime = makeCluster(1)
@@ -974,7 +1048,7 @@ class AzurePubsubHandlerSpec
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime = makeCluster(1)
@@ -1016,7 +1090,7 @@ class AzurePubsubHandlerSpec
       ctx <- appContext.ask[AppContext]
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                     disk.id,
+                                                     Some(disk.id),
                                                      azureRegion
       )
       runtime = makeCluster(1)
@@ -1110,7 +1184,7 @@ class AzurePubsubHandlerSpec
         disk <- makePersistentDisk(wsmResourceId = Some(resourceId)).copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
+                                                       Some(disk.id),
                                                        azureRegion
         )
         runtime = makeCluster(2)
@@ -1195,7 +1269,8 @@ class AzurePubsubHandlerSpec
       new MockJupyterDAO(),
       relayService,
       azureVmService,
-      aksAlg
+      aksAlg,
+      refererConfig
     )
 
 }

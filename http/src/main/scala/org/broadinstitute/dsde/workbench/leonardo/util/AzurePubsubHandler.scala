@@ -11,7 +11,7 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
@@ -42,7 +42,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   jupyterDAO: JupyterDAO[F],
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F],
-  aksAlgebra: AKSAlgebra[F]
+  aksAlgebra: AKSAlgebra[F],
+  refererConfig: RefererConfig
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
 
@@ -144,7 +145,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           params.workspaceName,
           wsStorageContainerUrl,
           applicationConfig.leoUrlBase,
-          params.runtime.runtimeName.asString
+          params.runtime.runtimeName.asString,
+          s"'${refererConfig.validHosts.mkString("','")}'"
         )
 
         val cmdToExecute =
@@ -313,24 +315,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[CreateDiskResponse] =
-    params.useExistingDisk match {
+  ): F[CreateDiskResponse] = for {
 
+    diskId <- F.fromOption(
+      params.runtimeConfig.persistentDiskId,
+      AzureRuntimeCreationError(
+        params.runtime.id,
+        params.workspaceId,
+        s"No associated diskId found for runtime:${params.runtime.id}",
+        params.useExistingDisk
+      )
+    )
+
+    resp <- params.useExistingDisk match {
       // if using existing disk, check conditions and update tables
       case true =>
         for {
           ctx <- ev.ask
-          diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
-            new RuntimeException(s"Disk id:${params.runtimeConfig.persistentDiskId} not found")
+            new RuntimeException(s"Disk id:${diskId.value} not found for runtime:${params.runtime.id}")
           )
           resourceId <- F.fromOption(
             disk.wsmResourceId,
             AzureRuntimeCreationError(
               params.runtime.id,
               params.workspaceId,
-              s"No associated resourceId found for Disk id:${params.runtimeConfig.persistentDiskId.value}",
+              s"No associated resourceId found for Disk id:${diskId.value}",
               params.useExistingDisk
             )
           )
@@ -342,7 +354,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             AzureRuntimeCreationError(
               params.runtime.id,
               params.workspaceId,
-              s"WSMResource:${resourceId} not found for disk id:${params.runtimeConfig.persistentDiskId.value}",
+              s"WSMResource:${resourceId.value} not found for disk id:${diskId.value}",
               params.useExistingDisk
             )
           )
@@ -357,12 +369,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       case false =>
         for {
           ctx <- ev.ask
-          diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
             AzureRuntimeCreationError(params.runtime.id,
                                       params.workspaceId,
-                                      s"Disk ${params.runtimeConfig.persistentDiskId.value} not found",
+                                      s"Disk ${diskId} not found",
                                       params.useExistingDisk
             )
           )
@@ -388,6 +400,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           _ <- persistentDiskQuery.updateWSMResourceId(disk.id, diskResp.resourceId, ctx.now).transaction
         } yield diskResp
     }
+  } yield resp
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
@@ -414,7 +427,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
     for {
       ctx <- ev.ask
-
       auth <- samDAO.getLeoAuthToken
       getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId), auth)
 
@@ -461,9 +473,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           case WsmJobStatus.Succeeded =>
             val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
-
             for {
-              _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), ctx.now).transaction
+              now <- nowInstant
+              _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(
                 isJupyterUp,
@@ -477,7 +489,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.interval,
                 s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
-              _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
+              _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), now).transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
             } yield ()
         }

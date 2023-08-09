@@ -62,7 +62,7 @@ dbconnect() {
         exit 1
     fi
 
-    mysql -u ${DB_USER} -p${DB_PASSWORD} --host 127.0.0.1 --port 3306
+    mysql -u ${DB_USER} -p${DB_PASSWORD} --host 127.0.0.1 --port 3306 leonardo
 }
 
 HELP_TEXT=$(cat <<EOF

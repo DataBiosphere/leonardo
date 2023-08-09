@@ -32,7 +32,8 @@ final case class AzureConfig(
   wdsAppConfig: WdsAppConfig,
   hailBatchAppConfig: HailBatchAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
-  allowedSharedApps: List[String]
+  allowedSharedApps: List[String],
+  tdr: TdrConfig
 )
 
 final case class OidcAuthConfig(
@@ -61,6 +62,5 @@ final case class AppConfig(
   azure: AzureConfig,
   oidc: OidcAuthConfig,
   drs: DrsConfig,
-  metrics: LeoMetricsMonitorConfig,
-  tdr: TdrConfig
+  metrics: LeoMetricsMonitorConfig
 )

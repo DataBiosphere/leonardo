@@ -65,7 +65,7 @@ object Dependencies {
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.7"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
-  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
+  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.3"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
@@ -143,6 +143,15 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
+  val workSpaceManagerV = "0.254.824-SNAPSHOT"
+
+  def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
+  def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
+  def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi, excludeJakartaXmlBindApi)
+
+  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+
+
   val coreDependencies = List(
     jose4j,
     workbenchOauth2,
@@ -170,7 +179,8 @@ object Dependencies {
     scalaTestScalaCheck,
     workbenchAzure,
     workbenchAzureTest,
-    logbackClassic
+    logbackClassic,
+    workspaceManager
   )
 
   val httpDependencies = Seq(
@@ -235,4 +245,5 @@ object Dependencies {
     http4sCirce,
     scalaTest
   )
+
 }

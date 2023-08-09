@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.{
   LandingZoneResources,
   LeonardoTestSuite,
-  LogAnalyticsWorkspaceName,
   PostgresName,
   StorageAccountName,
   WorkspaceId,
@@ -76,7 +75,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
           buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
           buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
           buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
-          buildMockLandingZoneResource("microsoft.dbforpostgresql/servers", "lzpostgres"),
+          buildMockLandingZoneResource("microsoft.dbforpostgresql/flexibleservers", "lzpostgres"),
           buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics"),
           buildMockLandingZoneResource("Microsoft.Insights/components", "lzappinsights")
         )
@@ -139,14 +138,11 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       RelayNamespace("lznamespace"),
       StorageAccountName("lzstorage"),
       NetworkName("lzvnet"),
-      PostgresName("lzpostgres"),
-      LogAnalyticsWorkspaceName("lzloganalytics"),
       SubnetworkName("batchsub"),
       SubnetworkName("akssub"),
-      SubnetworkName("postgressub"),
-      SubnetworkName("computesub"),
       com.azure.core.management.Region.US_EAST,
-      ApplicationInsightsName("lzappinsights")
+      ApplicationInsightsName("lzappinsights"),
+      Some(PostgresName("lzpostgres"))
     )
 
     val landingZoneResources = res.toOption.get

@@ -27,20 +27,15 @@ final case class BatchAccountKey(value: String) extends AnyVal
 
 final case class PostgresName(value: String) extends AnyVal
 
-final case class LogAnalyticsWorkspaceName(value: String) extends AnyVal
-
 final case class LandingZoneResources(landingZoneId: UUID,
                                       clusterName: AKSClusterName,
                                       batchAccountName: BatchAccountName,
                                       relayNamespace: RelayNamespace,
                                       storageAccountName: StorageAccountName,
                                       vnetName: NetworkName,
-                                      postgresName: PostgresName,
-                                      logAnalyticsWorkspaceName: LogAnalyticsWorkspaceName,
                                       batchNodesSubnetName: SubnetworkName,
                                       aksSubnetName: SubnetworkName,
-                                      postgresSubnetName: SubnetworkName,
-                                      computeSubnetName: SubnetworkName,
                                       region: com.azure.core.management.Region,
-                                      applicationInsightsName: ApplicationInsightsName
+                                      applicationInsightsName: ApplicationInsightsName,
+                                      postgresName: Option[PostgresName]
 )

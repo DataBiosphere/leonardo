@@ -178,7 +178,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       _ <- diskV2Service.deleteDisk(userInfo, disk.id)
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), disk.id, azureRegion)
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), azureRegion)
         )
       )
       err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
@@ -235,7 +235,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), disk.id, azureRegion)
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), azureRegion)
         )
       )
       err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
@@ -260,7 +260,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), disk.id, azureRegion)
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), azureRegion)
         )
       )
       err <- diskV2service2.deleteDisk(userInfo, disk.id).attempt

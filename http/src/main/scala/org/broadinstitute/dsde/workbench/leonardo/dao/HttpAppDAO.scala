@@ -14,18 +14,22 @@ class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], cli
 
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean] =
     Proxy.getAppTargetHost[F](kubernetesDnsCache, CloudContext.Gcp(googleProject), appName) flatMap {
-      case HostReady(targetHost, _, _) => // Update once we support Relay for apps
+      case HostReady(targetHost, _, _) =>
+        val serviceUrl = serviceName match {
+          case ServiceName("welder-service") =>
+            s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/status/"
+          case _ =>
+            s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
+        }
         client
           .successful(
             Request[F](
               method = Method.GET,
-              uri = Uri.unsafeFromString(
-                s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
-              )
+              uri = Uri.unsafeFromString(serviceUrl)
             )
           )
           .handleError(_ => false)
-      case _ => Async[F].pure(false)
+      case _ => Async[F].pure(false) // Update once we support Relay for apps
     }
 }
 
