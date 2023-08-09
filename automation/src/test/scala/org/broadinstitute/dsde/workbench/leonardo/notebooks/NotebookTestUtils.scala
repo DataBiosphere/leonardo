@@ -287,23 +287,13 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
     waitForRunning.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
+    // TODO: PR comment: we probably don't need to hit the proxy every time we monitor starting, only one test around life cycle should handle
     logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
     val getResult = Try(Notebook.getApi(googleProject, runtimeName))
     getResult.isSuccess shouldBe true
     getResult.get should not include "ProxyException"
 
-    if (checkJupyterSetup)
-      withWebDriver { implicit driver =>
-        withNewNotebookWithCheck(RuntimeProjectAndName(CloudContext.Gcp(googleProject), runtimeName)) { notebookPage =>
-          val query =
-            """! [ -d "/etc/jupyter/nbconfig" ] && echo 'true' || echo 'false' """
-
-          // Verify that /etc/jupyter/nbconfig/notebook.json exists so that welder can be enabled properly
-          val result = notebookPage.executeCell(query, timeout = 5.minutes).get
-          result should include("true")
-        }
-      }
-    else ()
+    // TODO: PR comment, we don't want to be using selenium to run notebook code as part of verifying a runtime is started, the proxy check should be sufficient
 
     // Grab the jupyter.log and welder.log files for debugging.
     saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")

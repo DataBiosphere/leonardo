@@ -33,7 +33,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   appControlledResourceQuery,
   AppControlledResourceStatus,
   KubernetesServiceDbQueries,
-  RuntimeServiceDbQueries,
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
@@ -50,6 +49,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import java.net.URL
 import java.nio.file.Files
 import java.util.{Base64, UUID}
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -76,6 +76,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockCbasDAO = setUpMockCbasDAO
   val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
+  val mockWsmDAO = new MockWsmDAO
   val mockHailBatchDAO = setUpMockHailBatchDAO
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
@@ -97,6 +98,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockCbasUiDAO,
     mockWdsDAO,
     mockHailBatchDAO,
+    mockWsmDAO,
     mockKube,
     mockWsm
   ) {
@@ -476,6 +478,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
+        mockWsmDAO,
         mockKube,
         mockWsm
       ) {
@@ -567,6 +570,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
+        mockWsmDAO,
         mockKube,
         mockWsm
       ) {
@@ -671,6 +675,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockCbasUiDAO,
       mockWdsDAO,
       mockHailBatchDAO,
+      mockWsmDAO,
       mockKube,
       mockWsm
     ) {
@@ -989,18 +994,31 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockWsmApiClientProvider: WsmApiClientProvider = {
     val wsm = mock[WsmApiClientProvider]
     val api = mock[ControlledAzureResourceApi]
+    val dbUUIDsByName = mutable.Map.empty[String, UUID]
     when {
       api.createAzureManagedIdentity(any, any)
-    } thenReturn new CreatedControlledAzureManagedIdentity().resourceId(UUID.randomUUID())
+    } thenAnswer { invocation =>
+      new CreatedControlledAzureManagedIdentity().resourceId(
+        invocation.getArgument[CreateControlledAzureManagedIdentityRequestBody](0).getCommon.getResourceId
+      )
+    }
     when {
       api.createAzureDatabase(any, any)
-    } thenReturn new CreatedControlledAzureDatabaseResult().resourceId(UUID.randomUUID())
+    } thenAnswer { invocation =>
+      val uuid = invocation.getArgument[CreateControlledAzureDatabaseRequestBody](0).getCommon.getResourceId
+      val name = invocation.getArgument[CreateControlledAzureDatabaseRequestBody](0).getAzureDatabase.getName
+      dbUUIDsByName += (name -> uuid)
+      new CreatedControlledAzureDatabaseResult().resourceId(uuid)
+    }
     when {
       api.getCreateAzureDatabaseResult(any, any)
     } thenAnswer { // thenAnswer is used so that the result of the call is different each time
-      _ =>
+      invocation =>
         new CreatedControlledAzureDatabaseResult()
-          .azureDatabase(new AzureDatabaseResource().metadata(new ResourceMetadata().resourceId(UUID.randomUUID())))
+          .azureDatabase(
+            new AzureDatabaseResource()
+              .metadata(new ResourceMetadata().resourceId(dbUUIDsByName(invocation.getArgument[String](1))))
+          )
           .jobReport(
             new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
           )

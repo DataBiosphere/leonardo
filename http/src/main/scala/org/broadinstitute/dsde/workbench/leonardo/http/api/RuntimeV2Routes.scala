@@ -171,11 +171,11 @@ class RuntimeV2Routes(saturnIframeExtensionHostConfig: RefererConfig,
       useExistingDisk = params.get("useExistingDisk").exists(_ == "true")
       apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, useExistingDisk, req)
       _ <- metrics.incrementCounter("createRuntimeV2")
-      _ <- ctx.span.fold(apiCall)(span =>
+      resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntimeV2")
           .use(_ => apiCall)
       )
-    } yield StatusCodes.Accepted: ToResponseMarshallable
+    } yield StatusCodes.Accepted -> resp: ToResponseMarshallable
 
   private[api] def getAzureRuntimeHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(
     implicit ev: Ask[IO, AppContext]

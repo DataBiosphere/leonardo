@@ -3,7 +3,6 @@ package http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.Uri.Host
 import cats.effect._
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.mtl.Ask
@@ -204,6 +203,12 @@ object Boot extends IOApp {
         appDependencies.wsmClientProvider
       )
 
+      val adminService = new AdminServiceInterp[IO](
+        appDependencies.authProvider,
+        appDependencies.publisherQueue,
+        ConfigReader.adminAppConfig
+      )
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -213,6 +218,7 @@ object Boot extends IOApp {
         diskV2Service,
         leoKubernetesService,
         azureService,
+        adminService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig
@@ -353,7 +359,7 @@ object Boot extends IOApp {
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits)
 
       // Set up DNS caches
-      hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
+      hostToIpMapping <- Resource.eval(Ref.of(Map.empty[String, IP]))
       proxyResolver <- Dispatcher.parallel[F].map(d => ProxyResolver(hostToIpMapping, d))
 
       underlyingRuntimeDnsCache = buildCache[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]](
@@ -658,7 +664,8 @@ object Boot extends IOApp {
         googleDiskService,
         appDescriptorDAO,
         nodepoolLock,
-        googleDependencies.googleResourceService
+        googleDependencies.googleResourceService,
+        googleDependencies.googleComputeService
       )
 
       val aksAlg = new AKSInterpreter[F](
@@ -688,6 +695,7 @@ object Boot extends IOApp {
         cbasUiDao,
         wdsDao,
         hailBatchDao,
+        wsmDao,
         kubeAlg,
         wsmClientProvider
       )
