@@ -253,5 +253,21 @@ object AppV2Routes {
 //      "chartName", TODO: revert this once CBAS are upgraded
       "accessScope",
       "labels"
-    )(x => GetAppResponse.unapply(x).get)
+    )(x =>
+      (x.appName,
+       x.cloudContext,
+       x.kubernetesRuntimeConfig,
+       x.errors,
+       x.status,
+       x.proxyUrls,
+       x.diskName,
+       x.customEnvironmentVariables,
+       x.auditInfo,
+       //       x.chartName, TODO: revert this once CBAS are upgraded
+       x.appType,
+       x.accessScope,
+       x.labels
+      )
+    )
+//    )(x => GetAppResponse.unapply(x).get)
 }
