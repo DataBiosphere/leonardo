@@ -2,25 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppType,
-  Chart,
-  CloudProvider,
-  DbPassword,
-  GalaxyDrsUrl,
-  GalaxyOrchUrl,
-  KsaName,
-  KubernetesService,
-  NamespaceNameSuffix,
-  ReleaseNameSuffix,
-  ServiceConfig,
-  ServiceId
-}
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 import java.net.URL
 
-sealed trait KubernetesAppConfig extends Product with Serializable {
+sealed trait KubernetesAppConfig {
   def chartName: ChartName
 
   def chartVersion: ChartVersion
@@ -62,7 +49,7 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  enabled: Boolean,
                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Galaxy
@@ -78,7 +65,7 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    enabled: Boolean,
                                    chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Cromwell
@@ -96,7 +83,7 @@ final case class CustomAppConfig(chartName: ChartName,
                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   // Not known at config. Generated at runtime.
-  override val kubernetesServices: List[KubernetesService] = List.empty
+  override lazy val kubernetesServices: List[KubernetesService] = List.empty
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Custom
@@ -114,8 +101,7 @@ final case class CoaAppConfig(chartName: ChartName,
                               databaseEnabled: Boolean,
                               chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
@@ -158,31 +144,26 @@ final case class HailBatchAppConfig(chartName: ChartName,
                                     enabled: Boolean,
                                     chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.HailBatch
 }
 
-final case class AllowedAppConfig(chartName: ChartName,
-                                  rstudioChartVersion: ChartVersion,
-                                  sasChartVersion: ChartVersion,
+final case class RStudioAppConfig(chartName: ChartName,
+                                  chartVersion: ChartVersion,
                                   namespaceNameSuffix: NamespaceNameSuffix,
                                   releaseNameSuffix: ReleaseNameSuffix,
                                   services: List[ServiceConfig],
                                   serviceAccountName: ServiceAccountName,
+                                  enabled: Boolean,
                                   chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+
   val cloudProvider: CloudProvider = CloudProvider.Gcp
-  val appType: AppType = AppType.Allowed
-
-  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-  def enabled: Boolean = true
-
-  def chartVersion: ChartVersion = ChartVersion(
-    "dummy"
-  ) // For AoU apps, chart version will vary, and will be populated from user request
+  val appType: AppType = AppType.RStudio
 }
 
 sealed trait CoaService

@@ -30,11 +30,6 @@ object ConfigImplicits {
   implicit val cidrIpConfigReader: ConfigReader[CidrIP] =
     ConfigReader.stringConfigReader.map(s => CidrIP(s))
 
-  implicit val appTypeConfigReader: ConfigReader[AppType] =
-    ConfigReader.stringConfigReader.emap(s =>
-      Either.fromOption(AppType.stringToObject.get(s), ExceptionThrown.apply(new Exception("invalid appType")))
-    )
-
   implicit val clientIdConfigReader: ConfigReader[ClientId] =
     ConfigReader.stringConfigReader.map(s => ClientId(s))
   implicit val clientSecretConfigReader: ConfigReader[ClientSecret] =
