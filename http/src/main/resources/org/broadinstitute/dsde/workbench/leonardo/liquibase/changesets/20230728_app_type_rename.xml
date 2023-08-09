@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="qi" id="qi_app_type_rename">
+        <update tableName="APP">
+            <column name="appType" value="ALLOWED"/>
+            <where>appType='RSTUDIO'</where>
+        </update>
+
+        <modifyDataType tableName="PERSISTENT_DISK" columnName="formattedBy" newDataType="ENUM('GALAXY', 'GCE', 'CROMWELL', 'CUSTOM', 'RSTUDIO', 'ALLOWED')"/>
+
+        <update tableName="PERSISTENT_DISK">
+            <column name="formattedBy" value="ALLOWED"/>
+            <where>formattedBy='RSTUDIO'</where>
+        </update>
+
+        <modifyDataType tableName="PERSISTENT_DISK" columnName="formattedBy" newDataType="ENUM('GALAXY', 'GCE', 'CROMWELL', 'CUSTOM', 'ALLOWED')"/>
+    </changeSet>
+</databaseChangeLog>

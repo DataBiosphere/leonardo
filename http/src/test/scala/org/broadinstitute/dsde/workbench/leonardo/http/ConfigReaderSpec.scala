@@ -168,7 +168,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List("WDS"),
+        List(AppType.Wds),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
       ),
       OidcAuthConfig(
