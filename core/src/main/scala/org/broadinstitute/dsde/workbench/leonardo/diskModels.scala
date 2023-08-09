@@ -106,8 +106,6 @@ object DiskType extends Enum[DiskType] {
   }
 }
 
-// We introduced this type to differentiate whether a disk is formatted by Galaxy or not because
-// Galaxy formats disk in unique ways. We might be able to simplify this to be Galaxy vs non-Galaxy
 sealed trait FormattedBy extends EnumEntry with Product with Serializable {
   def asString: String
 }
@@ -129,8 +127,8 @@ object FormattedBy extends Enum[FormattedBy] {
     override def asString: String = "CROMWELL"
   }
 
-  final case object Allowed extends FormattedBy {
-    override def asString: String = "ALLOWED"
+  final case object RStudio extends FormattedBy {
+    override def asString: String = "RSTUDIO"
   }
 }
 
@@ -145,7 +143,10 @@ object AppRestore {
   final case class GalaxyRestore(galaxyPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
 
   // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
-  final case class Other(lastUsedBy: AppId) extends AppRestore
+  final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore
+
+  // information needed for reconnecting a disk used previously by RStudio app to another RStudio app
+  final case class RStudioRestore(lastUsedBy: AppId) extends AppRestore
 }
 
 final case class DiskLink(asString: String) extends AnyVal

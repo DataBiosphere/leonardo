@@ -133,7 +133,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) shouldBe Some(1)
     // RStudio on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart)
+      AppStatusMetric(CloudProvider.Gcp, AppType.RStudio, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart)
     ) shouldBe Some(1)
     // Hail Batch on Azure
     test.get(
@@ -440,7 +440,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def cromwellAppGcpAou: KubernetesCluster =
     genApp(false, AppType.Cromwell, cromwellChart, true, true)
   private def rstudioAppGcpAou: KubernetesCluster =
-    genApp(false, AppType.Allowed, rstudioChart, true, false)
+    genApp(false, AppType.RStudio, rstudioChart, true, false)
   private def hailBatchAppAzure: KubernetesCluster =
     genApp(true, AppType.HailBatch, hailBatchChart, false, false)
       .copy(cloudContext = CloudContext.Azure(azureContext))
