@@ -16,15 +16,16 @@ set -e -x
 # Constants and Global Vars
 #
 
-terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.15"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.1.10"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.1.11"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.2.14"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.22"
+terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.1"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.1"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.1"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.1"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.1"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.17.0"
 
+# Note that this is the version used currently by AOU in production!
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.15"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.20"
