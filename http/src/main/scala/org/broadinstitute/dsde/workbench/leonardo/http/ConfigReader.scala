@@ -2,7 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AllowedAppConfig,
+  CoaAppConfig,
+  Config,
+  CromwellAppConfig,
+  CustomAppConfig,
+  GalaxyAppConfig,
+  HailBatchAppConfig,
+  HttpWsmDaoConfig,
+  KubernetesAppConfig,
+  PersistentDiskConfig,
+  WdsAppConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
@@ -25,22 +37,22 @@ object ConfigReader {
       Config.gkeCustomAppConfig,
       Config.gkeGalaxyAppConfig,
       appConfig.azure.hailBatchAppConfig,
-      Config.gkeRStudioAppConfig,
+      Config.gkeAllowedAppConfig,
       appConfig.azure.wdsAppConfig
     )
 }
 
-final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
-                             wsm: HttpWsmDaoConfig,
-                             appRegistration: AzureAppRegistrationConfig,
-                             coaAppConfig: CoaAppConfig,
-                             workflowsAppConfig: WorkflowsAppConfig,
-                             cromwellRunnerAppConfig: CromwellRunnerAppConfig,
-                             wdsAppConfig: WdsAppConfig,
-                             hailBatchAppConfig: HailBatchAppConfig,
-                             aadPodIdentityConfig: AadPodIdentityConfig,
-                             allowedSharedApps: List[String],
-                             tdr: TdrConfig
+final case class AzureConfig(
+  pubsubHandler: AzurePubsubHandlerConfig,
+  wsm: HttpWsmDaoConfig,
+  appRegistration: AzureAppRegistrationConfig,
+  coaAppConfig: CoaAppConfig,
+  workflowsAppConfig: WorkflowsAppConfig,
+  wdsAppConfig: WdsAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  allowedSharedApps: List[AppType],
+  tdr: TdrConfig
 )
 
 final case class OidcAuthConfig(
@@ -63,12 +75,13 @@ final case class TdrConfig(url: String)
 
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
-final case class AppConfig(terraAppSetupChart: TerraAppSetupChartConfig,
-                           persistentDisk: PersistentDiskConfig,
-                           azure: AzureConfig,
-                           oidc: OidcAuthConfig,
-                           drs: DrsConfig,
-                           metrics: LeoMetricsMonitorConfig
+final case class AppConfig(
+  terraAppSetupChart: TerraAppSetupChartConfig,
+  persistentDisk: PersistentDiskConfig,
+  azure: AzureConfig,
+  oidc: OidcAuthConfig,
+  drs: DrsConfig,
+  metrics: LeoMetricsMonitorConfig
 )
 
 final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
@@ -76,7 +89,7 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
                                 customAppConfig: CustomAppConfig,
                                 galaxyAppConfig: GalaxyAppConfig,
                                 hailBatchAppConfig: HailBatchAppConfig,
-                                rstudioAppConfig: RStudioAppConfig,
+                                allowedAppConfig: AllowedAppConfig,
                                 wdsAppConfig: WdsAppConfig
 ) {
 
@@ -89,7 +102,7 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
     customAppConfig,
     galaxyAppConfig,
     hailBatchAppConfig,
-    rstudioAppConfig,
+    allowedAppConfig,
     wdsAppConfig
   )
 }

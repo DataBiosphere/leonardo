@@ -760,7 +760,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
       case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
       case AppType.HailBatch => "http://batch:8080"
-      case AppType.Galaxy | AppType.Custom | AppType.RStudio =>
+      case AppType.Galaxy | AppType.Custom | AppType.Allowed =>
         F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
       case AppType.WorkflowsApp | AppType.CromwellRunnerApp =>
         F.raiseError(AppCreationException(s"App type $appType needs to have a relay target host defined"))

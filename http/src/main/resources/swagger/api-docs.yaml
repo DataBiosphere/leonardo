@@ -15,9 +15,7 @@ tags:
   - name: disks
     description: Persistent Disks API.
   - name: apps
-    description: Experimental App API
-  - name: appsV2
-    description: Apps API v2. Support for Google Kubernetes Engine and Azure Kubernetes Service. Under active Development.
+    description: Apps API. Support Google Kubernetes Engine and Azure Kubernetes Service.
   - name: proxy
     description: Proxy API
   - name: admin
@@ -1663,7 +1661,7 @@ paths:
         Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
       operationId: createAppV2
       tags:
-        - appsV2
+        - apps
       parameters:
         - in: path
           name: workspaceId
@@ -1709,7 +1707,7 @@ paths:
         Poll this to find out when your app has finished starting up.
       operationId: getAppV2
       tags:
-        - appsV2
+        - apps
       parameters:
         - in: path
           name: workspaceId
@@ -1750,7 +1748,7 @@ paths:
       description: deletes an App
       operationId: deleteAppV2
       tags:
-        - appsV2
+        - apps
       parameters:
         - in: path
           name: workspaceId
@@ -1795,7 +1793,7 @@ paths:
       description: List all apps for a given workspaceId.
       operationId: listAppsV2
       tags:
-        - appsV2
+        - apps
       parameters:
         - in: path
           name: workspaceId
@@ -1847,7 +1845,7 @@ paths:
       description: deletes all Apps in a workspace
       operationId: deleteAllAppsV2
       tags:
-        - appsV2
+        - apps
       parameters:
         - in: path
           name: workspaceId
@@ -2865,9 +2863,13 @@ components:
         - GALAXY
         - WDS
         - HAIL_BATCH
-        - RSTUDIO
+        - ALLOWED
         - WORKFLOWS_APP
         - CROMWELL_RUNNER_APP
+    AllowedChartName:
+      type: string
+      enum:
+        - aou-rstudio-chart
     AppStatus:
       type: string
       enum:
@@ -3227,7 +3229,7 @@ components:
             - GCE
             - CROMWELL
             - CUSTOM
-            - RSTUDIO
+            - ALLOWED
           description: App that formatted disk, missing if unformatted
 
     GetPersistentDiskV2Response:
@@ -3288,7 +3290,7 @@ components:
             - GCE
             - CROMWELL
             - CUSTOM
-            - RSTUDIO
+            - ALLOWED
           description: App that formatted disk, missing if unformatted
 
     InstanceKey:
@@ -3940,6 +3942,8 @@ components:
           $ref: '#/components/schemas/PersistentDiskRequest'
         appType:
           $ref: '#/components/schemas/AppType'
+        allowedChartName:
+          $ref: '#/components/schemas/AllowedChartName'
         accessScope:
           $ref: '#/components/schemas/AppAccessScope'
         kubernetesRuntimeConfig:
