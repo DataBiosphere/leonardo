@@ -1339,7 +1339,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // Update the Relay Listener if the app tracks it as a service.
     // We're not tracking the listener version in the DB so we can't really pick and choose which versions to update.
     // We started tracking it as a service when we switched the chart over to terra-helmfile.
-    if (app.appResources.services.contains(ListenerChartConfig.service)) {
+    if (app.appResources.services.exists(s => s.config.name == ListenerChartConfig.service.config.name)) {
       val values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
         app.release,
         app.samResourceId,
