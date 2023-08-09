@@ -400,6 +400,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Get the optional storage container for the workspace
       storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, leoAuth)
 
+      // Build WSM client
+      token <- leoAuth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+
       // Resolve pet managed identity in Azure
       // Only do this for user-private apps; do not assign any identity for shared apps.
       // In the future we may use a shared identity instead.
@@ -456,23 +463,30 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
             )
 
-            // Call WSM to get the managed identity and postgres database if they exist
-            wsmIdentity <- appControlledResourceQuery
-              .getWsmRecordForApp(app.id.id, WsmResourceType.AzureManagedIdentity)
+            // Call WSM to get the managed identity if it exists
+            wsmIdentities <- appControlledResourceQuery
+              .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
               .transaction
-            maybeKsaFromDatabaseCreation = wsmIdentity match {
-              case None    => None
-              case Some(_) => Some(ServiceAccountName(s"id${kubernetesNamespace.name.value.split('-').head}"))
+            maybeKsaFromDatabaseCreation <- wsmIdentities.headOption.traverse { wsmIdentity =>
+              F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value)).map { resource =>
+                ServiceAccountName(resource.getMetadata.getName)
+              }
             }
-            wsmDatabase <- appControlledResourceQuery
-              .getWsmRecordForApp(app.id.id, WsmResourceType.AzureDatabase)
+
+            // Call WSM to get the postgres databases if they exist
+            wsmDatabases <- appControlledResourceQuery
+              .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
               .transaction
-            cromwellDb = s"cromwell_${kubernetesNamespace.name.value.split('-').head}"
-            cbasDb = s"cbas_${kubernetesNamespace.name.value.split('-').head}"
-            tesDb = s"tes_${kubernetesNamespace.name.value.split('-').head}"
-            maybeDbNames = wsmDatabase match {
-              case None    => None
-              case Some(_) => Some(CromwellDatabaseNames(cromwellDb, cbasDb, tesDb))
+            wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
+              F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
+                .map(_.getMetadata.getName)
+            }
+            maybeDbNames = (wsmDbNames.find(_.startsWith("cromwell")),
+                            wsmDbNames.find(_.startsWith("cbas")),
+                            wsmDbNames.find(_.startsWith("tes"))
+            ) match {
+              case (Some(cromwell), Some(cbas), Some(tes)) => Some(CromwellDatabaseNames(cromwell, cbas, tes))
+              case _                                       => None
             }
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
@@ -513,20 +527,23 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
             )
 
-            // Call WSM to get the managed identity and postgres database if they exist
-            wsmIdentity <- appControlledResourceQuery
-              .getWsmRecordForApp(app.id.id, WsmResourceType.AzureManagedIdentity)
+            // Call WSM to get the managed identity if it exists
+            wsmIdentities <- appControlledResourceQuery
+              .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
               .transaction
-            maybeKsaFromDatabaseCreation = wsmIdentity match {
-              case None    => None
-              case Some(_) => Some(ServiceAccountName(s"id${kubernetesNamespace.name.value.split('-').head}"))
+            maybeKsaFromDatabaseCreation <- wsmIdentities.headOption.traverse { wsmIdentity =>
+              F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value)).map { resource =>
+                ServiceAccountName(resource.getMetadata.getName)
+              }
             }
-            wsmDatabase <- appControlledResourceQuery
-              .getWsmRecordForApp(app.id.id, WsmResourceType.AzureDatabase)
+
+            // Call WSM to get the postgres database if it exists
+            wsmDatabases <- appControlledResourceQuery
+              .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
               .transaction
-            maybeDbName = wsmDatabase match {
-              case None    => None
-              case Some(_) => Some(s"wds${kubernetesNamespace.name.value.split('-').head}")
+            maybeDbName <- wsmDatabases.headOption.traverse { wsmDatabase =>
+              F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
+                .map(_.getMetadata.getName)
             }
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
@@ -535,7 +552,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               case (None, SamResourceType.SharedApp) => NoIdentity
               case (None, _)                         => PodIdentity
             }
-
           } yield buildWdsChartOverrideValues(
             app.release,
             params.appName,
@@ -1258,7 +1274,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
       wsmResources <- appControlledResourceQuery
-        .getAllForApp(app.id.id, AppControlledResourceStatus.Created, AppControlledResourceStatus.Creating)
+        .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created, AppControlledResourceStatus.Creating)
         .transaction
 
       _ <- wsmResources.traverse { wsmResource =>

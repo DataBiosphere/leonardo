@@ -615,7 +615,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           .transaction
 
         controlledResources <- dbioToIO(
-          appControlledResourceQuery.getAllForApp(appId.id, AppControlledResourceStatus.Created)
+          appControlledResourceQuery.getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         ).transaction
       } yield {
         app shouldBe defined
@@ -644,7 +644,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
           .transaction
         controlledResources <- appControlledResourceQuery
-          .getAllForApp(app.id.id, AppControlledResourceStatus.Created)
+          .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created)
           .transaction
       } yield {
         controlledResources shouldBe empty
