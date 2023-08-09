@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleResourceService
 }
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -650,13 +650,11 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val cluster = makeKubeCluster(0).save()
     val nodepool = makeNodepool(1, cluster.id).save()
     val cromwellApp = makeApp(1, nodepool.id).save()
-    val disk = makePersistentDisk(None,
-                                  formattedBy = Some(FormattedBy.Cromwell),
-                                  appRestore = Some(CromwellRestore(cromwellApp.id))
-    )
-      .copy(cloudContext = cloudContextGcp)
-      .save()
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val disk =
+      makePersistentDisk(None, formattedBy = Some(FormattedBy.Cromwell), appRestore = Some(Other(cromwellApp.id)))
+        .copy(cloudContext = cloudContextGcp)
+        .save()
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val galaxyAppName = AppName("galaxy-app1")
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
@@ -1973,13 +1971,11 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val cluster = makeKubeCluster(0).save()
     val nodepool = makeNodepool(1, cluster.id).save()
     val cromwellApp = makeApp(1, nodepool.id).save()
-    val disk = makePersistentDisk(None,
-                                  formattedBy = Some(FormattedBy.Cromwell),
-                                  appRestore = Some(CromwellRestore(cromwellApp.id))
-    )
-      .copy(cloudContext = CloudContext.Gcp(GoogleProject(workspaceId.toString)))
-      .save()
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val disk =
+      makePersistentDisk(None, formattedBy = Some(FormattedBy.Cromwell), appRestore = Some(Other(cromwellApp.id)))
+        .copy(cloudContext = CloudContext.Gcp(GoogleProject(workspaceId.toString)))
+        .save()
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val galaxyAppName = AppName("galaxy-app1")
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
