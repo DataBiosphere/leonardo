@@ -34,7 +34,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   PvName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -408,10 +407,9 @@ class GKEInterpreter[F[_]](
 
       // TODO: validate app release is the same as restore release
       appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(diskId).transaction
-      galaxyRestore: Option[GalaxyRestore] = appRestore.flatMap {
-        case a: GalaxyRestore   => Some(a)
-        case _: CromwellRestore => None
-        case _: RStudioRestore  => None
+      galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+        case a: AppRestore.GalaxyRestore => Some(a)
+        case _: AppRestore.Other         => None
       }
 
       // helm install and wait
@@ -454,11 +452,12 @@ class GKEInterpreter[F[_]](
             gsa,
             app.customEnvironmentVariables
           )
-        case AppType.RStudio =>
-          installRStudioApp(
+        case AppType.Allowed =>
+          installAouApp(
             helmAuthContext,
             app.appName,
             app.release,
+            app.chart,
             dbCluster,
             dbApp.nodepool.nodepoolName,
             namespaceName,
@@ -520,7 +519,7 @@ class GKEInterpreter[F[_]](
                     )
                   )
                 ) { galaxyPvc =>
-                  val galaxyDiskRestore = GalaxyRestore(
+                  val galaxyDiskRestore = AppRestore.GalaxyRestore(
                     PvcId(galaxyPvc.getMetadata.getUid),
                     app.id
                   )
@@ -531,7 +530,7 @@ class GKEInterpreter[F[_]](
                 }
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
-        case AppType.RStudio  => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
+        case AppType.Allowed  => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
         case AppType.Custom   => F.unit
         case _ =>
           F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
@@ -608,10 +607,9 @@ class GKEInterpreter[F[_]](
             )
 
             appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(nfsDisk.id).transaction
-            galaxyRestore: Option[GalaxyRestore] = appRestore.flatMap {
-              case a: GalaxyRestore   => Some(a)
-              case _: CromwellRestore => None
-              case _: RStudioRestore  => None
+            galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+              case a: AppRestore.GalaxyRestore => Some(a)
+              case _: AppRestore.Other         => None
             }
 
             machineType <- computeService
@@ -677,9 +675,8 @@ class GKEInterpreter[F[_]](
             )
 
           } yield (chartValues.mkString(","), last)
-        case AppType.RStudio =>
+        case AppType.Allowed =>
           for {
-
             // Create the throwaway staging bucket to be used by Welder
             _ <- bucketHelper
               .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
@@ -700,7 +697,7 @@ class GKEInterpreter[F[_]](
             )
 
             last <- streamFUntilDone(
-              config.rStudioAppConfig.services
+              config.allowedAppConfig.services
                 .map(_.name)
                 .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
               config.monitorConfig.updateApp.maxAttempts,
@@ -958,11 +955,9 @@ class GKEInterpreter[F[_]](
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
-      appRestore: Option[GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
-        case a: GalaxyRestore   => Some(a)
-        case _: CromwellRestore => None
-        case _: RStudioRestore  => None
-
+      appRestore: Option[AppRestore.GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
+        case a: AppRestore.GalaxyRestore => Some(a)
+        case _: AppRestore.Other         => None
       }
       _ <- appRestore.traverse { restore =>
         for {
@@ -1006,29 +1001,51 @@ class GKEInterpreter[F[_]](
         if (dbNodepool.autoscalingEnabled) {
           nodepoolLock.withKeyLock(dbCluster.getClusterId) {
             for {
-              op <- gkeService.setNodepoolAutoscaling(
-                nodepoolId,
-                NodePoolAutoscaling.newBuilder().setEnabled(false).build()
-              )
-              _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
-              lastOp <- gkeService
-                .pollOperation(
-                  KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                  config.monitorConfig.scalingDownNodepool.interval,
-                  config.monitorConfig.scalingDownNodepool.maxAttempts
+              opOrError <- gkeService
+                .setNodepoolAutoscaling(
+                  nodepoolId,
+                  NodePoolAutoscaling.newBuilder().setEnabled(false).build()
                 )
-                .compile
-                .lastOrError
-              _ <-
-                if (lastOp.isDone)
-                  logger.info(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
-                  )
-                else
-                  logger.error(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
-                  ) >>
-                    F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+                .attempt
+              _ <- opOrError match {
+                case Left(e: com.google.api.gax.rpc.NotFoundException) =>
+                  // Mark the app as `DELETED` instead of bubbling this error up to generic error handler
+                  for {
+                    _ <- appErrorQuery
+                      .save(
+                        dbApp.app.id,
+                        AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
+                      )
+                      .transaction
+                    _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
+                    _ <-
+                      nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now).transaction
+                  } yield ()
+                case Left(e) => F.raiseError(e)
+                case Right(op) =>
+                  for {
+                    _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
+                    lastOp <- gkeService
+                      .pollOperation(
+                        KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+                        config.monitorConfig.scalingDownNodepool.interval,
+                        config.monitorConfig.scalingDownNodepool.maxAttempts
+                      )
+                      .compile
+                      .lastOrError
+                    _ <-
+                      if (lastOp.isDone)
+                        logger.info(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
+                        )
+                      else
+                        logger.error(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
+                        ) >>
+                          F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+
+                  } yield ()
+              }
             } yield ()
           }
         } else F.unit
@@ -1141,9 +1158,9 @@ class GKEInterpreter[F[_]](
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
-        case AppType.RStudio =>
+        case AppType.Allowed =>
           streamFUntilDone(
-            config.rStudioAppConfig.services
+            config.allowedAppConfig.services
               .map(_.name)
               .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
             config.monitorConfig.startApp.maxAttempts,
@@ -1315,7 +1332,7 @@ class GKEInterpreter[F[_]](
                                   kubernetesServiceAccount: ServiceAccountName,
                                   nfsDisk: PersistentDisk,
                                   machineType: AppMachineType,
-                                  galaxyRestore: Option[GalaxyRestore]
+                                  galaxyRestore: Option[AppRestore.GalaxyRestore]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -1323,7 +1340,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
+        s"Installing helm chart $chart for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(nfsDisk.cloudContext),
@@ -1479,10 +1496,11 @@ class GKEInterpreter[F[_]](
     } yield ()
   }
 
-  private[util] def installRStudioApp(
+  private[util] def installAouApp(
     helmAuthContext: AuthContext,
     appName: AppName,
     release: Release,
+    chart: Chart,
     cluster: KubernetesCluster,
     nodepoolName: NodepoolName,
     namespaceName: NamespaceName,
@@ -1491,9 +1509,7 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String]
-  )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val chart = config.rStudioAppConfig.chart
-
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
 
@@ -1514,6 +1530,7 @@ class GKEInterpreter[F[_]](
         .compile
         .drain
 
+      // TODO: update this depending on which chart this is
       chartValues = buildRStudioAppChartOverrideValuesString(config,
                                                              appName,
                                                              cluster,
@@ -1548,7 +1565,7 @@ class GKEInterpreter[F[_]](
 
       // Poll the app until it starts up
       last <- streamFUntilDone(
-        config.rStudioAppConfig.services
+        config.allowedAppConfig.services
           .map(_.name)
           .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
@@ -1558,13 +1575,12 @@ class GKEInterpreter[F[_]](
       _ <-
         if (!last.isDone) {
           val msg =
-            s"RStudio app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+            s"AoU app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
         } else F.unit
 
     } yield ()
-  }
 
   private[util] def installCustomApp(appId: AppId,
                                      appName: AppName,
@@ -1888,7 +1904,7 @@ final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
                                       customAppConfig: CustomAppConfig,
-                                      rStudioAppConfig: RStudioAppConfig,
+                                      allowedAppConfig: AllowedAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,
