@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   CreateAzureRuntimeRequest,
   DiskStatus
 }
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 
 import scala.concurrent.duration._
@@ -28,7 +29,7 @@ class AzureRuntimeSpec
 
   implicit val accessToken = Hermione.authToken()
 
-  "create, get, delete azure runtime" in { workspaceDetails =>
+  "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
