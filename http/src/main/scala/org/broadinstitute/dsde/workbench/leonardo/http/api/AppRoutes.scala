@@ -9,16 +9,17 @@ import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, _}
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Decoder, Encoder, KeyEncoder}
+import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
+  createAppDecoder,
+  getAppResponseEncoder,
+  listAppResponseEncoder
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.http4s.Uri
 
 class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
@@ -121,8 +122,17 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
         appName,
         req
       )
-      tags = Map("appType" -> req.appType.toString)
-      _ <- metrics.incrementCounter("createApp", 1, tags)
+      _ <- req.allowedChartName match {
+        case Some(cn) =>
+          val tags = Map("appType" -> req.appType.toString) + ("chartName" -> cn.asString)
+          metrics.incrementCounter("createAllowedApp",
+                                   1,
+                                   tags
+          ) // Prometheus doesn't support modifying existing labels. Hence create new metrics for ALLOWED app
+        case None =>
+          val tags = Map("appType" -> req.appType.toString)
+          metrics.incrementCounter("createApp", 1, tags)
+      }
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -197,30 +207,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
 }
 
 object AppRoutes {
-  implicit val createAppDecoder: Decoder[CreateAppRequest] =
-    Decoder.instance { x =>
-      for {
-        c <- x.downField("kubernetesRuntimeConfig").as[Option[KubernetesRuntimeConfig]]
-        a <- x.downField("appType").as[Option[AppType]]
-        s <- x.downField("accessScope").as[Option[AppAccessScope]]
-        d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
-        l <- x.downField("labels").as[Option[LabelMap]]
-        cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
-        dp <- x.downField("descriptorPath").as[Option[Uri]]
-        ea <- x.downField("extraArgs").as[Option[List[String]]]
-        swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
-      } yield CreateAppRequest(c,
-                               a.getOrElse(AppType.Galaxy),
-                               s,
-                               d,
-                               l.getOrElse(Map.empty),
-                               cv.getOrElse(Map.empty),
-                               dp,
-                               ea.getOrElse(List.empty),
-                               swi
-      )
-    }
-
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
     n match {
       case n if n < 1   => Left("Minimum number of nodepools is 1")
@@ -228,51 +214,4 @@ object AppRoutes {
       case _            => Right(NumNodepools.apply(n))
     }
   )
-
-  implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
-  implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct12(
-      "workspaceId",
-      "cloudContext",
-      "kubernetesRuntimeConfig",
-      "errors",
-      "status",
-      "proxyUrls",
-      "appName",
-      "appType",
-      "diskName",
-      "auditInfo",
-      "accessScope",
-      "labels"
-    )(x =>
-      (x.workspaceId,
-       x.cloudContext,
-       x.kubernetesRuntimeConfig,
-       x.errors,
-       x.status,
-       x.proxyUrls,
-       x.appName,
-       x.appType,
-       x.diskName,
-       x.auditInfo,
-       x.accessScope,
-       x.labels
-      )
-    )
-
-  implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct12(
-      "appName",
-      "cloudContext",
-      "kubernetesRuntimeConfig",
-      "errors",
-      "status",
-      "proxyUrls",
-      "diskName",
-      "customEnvironmentVariables",
-      "auditInfo",
-      "appType",
-      "accessScope",
-      "labels"
-    )(x => GetAppResponse.unapply(x).get)
 }
