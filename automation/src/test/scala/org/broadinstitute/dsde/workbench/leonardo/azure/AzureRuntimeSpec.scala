@@ -1,9 +1,15 @@
-package org.broadinstitute.dsde.workbench.leonardo.azure
+package org.broadinstitute.dsde.workbench.leonardo
+package azure
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{AzureDiskConfig, ClusterStatus, CreateAzureRuntimeRequest, DiskStatus}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{
+  AzureDiskConfig,
+  ClusterStatus,
+  CreateAzureRuntimeRequest,
+  DiskStatus
+}
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
