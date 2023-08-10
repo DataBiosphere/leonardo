@@ -313,27 +313,6 @@ object ErrorSource {
   def stringToObject: Map[String, ErrorSource] = values.map(v => v.toString -> v).toMap
 }
 
-sealed abstract class AllowedChartName extends Product with Serializable {
-  def asString: String
-}
-object AllowedChartName {
-  final case object RStudio extends AllowedChartName {
-    def asString: String = "aou-rstudio-chart"
-  }
-  final case object Sas extends AllowedChartName {
-    def asString: String = "aou-sas-chart"
-  }
-  def stringToObject: Map[String, AllowedChartName] = sealerate.values[AllowedChartName].map(v => v.asString -> v).toMap
-
-  // Chartname from DB has the following format: /leonardo/cromwell-0.2.291
-  def fromChartName(chartName: ChartName): Option[AllowedChartName] = {
-    val splittedString = chartName.asString.split("/")
-    if (splittedString.size == 3) {
-      stringToObject.get(splittedString(2))
-    } else None
-  }
-}
-
 sealed abstract class AppType
 object AppType {
   case object Galaxy extends AppType {
@@ -351,9 +330,8 @@ object AppType {
     override def toString: String = "HAIL_BATCH"
   }
 
-  // See more context in https://docs.google.com/document/d/1RaQRMqAx7ymoygP6f7QVdBbZC-iD9oY_XLNMe_oz_cs/edit
-  case object Allowed extends AppType {
-    override def toString: String = "ALLOWED"
+  case object RStudio extends AppType {
+    override def toString: String = "RSTUDIO"
   }
 
   case object Custom extends AppType {
@@ -372,7 +350,7 @@ object AppType {
     appType match {
       case Galaxy                     => FormattedBy.Galaxy
       case Custom                     => FormattedBy.Custom
-      case Allowed                    => FormattedBy.Allowed
+      case RStudio                    => FormattedBy.RStudio
       case Cromwell | Wds | HailBatch => FormattedBy.Cromwell
     }
 }

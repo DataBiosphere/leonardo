@@ -747,7 +747,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
       case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
       case AppType.HailBatch => "http://batch:8080"
-      case AppType.Galaxy | AppType.Custom | AppType.Allowed =>
+      case AppType.Galaxy | AppType.Custom | AppType.RStudio =>
         F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
     }
 
