@@ -120,7 +120,6 @@ object LeonardoApiClient {
     AppType.Galaxy,
     None,
     None,
-    None,
     Map.empty,
     Map.empty,
     None,

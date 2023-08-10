@@ -155,7 +155,7 @@ class GceInterpreter[F[_]](
             )
             isFormatted <- persistentDisk.formattedBy match {
               case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) | Some(FormattedBy.Cromwell) | Some(
-                    FormattedBy.Allowed
+                    FormattedBy.RStudio
                   ) =>
                 F.raiseError[Boolean](
                   new RuntimeException(

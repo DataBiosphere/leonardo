@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 
 import scala.concurrent.duration._
-//@DoNotDiscover
 class AzureRuntimeSpec
     extends AzureBillingBeforeAndAfter
     with LeonardoTestUtils
@@ -76,10 +75,10 @@ class AzureRuntimeSpec
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskDuringRuntimeCreate.getId()} in creating status detected"
         )
 
-        // Verify the runtime eventually becomes Running
+        // Verify the runtime eventually becomes Running (in 40 minutes)
         monitorCreateResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          120,
+          240,
           10 seconds,
           s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 20 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))

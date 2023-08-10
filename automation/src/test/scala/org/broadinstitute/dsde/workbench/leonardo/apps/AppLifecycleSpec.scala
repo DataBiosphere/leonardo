@@ -33,8 +33,7 @@ class AppLifecycleSpec
 
   def createAppRequest(appType: AppType,
                        workspaceName: String,
-                       descriptorPath: Option[org.http4s.Uri],
-                       allowedChartName: Option[AllowedChartName] = None
+                       descriptorPath: Option[org.http4s.Uri]
   ): CreateAppRequest = defaultCreateAppRequest.copy(
     diskConfig = Some(
       PersistentDiskRequest(
@@ -44,7 +43,6 @@ class AppLifecycleSpec
         Map.empty
       )
     ),
-    allowedChartName = allowedChartName,
     appType = appType,
     customEnvironmentVariables = Map("WORKSPACE_NAME" -> workspaceName),
     descriptorPath = descriptorPath,
@@ -62,11 +60,7 @@ class AppLifecycleSpec
 
   "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
-      test(googleProject,
-           createAppRequest(AppType.Allowed, "rstudio-test-workspace", None, Some(AllowedChartName.RStudio)),
-           false,
-           true
-      )
+      test(googleProject, createAppRequest(AppType.RStudio, "rstudio-test-workspace", None), false, true)
   }
 
   "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
