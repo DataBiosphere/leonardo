@@ -124,6 +124,7 @@ object Config {
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("customDataprocImage"),
+      config.as[DataprocCustomImage]("legacyAouCustomDataprocImage"),
       config.getAs[Double]("sparkMemoryConfigRatio"),
       config.getAs[Double]("minimumRuntimeMemoryInGb"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
@@ -646,7 +647,8 @@ object Config {
       config.as[GalaxyDrsUrl]("drsUrl"),
       config.as[Int]("minMemoryGb"),
       config.as[Int]("minNumOfCpus"),
-      config.as[Boolean]("enabled")
+      config.as[Boolean]("enabled"),
+      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
@@ -670,7 +672,8 @@ object Config {
       services = config.as[List[ServiceConfig]]("services"),
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
       dbPassword = config.as[DbPassword]("dbPassword"),
-      enabled = config.as[Boolean]("enabled")
+      enabled = config.as[Boolean]("enabled"),
+      chartVersionsToExcludeFromUpdates = config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
@@ -682,7 +685,8 @@ object Config {
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[CustomApplicationAllowListConfig]("customApplicationAllowList"),
-      config.as[Boolean]("enabled")
+      config.as[Boolean]("enabled"),
+      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
@@ -694,7 +698,8 @@ object Config {
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[Boolean]("enabled")
+      config.as[Boolean]("enabled"),
+      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
@@ -855,7 +860,8 @@ object Config {
       config.as[PollMonitorConfig]("deleteApp"),
       config.as[PollMonitorConfig]("scalingUpNodepool"),
       config.as[PollMonitorConfig]("scalingDownNodepool"),
-      config.as[InterruptablePollMonitorConfig]("startApp")
+      config.as[InterruptablePollMonitorConfig]("startApp"),
+      config.as[InterruptablePollMonitorConfig]("updateApp")
     )
   }
 

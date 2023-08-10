@@ -127,7 +127,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       Galaxy,
       NamespaceName("ns"),
       None,
-      Some(traceId)
+      Some(traceId),
+      false
     )
 
     val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))
@@ -162,7 +163,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     SubnetworkName("batch-subnet"),
     SubnetworkName("aks-subnet"),
     com.azure.core.management.Region.US_EAST,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresName("postgres"))
   )
 
   it should "encode/decode LandingZoneResources properly" in {

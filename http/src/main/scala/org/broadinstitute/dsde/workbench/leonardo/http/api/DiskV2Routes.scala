@@ -69,12 +69,13 @@ class DiskV2Routes(diskV2Service: DiskV2Service[IO], userInfoDirectives: UserInf
 }
 
 object DiskV2Routes {
-  implicit val getPersistentDiskV2ResponseEncoder: Encoder[GetPersistentDiskV2Response] = Encoder.forProduct13(
+  implicit val getPersistentDiskV2ResponseEncoder: Encoder[GetPersistentDiskV2Response] = Encoder.forProduct14(
     "id",
     "cloudContext",
     "zone",
     "name",
     "serviceAccount",
+    "samResource",
     "status",
     "auditInfo",
     "size",
@@ -90,6 +91,7 @@ object DiskV2Routes {
       x.zone,
       x.name,
       x.serviceAccount,
+      x.samResource,
       x.status,
       x.auditInfo,
       x.size,

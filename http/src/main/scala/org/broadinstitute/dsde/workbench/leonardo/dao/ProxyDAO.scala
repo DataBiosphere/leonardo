@@ -3,11 +3,8 @@ package dao
 
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.Async
-import cats.effect.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.http4s.Uri
-
-import scala.concurrent.duration._
 
 sealed trait HostStatus extends Product with Serializable
 object HostStatus {
@@ -36,17 +33,17 @@ object HostStatus {
 }
 
 object Proxy {
+
   def getRuntimeTargetHost[F[_]: Async](runtimeDnsCache: RuntimeDnsCache[F],
                                         cloudContext: CloudContext,
                                         runtimeName: RuntimeName
   ): F[HostStatus] =
     runtimeDnsCache
       .getHostStatus(RuntimeDnsCacheKey(cloudContext, runtimeName))
-      .timeout(5 seconds)
 
   def getAppTargetHost[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F],
                                     cloudContext: CloudContext,
                                     appName: AppName
   ): F[HostStatus] =
-    kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(cloudContext, appName)).timeout(5 seconds)
+    kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(cloudContext, appName))
 }

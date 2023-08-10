@@ -13,8 +13,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{
-  getActiveRuntimeQueryByWorkspaceId,
-  getRuntimeQueryByUniqueKey
+  getRuntimeQueryByUniqueKey,
+  getRuntimeQueryByWorkspaceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
@@ -62,6 +62,7 @@ object RuntimeServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[Option[RuntimeStatus]] = {
     val res = clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
@@ -97,10 +98,10 @@ object RuntimeServiceDbQueries {
     }
   }
 
-  def getActiveRuntime(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+  def getRuntimeByWorkspaceId(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
     executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
-    val activeRuntime = getActiveRuntimeQueryByWorkspaceId(workspaceId, runtimeName)
+    val activeRuntime = getRuntimeQueryByWorkspaceId(workspaceId, runtimeName)
       .join(runtimeConfigs)
       .on(_._1.runtimeConfigId === _.id)
       .joinLeft(persistentDiskQuery.tableQuery)

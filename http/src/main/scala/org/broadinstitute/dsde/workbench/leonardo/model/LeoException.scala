@@ -17,6 +17,7 @@ class LeoException(val message: String = null,
   override def getMessage: String = if (message != null) message else super.getMessage
 
   def getLoggingMessage: String = s"${getMessage}. ${extraMessageInLogging}"
+
   def getLoggingContext: Map[String, String] = traceId match {
     case Some(value) => Map("traceId" -> value.asString)
     case None        => Map.empty
@@ -42,6 +43,20 @@ case class ForbiddenError(email: WorkbenchEmail, traceId: Option[TraceId] = None
       s"${email.value} is unauthorized. " +
         "If you have proper permissions to use the workspace, make sure you are also added to the billing account",
       StatusCodes.Forbidden,
+      traceId = traceId
+    )
+
+case class NotAnAdminError(email: WorkbenchEmail, traceId: Option[TraceId] = None)
+    extends LeoException(
+      s"${email.value} is not a Terra admin.",
+      StatusCodes.Forbidden,
+      traceId = traceId
+    )
+
+case class NoMatchingAppError(appType: AppType, cloudProvider: CloudProvider, traceId: Option[TraceId] = None)
+    extends LeoException(
+      s"No matching app config found for appType ${appType.toString} and cloud provider ${cloudProvider.asString}. Leo likely doesn't deploy this app on this cloud.",
+      StatusCodes.PreconditionFailed,
       traceId = traceId
     )
 
