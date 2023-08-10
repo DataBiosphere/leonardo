@@ -275,14 +275,16 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
 
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    try {
+    try
       withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
         withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
           runTestAndCheckOutcome(workspace)
         }
       }
-    } catch {
-      case e: org.broadinstitute.dsde.workbench.service.RestException if e.message == "Project cannot be deleted because it contains workspaces." => Succeeded
+    catch {
+      case e: org.broadinstitute.dsde.workbench.service.RestException
+          if e.message == "Project cannot be deleted because it contains workspaces." =>
+        Succeeded
       case e => throw e
     }
   }
@@ -315,7 +317,10 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
       try
         Rawls.workspaces.delete(projectName.value, workspaceName)
       catch {
-        case e: Exception => println(s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: ${e}")
+        case e: Exception =>
+          println(
+            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: ${e}"
+          )
       }
   }
 
