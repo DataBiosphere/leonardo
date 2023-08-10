@@ -284,6 +284,9 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     catch {
       case e: org.broadinstitute.dsde.workbench.service.RestException
           if e.message == "Project cannot be deleted because it contains workspaces." =>
+        println(
+          s"Exception occurred in test, but it is classed as a non-fatal cleanup error (likely in `withTemporaryAzureBillingProject`: $e"
+        )
         Succeeded
       case e => throw e
     }
