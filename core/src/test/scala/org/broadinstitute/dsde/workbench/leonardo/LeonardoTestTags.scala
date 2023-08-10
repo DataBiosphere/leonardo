@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.scalatest.Tag
 
-object LeonardoTags {
+object LeonardoTestTags {
   // intent: run tests of Slick queries separately
   object SlickPlainQueryTest extends Tag("SlickPlainQueryTest")
 

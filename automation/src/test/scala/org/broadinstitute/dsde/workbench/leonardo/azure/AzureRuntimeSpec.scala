@@ -1,5 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo
-package azure
+package org.broadinstitute.dsde.workbench.leonardo.azure
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
@@ -12,10 +11,12 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{ParallelTestExecution, Retries}
+
 import scala.concurrent.duration._
 
 //@DoNotDiscover
@@ -29,7 +30,7 @@ class AzureRuntimeSpec
 
   implicit val accessToken = Hermione.authToken()
 
-  "create, get, delete azure runtime" taggedAs LeonardoTags.ExcludeFromJenkins in { workspaceDetails =>
+  "create, get, delete azure runtime" taggedAs LeonardoTestTags.ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
