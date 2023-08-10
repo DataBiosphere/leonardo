@@ -178,7 +178,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                   case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("batch")    => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ListenerChartConfig.service.config.name =>
+                  case ConfigReader.appConfig.azure.listenerChartConfig.service.config.name =>
                     listenerDAO.getStatus(relayPath).handleError(_ => false)
                   case s =>
                     logger.warn(ctx.loggingCtx)(
