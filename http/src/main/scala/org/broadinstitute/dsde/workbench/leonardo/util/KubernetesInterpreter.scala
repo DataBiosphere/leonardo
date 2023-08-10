@@ -8,7 +8,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
 import io.kubernetes.client.openapi.apis.CoreV1Api
-import io.kubernetes.client.openapi.models.V1NamespaceList
+import io.kubernetes.client.openapi.models.{V1Namespace, V1NamespaceList, V1ObjectMeta}
 import io.kubernetes.client.util.Config
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, AzureContainerService}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
@@ -104,6 +104,28 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       )
 
     } yield listPodStatus
+
+  override def createNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      call = F
+        .blocking(
+          client.createNamespace(new V1Namespace().metadata(new V1ObjectMeta().name(namespace.name.value)),
+                                 "true",
+                                 null,
+                                 null,
+                                 null
+          )
+        )
+        .void
+      _ <- withLogging(
+        call,
+        Some(ctx.traceId),
+        s"io.kubernetes.client.openapi.apis.CoreV1Api.createNamespace(${namespace.name.value}, true, null, null, null)"
+      )
+    } yield ()
 
   override def deleteNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
     ev: Ask[F, AppContext]

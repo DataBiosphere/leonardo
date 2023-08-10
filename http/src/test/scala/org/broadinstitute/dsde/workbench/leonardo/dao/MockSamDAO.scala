@@ -400,6 +400,10 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
 
+  override def isAdminUser(userInfo: UserInfo)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Boolean] = IO.pure(false)
+
   override def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
     sr: SamResource[R],
     ev: Ask[IO, TraceId]

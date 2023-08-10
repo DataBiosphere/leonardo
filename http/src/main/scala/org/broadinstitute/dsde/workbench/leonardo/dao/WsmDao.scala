@@ -315,6 +315,7 @@ object WsmDecoders {
 
   implicit val createStorageContainerResultDecoder: Decoder[CreateStorageContainerResult] =
     Decoder.forProduct1("resourceId")(CreateStorageContainerResult.apply)
+
   implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
     for {
       tenantId <- c.downField("tenantId").as[String]

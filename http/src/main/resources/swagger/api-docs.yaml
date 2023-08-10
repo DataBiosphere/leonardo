@@ -20,6 +20,8 @@ tags:
     description: Apps API v2. Support for Google Kubernetes Engine and Azure Kubernetes Service. Under active Development.
   - name: proxy
     description: Proxy API
+  - name: admin
+    description: Admin API
   - name: notebooks
     description: Notebooks API. Deprecated in favor of Proxy API.
   - name: service_info
@@ -1878,6 +1880,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  ## Admin API ##
+
+  "/api/admin/v2/apps/update":
+    post:
+      summary: Updates Kubernetes apps
+      description: Updates a designated collection of Kubernetes apps (both v1 and v2)
+      operationId: updateApps
+      tags:
+        - admin
+      requestBody:
+        $ref: "#/components/requestBodies/UpdateAppsRequest"
+      responses:
+        "200":
+          description: Dry run results successfully returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUpdateableAppResponse"
+        "202":
+          description: App(s) update request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListUpdateableAppResponse"
+        "403":
+          description: Forbidden (user is not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "412":
+          description: Precondition failed (the app type and cloud provider in the request didn't match any app profiles)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Deprecated Notebook API ##
 
   "/notebooks/{googleProject}/{clusterName}":
@@ -2790,6 +2835,15 @@ components:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
+    UpdateAppsRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateAppsRequest"
+          example:
+            appType: CROMWELL
+            cloudProvider: AZURE
+            dryRun: true
 
   securitySchemes:
     oidc:
@@ -2929,14 +2983,19 @@ components:
         - id
         - runtimeName
         - googleProject
+        - cloudContext
         - serviceAccount
         - auditInfo
         - runtimeConfig
+        - proxyUrl
         - status
         - labels
+        - erors
         - autopauseThreshold
-        - defaultClientId
+        - runtimeImages
         - scopes
+        - customEnvironmentVariables
+        - patchInProgress
       properties:
         id:
           type: integer
@@ -3049,8 +3108,8 @@ components:
           description: The user-supplied name for the runtime
         auditInfo:
           allOf:
-          - $ref: "#/components/schemas/AuditInfo"
-          - type: object
+            - $ref: "#/components/schemas/AuditInfo"
+            - type: object
         googleProject:
           type: string
           description: Deprecated. The Google Project used to create the runtime
@@ -3177,15 +3236,13 @@ components:
         - zone
         - name
         - serviceAccount
-        - samResourceId
+        - samResource
         - status
         - auditInfo
         - size
         - diskType
         - blockSize
         - labels
-        - workspaceId
-        - formattedBy
       properties:
         id:
           type: integer
@@ -3201,7 +3258,7 @@ components:
         serviceAccount:
           type: string
           description: The account used to create the disk
-        samResourceId:
+        samResource:
           type: string
           description: Internal resource ID of the persistent disk
         status:
@@ -3596,19 +3653,28 @@ components:
       properties:
         cloudService:
           type: string
-          enum: [gce, dataproc]
+          enum: [GCE, DATAPROC, AZURE_VM]
+        configType:
+          type: string
+          enum: [Dataproc, GceConfig, GceWithPdCConfig, AzureVmConfig]
     OneOfRuntimeConfig:
       oneOf:
         - $ref: "#/components/schemas/GceConfig"
         - $ref: "#/components/schemas/GceWithPdConfig"
         - $ref: "#/components/schemas/DataprocConfig"
+        - $ref: "#/components/schemas/AzureConfig"
       discriminator:
         propertyName: cloudService
         mapping:
           gce: "#/components/schemas/GceWithPdConfig"
           dataproc: "#/components/schemas/DataprocConfig"
+          azure_vm: "#/components/schemas/AzureConfig"
     RuntimeImage:
       type: object
+      required:
+        - imageType
+        - imageUrl
+        - timestamp
       properties:
         imageType:
           description: "The container this image supports. Ex Jupyter, Proxy, VM"
@@ -3619,6 +3685,9 @@ components:
         timestamp:
           type: string
           description: timestamp for image addition to the runtime in ISO 8601 format
+        homeDirectory:
+          type: string
+          description: Home directory in the image
     GceConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
@@ -3756,6 +3825,25 @@ components:
               description: >
                 Optional, specifies whether to prevent public Internet access from the Dataproc worker nodes,
                 if any. Does not affect the master node. Defaults to false.
+    AzureConfig:
+      description: Configuration for an Azure VM
+      allOf:
+        - $ref: '#/components/schemas/RuntimeConfig'
+        - type: object
+          properties:
+            machineType:
+              type: string
+              description: >
+                Azure machine type describing number of CPUs/Memory as , ex: Standard_DS1_v2. 
+                See https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+            persistentDiskId:
+              type: number
+              description: >
+                The id of the persistent disk associated with this runtime (this is Leo's internal ID for the disk)
+            region:
+              type: string
+              description: >
+                The azure region this resource resides in
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:
@@ -3872,6 +3960,42 @@ components:
           type: string
           description: Optional id of source workspace if app is a clone.
 
+    UpdateAppsRequest:
+      description: a request to update a specific set of apps (v1 or v2)
+      required:
+        - appType
+        - cloudProvider
+      type: object
+      properties:
+        appType:
+          $ref: '#/components/schemas/AppType'
+        cloudProvider:
+          $ref: '#/components/schemas/CloudProvider'
+        appVersionsInclude:
+          type: array
+          description: If provided, apps currently running these chart versions will be updated. Applied after a config-level default exclusion list.
+          items:
+            type: string
+        appVersionsExclude:
+          type: array
+          description: If provided, apps currently running these chart versions will NOT be updated. Applied after a config-level default exclusion list.
+          items:
+            type: string
+        googleProject:
+          type: string
+          description: If provided, update apps in this Google project
+        workspaceId:
+          type: string
+          description: If provided, update apps in this workspace
+        appNames:
+          type: array
+          description: If provided, apps with these names will be updated
+          items:
+            type: string
+        dryRun:
+          type: boolean
+          description: If true, report on what apps would be updated but take no action. Defaults to false.
+
     GetAppResponse:
       description: the configuration of an app
       required:
@@ -3957,6 +4081,37 @@ components:
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
+
+    ListUpdateableAppResponse:
+      description: out-of-date app properties
+      type: object
+      properties:
+        workspaceId:
+          type: string
+          description: workspaceId
+        cloudContext:
+          $ref: '#/components/schemas/CloudContext'
+        status:
+          $ref: "#/components/schemas/AppStatus"
+        appId:
+          type: number
+          description: the id of the app
+        appName:
+          type: string
+          description: the name of the app
+        appType:
+          $ref: '#/components/schemas/AppType'
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
+        chart:
+          type: string
+          description: the currently installed chart version
+        accessScope:
+          $ref: '#/components/schemas/AppAccessScope'
+        labels:
+          type: object
+          description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
+
 
     CloudContext:
       description: Cloud platform which holds context for a workspace.

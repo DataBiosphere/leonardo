@@ -14,6 +14,11 @@ package object leonardo {
   val autoPauseOffValue = 0
   val traceIdHeaderString = ci"X-Cloud-Trace-Context"
 
+  val SECURITY_GROUP = "security-group"
+  val SECURITY_GROUP_HIGH = "high"
+
+  val AOU_UI_LABEL = "all-of-us"
+
   implicit def http4sBody[F[_], A](body: A)(implicit encoder: EntityEncoder[F, A]): Entity[F] =
     encoder.toEntity(body)
 

@@ -131,7 +131,7 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     }
   } yield ()
 
-  override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+  override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = IO.pure(true)
 
   override def notifyResourceCreatedV2[R](samResource: R,
                                           creatorEmail: WorkbenchEmail,
@@ -159,4 +159,6 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       }
     }
   } yield filteredResources.toSet
+
+  override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }

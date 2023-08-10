@@ -157,6 +157,9 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object StartApp extends LeoPubsubMessageType {
     val asString = "startApp"
   }
+  final case object UpdateApp extends LeoPubsubMessageType {
+    val asString = "updateApp"
+  }
   final case object CreateAzureRuntime extends LeoPubsubMessageType {
     val asString = "createAzureRuntime"
   }
@@ -271,7 +274,8 @@ object LeoPubsubMessage {
     machineType: Option[
       AppMachineType
     ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
-    traceId: Option[TraceId]
+    traceId: Option[TraceId],
+    enableIntraNodeVisibility: Boolean
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
@@ -352,6 +356,16 @@ object LeoPubsubMessage {
   final case class UpdateDiskMessage(diskId: DiskId, newSize: DiskSize, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
+  }
+
+  final case class UpdateAppMessage(appId: AppId,
+                                    appName: AppName,
+                                    cloudContext: CloudContext,
+                                    workspaceId: Option[WorkspaceId],
+                                    googleProject: Option[GoogleProject],
+                                    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateApp
   }
 
   final case class CreateAzureRuntimeMessage(
@@ -521,16 +535,18 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppMessageDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct10("project",
-                         "clusterNodepoolAction",
-                         "appId",
-                         "appName",
-                         "createDisk",
-                         "customEnvironmentVariables",
-                         "appType",
-                         "namespaceName",
-                         "machineType",
-                         "traceId"
+    Decoder.forProduct11(
+      "project",
+      "clusterNodepoolAction",
+      "appId",
+      "appName",
+      "createDisk",
+      "customEnvironmentVariables",
+      "appType",
+      "namespaceName",
+      "machineType",
+      "traceId",
+      "enableIntraNodeVisibility"
     )(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -541,6 +557,11 @@ object LeoPubsubCodec {
 
   implicit val startAppDecoder: Decoder[StartAppMessage] =
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
+
+  implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
+    Decoder.forProduct6("appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
+      UpdateAppMessage.apply
+    )
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
     Decoder.forProduct8(
@@ -613,6 +634,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.DeleteApp          => message.as[DeleteAppMessage]
         case LeoPubsubMessageType.StopApp            => message.as[StopAppMessage]
         case LeoPubsubMessageType.StartApp           => message.as[StartAppMessage]
+        case LeoPubsubMessageType.UpdateApp          => message.as[UpdateAppMessage]
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
         case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
@@ -887,7 +909,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct11(
+    Encoder.forProduct12(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -898,7 +920,8 @@ object LeoPubsubCodec {
       "appType",
       "namespaceName",
       "machineType",
-      "traceId"
+      "traceId",
+      "enableIntraNodeVisibility"
     )(x =>
       (x.messageType,
        x.project,
@@ -910,7 +933,8 @@ object LeoPubsubCodec {
        x.appType,
        x.namespaceName,
        x.machineType,
-       x.traceId
+       x.traceId,
+       x.enableIntraNodeVisibility
       )
     )
 
@@ -927,6 +951,11 @@ object LeoPubsubCodec {
   implicit val startAppMessageEncoder: Encoder[StartAppMessage] =
     Encoder.forProduct5("messageType", "appId", "appName", "project", "traceId")(x =>
       (x.messageType, x.appId, x.appName, x.project, x.traceId)
+    )
+
+  implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
+    Encoder.forProduct7("messageType", "appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
+      x => (x.messageType, x.appId, x.appName, x.cloudContext, x.workspaceId, x.googleProject, x.traceId)
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
@@ -1021,6 +1050,7 @@ object LeoPubsubCodec {
     case m: DeleteAppMessage          => m.asJson
     case m: StopAppMessage            => m.asJson
     case m: StartAppMessage           => m.asJson
+    case m: UpdateAppMessage          => m.asJson
     case m: CreateAzureRuntimeMessage => m.asJson
     case m: DeleteAzureRuntimeMessage => m.asJson
     case m: CreateAppV2Message        => m.asJson
@@ -1139,6 +1169,13 @@ object PubsubHandleMessageError {
       extends PubsubHandleMessageError {
     override def getMessage: String =
       s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+    val isRetryable: Boolean = false
+  }
+
+  final case class AppNotFound(appId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process transition finished message ${message} for app ${appId} because it was not found in the database"
+
     val isRetryable: Boolean = false
   }
 }
