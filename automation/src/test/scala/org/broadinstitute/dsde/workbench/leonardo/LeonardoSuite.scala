@@ -20,7 +20,9 @@ import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRo
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.getAuthTokenAndAuthorization
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
 
 import java.util.UUID

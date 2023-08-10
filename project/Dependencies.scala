@@ -12,7 +12,7 @@ object Dependencies {
   val http4sVersion = "1.0.0-M40"
   val slickV = "3.4.1"
   val guavaV = "32.1.2-jre"
-  val monocleV = "2.1.0"
+  val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
@@ -168,8 +168,8 @@ object Dependencies {
     helmScalaSdk,
     helmScalaSdkTest,
     "net.logstash.logback" % "logstash-logback-encoder" % "7.4", // for structured logging in logback
-    "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
-    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
+    "dev.optics" %%  "monocle-core"  % monocleV,
+    "dev.optics" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
     "com.github.pureconfig" %% "pureconfig" % "0.17.4" % Provided,

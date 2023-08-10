@@ -21,13 +21,12 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
-import org.broadinstitute.dsp.ChartName
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -41,7 +40,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
-import monocle.macros.syntax.lens._
 
 import java.time.Instant
 import java.util.UUID
@@ -84,21 +82,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
       _ <- req.appType match {
-        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell => F.unit
-        case AppType.Allowed =>
-          req.allowedChartName match {
-            case Some(cn) =>
-              cn match {
-                case AllowedChartName.RStudio => F.unit
-                case AllowedChartName.Sas     => F.unit // TODO: check group permission check here
-              }
-            case None =>
-              F.raiseError(
-                BadRequestException("when AppType is ALLOWED, allowedChartName needs to be specified",
-                                    Some(ctx.traceId)
-                )
-              )
-          }
+        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.RStudio | AppType.Cromwell => F.unit
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>
@@ -508,7 +492,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Validate shared access scope apps against an allow-list. No-op for private apps.
       _ <- req.accessScope match {
         case Some(AppAccessScope.WorkspaceShared) =>
-          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType))(
+          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType.toString))(
             SharedAppNotAllowedException(req.appType, ctx.traceId)
           )
         case _ => F.unit
@@ -889,8 +873,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
-                (Some(FormattedBy.Cromwell), Some(AppRestore.Other(_))) |
-                (Some(FormattedBy.Allowed), Some(AppRestore.Other(_))) =>
+                (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) |
+                (Some(FormattedBy.RStudio), Some(RStudioRestore(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
                 lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
@@ -910,7 +894,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                 }
               } yield lastUsed.some
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
-                (Some(FormattedBy.Allowed), None) =>
+                (Some(FormattedBy.RStudio), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
               )
@@ -932,7 +916,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(
                   diskResult.disk.formattedBy.get,
-                  s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString} or ${FormattedBy.Allowed.asString}",
+                  s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString} or ${FormattedBy.RStudio.asString}",
                   ctx.traceId
                 )
               )
@@ -1078,16 +1062,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       // Validate app type
       gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
-        case (Galaxy, CloudProvider.Gcp)          => Right(config.leoKubernetesConfig.galaxyAppConfig)
-        case (Custom, CloudProvider.Gcp)          => Right(config.leoKubernetesConfig.customAppConfig)
-        case (Cromwell, CloudProvider.Gcp)        => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (AppType.Allowed, CloudProvider.Gcp) => Right(config.leoKubernetesConfig.allowedAppConfig)
-        case (Cromwell, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.coaAppConfig)
-        case (Wds, CloudProvider.Azure)           => Right(ConfigReader.appConfig.azure.wdsAppConfig)
-        case (HailBatch, CloudProvider.Azure)     => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
-        case _ =>
-          AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId)
-            .asLeft[KubernetesAppConfig]
+        case (Galaxy, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (RStudio, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.rstudioAppConfig)
+        case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
+        case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
+        case _ => Left(AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId))
       }
 
       // Check if app type is enabled
@@ -1143,32 +1125,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
       )(app => app.namespaceName.asRight[Throwable])
 
-      potentialNewChart =
-        if (req.appType == AppType.Allowed) {
-          val chartVersion = req.allowedChartName.get match {
-            case AllowedChartName.RStudio => config.leoKubernetesConfig.allowedAppConfig.rstudioChartVersion
-            case AllowedChartName.Sas     => config.leoKubernetesConfig.allowedAppConfig.sasChartVersion
-          }
-          gkeAppConfig.chart
-            .lens(_.name)
-            .modify(cn => ChartName(cn.asString + req.allowedChartName.map(_.asString).get))
-            .lens(_.version)
-            .modify(_ => chartVersion)
-        } else gkeAppConfig.chart
-
       chart = lastUsedApp
         .map { lastUsed =>
           // if there's a patch version bump, then we use the later version defined in leo config; otherwise, we use lastUsed chart definition
           if (
-            lastUsed.chart.name == potentialNewChart.name && isPatchVersionDifference(lastUsed.chart.version,
+            lastUsed.chart.name == gkeAppConfig.chartName && isPatchVersionDifference(lastUsed.chart.version,
                                                                                       gkeAppConfig.chartVersion
             )
           )
-            potentialNewChart
+            gkeAppConfig.chart
           else lastUsed.chart
         }
-        .getOrElse(potentialNewChart)
-
+        .getOrElse(gkeAppConfig.chart)
       release <- lastUsedApp.fold(
         KubernetesName.withValidation(
           s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
@@ -1274,7 +1242,7 @@ object LeoAppServiceInterp {
                                  diskConfig: PersistentDiskConfig,
                                  cromwellAppConfig: CromwellAppConfig,
                                  customAppConfig: CustomAppConfig,
-                                 allowedAppConfig: AllowedAppConfig
+                                 rstudioAppConfig: RStudioAppConfig
   )
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {

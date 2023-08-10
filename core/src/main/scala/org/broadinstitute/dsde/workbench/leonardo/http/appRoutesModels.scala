@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
-  AllowedChartName,
   App,
   AppAccessScope,
   AppError,
@@ -18,14 +17,12 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   Nodepool,
   WorkspaceId
 }
-import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
 import java.net.URL
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
-                                  allowedChartName: Option[AllowedChartName],
                                   accessScope: Option[AppAccessScope],
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty,
@@ -45,7 +42,6 @@ final case class GetAppResponse(appName: AppName,
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo,
                                 appType: AppType,
-                                chartName: ChartName,
                                 accessScope: Option[AppAccessScope],
                                 labels: LabelMap
 )
@@ -58,7 +54,6 @@ final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  proxyUrls: Map[ServiceName, URL],
                                  appName: AppName,
                                  appType: AppType,
-                                 chartName: ChartName,
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo,
                                  accessScope: Option[AppAccessScope],
@@ -84,7 +79,6 @@ object ListAppResponse {
           a.getProxyUrls(c, proxyUrlBase),
           a.appName,
           a.appType,
-          a.chart.name,
           a.appResources.disk.map(_.name),
           a.auditInfo,
           a.appAccessScope,
@@ -111,7 +105,6 @@ object GetAppResponse {
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo,
       appResult.app.appType,
-      appResult.app.chart.name,
       appResult.app.appAccessScope,
       appResult.app.labels
     )
