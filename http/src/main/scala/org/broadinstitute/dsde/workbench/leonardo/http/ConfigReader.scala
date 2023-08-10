@@ -75,9 +75,8 @@ final case class DrsConfig(url: String)
 
 final case class TdrConfig(url: String)
 
-final case class ListenerChartConfig(chartName: ChartName, chartVersion: ChartVersion)
-object ListenerChartConfig {
-  val service = KubernetesService(
+final case class ListenerChartConfig(chartName: ChartName, chartVersion: ChartVersion) {
+  def service = KubernetesService(
     ServiceId(-1),
     ServiceConfig(ServiceName("listener"), KubernetesServiceKindName("ClusterIP"))
   )

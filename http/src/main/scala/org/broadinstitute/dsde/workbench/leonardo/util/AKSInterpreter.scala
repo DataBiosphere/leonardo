@@ -435,7 +435,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
       // Update the relay listener deployment
-      _ <- updateListener(authContext, app, landingZoneResources, workspaceId, hcName, relayPrimaryKey, relayDomain)
+      _ <- updateListener(authContext,
+                          app,
+                          landingZoneResources,
+                          workspaceId,
+                          hcName,
+                          relayPrimaryKey,
+                          relayDomain,
+                          config.listenerChartConfig
+      )
 
       // Generate the app values to pass to helm at the upgrade chart step
       chartOverrideValues <- app.appType match {
@@ -484,10 +492,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             maybeDbNames = (wsmDbNames.find(_.startsWith("cromwell")),
                             wsmDbNames.find(_.startsWith("cbas")),
                             wsmDbNames.find(_.startsWith("tes"))
-            ) match {
-              case (Some(cromwell), Some(cbas), Some(tes)) => Some(CromwellDatabaseNames(cromwell, cbas, tes))
-              case _                                       => None
-            }
+            ).mapN(CromwellDatabaseNames)
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
             identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeDbNames) match {
@@ -1320,12 +1325,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                              workspaceId: WorkspaceId,
                              hcName: RelayHybridConnectionName,
                              primaryKey: PrimaryKey,
-                             relayDomain: String
+                             relayDomain: String,
+                             listenerChartConfig: ListenerChartConfig
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     // Update the Relay Listener if the app tracks it as a service.
     // We're not tracking the listener version in the DB so we can't really pick and choose which versions to update.
     // We started tracking it as a service when we switched the chart over to terra-helmfile.
-    if (app.appResources.services.exists(s => s.config.name == ListenerChartConfig.service.config.name)) {
+    if (app.appResources.services.exists(s => s.config.name == listenerChartConfig.service.config.name)) {
       val values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
         app.release,
         app.samResourceId,
