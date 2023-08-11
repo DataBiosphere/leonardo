@@ -4,15 +4,10 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{
-  AzureDiskConfig,
-  ClusterStatus,
-  CreateAzureRuntimeRequest,
-  DiskStatus
-}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{AzureDiskConfig, ClusterStatus, CreateAzureRuntimeRequest, DiskStatus}
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.http4s.headers.Authorization
