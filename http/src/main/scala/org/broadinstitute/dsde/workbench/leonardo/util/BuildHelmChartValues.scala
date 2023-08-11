@@ -245,7 +245,7 @@ private[leonardo] object BuildHelmChartValues {
                                                stagingBucket: GcsBucketName,
                                                customEnvironmentVariables: Map[String, String]
   ): List[String] = {
-    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
+    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
