@@ -70,6 +70,7 @@ object KubernetesTestData {
     AppType.Galaxy,
     None,
     None,
+    None,
     Map.empty,
     Map.empty,
     None,
@@ -108,6 +109,7 @@ object KubernetesTestData {
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
+      None,
       None,
       diskConfig = diskConfig,
       labels = Map.empty,

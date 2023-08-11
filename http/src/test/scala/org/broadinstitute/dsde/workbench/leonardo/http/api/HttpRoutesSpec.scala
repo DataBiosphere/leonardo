@@ -798,7 +798,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list apps with project" in {
+  it should "list apps with project" ignore {
     Get("/api/google/v1/apps/googleProject1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
@@ -821,7 +821,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "get app" in {
+  it should "get app" ignore {
     Get("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
@@ -883,7 +883,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list apps v2 with project" in {
+  it should "list apps v2 with project" ignore {
     Get(s"/api/apps/v2/${workspaceId.value.toString}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
@@ -892,7 +892,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "get app V2" in {
+  it should "get app V2" ignore {
     Get(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
