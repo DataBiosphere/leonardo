@@ -227,7 +227,7 @@ object Boot extends IOApp {
       logger.info("XXX " + config).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       logger.info("XXX " + config.getConfig("refererConfig")).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       logger
-        .info("XXX " + config.getConfig("refererConfig.validHosts"))
+        .info("XXX " + config.getList("refererConfig.validHosts"))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       logger.info("XXX env is " + System.getenv().asScala).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       logger.info("XXX refererConfig is " + refererConfig).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
