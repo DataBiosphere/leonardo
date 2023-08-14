@@ -224,6 +224,7 @@ object Boot extends IOApp {
         refererConfig
       )
 
+      logger.info("XXX env is " + System.getenv().asScala)
       logger.info("XXX refererConfig is " + refererConfig).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
       val httpServer = for {
