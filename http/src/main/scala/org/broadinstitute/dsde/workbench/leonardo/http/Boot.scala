@@ -223,6 +223,9 @@ object Boot extends IOApp {
         contentSecurityPolicy,
         refererConfig
       )
+
+      logger.info("XXX refererConfig is " + refererConfig).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
       val httpServer = for {
         start <- IO.realTimeInstant
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
