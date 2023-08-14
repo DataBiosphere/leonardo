@@ -13,7 +13,7 @@ start() {
     --restart "always" \
     -p 3306:3306 \
     --env-file="${SECRETS_DIR}/sqlproxy.env" \
-    us-central1-docker.pkg.dev/dsp-artifact-registry/cloudsqlproxy/cloudsqlproxy:0.0.1
+    us-central1-docker.pkg.dev/dsp-artifact-registry/cloudsqlproxy/cloudsqlproxy:latest
 
     echo "Copying files to CloudSQL proxy container..."
     docker cp ${SECRETS_DIR}/leonardo-account.json sqlproxy:/etc/sqlproxy-service-account.json

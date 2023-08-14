@@ -256,8 +256,6 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
   import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
   override type FixtureParam = WorkspaceResponse
 
-  val azureBillingProjectKey = "leonardo.azureBillingProject"
-
   // These are static coordinates for this managed app in the azure portal: https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview
   // Note that the final 'optional' field for a pre-created landing zone is not technically optional
   // If you fail to include a landing zone, the wb-libs call to create the billing project will fail, timing out due to landing zone creation not being an expected part of creation
@@ -269,18 +267,26 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
   )
 
-  // Needed for wb-libs
-
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
 
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
-      withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
-        runTestAndCheckOutcome(workspace)
+    try
+      withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
+        withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
+          runTestAndCheckOutcome(workspace)
+        }
       }
+    catch {
+      case e: org.broadinstitute.dsde.workbench.service.RestException
+          if e.message == "Project cannot be deleted because it contains workspaces." =>
+        println(
+          s"Exception occurred in test, but it is classed as a non-fatal cleanup error (likely in `withTemporaryAzureBillingProject`: $e"
+        )
+        Succeeded
+      case e => throw e
     }
   }
 
@@ -304,12 +310,19 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     val response =
       workspaceResponse(projectName.value, workspaceName).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    println(s"withRawlsWorkspace: Rawls workspace create called, response: ${response}")
+    println(s"withRawlsWorkspace: Rawls workspace get called, response: ${response}")
 
     try
       testCode(response)
     finally
-      Rawls.workspaces.delete(projectName.value, workspaceName)
+      try
+        Rawls.workspaces.delete(projectName.value, workspaceName)
+      catch {
+        case e: Exception =>
+          println(
+            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: ${e}"
+          )
+      }
   }
 
   private def workspaceResponse(projectName: String, workspaceName: String)(implicit
