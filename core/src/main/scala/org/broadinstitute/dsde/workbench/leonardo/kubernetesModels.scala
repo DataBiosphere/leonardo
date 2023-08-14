@@ -376,9 +376,9 @@ object AppType {
    */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy                     => FormattedBy.Galaxy
-      case Custom                     => FormattedBy.Custom
-      case Allowed                    => FormattedBy.Allowed
+      case Galaxy                                                        => FormattedBy.Galaxy
+      case Custom                                                        => FormattedBy.Custom
+      case Allowed                                                       => FormattedBy.Allowed
       case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp => FormattedBy.Cromwell
     }
 }
