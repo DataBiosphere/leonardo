@@ -24,7 +24,6 @@ import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesService
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 
 object ConfigReader {
@@ -58,7 +57,7 @@ final case class AzureConfig(
   aadPodIdentityConfig: AadPodIdentityConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
-  relayListenerChartConfig: RelayListenerChartConfig
+  listenerChartConfig: ListenerChartConfig
 )
 
 final case class OidcAuthConfig(

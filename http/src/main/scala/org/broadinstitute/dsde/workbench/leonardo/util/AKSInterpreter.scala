@@ -777,7 +777,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
     } yield appOk.isDone
 
-
   private[util] def buildCromwellChartOverrideValues(release: Release,
                                                      appName: AppName,
                                                      cloudContext: AzureCloudContext,
