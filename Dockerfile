@@ -85,10 +85,4 @@ RUN apt-get update && \
 RUN curl -fsSL -o /terra-docker-versions-candidate.json \
     https://storage.googleapis.com/terra-docker-image-documentation/terra-docker-versions-candidate.json
 
-# Add Leonardo as a service (it will start when the container starts)
-# 1. "Exec" form of CMD necessary to avoid `sh` stripping environment variables with periods in them,
-#    used for Lightbend config
-# 2. $JAVA_OPTS and filesystem like /leonardo/leonardo*.jar both necessary as long as Leonardo runs on
-#    Kubernetes without foundation (firecloud-develop requires former, old chart requires latter)
-# We use the "exec" form but call `bash` to accomplish both 1 and 2
-CMD ["/bin/bash", "-c", "java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')"]
+CMD ["java", "-jar", "leonardo.jar"]
