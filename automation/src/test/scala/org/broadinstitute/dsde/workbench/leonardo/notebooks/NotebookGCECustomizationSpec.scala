@@ -25,7 +25,8 @@ final class NotebookGCECustomizationSpec
     with NotebookTestUtils {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
-
+  
+  "NotebookGCECustomizationSpec" - {
   // Using nbtranslate extension from here:
   // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
   "should install user specified notebook extensions" in { billingProject =>
