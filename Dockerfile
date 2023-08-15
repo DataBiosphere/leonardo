@@ -85,4 +85,4 @@ RUN apt-get update && \
 RUN curl -fsSL -o /terra-docker-versions-candidate.json \
     https://storage.googleapis.com/terra-docker-image-documentation/terra-docker-versions-candidate.json
 
-CMD ["java", "-jar", "leonardo.jar"]
+CMD ["java", "-jar", "$(find /leonardo -name 'leonardo*.jar')"]
