@@ -3764,7 +3764,6 @@ components:
     GceWithPdConfigInResponse:
       description: Configuration for Google Compute Engine instances.
       allOf:
-        - $ref: '#/components/schemas/RuntimeConfig'
         - type: object
           properties:
             persistentDiskId:
