@@ -76,6 +76,7 @@ import org.broadinstitute.dsde.workbench.azure.{
   SubscriptionId,
   TenantId
 }
+import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.FrameAncestors
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
 import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.util2.InstanceName
@@ -161,8 +162,8 @@ object CommonTestData {
   val clusterToolConfig = Config.clusterToolMonitorConfig
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val clusterBucketConfig = Config.clusterBucketConfig
-  val contentSecurityPolicy = Config.contentSecurityPolicy
-  val refererConfig = Config.refererConfig
+  val contentSecurityPolicy = Config.contentSecurityPolicy.copy(frameAncestors = FrameAncestors(List("'none'")))
+  val refererConfig = Config.refererConfig.copy(validHosts = Set("example.com", "localhost:3000"))
   val leoKubernetesConfig = Config.leoKubernetesConfig
   val openIdConnectionConfiguration = FakeOpenIDConnectConfiguration
   val azureServiceConfig = AzureServiceConfig(
