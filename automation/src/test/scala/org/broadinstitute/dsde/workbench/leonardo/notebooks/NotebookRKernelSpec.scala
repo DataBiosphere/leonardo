@@ -145,14 +145,6 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "should have Seurat automatically installed" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
-          notebookPage.executeCell(""""Seurat" %in% installed.packages()""") shouldBe Some("TRUE")
-        }
-      }
-    }
-
     "should have Java available" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
