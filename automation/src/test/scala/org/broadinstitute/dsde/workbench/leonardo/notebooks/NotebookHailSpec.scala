@@ -16,7 +16,6 @@ import scala.concurrent.duration._
  */
 @DoNotDiscover
 class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
-  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
   val expectedHailVersion = "0.2.120"
@@ -26,6 +25,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   "NotebookHailSpec" - {
     "should install the right Hail version" in { clusterFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       Thread.sleep(30000) // Sleep 30 seconds to make tests more reliable hopefully
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.runtime, Python3, 10.minutes) { notebookPage =>
@@ -85,6 +85,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     // Make sure we can import data from GCS into Hail.
     // See https://broadworkbench.atlassian.net/browse/IA-1558
     "should import data from GCS" in { clusterFixture =>
+
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       // Create a new bucket
       withNewGoogleBucket(clusterFixture.runtime.googleProject) { bucketName =>
         val ronPetServiceAccount =
@@ -139,6 +141,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     // See https://broadworkbench.atlassian.net/browse/IA-1637
     // This also simulates this featured workspace: https://app.terra.bio/#workspaces/fc-product-demo/2019_ASHG_Reproducible_GWAS
     "should import a pandas DataFrame into Hail" in { clusterFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withResourceFileInBucket(clusterFixture.runtime.googleProject,
                                ResourceFile("bucket-tests/hail_samples.csv"),
                                "text/plain"

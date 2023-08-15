@@ -10,12 +10,12 @@ import org.scalatest.DoNotDiscover
  */
 @DoNotDiscover
 class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
-  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.aouImageUrl)
 
   "NotebookAoUSpec" - {
     "should have wondershaper installed" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           val result = notebookPage.executeCell("!command -v wondershaper")
@@ -26,6 +26,7 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should have Pandas automatically installed" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import pandas") should (be(None) or be(
@@ -36,6 +37,7 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should have bigrquery automatically installed" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           notebookPage.executeCell(""""bigrquery" %in% installed.packages()""") shouldBe Some("TRUE")

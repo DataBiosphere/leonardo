@@ -142,8 +142,6 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  implicit val ronTestersonAuthorization = Ron.authorization()
-
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
@@ -201,7 +199,9 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
   // resources like networks, subnets, etc are set up prior to the concurrent test execution.
   // We can remove this once https://broadworkbench.atlassian.net/browse/IA-2121 is done.
 
-  private def createInitialRuntime(project: GoogleProject): IO[Unit] =
+  private def createInitialRuntime(project: GoogleProject): IO[Unit] = {
+
+    implicit val ronTestersonAuthorization = Ron.authorization()
     if (isHeadless) {
       LeonardoApiClient.client.use { implicit c =>
         for {
@@ -224,8 +224,10 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
         } yield ()
       }
     } else IO.unit
+  }
 
-  private def deleteInitialRuntime(project: GoogleProject): IO[Unit] =
+  private def deleteInitialRuntime(project: GoogleProject): IO[Unit] = {
+    implicit val ronTestersonAuthorization = Ron.authorization()
     if (isHeadless) {
       LeonardoApiClient.client.use { implicit c =>
         for {
@@ -246,6 +248,7 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
         } yield ()
       }
     } else IO.unit
+  }
 }
 
 final case class AzureBillingProjectName(value: String) extends AnyVal

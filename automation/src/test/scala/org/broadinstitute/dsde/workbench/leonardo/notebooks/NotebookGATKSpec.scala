@@ -10,12 +10,12 @@ import org.scalatest.DoNotDiscover
  */
 @DoNotDiscover
 class NotebookGATKSpec extends RuntimeFixtureSpec with NotebookTestUtils {
-  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.gatkImageUrl)
   "NotebookGATKSpec" - {
 
     "should install Python packages, R, GATK, Samtools, and Java" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           val rOutput = notebookPage.executeCell("""! R --version""")

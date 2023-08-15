@@ -12,13 +12,13 @@ import scala.concurrent.duration.DurationLong
  */
 @DoNotDiscover
 class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
-  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
 
   "NotebookPyKernelSpec" - {
 
     "should create a notebook with a working Python 3 kernel, import installed packages and default to notebooks dir in terminal" in {
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       runtimeFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
@@ -40,6 +40,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     Seq(Python3).foreach { kernel =>
       s"should be able to pip install packages using ${kernel.string}" in { runtimeFixture =>
+        implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
         withWebDriver { implicit driver =>
           withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
             // install a package that is not installed by default
@@ -62,6 +63,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should NOT be able to run Spark" in { runtimeFixture =>
+
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val sparkCommandToFail =
         """try:
           |    name = sc.appName
@@ -81,6 +84,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should include Content-Security-Policy in headers" in { runtimeFixture =>
+
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val headers = Notebook.getApiHeaders(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe defined
@@ -90,6 +95,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should allow BigQuerying via the command line" in { runtimeFixture =>
+
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           val query =
@@ -103,6 +110,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should allow BigQuerying through python" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val query = """"SELECT
                     |CONCAT(
                     |'https://stackoverflow.com/questions/',
@@ -131,6 +139,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should update dateAccessed if the notebook is open" in { runtimeFixture =>
+
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime) { _ =>
           val firstApiCall =
@@ -145,9 +155,9 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    // TODO: uncomment this
-
     Seq(Python3).foreach { kernel =>
+
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       s"should preinstall google cloud subpackages for ${kernel.string}" in { runtimeFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
@@ -172,6 +182,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     // https://github.com/DataBiosphere/leonardo/issues/797
     s"should be able to import ggplot for ${Python3.toString}" in { runtimeFixture =>
+
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("from ggplot import *") shouldBe None
@@ -182,6 +194,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { runtimeFixture =>
       withWebDriver { implicit driver =>
+        implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
         val expectedEVs =
           RuntimeFixtureSpec.getCustomEnvironmentVariables ++
             // variables implicitly set by Leo
@@ -207,6 +220,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     // https://github.com/DataBiosphere/leonardo/issues/891
     "should be able to install python libraries with C bindings" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("! pip show Cython").get should include("Name: Cython")

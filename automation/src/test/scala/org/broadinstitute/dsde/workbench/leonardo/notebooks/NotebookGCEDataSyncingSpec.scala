@@ -24,16 +24,18 @@ import scala.concurrent.duration._
 class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   "NotebookGCEDataSyncingSpec" - {
 
     "Welder should be up" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
+
       val resp = Welder.getWelderStatus(runtimeFixture.runtime)
       resp.attempt.unsafeRunSync().isRight shouldBe true
     }
 
     "open notebook in edit mode should work" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
       val isRStudio = false
@@ -87,6 +89,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     }
 
     "open notebook in playground mode should work" taggedAs Retryable in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile2.ipynb")
       val isEditMode = false
       val isRStudio = false
@@ -164,6 +167,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     }
 
     "Sync issues and make a copy handled transition correctly" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val fileName = "gcsFile3" // we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
@@ -203,6 +207,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     }
 
     "Locked by another user and playground mode transition handled correctly" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile4.ipynb")
       val isEditMode = true
       val isRStudio = false
@@ -241,6 +246,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
     // this test is important to make sure all components exit gracefully when their functionality is not needed
     "User should be able to create files outside of playground and safe mode" in { runtimeFixture =>
+      implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
       val fileName = "mockUserFile.ipynb"
 
       val mockUserFile: File = Notebook.createFileAtJupyterRoot(runtimeFixture.runtime.googleProject,
