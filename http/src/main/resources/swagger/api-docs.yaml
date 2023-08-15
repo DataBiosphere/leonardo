@@ -3661,7 +3661,7 @@ components:
           enum: [GCE, DATAPROC, AZURE_VM]
         configType:
           type: string
-          enum: [Dataproc, GceConfig, GceWithPdCConfig, AzureVmConfig]
+          enum: [Dataproc, GceConfig, GceWithPdConfig, AzureVmConfig]
     OneOfRuntimeConfig:
       oneOf:
         - $ref: "#/components/schemas/GceConfig"
