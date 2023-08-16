@@ -321,6 +321,12 @@ object AppType {
   case object Cromwell extends AppType {
     override def toString: String = "CROMWELL"
   }
+  case object WorkflowsApp extends AppType {
+    override def toString: String = "WORKFLOWS_APP"
+  }
+  case object CromwellRunnerApp extends AppType {
+    override def toString: String = "CROMWELL_RUNNER_APP"
+  }
 
   case object Wds extends AppType {
     override def toString: String = "WDS"
@@ -348,10 +354,10 @@ object AppType {
    */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy                     => FormattedBy.Galaxy
-      case Custom                     => FormattedBy.Custom
-      case RStudio                    => FormattedBy.RStudio
-      case Cromwell | Wds | HailBatch => FormattedBy.Cromwell
+      case Galaxy                                                        => FormattedBy.Galaxy
+      case Custom                                                        => FormattedBy.Custom
+      case Allowed                                                       => FormattedBy.Allowed
+      case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp => FormattedBy.Cromwell
     }
 }
 

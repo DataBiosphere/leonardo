@@ -49,9 +49,41 @@ object AppRoutesTestJsonCodec {
       "customEnvironmentVariables",
       "auditInfo",
       "appType",
+//      "chartName",
       "accessScope",
       "labels"
-    )(GetAppResponse.apply)
+    )(
+      (appName,
+       cloudContext,
+       kubernetesRuntimeConfig,
+       errors,
+       status,
+       proxyUrls,
+       diskName,
+       customEnvironmentVariables,
+       auditInfo,
+       //       chartName, TODO: revert this once CBAS are upgraded
+       appType,
+       accessScope,
+       labels
+      ) =>
+        GetAppResponse(
+          appName,
+          cloudContext,
+          kubernetesRuntimeConfig,
+          errors,
+          status,
+          proxyUrls,
+          diskName,
+          customEnvironmentVariables,
+          auditInfo,
+          //       chartName, TODO: revert this once CBAS are upgraded
+          appType,
+          org.broadinstitute.dsp.ChartName("dummy"),
+          accessScope,
+          labels
+        )
+    )
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] =
     Decoder.forProduct12(
@@ -63,9 +95,40 @@ object AppRoutesTestJsonCodec {
       "proxyUrls",
       "appName",
       "appType",
+//      "chartName",
       "diskName",
       "auditInfo",
       "accessScope",
       "labels"
-    )(ListAppResponse.apply)
+    )(
+      (workspaceId,
+       cloudContext,
+       kubernetesRuntimeConfig,
+       errors,
+       status,
+       proxyUrls,
+       appName,
+       appType,
+       //       chartName, TODO: revert this once CBAS are upgraded
+       diskName,
+       auditInfo,
+       accessScope,
+       labels
+      ) =>
+        ListAppResponse(
+          workspaceId,
+          cloudContext,
+          kubernetesRuntimeConfig,
+          errors,
+          status,
+          proxyUrls,
+          appName,
+          appType,
+          org.broadinstitute.dsp.ChartName("dummy"),
+          diskName,
+          auditInfo,
+          accessScope,
+          labels
+        )
+    )
 }

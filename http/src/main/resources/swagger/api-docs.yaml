@@ -2865,7 +2865,13 @@ components:
         - GALAXY
         - WDS
         - HAIL_BATCH
-        - RSTUDIO
+        - ALLOWED
+        - WORKFLOWS_APP
+        - CROMWELL_RUNNER_APP
+    AllowedChartName:
+      type: string
+      enum:
+        - aou-rstudio-chart
     AppStatus:
       type: string
       enum:

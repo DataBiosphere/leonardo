@@ -2,7 +2,23 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config._
+
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AllowedAppConfig,
+  CoaAppConfig,
+  Config,
+  CromwellAppConfig,
+  CromwellRunnerAppConfig,
+  CustomAppConfig,
+  GalaxyAppConfig,
+  HailBatchAppConfig,
+  HttpWsmDaoConfig,
+  KubernetesAppConfig,
+  PersistentDiskConfig,
+  WdsAppConfig,
+  WorkflowsAppConfig
+}
+
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
@@ -30,15 +46,19 @@ object ConfigReader {
     )
 }
 
-final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
-                             wsm: HttpWsmDaoConfig,
-                             appRegistration: AzureAppRegistrationConfig,
-                             coaAppConfig: CoaAppConfig,
-                             wdsAppConfig: WdsAppConfig,
-                             hailBatchAppConfig: HailBatchAppConfig,
-                             aadPodIdentityConfig: AadPodIdentityConfig,
-                             allowedSharedApps: List[String],
-                             tdr: TdrConfig
+
+final case class AzureConfig(
+  pubsubHandler: AzurePubsubHandlerConfig,
+  wsm: HttpWsmDaoConfig,
+  appRegistration: AzureAppRegistrationConfig,
+  coaAppConfig: CoaAppConfig,
+  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
+  workflowsAppConfig: WorkflowsAppConfig,
+  wdsAppConfig: WdsAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  allowedSharedApps: List[AppType],
+  tdr: TdrConfig
 )
 
 final case class OidcAuthConfig(

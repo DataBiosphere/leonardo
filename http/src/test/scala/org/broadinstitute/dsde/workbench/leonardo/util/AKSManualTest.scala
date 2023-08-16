@@ -154,6 +154,8 @@ object AKSManualTest {
     config = AKSInterpreterConfig(
       ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
+      ConfigReader.appConfig.azure.workflowsAppConfig,
+      ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
       ConfigReader.appConfig.azure.wdsAppConfig,
       ConfigReader.appConfig.azure.hailBatchAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
