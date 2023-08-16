@@ -3121,7 +3121,7 @@ components:
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
         runtimeConfig:
-          $ref: "#/components/schemas/OneOfRuntimeConfig"
+          $ref: "#/components/schemas/OneOfRuntimeConfigInResponse"
         proxyUrl:
           type: string
           description: The URL to access a tool on the runtime
@@ -3764,6 +3764,7 @@ components:
     GceWithPdConfigInResponse:
       description: Configuration for Google Compute Engine instances.
       allOf:
+        - $ref: '#/components/schemas/RuntimeConfig'
         - type: object
           properties:
             persistentDiskId:
