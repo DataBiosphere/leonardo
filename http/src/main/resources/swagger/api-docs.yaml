@@ -3682,9 +3682,9 @@ components:
       discriminator:
         propertyName: cloudService
         mapping:
-          gce: "#/components/schemas/GceWithPdConfigInResponse"
-          dataproc: "#/components/schemas/DataprocConfig"
-          azure_vm: "#/components/schemas/AzureConfig"
+          GCE: "#/components/schemas/GceWithPdConfigInResponse"
+          DATAPROC: "#/components/schemas/DataprocConfig"
+          AZURE_VM: "#/components/schemas/AzureConfig"
     RuntimeImage:
       type: object
       required:
