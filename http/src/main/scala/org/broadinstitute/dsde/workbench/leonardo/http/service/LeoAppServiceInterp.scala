@@ -290,7 +290,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
-      res <- filterAppsBySamProjectPermission(allClusters, userInfo, paramMap._3)
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, true)
     } yield res
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
@@ -483,7 +483,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
         .transaction
-      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3)
+      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, false)
 
     } yield res
 
@@ -1225,9 +1225,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster], userInfo: UserInfo, labels: List[String])(
-    implicit as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] = for {
+  private def getVisibleApps(allClusters: List[KubernetesCluster], userInfo: UserInfo)(implicit
+    as: Ask[F, AppContext]
+  ): F[Option[List[AppSamResourceId]]] = for {
     _ <- as.ask
     samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
     // Partition apps by shared vs. private access scope and make a separate Sam call for each, then re-combine them.
@@ -1248,43 +1248,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (None, Some(b))    => Some(b)
       case (None, None)       => None
     }
-    res = samVisibleAppsOpt match {
-      case None => Vector.empty
-      case Some(samVisibleApps) =>
-        val samVisibleAppsSet = samVisibleApps.toSet
-        // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
-        // then we build back up by filtering nodepools without apps and clusters without nodepools
-        allClusters
-          .map { c =>
-            c.copy(
-              nodepools = c.nodepools
-                .map { n =>
-                  n.copy(apps = n.apps.filter { a =>
-                    // Making the assumption that users will always be able to access apps that they create
-                    // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                    val sr =
-                      a.samResourceId.copy(accessScope = a.appAccessScope.orElse(Some(AppAccessScope.UserPrivate)))
-                    samVisibleAppsSet.contains(sr) || a.auditInfo.creator == userInfo.userEmail
-                  })
-                }
-                .filterNot(_.apps.isEmpty)
-            )
-          }
-          .filterNot(_.nodepools.isEmpty)
-          .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labels))
-          .toVector
-    }
-    // We authenticate actions on resources. If there are no visible clusters,
-    // we need to check if user should be able to see the empty list.
-    _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
-  } yield res
+  } yield samVisibleAppsOpt
 
-  private def filterAppsBySamProjectPermission(allClusters: List[KubernetesCluster],
-                                               userInfo: UserInfo,
-                                               labels: List[String]
-  )(implicit
+  private def getVisibleAppsByProject(allClusters: List[KubernetesCluster], userInfo: UserInfo)(implicit
     as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] = for {
+  ): F[Option[List[AppSamResourceId]]] = for {
     _ <- as.ask
     samResources = allClusters.map(a =>
       // Need the project to filter projects not visible to user
@@ -1293,15 +1261,20 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     apps = samResources.flatMap { case (gp, srList) =>
       srList.map(sr => (gp, sr.copy(accessScope = sr.accessScope.orElse(Some(AppAccessScope.UserPrivate)))))
     }
+
     // Partition apps by shared vs. private access scope and make a separate Sam call for each, then re-combine them.
     // The reason we do this shared vs. private app access scope is represented by different Sam resource types/actions,
     // and therefore needs different decoders to process the result list.
     partition = apps.partition(_._2.accessScope == Some(AppAccessScope.WorkspaceShared))
     samVisibleSharedAppsOpt <- NonEmptyList.fromList(partition._1).traverse { apps =>
-      authProvider.filterResourceProjectVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
+      authProvider
+        .filterResourceProjectVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
+        .map(_.map(_._2))
     }
     samVisiblePrivateAppsOpt <- NonEmptyList.fromList(partition._2).traverse { apps =>
-      authProvider.filterResourceProjectVisible(apps, userInfo)(implicitly, appSamIdDecoder, implicitly)
+      authProvider
+        .filterResourceProjectVisible(apps, userInfo)(implicitly, appSamIdDecoder, implicitly)
+        .map(_.map(_._2))
     }
     samVisibleAppsOpt = (samVisiblePrivateAppsOpt, samVisibleSharedAppsOpt) match {
       case (Some(a), Some(b)) => Some(a ++ b)
@@ -1309,6 +1282,23 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (None, Some(b))    => Some(b)
       case (None, None)       => None
     }
+  } yield samVisibleAppsOpt
+
+  private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
+                                        userInfo: UserInfo,
+                                        labels: List[String],
+                                        useGoogleProject: Boolean
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[ListAppResponse]] = for {
+    _ <- as.ask
+
+    // V1 endpoints use google project to determine user access
+    samVisibleAppsOpt <- useGoogleProject match {
+      case true  => getVisibleAppsByProject(allClusters, userInfo)
+      case false => getVisibleApps(allClusters, userInfo)
+    }
+
     res = samVisibleAppsOpt match {
       case None => Vector.empty
       case Some(samVisibleApps) =>
@@ -1323,7 +1313,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                   n.copy(apps = n.apps.filter { a =>
                     val sr =
                       a.samResourceId.copy(accessScope = a.appAccessScope.orElse(Some(AppAccessScope.UserPrivate)))
-                    samVisibleAppsSet.exists(_._2 == sr)
+                    samVisibleAppsSet.contains(sr)
                   })
                 }
                 .filterNot(_.apps.isEmpty)

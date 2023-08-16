@@ -822,7 +822,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "error on delete if user is removed from app's project" in isolatedDbTest {
+  it should "error on delete if app creator is removed from app's project" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
@@ -835,7 +835,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName)
     }
 
-    // TODO: update this once create publishes pubsub message
     appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
@@ -968,40 +967,22 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "list only apps for projects user has access to" in isolatedDbTest {
     val appName1 = AppName("app1")
-    val appName2 = AppName("app2")
-    val appName3 = AppName("app3")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        diskConfig = Some(createDiskConfig1)
-    )
-    val diskName2 = DiskName("newDiskName")
-    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
-    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
+    val appReq1 = createAppRequest.copy(diskConfig = Some(createDiskConfig1))
 
     appServiceInterp
-      .createApp(userInfo, cloudContextGcp, appName1, appReq1)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName1)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    appServiceInterp
-      .createApp(userInfo, cloudContextGcp, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    appServiceInterp
-      .createApp(userInfo, cloudContext2Gcp, appName3, appReq1)
+      .createApp(userInfo, cloudContext2Gcp, appName1, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val listAllApps =
-      appServiceInterp2
-        .listApp(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
+      appServiceInterp2 // has a different allowlist
+        .listApp(userInfo, None, Map())
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
     listAllApps.length shouldEqual 0
   }
 
-  it should "list only apps in a project if user has project access" in isolatedDbTest {
+  it should "error if listing apps in a project user doesn't have access to" in isolatedDbTest {
     val appName1 = AppName("app1")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),

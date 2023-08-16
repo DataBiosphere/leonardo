@@ -834,7 +834,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(makeCluster(2, cloudContext = CloudContext.Gcp(project2)).copy(samResource = samResource2).save())
+      _ <- IO(makeCluster(2, cloudContext = cloudContext2Gcp).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
 
