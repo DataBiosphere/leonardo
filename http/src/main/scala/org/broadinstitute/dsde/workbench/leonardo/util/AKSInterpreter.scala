@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -698,6 +698,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .toList
           .sequence
           .map(_.forall(identity))
+      case AppType.WorkflowsApp =>
+        config.workflowsAppConfig.workflowsAppServices
+          .collect {
+            case Cromwell =>
+              cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+            case Cbas =>
+              cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+          }
+          .toList
+          .sequence
+          .map(_.forall(identity))
+      case AppType.CromwellRunnerApp =>
+        cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       case AppType.Wds =>
         wdsDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       case AppType.HailBatch =>
@@ -749,6 +762,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       case AppType.HailBatch => "http://batch:8080"
       case AppType.Galaxy | AppType.Custom | AppType.Allowed =>
         F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
+      case AppType.WorkflowsApp | AppType.CromwellRunnerApp =>
+        F.raiseError(AppCreationException(s"App type $appType needs to have a relay target host defined"))
     }
 
     // Hail batch serves requests on /{appName}/batch and uses relative redirects,
@@ -1343,6 +1358,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 final case class AKSInterpreterConfig(
   terraAppSetupChartConfig: TerraAppSetupChartConfig,
   coaAppConfig: CoaAppConfig,
+  workflowsAppConfig: WorkflowsAppConfig,
+  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
   wdsAppConfig: WdsAppConfig,
   hailBatchAppConfig: HailBatchAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,

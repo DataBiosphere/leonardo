@@ -84,7 +84,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
       _ <- req.appType match {
-        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell => F.unit
+        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
+            AppType.CromwellRunnerApp =>
+          F.unit
         case AppType.Allowed =>
           req.allowedChartName match {
             case Some(cn) =>
@@ -825,7 +827,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
    * @param googleProject
    * @param descriptorPath
    * @param ev
-   * @return 
+   * @return
    */
   private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
                                                    googleProject: GoogleProject,
@@ -1078,13 +1080,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       // Validate app type
       gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
-        case (Galaxy, CloudProvider.Gcp)          => Right(config.leoKubernetesConfig.galaxyAppConfig)
-        case (Custom, CloudProvider.Gcp)          => Right(config.leoKubernetesConfig.customAppConfig)
-        case (Cromwell, CloudProvider.Gcp)        => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (AppType.Allowed, CloudProvider.Gcp) => Right(config.leoKubernetesConfig.allowedAppConfig)
-        case (Cromwell, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.coaAppConfig)
-        case (Wds, CloudProvider.Azure)           => Right(ConfigReader.appConfig.azure.wdsAppConfig)
-        case (HailBatch, CloudProvider.Azure)     => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
+        case (Galaxy, CloudProvider.Gcp)              => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)              => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)            => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (AppType.Allowed, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.allowedAppConfig)
+        case (Cromwell, CloudProvider.Azure)          => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (WorkflowsApp, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.workflowsAppConfig)
+        case (CromwellRunnerApp, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
+        case (Wds, CloudProvider.Azure)               => Right(ConfigReader.appConfig.azure.wdsAppConfig)
+        case (HailBatch, CloudProvider.Azure)         => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
         case _ =>
           AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId)
             .asLeft[KubernetesAppConfig]

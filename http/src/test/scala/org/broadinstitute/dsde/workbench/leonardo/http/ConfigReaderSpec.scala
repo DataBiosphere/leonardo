@@ -122,6 +122,37 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ChartVersion("0.2.39")
           )
         ),
+        CromwellRunnerAppConfig(
+          ChartName("/leonardo/cromwell-runner-app"),
+          ChartVersion("0.1.0"),
+          ReleaseNameSuffix("cromwell-runner-app-rls"),
+          NamespaceNameSuffix("cromwell-runner-app-ns"),
+          KsaName("cromwell-runner-app-ksa"),
+          List(
+            ServiceConfig(ServiceName("cromwell-writer"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          instrumentationEnabled = false,
+          enabled = false,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List.empty
+        ),
+        WorkflowsAppConfig(
+          ChartName("/leonardo/workflows-app"),
+          ChartVersion("0.1.0"),
+          ReleaseNameSuffix("workflows-app-rls"),
+          NamespaceNameSuffix("workflows-app-ns"),
+          KsaName("workflows-app-ksa"),
+          List(
+            ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("cromwell-reader"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          instrumentationEnabled = false,
+          enabled = false,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List.empty
+        ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
           ChartVersion("0.38.0"),
