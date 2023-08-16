@@ -2864,6 +2864,8 @@ components:
         - WDS
         - HAIL_BATCH
         - ALLOWED
+        - WORKFLOWS_APP
+        - CROMWELL_RUNNER_APP
     AllowedChartName:
       type: string
       enum:

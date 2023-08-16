@@ -7,13 +7,15 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   CoaAppConfig,
   Config,
   CromwellAppConfig,
+  CromwellRunnerAppConfig,
   CustomAppConfig,
   GalaxyAppConfig,
   HailBatchAppConfig,
   HttpWsmDaoConfig,
   KubernetesAppConfig,
   PersistentDiskConfig,
-  WdsAppConfig
+  WdsAppConfig,
+  WorkflowsAppConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
@@ -47,6 +49,8 @@ final case class AzureConfig(
   wsm: HttpWsmDaoConfig,
   appRegistration: AzureAppRegistrationConfig,
   coaAppConfig: CoaAppConfig,
+  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
+  workflowsAppConfig: WorkflowsAppConfig,
   wdsAppConfig: WdsAppConfig,
   hailBatchAppConfig: HailBatchAppConfig,
   aadPodIdentityConfig: AadPodIdentityConfig,
