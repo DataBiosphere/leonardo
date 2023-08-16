@@ -286,7 +286,7 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
           s"Exception occurred in test, but it is classed as a non-fatal cleanup error (likely in `withTemporaryAzureBillingProject`: $e"
         )
         Succeeded
-      case e => throw e
+      case e: Throwable => throw e
     }
   }
 

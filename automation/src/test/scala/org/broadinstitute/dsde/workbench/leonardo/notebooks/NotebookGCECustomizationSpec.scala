@@ -11,8 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-import scala.concurrent.duration._
-
 /**
  * This spec verifies different cluster creation options, such as extensions, scopes, environment variables.
  *
