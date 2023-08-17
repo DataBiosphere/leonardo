@@ -81,7 +81,7 @@ RUN cd /leonardo && \
     helm pull aou-rstudio-chart/aou-rstudio-chart --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull aou-sas-chart/aou-sas-chart --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
-    helm pull terra-helm/relay-listener --version $RELAY_LISTENER_CHART_VERSION --untar && \
+    helm pull terra-helm/listener --version $LISTENER_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
