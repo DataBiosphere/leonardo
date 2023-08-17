@@ -128,12 +128,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                                  kubernetesNamespace
       )
 
+      maybeWorkflowsAppDatabaseNames <- maybeCreateWorkflowsAppDatabases(app,
+        params.workspaceId,
+        params.landingZoneResources,
+        kubernetesNamespace
+      )
+
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
-      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeCromwellDatabaseNames) match {
-        case (Some(_), _, _)                      => WorkloadIdentity
-        case (None, SamResourceType.SharedApp, _) => NoIdentity
-        case (None, _, Some(_))                   => WorkloadIdentity
-        case (None, _, _)                         => PodIdentity
+      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeCromwellDatabaseNames, maybeWorkflowsAppDatabaseNames) match {
+        case (Some(_), _, _, _)                      => WorkloadIdentity
+        case (None, SamResourceType.SharedApp, _, _) => NoIdentity
+        case (None, _, Some(_), _)                   => WorkloadIdentity
+        case (None, _, _, Some(_))                   => WorkloadIdentity
+        case (None, _, _, _)                         => PodIdentity
       }
 
       // Authenticate helm client
@@ -315,6 +322,44 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   storageContainer,
                   relayDomain,
                   hcName
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
+        case AppType.WorkflowsApp =>
+          for {
+            // Get the batch account key
+            batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
+              params.cloudContext)
+
+            batchAccountKey = batchAccount.getKeys().primary
+
+            // Storage container is required for Workflows app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Workflows app", Some(ctx.traceId))
+            )
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildWorkflowsAppChartOverrideValues(
+                  app.release,
+                  params.appName,
+                  params.cloudContext,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  relayPath,
+                  petMi,
+                  storageContainer,
+                  BatchAccountKey(batchAccountKey),
+                  applicationInsightsComponent.connectionString(),
+                  app.sourceWorkspaceId,
+                  userToken,
+                  identityType,
+                  maybeWorkflowsAppDatabaseNames
                 ),
                 createNamespace = true
               )
@@ -958,6 +1003,92 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).mkString(",")
     )
 
+  private[util] def buildWorkflowsAppChartOverrideValues(release: Release,
+                                                     appName: AppName,
+                                                     cloudContext: AzureCloudContext,
+                                                     workspaceId: WorkspaceId,
+                                                     landingZoneResources: LandingZoneResources,
+                                                     relayPath: Uri,
+                                                     petManagedIdentity: Option[Identity],
+                                                     storageContainer: StorageContainerResponse,
+                                                     batchAccountKey: BatchAccountKey,
+                                                     applicationInsightsConnectionString: String,
+                                                     sourceWorkspaceId: Option[WorkspaceId],
+                                                     userAccessToken: String,
+                                                     identityType: IdentityType,
+                                                     maybeDatabaseNames: Option[_]
+                                                    ): Values = {
+
+    val valuesList =
+      List(
+        // azure resources configs
+        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
+        raw"config.batchAccountKey=${batchAccountKey.value}",
+        raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
+        raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
+        raw"config.drsUrl=${config.drsConfig.url}",
+        raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
+        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
+        raw"config.region=${landingZoneResources.region}",
+        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+
+        // relay configs
+        raw"relay.path=${relayPath.renderString}",
+
+        // persistence configs
+        raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
+        raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
+        raw"persistence.blobContainer=${storageContainer.name.value}",
+        raw"persistence.leoAppInstanceName=${appName.value}",
+        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
+        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
+        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
+
+        // identity configs
+        raw"identity.enabled=${identityType == PodIdentity}",
+        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
+        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
+        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+        raw"workloadIdentity.enabled=${identityType == WorkloadIdentity}",
+        raw"workloadIdentity.serviceAccountName=${petManagedIdentity.map(_.name).getOrElse("none")}",
+
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
+
+        // Leo configs
+        raw"leonardo.url=${config.leoUrlBase}",
+
+        // Enabled services configs
+        raw"cbas.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cbas)}",
+        raw"cromwell.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cromwell)}",
+        raw"dockstore.baseUrl=${config.workflowsAppConfig.dockstoreBaseUrl}",
+
+        // general configs
+        raw"fullnameOverride=coa-${release.asString}",
+        raw"instrumentationEnabled=${config.workflowsAppConfig.instrumentationEnabled}",
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}"
+      )
+
+    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
+      case (Some(_), Some(PostgresName(dbServer)), Some(pet)) =>
+        List(
+          raw"postgres.podLocalDatabaseEnabled=false",
+          raw"postgres.host=$dbServer.postgres.database.azure.com",
+          // convention is that the database user is the same as the service account name
+          raw"postgres.user=${pet.name()}",
+          /*
+          raw"postgres.dbnames.cromwell=${databaseNames.cromwell}",
+          raw"postgres.dbnames.cbas=${databaseNames.cbas}",
+          raw"postgres.dbnames.tes=${databaseNames.tes}",
+           */
+        )
+      case _ => List.empty
+    }
+
+    Values((valuesList ++ postgresConfig).mkString(","))
+  }
+
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,
                                      petManagedIdentity: Identity
@@ -1199,6 +1330,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
       } yield Some(CromwellDatabaseNames(cromwellDb, cbasDb, tesDb))
     } else F.pure(None)
+  }
+
+  private[util] def maybeCreateWorkflowsAppDatabases(app: App,
+                                                 workspaceId: WorkspaceId,
+                                                 landingZoneResources: LandingZoneResources,
+                                                 namespace: KubernetesNamespace
+                                                ): F[Option[_]] = {
+    F.pure(if (config.workflowsAppConfig.databaseEnabled) Some("database names") else None) // TODO: WM-2159 create actual databases
   }
 
   private[util] def createDatabaseInWsm(app: App,
