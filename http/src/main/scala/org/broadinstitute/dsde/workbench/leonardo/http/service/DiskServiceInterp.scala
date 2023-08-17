@@ -200,6 +200,16 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
       ctx <- as.ask
+
+      // throw 403 if user doesn't have project permission
+      hasProjectPermission <- cloudContext.traverse(cc =>
+        authProvider.isUserProjectReader(
+          cc,
+          userInfo
+        )
+      )
+      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       paramMap <- F.fromEither(processListParameters(params))
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, creatorOnly, cloudContext).transaction
@@ -216,10 +226,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         case None => Vector.empty
         case Some(samVisibleDisks) =>
           val samVisibleDisksSet = samVisibleDisks.toSet
-          // Making the assumption that users will always be able to access disks that they create
           disks
-            .filter(d =>
-              d.auditInfo.creator == userInfo.userEmail || samVisibleDisksSet.contains(
+            .filter(d => samVisibleDisksSet.contains(
                 (GoogleProject(d.cloudContext.asString), d.samResource)
               )
             )

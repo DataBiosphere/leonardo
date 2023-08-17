@@ -249,6 +249,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
+
+      // throw 403 if user doesn't have project permission
+      hasProjectPermission <- cloudContext.traverse(cc =>
+        authProvider.isUserProjectReader(
+          cc,
+          userInfo
+        )
+      )
+      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
@@ -271,11 +281,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case None => Vector.empty
         case Some(samVisibleRuntimes) =>
           val samVisibleRuntimesSet = samVisibleRuntimes.toSet
-          // Making the assumption that users will always be able to access runtimes that they create
-          // Fix for https://github.com/DataBiosphere/leonardo/issues/821
           runtimes
-            .filter(c =>
-              c.auditInfo.creator == userInfo.userEmail || samVisibleRuntimesSet
+            .filter(c => samVisibleRuntimesSet
                 .contains((GoogleProject(c.cloudContext.asString), c.samResource))
             )
             .toVector
