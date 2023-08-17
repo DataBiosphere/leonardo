@@ -56,7 +56,6 @@ import scala.jdk.CollectionConverters._
 class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite with MockitoSugar {
 
   val config = AKSInterpreterConfig(
-    ConfigReader.appConfig.terraAppSetupChart,
     ConfigReader.appConfig.azure.coaAppConfig,
     ConfigReader.appConfig.azure.workflowsAppConfig,
     ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
@@ -70,7 +69,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     ConfigReader.appConfig.drs,
     new URL("https://leo-dummy-url.org"),
     ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-    ConfigReader.appConfig.azure.tdr
+    ConfigReader.appConfig.azure.tdr,
+    ConfigReader.appConfig.azure.listenerChartConfig
   )
 
   val mockSamDAO = setUpMockSamDAO
@@ -617,7 +617,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           .transaction
 
         controlledResources <- dbioToIO(
-          appControlledResourceQuery.getAllForApp(appId.id, AppControlledResourceStatus.Created)
+          appControlledResourceQuery.getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         ).transaction
       } yield {
         app shouldBe defined
@@ -646,7 +646,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           .getActiveFullAppByName(CloudContext.Azure(cloudContext), app.appName)
           .transaction
         controlledResources <- appControlledResourceQuery
-          .getAllForApp(app.id.id, AppControlledResourceStatus.Created)
+          .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created)
           .transaction
       } yield {
         controlledResources shouldBe empty
