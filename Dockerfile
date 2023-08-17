@@ -67,11 +67,11 @@ COPY ./wds-0.0.1.tgz /leonardo
 RUN tar -xzf /leonardo/wds-0.0.1.tgz -C /leonardo
 
 
-COPY ./wds-0.38.6.tgz /leonardo
+COPY ./cromwell-on-azure-0.0.1.tgz /leonardo
 RUN tar -xzf /leonardo/cromwell-on-azure-0.0.1.tgz -C /leonardo
 
 
-COPY ./wds-0.38.6.tgz /leonardo
+COPY ./listener-0.0.1.tgz /leonardo
 RUN tar -xzf /leonardo/listener-0.0.1.tgz -C /leonardo
 
 
