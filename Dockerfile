@@ -72,7 +72,7 @@ RUN tar -xzf /leonardo/cromwell-on-azure-0.0.1.tgz -C /leonardo
 
 
 COPY ./wds-0.38.6.tgz /leonardo
-RUN tar -xzf /leonardo/wds-0.38.6.tgz -C /leonardo
+RUN tar -xzf /leonardo/listener-0.0.1.tgz -C /leonardo
 
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
