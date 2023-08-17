@@ -62,8 +62,8 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo update
 
 
-COPY ./wds-0.38.9.tgz /leonardo
-RUN tar -xzf /leonardo/wds-0.38.9.tgz -C /leonardo
+COPY ./wds-0.38.6.tgz /leonardo
+RUN tar -xzf /leonardo/wds-0.38.6.tgz -C /leonardo
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
