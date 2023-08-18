@@ -1158,11 +1158,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
         .getOrElse(gkeAppConfig.chart)
       release <- lastUsedApp.fold(
-        KubernetesName.withValidation(
-          s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
-          Release.apply
-        )
+        KubernetesName
+          .withValidation(
+            s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
+            Release.apply
+          )
       )(app => app.release.asRight[Throwable])
+      services =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) {
+          gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
+        } else gkeAppConfig.kubernetesServices
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1184,7 +1189,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             namespaceName
           ),
           diskOpt,
-          gkeAppConfig.kubernetesServices,
+          services,
           Option(gkeAppConfig.serviceAccountName)
         ),
         List.empty,

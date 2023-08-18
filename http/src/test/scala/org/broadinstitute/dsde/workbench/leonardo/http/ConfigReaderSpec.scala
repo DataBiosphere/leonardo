@@ -24,7 +24,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.19")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.1.0")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -68,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:9c988ec",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:4ddf035",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -76,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.291"),
+          ChartVersion("0.2.323"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -199,8 +199,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List("WDS"),
-        TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
+        List(AppType.Wds),
+        TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
+        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.1.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

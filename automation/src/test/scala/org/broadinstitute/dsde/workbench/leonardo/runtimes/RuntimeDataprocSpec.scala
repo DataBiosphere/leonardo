@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreat
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam

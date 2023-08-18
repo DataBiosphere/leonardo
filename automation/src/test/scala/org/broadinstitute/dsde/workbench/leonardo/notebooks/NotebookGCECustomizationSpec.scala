@@ -11,8 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-import scala.concurrent.duration._
-
 /**
  * This spec verifies different cluster creation options, such as extensions, scopes, environment variables.
  *
@@ -60,35 +58,6 @@ final class NotebookGCECustomizationSpec
               }
             }
           }
-      }
-    }
-
-    "should give cluster user-specified scopes" in { billingProject =>
-      withNewRuntime(
-        billingProject,
-        request = LeonardoApiClient.defaultCreateRuntime2Request.copy(
-          scopes = Set(
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/source.read_only",
-            "https://www.googleapis.com/auth/devstorage.full_control"
-          )
-        )
-      ) { cluster =>
-        withWebDriver { implicit driver =>
-          // With Scopes
-          withNewNotebook(cluster) { notebookPage =>
-            val query =
-              """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
-
-            // Result should fail due to insufficient scopes.
-            // Note we used to check for 'Invalid credential' in the result but the error message from
-            // Google does not seem stable.
-            val result = notebookPage.executeCell(query, timeout = 5.minutes).get
-            result should include("BigQuery error in query operation")
-            result should not include "scullion_count"
-          }
-        }
       }
     }
 

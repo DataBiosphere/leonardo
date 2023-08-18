@@ -3707,7 +3707,7 @@ components:
                 Minimum size is 50GB. If unspecified, default size is 100GB.
             bootDiskSize:
               type: integer
-              description: size for boot disk. For old runtimes (prior 6/22/2020, gce runtimes don't have a separate boot disk)
+              description: UNUSED
             machineType:
               type: string
               description: >
@@ -3734,7 +3734,7 @@ components:
               $ref: "#/components/schemas/PersistentDiskRequest"
             bootDiskSize:
               type: integer
-              description: size for boot disk
+              description: UNUSED
             machineType:
               type: string
               description: >
@@ -3840,7 +3840,7 @@ components:
             machineType:
               type: string
               description: >
-                Azure machine type describing number of CPUs/Memory as , ex: Standard_DS1_v2. 
+                Azure machine type describing number of CPUs/Memory as , ex: Standard_DS1_v2.
                 See https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
             persistentDiskId:
               type: number

@@ -1,20 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import org.broadinstitute.dsde.workbench.azure.{PrimaryKey, RelayHybridConnectionName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makePersistentDisk, userEmail, userEmail2}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeCustomAppService, makeKubeCluster}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues._
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellAppChartOverrideValuesString
-import org.broadinstitute.dsde.workbench.leonardo.{FormattedBy, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
+  buildCromwellAppChartOverrideValuesString,
+  _
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.Release
 import org.scalatest.flatspec.AnyFlatSpecLike
+
+import java.net.URL
+import java.util.UUID
 
 class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
@@ -320,5 +326,40 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name"""
 
+  }
+
+  it should "build relay listener override values string" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val res = buildListenerChartOverrideValuesString(
+      Release("rl-rls"),
+      AppSamResourceId("sam-id", Some(AppAccessScope.WorkspaceShared)),
+      RelayNamespace("relay-ns"),
+      RelayHybridConnectionName("hc-name"),
+      PrimaryKey("hc-name"),
+      AppType.Wds,
+      workspaceId,
+      AppName("app1"),
+      Set("example.com", "foo.com", "bar.org"),
+      Config.samConfig,
+      "acr/listener:1",
+      new URL("https://leo.com")
+    )
+    res.asString shouldBe
+      "connection.removeEntityPathFromHttpUrl=\"true\"," +
+      "connection.connectionString=Endpoint=sb://relay-ns.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=hc-name;EntityPath=hc-name," +
+      "connection.connectionName=hc-name," +
+      "connection.endpoint=https://relay-ns.servicebus.windows.net," +
+      "connection.targetHost=http://wds-rl-rls-wds-svc:8080," +
+      "sam.url=https://sam.test.org:443," +
+      "sam.resourceId=sam-id," +
+      "sam.resourceType=kubernetes-app-shared," +
+      "sam.action=connect," +
+      "leonardo.url=https://leo.com," +
+      s"general.workspaceId=${workspaceId.value.toString}," +
+      "general.appName=app1," +
+      "general.image=acr/listener:1," +
+      "connection.validHosts[0]=example.com," +
+      "connection.validHosts[1]=foo.com," +
+      "connection.validHosts[2]=bar.org"
   }
 }
