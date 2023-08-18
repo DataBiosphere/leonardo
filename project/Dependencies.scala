@@ -17,16 +17,16 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
 
-  private val workbenchLibsHash = "d764a9b"
-  val serviceTestV = s"3.1-$workbenchLibsHash"
-  val workbenchModelV = s"0.18-$workbenchLibsHash"
+  private val workbenchLibsHash = "026bc90"
+  val serviceTestV = s"3.2-$workbenchLibsHash"
+  val workbenchModelV = s"0.19-$workbenchLibsHash"
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
-  val workbenchGoogleV = s"0.23-4b46aac"
-  val workbenchGoogle2V = s"0.30-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.5-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.4-$workbenchLibsHash"
-  val workbenchAzureV = s"0.4-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.29-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.32-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.6-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.5-$workbenchLibsHash"
+  val workbenchAzureV = s"0.5-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.20"
 
