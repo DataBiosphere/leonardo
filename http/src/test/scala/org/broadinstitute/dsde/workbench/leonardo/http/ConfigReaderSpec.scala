@@ -150,7 +150,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = false,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WdsAppConfig(

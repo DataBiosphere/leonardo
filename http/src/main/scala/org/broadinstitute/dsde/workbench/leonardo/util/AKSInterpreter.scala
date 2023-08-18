@@ -129,19 +129,25 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       maybeWorkflowsAppDatabaseNames <- maybeCreateWorkflowsAppDatabases(app,
-        params.workspaceId,
-        params.landingZoneResources,
-        kubernetesNamespace
+                                                                         params.workspaceId,
+                                                                         params.landingZoneResources,
+                                                                         kubernetesNamespace
       )
 
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
-      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeCromwellDatabaseNames, maybeWorkflowsAppDatabaseNames) match {
+      identityType = (maybeKsaFromDatabaseCreation,
+                      app.samResourceId.resourceType,
+                      maybeCromwellDatabaseNames,
+                      maybeWorkflowsAppDatabaseNames
+      ) match {
         case (Some(_), _, _, _)                      => WorkloadIdentity
         case (None, SamResourceType.SharedApp, _, _) => NoIdentity
         case (None, _, Some(_), _)                   => WorkloadIdentity
         case (None, _, _, Some(_))                   => WorkloadIdentity
         case (None, _, _, _)                         => PodIdentity
       }
+
+      _ <- logger.info(s"Creating ${app.appType} with identity $identityType")
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
@@ -331,7 +337,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           for {
             // Get the batch account key
             batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-              params.cloudContext)
+                                                              params.cloudContext
+            )
 
             batchAccountKey = batchAccount.getKeys().primary
 
@@ -1004,20 +1011,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     )
 
   private[util] def buildWorkflowsAppChartOverrideValues(release: Release,
-                                                     appName: AppName,
-                                                     cloudContext: AzureCloudContext,
-                                                     workspaceId: WorkspaceId,
-                                                     landingZoneResources: LandingZoneResources,
-                                                     relayPath: Uri,
-                                                     petManagedIdentity: Option[Identity],
-                                                     storageContainer: StorageContainerResponse,
-                                                     batchAccountKey: BatchAccountKey,
-                                                     applicationInsightsConnectionString: String,
-                                                     sourceWorkspaceId: Option[WorkspaceId],
-                                                     userAccessToken: String,
-                                                     identityType: IdentityType,
-                                                     maybeDatabaseNames: Option[_]
-                                                    ): Values = {
+                                                         appName: AppName,
+                                                         cloudContext: AzureCloudContext,
+                                                         workspaceId: WorkspaceId,
+                                                         landingZoneResources: LandingZoneResources,
+                                                         relayPath: Uri,
+                                                         petManagedIdentity: Option[Identity],
+                                                         storageContainer: StorageContainerResponse,
+                                                         batchAccountKey: BatchAccountKey,
+                                                         applicationInsightsConnectionString: String,
+                                                         sourceWorkspaceId: Option[WorkspaceId],
+                                                         userAccessToken: String,
+                                                         identityType: IdentityType,
+                                                         maybeDatabaseNames: Option[_]
+  ): Values = {
 
     val valuesList =
       List(
@@ -1076,7 +1083,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServer.postgres.database.azure.com",
           // convention is that the database user is the same as the service account name
-          raw"postgres.user=${pet.name()}",
+          raw"postgres.user=${pet.name()}"
           /*
           raw"postgres.dbnames.cromwell=${databaseNames.cromwell}",
           raw"postgres.dbnames.cbas=${databaseNames.cbas}",
@@ -1333,12 +1340,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   }
 
   private[util] def maybeCreateWorkflowsAppDatabases(app: App,
-                                                 workspaceId: WorkspaceId,
-                                                 landingZoneResources: LandingZoneResources,
-                                                 namespace: KubernetesNamespace
-                                                ): F[Option[_]] = {
-    F.pure(if (config.workflowsAppConfig.databaseEnabled) Some("database names") else None) // TODO: WM-2159 create actual databases
-  }
+                                                     workspaceId: WorkspaceId,
+                                                     landingZoneResources: LandingZoneResources,
+                                                     namespace: KubernetesNamespace
+  ): F[Option[_]] = F.pure(Some("database names")) // TODO: WM-2159 create actual databases for workflows app
 
   private[util] def createDatabaseInWsm(app: App,
                                         workspaceId: WorkspaceId,
