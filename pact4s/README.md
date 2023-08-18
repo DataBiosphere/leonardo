@@ -41,7 +41,7 @@ docker run --rm -v $PWD:/working \
                 -v jar-cache:/root/.ivy \
                 -v jar-cache:/root/.ivy2 \
                 -w /working \
-                sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.11 \
+                sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
                 sbt "project pact4s" clean test
 ```
 
