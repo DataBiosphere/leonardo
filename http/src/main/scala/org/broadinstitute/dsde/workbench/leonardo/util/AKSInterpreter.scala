@@ -1343,7 +1343,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      workspaceId: WorkspaceId,
                                                      landingZoneResources: LandingZoneResources,
                                                      namespace: KubernetesNamespace
-  ): F[Option[_]] = F.pure(Some("database names")) // TODO: WM-2159 create actual databases for workflows app
+  ): F[Option[_]] = F.pure(
+    if (app.appType == AppType.WorkflowsApp) Some("database names") else None
+  ) // TODO: WM-2159 create actual databases for workflows app
 
   private[util] def createDatabaseInWsm(app: App,
                                         workspaceId: WorkspaceId,
