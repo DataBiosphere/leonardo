@@ -301,9 +301,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopping, ip, now)
                     .transaction
                   runtimeAndRuntimeConfigAfterSetIp = ip.fold(runtimeAndRuntimeConfig)(i =>
-                    LeoLenses.ipRuntimeAndRuntimeConfig.set(i)(runtimeAndRuntimeConfig)
+                    LeoLenses.ipRuntimeAndRuntimeConfig.replace(i)(runtimeAndRuntimeConfig)
                   )
-                  rrc = runtimeAndRuntimeConfigAfterSetIp.lens(_.runtime.status).set(RuntimeStatus.Stopping)
+                  rrc = runtimeAndRuntimeConfigAfterSetIp.lens(_.runtime.status).replace(RuntimeStatus.Stopping)
                 } yield ((), Some(MonitorState.Check(rrc, Some(RuntimeStatus.Stopping)))): CheckResult
               } else {
                 for {
