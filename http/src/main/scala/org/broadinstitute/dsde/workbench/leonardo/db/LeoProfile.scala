@@ -134,10 +134,11 @@ private[leonardo] object LeoProfile extends MySQLProfile {
           res.fold(e => throw e, identity)
         }
       )
-    implicit def customImageTypeMapper = MappedColumnType.base[RuntimeImageType, String](
-      _.toString,
-      s => RuntimeImageType.withName(s)
-    )
+    implicit def customImageTypeMapper: BaseColumnType[RuntimeImageType] =
+      MappedColumnType.base[RuntimeImageType, String](
+        _.toString,
+        s => RuntimeImageType.withName(s)
+      )
     implicit val runtimeConfigIdMappedColumnType: BaseColumnType[RuntimeConfigId] =
       MappedColumnType.base[RuntimeConfigId, Long](_.id, RuntimeConfigId.apply)
     implicit val googleIdMappedColumnType: BaseColumnType[ProxyHostName] =
