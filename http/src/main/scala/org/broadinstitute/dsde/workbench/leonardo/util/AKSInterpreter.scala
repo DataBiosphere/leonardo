@@ -1083,12 +1083,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServer.postgres.database.azure.com",
           // convention is that the database user is the same as the service account name
-          raw"postgres.user=${pet.name()}"
-          /*
-          raw"postgres.dbnames.cromwell=${databaseNames.cromwell}",
-          raw"postgres.dbnames.cbas=${databaseNames.cbas}",
-          raw"postgres.dbnames.tes=${databaseNames.tes}",
-           */
+          raw"postgres.user=${pet.name()}",
+          raw"postgres.dbnames.cromwellMetadata=cromwellMetadata", // TODO: WM-2159
+          raw"postgres.dbnames.cbas=cbas",
         )
       case _ => List.empty
     }
