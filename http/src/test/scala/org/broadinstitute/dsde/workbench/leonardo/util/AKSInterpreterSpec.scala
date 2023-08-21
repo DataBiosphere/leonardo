@@ -127,7 +127,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     SubnetworkName("subnet2"),
     azureRegion,
     ApplicationInsightsName("lzappinsights"),
-    Some(PostgresServer("postgres"))
+    Some(PostgresServer("postgres", false))
   )
 
   val storageContainer = StorageContainerResponse(
@@ -255,7 +255,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.value).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.user=identity-name," +
       s"postgres.dbnames.cromwell=${databaseNames.cromwell}," +
       s"postgres.dbnames.cbas=${databaseNames.cbas}," +
@@ -380,7 +380,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "provenance.sourceWorkspaceId=," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.value).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.dbname=dbname," +
       "postgres.user=ksa"
   }

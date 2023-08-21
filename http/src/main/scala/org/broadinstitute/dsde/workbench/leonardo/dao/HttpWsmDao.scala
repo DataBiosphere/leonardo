@@ -221,17 +221,17 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(F.pure)
 
   private def getLandingZoneResourceName(
-    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
-    resourceType: String,
-    purpose: LandingZoneResourcePurpose,
-    useParent: Boolean
-  ): F[String] = {
-    F.pure(OptionT(getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
-      .map(getLandingZoneResourceName))
+                                          landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+                                          resourceType: String,
+                                          purpose: LandingZoneResourcePurpose,
+                                          useParent: Boolean
+                                        ): F[String] =
+    OptionT(getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
+      .map(res => getLandingZoneResourceName(res, useParent))
+    )
       .getOrRaise(
         AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-      ))
-  }
+      )
 
   private def getLandingZoneResourceName(r: LandingZoneResource,
                                           useParent: Boolean

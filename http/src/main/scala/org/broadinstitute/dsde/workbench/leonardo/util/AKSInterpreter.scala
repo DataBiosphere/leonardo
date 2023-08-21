@@ -844,7 +844,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresServer, petManagedIdentity) match {
-      case (Some(databaseNames), Some(PostgresServer(dbServerName, pgBouncerEnabled)), Some(pet)) =>
+      case (Some(databaseNames), Some(PostgresServer(dbServerName, _)), Some(pet)) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServerName.postgres.database.azure.com",
@@ -917,7 +917,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     val postgresConfig = (ksaName, wdsDbName, landingZoneResources.postgresServer) match {
-      case (Some(ksa), Some(db), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
+      case (Some(ksa), Some(db), Some(PostgresServer(dbServerName, _))) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServerName.postgres.database.azure.com",
