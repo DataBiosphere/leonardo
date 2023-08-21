@@ -1077,6 +1077,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.userAccessToken=${userAccessToken}"
       )
 
+    logger.info(s"Cbas enabled: ${config.workflowsAppConfig.workflowsAppServices
+        .contains(Cbas)}\nCromwell enabled: ${config.workflowsAppConfig.workflowsAppServices.contains(Cromwell)}")
+
     val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
       case (Some(_), Some(PostgresName(dbServer)), Some(pet)) =>
         List(
@@ -1084,8 +1087,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           raw"postgres.host=$dbServer.postgres.database.azure.com",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${pet.name()}",
-          raw"postgres.dbnames.cromwellMetadata=cromwellMetadata", // TODO: WM-2159
-          raw"postgres.dbnames.cbas=cbas",
+          raw"postgres.dbnames.cromwellMetadata=cromwellmetadata", // TODO: WM-2159
+          raw"postgres.dbnames.cbas=cbas"
         )
       case _ => List.empty
     }

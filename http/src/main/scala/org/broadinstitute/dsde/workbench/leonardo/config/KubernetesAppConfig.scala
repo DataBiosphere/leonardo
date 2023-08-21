@@ -138,8 +138,8 @@ final case class WorkflowsAppConfig(chartName: ChartName,
   def workflowsAppServices: Set[WorkflowsAppService] = services
     .map(_.name)
     .collect {
-      case ServiceName("cbas")     => Cbas
-      case ServiceName("cromwell") => Cromwell
+      case ServiceName("cbas")            => Cbas
+      case ServiceName("cromwell-reader") => Cromwell
     }
     .toSet
 }
