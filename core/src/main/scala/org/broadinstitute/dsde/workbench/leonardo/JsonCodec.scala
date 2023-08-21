@@ -686,7 +686,8 @@ object JsonCodec {
   implicit val allowedChartNameDecoder: Decoder[AllowedChartName] =
     Decoder.decodeString.emap(x => AllowedChartName.stringToObject.get(x).toRight("chart name not allowed"))
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
-  implicit val postgresServerDecoder: Decoder[PostgresServer] = Decoder.forProduct2("name", "pgBouncerEnabled")(PostgresServer)
+  implicit val postgresServerDecoder: Decoder[PostgresServer] =
+    Decoder.forProduct2("name", "pgBouncerEnabled")(PostgresServer)
 
   implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
   implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
@@ -754,9 +755,8 @@ object JsonCodec {
   implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
   implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
-  implicit val postgresServerEncoder: Encoder[PostgresServer] = Encoder.forProduct2(
-    "name", "pgBouncerEnabled")(x =>
-    (x.name, x.pgBouncerEnabled))
+  implicit val postgresServerEncoder: Encoder[PostgresServer] =
+    Encoder.forProduct2("name", "pgBouncerEnabled")(x => (x.name, x.pgBouncerEnabled))
 
   implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct4(
     "publisher",

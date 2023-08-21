@@ -5,10 +5,20 @@ import cats.data.OptionT
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, BatchAccountName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  BatchAccountName,
+  RelayNamespace
+}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{AKS_NODE_POOL_SUBNET, LandingZoneResourcePurpose, SHARED_RESOURCE, WORKSPACE_BATCH_SUBNET}
+import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
+  AKS_NODE_POOL_SUBNET,
+  LandingZoneResourcePurpose,
+  SHARED_RESOURCE,
+  WORKSPACE_BATCH_SUBNET
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
@@ -20,7 +30,7 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{Authorization, `Content-Type`}
+import org.http4s.headers.{`Content-Type`, Authorization}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
@@ -178,13 +188,15 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
       postgresResource <- getLandingZoneResource(groupedLzResources,
                                                  "Microsoft.DBforPostgreSQL/flexibleServers",
-                                                 SHARED_RESOURCE).attempt
+                                                 SHARED_RESOURCE
+      ).attempt
 
       postgresServer = postgresResource.toOption.flatMap { resource =>
         getLandingZoneResourceName(resource, false).map { pgName =>
           val pgBouncerEnabled: Boolean = java.lang.Boolean.parseBoolean(
             getLandingZoneResourceTagValue(resource, "pgbouncer-enabled")
-              .getOrElse("false"))
+              .getOrElse("false")
+          )
           PostgresServer(pgName, pgBouncerEnabled)
         }
       }
@@ -221,24 +233,22 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(F.pure)
 
   private def getLandingZoneResourceName(
-                                          landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
-                                          resourceType: String,
-                                          purpose: LandingZoneResourcePurpose,
-                                          useParent: Boolean
-                                        ): F[String] =
-    OptionT(getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
-      .map(res => getLandingZoneResourceName(res, useParent))
+    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+    resourceType: String,
+    purpose: LandingZoneResourcePurpose,
+    useParent: Boolean
+  ): F[String] =
+    OptionT(
+      getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
+        .map(res => getLandingZoneResourceName(res, useParent))
     )
       .getOrRaise(
         AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
       )
 
-  private def getLandingZoneResourceName(r: LandingZoneResource,
-                                          useParent: Boolean
-                                        ): Option[String] = {
-        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
-        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
-  }
+  private def getLandingZoneResourceName(r: LandingZoneResource, useParent: Boolean): Option[String] =
+    if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
+    else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
 
   private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
