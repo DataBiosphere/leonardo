@@ -32,8 +32,8 @@ object LeoLenses {
     Optional[AsyncRuntimeFields, IP](x => x.hostIp)(ip => x => x.copy(hostIp = Some(ip)))
 
   val ipRuntimeAndRuntimeConfig: Optional[RuntimeAndRuntimeConfig, IP] = runtimeAndRuntimeConfigToRuntime
-    .composeOptional(runtimeToAsyncRuntimeFields)
-    .composeOptional(asyncRuntimeFieldsToIp)
+    .andThen(runtimeToAsyncRuntimeFields)
+    .andThen(asyncRuntimeFieldsToIp)
 
   val statusRuntimeAndRuntimeConfig: Lens[RuntimeAndRuntimeConfig, RuntimeStatus] =
     GenLens[RuntimeAndRuntimeConfig](x => x.runtime.status)
