@@ -59,14 +59,16 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     res.unsafeRunSync().isRight shouldBe true
   }
 
-  List(
+  val testCases: Map[Option[Map[String, String]], Boolean] = Map(
     None -> false,
     Option(Map.empty[String, String]) -> false,
-    Option(Map("not-pgbouncer" -> "somevalue")) -> false,
-    Option(Map("pgbouncer-enabled" -> "false"), "another-tag" -> "true") -> false,
-    Option(Map("pgbouncer-enabled" -> "not-a-boolean")) -> false,
-    Option(Map("pgbouncer-enabled" -> "true"), "another-tag" -> false) -> true
-  ).foreach { case (tags, expectedPgBouncer) =>
+    Option(Map("not-pgbouncer" -> "true")) -> false,
+    Option(Map("pgbouncer-enabled" -> "false", "another-tag" -> "true")) -> false,
+    Option(Map("pgbouncer-enabled" -> "not-a-boolean", "another-tag" -> "true")) -> false,
+    Option(Map("pgbouncer-enabled" -> "true", "not-pgbouncer" -> "false")) -> true
+  )
+
+  testCases.foreach { case (tags, expectedPgBouncer) =>
     it should s"correctly get landing zone resources and detect PgBouncer for tags: $tags" in {
       val billingId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
       val landingZoneId = UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe")
