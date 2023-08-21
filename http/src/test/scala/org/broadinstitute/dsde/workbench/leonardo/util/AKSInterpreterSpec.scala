@@ -381,6 +381,51 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "provenance.sourceWorkspaceId=," +
       "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      "postgres.dbport=5432," +
+      "postgres.dbname=dbname," +
+      "postgres.user=ksa"
+  }
+
+  it should "build wds override values with workload identity and pgBouncer" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildWdsChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources.copy(postgresServer = Option(PostgresServer("postgres", true))),
+      Some(setUpMockIdentity),
+      "applicationInsightsConnectionString",
+      None,
+      petUserInfo.accessToken.token,
+      IdentityType.WorkloadIdentity,
+      Some(ServiceAccountName("ksa")),
+      Some("dbname")
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "general.leoAppInstanceName=app," +
+      s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "identity.enabled=false," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      "workloadIdentity.enabled=true," +
+      "workloadIdentity.serviceAccountName=ksa," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
+      s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      "fullnameOverride=wds-rel-1," +
+      "instrumentationEnabled=false," +
+      "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      "provenance.sourceWorkspaceId=," +
+      "postgres.podLocalDatabaseEnabled=false," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      "postgres.dbport=6432," +
       "postgres.dbname=dbname," +
       "postgres.user=ksa"
   }

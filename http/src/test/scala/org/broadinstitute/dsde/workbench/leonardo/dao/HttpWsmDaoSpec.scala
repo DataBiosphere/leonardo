@@ -59,104 +59,117 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     res.unsafeRunSync().isRight shouldBe true
   }
 
-  it should "correctly get landing zone resources" in {
-    val billingId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
-    val landingZoneId = UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe")
+  List(
+    None -> false,
+    Option(Map.empty[String, String]) -> false,
+    Option(Map("not-pgbouncer" -> "somevalue")) -> false,
+    Option(Map("pgbouncer-enabled" -> "false"), "another-tag" -> "true") -> false,
+    Option(Map("pgbouncer-enabled" -> "not-a-boolean")) -> false,
+    Option(Map("pgbouncer-enabled" -> "true"), "another-tag" -> false) -> true
+  ).foreach { case (tags, expectedPgBouncer) =>
+    it should s"correctly get landing zone resources and detect PgBouncer for tags: $tags" in {
+      val billingId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
+      val landingZoneId = UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe")
 
-    val originalLandingZone = LandingZone(landingZoneId, billingId, "def", "v1", "2022-11-11")
-    val landingZoneResponse = ListLandingZonesResult(List(originalLandingZone))
-    val landingZoneStringResponse = landingZoneResponse.asJson.printWith(Printer.noSpaces)
+      val originalLandingZone = LandingZone(landingZoneId, billingId, "def", "v1", "2022-11-11")
+      val landingZoneResponse = ListLandingZonesResult(List(originalLandingZone))
+      val landingZoneStringResponse = landingZoneResponse.asJson.printWith(Printer.noSpaces)
 
-    val originalLandingZoneResourcesByPurpose = List(
-      LandingZoneResourcesByPurpose(
-        SHARED_RESOURCE,
-        List(
-          buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
-          buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
-          buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
-          buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
-          buildMockLandingZoneResource("microsoft.dbforpostgresql/flexibleservers", "lzpostgres"),
-          buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics"),
-          buildMockLandingZoneResource("Microsoft.Insights/components", "lzappinsights")
+      val originalLandingZoneResourcesByPurpose = List(
+        LandingZoneResourcesByPurpose(
+          SHARED_RESOURCE,
+          List(
+            buildMockLandingZoneResource("Microsoft.ContainerService/managedClusters", "lzcluster"),
+            buildMockLandingZoneResource("Microsoft.Batch/batchAccounts", "lzbatch"),
+            buildMockLandingZoneResource("Microsoft.Relay/namespaces", "lznamespace"),
+            buildMockLandingZoneResource("Microsoft.Storage/storageAccounts", "lzstorage"),
+            buildMockLandingZoneResource("microsoft.dbforpostgresql/flexibleservers", "lzpostgres", tags = tags),
+            buildMockLandingZoneResource("microsoft.operationalinsights/workspaces", "lzloganalytics"),
+            buildMockLandingZoneResource("Microsoft.Insights/components", "lzappinsights")
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          WORKSPACE_BATCH_SUBNET,
+          List(
+            buildMockLandingZoneResource("DeployedSubnet", "batchsub", false)
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          AKS_NODE_POOL_SUBNET,
+          List(
+            buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          WORKSPACE_COMPUTE_SUBNET,
+          List(
+            buildMockLandingZoneResource("DeployedSubnet", "computesub", false)
+          )
+        ),
+        LandingZoneResourcesByPurpose(
+          POSTGRESQL_SUBNET,
+          List(buildMockLandingZoneResource("DeployedSubnet", "postgressub", false))
         )
-      ),
-      LandingZoneResourcesByPurpose(
-        WORKSPACE_BATCH_SUBNET,
-        List(
-          buildMockLandingZoneResource("DeployedSubnet", "batchsub", false)
-        )
-      ),
-      LandingZoneResourcesByPurpose(
-        AKS_NODE_POOL_SUBNET,
-        List(
-          buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
-        )
-      ),
-      LandingZoneResourcesByPurpose(
-        WORKSPACE_COMPUTE_SUBNET,
-        List(
-          buildMockLandingZoneResource("DeployedSubnet", "computesub", false)
-        )
-      ),
-      LandingZoneResourcesByPurpose(
-        POSTGRESQL_SUBNET,
-        List(buildMockLandingZoneResource("DeployedSubnet", "postgressub", false))
       )
-    )
-    val landingZoneResourcesResult =
-      ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
-    val landingZoneResourcesStringResponse = landingZoneResourcesResult.asJson.printWith(Printer.noSpaces)
+      val landingZoneResourcesResult =
+        ListLandingZoneResourcesResult(landingZoneId, originalLandingZoneResourcesByPurpose)
+      val landingZoneResourcesStringResponse = landingZoneResourcesResult.asJson.printWith(Printer.noSpaces)
 
-    val wsmClient = Client.fromHttpApp[IO](
-      HttpApp { request =>
-        val landingZoneRequestString = s"/api/landingzones/v1/azure?billingProfileId=${billingId}"
-        val resourceRequestString = s"/api/landingzones/v1/azure/${landingZoneId}/resources"
-        request.uri.renderString match {
-          case `landingZoneRequestString` =>
-            IO(Response(status = Status.Ok).withEntity(landingZoneStringResponse))
-          case `resourceRequestString` =>
-            IO(Response(status = Status.Ok).withEntity(landingZoneResourcesStringResponse))
+      val wsmClient = Client.fromHttpApp[IO](
+        HttpApp { request =>
+          val landingZoneRequestString = s"/api/landingzones/v1/azure?billingProfileId=${billingId}"
+          val resourceRequestString = s"/api/landingzones/v1/azure/${landingZoneId}/resources"
+          request.uri.renderString match {
+            case `landingZoneRequestString` =>
+              IO(Response(status = Status.Ok).withEntity(landingZoneStringResponse))
+            case `resourceRequestString` =>
+              IO(Response(status = Status.Ok).withEntity(landingZoneResourcesStringResponse))
+          }
         }
-      }
-    )
-
-    val wsmDao = new HttpWsmDao[IO](wsmClient, config)
-    val res = wsmDao
-      .getLandingZoneResources(
-        billingId.toString,
-        Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
       )
-      .attempt
-      .unsafeRunSync()
 
-    res.isRight shouldBe true
+      val wsmDao = new HttpWsmDao[IO](wsmClient, config)
+      val res = wsmDao
+        .getLandingZoneResources(
+          billingId.toString,
+          Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
+        )
+        .attempt
+        .unsafeRunSync()
 
-    val expectedLandingZoneResources = LandingZoneResources(
-      UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
-      AKSClusterName("lzcluster"),
-      BatchAccountName("lzbatch"),
-      RelayNamespace("lznamespace"),
-      StorageAccountName("lzstorage"),
-      NetworkName("lzvnet"),
-      SubnetworkName("batchsub"),
-      SubnetworkName("akssub"),
-      com.azure.core.management.Region.US_EAST,
-      ApplicationInsightsName("lzappinsights"),
-      Some(PostgresServer("lzpostgres", false))
-    )
+      res.isRight shouldBe true
 
-    val landingZoneResources = res.toOption.get
-    landingZoneResources shouldBe expectedLandingZoneResources
+      val expectedLandingZoneResources = LandingZoneResources(
+        UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
+        AKSClusterName("lzcluster"),
+        BatchAccountName("lzbatch"),
+        RelayNamespace("lznamespace"),
+        StorageAccountName("lzstorage"),
+        NetworkName("lzvnet"),
+        SubnetworkName("batchsub"),
+        SubnetworkName("akssub"),
+        com.azure.core.management.Region.US_EAST,
+        ApplicationInsightsName("lzappinsights"),
+        Some(PostgresServer("lzpostgres", expectedPgBouncer))
+      )
+
+      val landingZoneResources = res.toOption.get
+      landingZoneResources shouldBe expectedLandingZoneResources
+    }
   }
 
-  private def buildMockLandingZoneResource(resourceType: String, resourceName: String, useId: Boolean = true) =
+  private def buildMockLandingZoneResource(resourceType: String,
+                                           resourceName: String,
+                                           useId: Boolean = true,
+                                           tags: Option[Map[String, String]] = None
+  ) =
     LandingZoneResource(
       resourceId = if (useId) Some(s"id-prefix/${resourceName}") else None,
       resourceType,
       resourceName = if (useId) None else Some(resourceName),
       resourceParentId = if (useId) None else Some("lzvnet"),
       region = com.azure.core.management.Region.US_EAST.toString,
-      None
+      tags
     )
 
   implicit val landingZoneEncoder: Encoder[LandingZone] =
@@ -167,8 +180,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     Encoder.forProduct1("landingzones")(x => x.landingzones)
 
   implicit val landingZoneResourceEncoder: Encoder[LandingZoneResource] =
-    Encoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(x =>
-      (x.resourceId, x.resourceType, x.resourceName, x.resourceParentId, x.region)
+    Encoder.forProduct6("resourceId", "resourceType", "resourceName", "resourceParentId", "region", "tags")(x =>
+      (x.resourceId, x.resourceType, x.resourceName, x.resourceParentId, x.region, x.tags)
     )
   implicit val landingZoneResourcePurposeEncoder: Encoder[LandingZoneResourcePurpose] =
     Encoder.encodeString.contramap(_.toString)
