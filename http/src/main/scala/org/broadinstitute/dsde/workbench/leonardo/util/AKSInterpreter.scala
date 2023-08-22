@@ -922,8 +922,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServerName.postgres.database.azure.com",
-          raw"postgres.dbname=$db",
           raw"postgres.dbport=$dbPort",
+          raw"postgres.dbname=$db",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${ksa.value}"
         )
