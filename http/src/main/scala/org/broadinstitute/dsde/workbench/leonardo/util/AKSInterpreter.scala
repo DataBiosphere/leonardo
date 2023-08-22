@@ -1069,24 +1069,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"leonardo.url=${config.leoUrlBase}",
 
         // Enabled services configs
-        raw"cbas.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cbas)}",
-        raw"cromwell.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cromwell)}",
+        // raw"cbas.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cbas)}",
+        // raw"cromwell.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cromwell)}",
         raw"dockstore.baseUrl=${config.workflowsAppConfig.dockstoreBaseUrl}",
 
         // general configs
-        raw"fullnameOverride=coa-${release.asString}",
+        raw"fullnameOverride=workflows-app-${release.asString}",
         raw"instrumentationEnabled=${config.workflowsAppConfig.instrumentationEnabled}",
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}"
       )
 
-    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
-      case (Some(_), Some(PostgresName(dbServer)), Some(pet)) =>
+    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, ksaName) match {
+      case (Some(_), Some(PostgresName(dbServer)), Some(ksa)) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServer.postgres.database.azure.com",
           // convention is that the database user is the same as the service account name
-          raw"postgres.user=${pet.name()}",
+          raw"postgres.user=${ksa.value}",
           raw"postgres.dbnames.cromwellMetadata=cromwellmetadata", // TODO: WM-2159
           raw"postgres.dbnames.cbas=cbas"
         )
