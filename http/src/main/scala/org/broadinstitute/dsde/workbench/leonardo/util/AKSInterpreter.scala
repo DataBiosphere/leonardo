@@ -141,11 +141,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                       maybeCromwellDatabaseNames,
                       maybeWorkflowsAppKSA
       ) match {
-        case (Some(_), _, _, _)                      => WorkloadIdentity
-        case (None, SamResourceType.SharedApp, _, _) => NoIdentity
-        case (None, _, Some(_), _)                   => WorkloadIdentity
-        case (None, _, _, Some(_))                   => WorkloadIdentity
-        case (None, _, _, _)                         => PodIdentity
+        case (Some(_), _, _, _)                         => WorkloadIdentity
+        case (None, SamResourceType.SharedApp, _, None) => NoIdentity
+        case (None, _, Some(_), _)                      => WorkloadIdentity
+        case (None, _, _, Some(_))                      => WorkloadIdentity
+        case (None, _, _, _)                            => PodIdentity
       }
 
       _ <- logger.info(ctx.loggingCtx)(s"Creating ${app.appType} with identity $identityType")
@@ -1069,8 +1069,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"leonardo.url=${config.leoUrlBase}",
 
         // Enabled services configs
-        // raw"cbas.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cbas)}",
-        // raw"cromwell.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cromwell)}",
+        raw"cbas.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cbas)}",
+        raw"cromwell.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cromwell)}",
         raw"dockstore.baseUrl=${config.workflowsAppConfig.dockstoreBaseUrl}",
 
         // general configs
@@ -1395,8 +1395,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
           .transaction
 
-        databaseNames = "foo" // TODO: WM-2159 create actual databases for workflows app
-      } yield (Some(ServiceAccountName(identityName)), Some(databaseNames))
+        databaseName <- createDatabaseInWsm(app,
+                                            workspaceId,
+                                            namespace,
+                                            "foo",
+                                            wsmApi,
+                                            Option(createIdentityResponse.getResourceId)
+        ) // TODO: WM-2159 create actual databases for workflows app
+      } yield (Some(ServiceAccountName(identityName)), Some(databaseName))
     } else F.pure((None, None))
 
   private[util] def createDatabaseInWsm(app: App,
