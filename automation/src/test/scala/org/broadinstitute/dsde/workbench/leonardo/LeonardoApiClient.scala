@@ -32,6 +32,11 @@ import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
+/**
+ * This is the legacy wrapper for leonardo APIs
+ * You should not need to use this in new tests over `GeneratedLeonardoApiClient`
+ * If you find yourself updating existing tests and using this, port over to `GeneratedLeonardoApiClient` unless you have a very good reason
+ */
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
   implicit val logger: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
@@ -113,6 +118,7 @@ object LeonardoApiClient {
   val defaultCreateAppRequest = CreateAppRequest(
     None,
     AppType.Galaxy,
+    None,
     None,
     None,
     Map.empty,
@@ -757,6 +763,7 @@ object LeonardoApiClient {
         }
     } yield r
 
+  // TODO: delete this
   def deleteRuntimeV2WithWait(
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName,

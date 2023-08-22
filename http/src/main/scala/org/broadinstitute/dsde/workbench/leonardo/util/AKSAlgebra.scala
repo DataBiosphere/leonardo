@@ -4,6 +4,7 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, LandingZoneResources, WorkspaceId}
+import org.broadinstitute.dsp.ChartVersion
 
 trait AKSAlgebra[F[_]] {
 
@@ -11,6 +12,8 @@ trait AKSAlgebra[F[_]] {
   def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+
+  def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
 }
 
@@ -22,12 +25,18 @@ final case class CreateAKSAppParams(appId: AppId,
                                     storageContainer: Option[StorageContainerResponse]
 )
 
+final case class UpdateAKSAppParams(appId: AppId,
+                                    appName: AppName,
+                                    appChartVersion: ChartVersion,
+                                    workspaceId: Option[WorkspaceId],
+                                    cloudContext: AzureCloudContext
+)
+
 final case class DeleteAKSAppParams(
   appName: AppName,
   workspaceId: WorkspaceId,
   landingZoneResourcesOpt: LandingZoneResources,
-  cloudContext: AzureCloudContext,
-  keepHistory: Boolean = false
+  cloudContext: AzureCloudContext
 )
 
 /** Enumerates the possible identity modes for an AKS app. */

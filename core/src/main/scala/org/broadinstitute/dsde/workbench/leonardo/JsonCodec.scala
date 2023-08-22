@@ -29,7 +29,12 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateRuntimeResponse,
+  DiskConfig,
+  GetRuntimeResponse,
+  PersistentDiskRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -39,6 +44,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
 import java.net.URL
@@ -248,6 +254,8 @@ object JsonCodec {
     "traceId"
   )(x => RuntimeError.unapply(x).get)
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
+  implicit val allowedChartNameEncoder: Encoder[AllowedChartName] = Encoder.encodeString.contramap(_.asString)
+  implicit val chartNameEncoder: Encoder[ChartName] = Encoder.encodeString.contramap(_.asString)
   implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
   implicit val appErrorEncoder: Encoder[AppError] =
     Encoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(x =>
@@ -593,6 +601,9 @@ object JsonCodec {
     )
   }
 
+  implicit val createRuntimeResponseEncoder: Encoder[CreateRuntimeResponse] =
+    Encoder.forProduct1("traceId")(x => CreateRuntimeResponse.unapply(x).get)
+
   implicit val persistentDiskRequestEncoder: Encoder[PersistentDiskRequest] = Encoder.forProduct4(
     "name",
     "size",
@@ -671,6 +682,9 @@ object JsonCodec {
   implicit val appTypeDecoder: Decoder[AppType] =
     Decoder.decodeString.emap(s => AppType.stringToObject.get(s).toRight(s"Invalid app type ${s}"))
   implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.decodeString.map(RelayNamespace)
+  implicit val chartNameDecoder: Decoder[ChartName] = Decoder.decodeString.map(ChartName)
+  implicit val allowedChartNameDecoder: Decoder[AllowedChartName] =
+    Decoder.decodeString.emap(x => AllowedChartName.stringToObject.get(x).toRight("chart name not allowed"))
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
   implicit val postgresNameDecoder: Decoder[PostgresName] = Decoder.decodeString.map(PostgresName)
 

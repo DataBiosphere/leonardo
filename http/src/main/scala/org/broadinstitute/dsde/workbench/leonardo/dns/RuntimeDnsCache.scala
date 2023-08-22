@@ -23,11 +23,14 @@ final case class RuntimeDnsCacheKey(cloudContext: CloudContext, runtimeName: Run
  * proxy request.
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
+ * TODO [IA-4460] watch this cache for "miss storms" where multiple threads miss the cache, starting a positive
+ * feedback loop where queries run slower, take longer, and extend the time the cache is cold, accruing more
+ * misses. Consider keyed blocking via a mutex, or increasing time-to-live ({@code CacheConfig::cacheExpiryTime}).
  */
 class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
-  hostToIpMapping: Ref[F, Map[Host, IP]],
+  hostToIpMapping: Ref[F, Map[String, IP]],
   runtimeDnsCache: Cache[F, RuntimeDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
@@ -78,7 +81,7 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
     hostAndIpOpt match {
       case Some((h, ip)) =>
         hostToIpMapping
-          .getAndUpdate(_ + (h -> ip))
+          .getAndUpdate(_ + (h.address -> ip))
           .as[HostStatus](
             HostReady(h, s"${cloudContext.asString}/${runtimeName.asString}", CloudProvider.Gcp)
           )

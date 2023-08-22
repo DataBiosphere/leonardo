@@ -3,7 +3,6 @@ package http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.Uri.Host
 import cats.effect._
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.mtl.Ask
@@ -204,6 +203,12 @@ object Boot extends IOApp {
         appDependencies.wsmClientProvider
       )
 
+      val adminService = new AdminServiceInterp[IO](
+        appDependencies.authProvider,
+        appDependencies.publisherQueue,
+        ConfigReader.adminAppConfig
+      )
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -213,6 +218,7 @@ object Boot extends IOApp {
         diskV2Service,
         leoKubernetesService,
         azureService,
+        adminService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig
@@ -290,6 +296,7 @@ object Boot extends IOApp {
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
             appDependencies.hailBatchDAO,
+            appDependencies.listenerDAO,
             appDependencies.samDAO,
             appDependencies.kubeAlg,
             appDependencies.azureContainerService
@@ -353,7 +360,7 @@ object Boot extends IOApp {
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits)
 
       // Set up DNS caches
-      hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
+      hostToIpMapping <- Resource.eval(Ref.of(Map.empty[String, IP]))
       proxyResolver <- Dispatcher.parallel[F].map(d => ProxyResolver(hostToIpMapping, d))
 
       underlyingRuntimeDnsCache = buildCache[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]](
@@ -401,6 +408,9 @@ object Boot extends IOApp {
       )
       hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
         .map(client => new HttpHailBatchDAO[F](client))
+      listenerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_listener_client"), false).map(
+        client => new HttpListenerDAO[F](client)
+      )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -419,9 +429,8 @@ object Boot extends IOApp {
       appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
-      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
-        new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
-      )
+      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true)
+        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
@@ -658,13 +667,15 @@ object Boot extends IOApp {
         googleDiskService,
         appDescriptorDAO,
         nodepoolLock,
-        googleDependencies.googleResourceService
+        googleDependencies.googleResourceService,
+        googleDependencies.googleComputeService
       )
 
       val aksAlg = new AKSInterpreter[F](
         AKSInterpreterConfig(
-          ConfigReader.appConfig.terraAppSetupChart,
           ConfigReader.appConfig.azure.coaAppConfig,
+          ConfigReader.appConfig.azure.workflowsAppConfig,
+          ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
           ConfigReader.appConfig.azure.wdsAppConfig,
           ConfigReader.appConfig.azure.hailBatchAppConfig,
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
@@ -675,7 +686,8 @@ object Boot extends IOApp {
           ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.azure.tdr
+          ConfigReader.appConfig.azure.tdr,
+          ConfigReader.appConfig.azure.listenerChartConfig
         ),
         helmClient,
         azureBatchService,
@@ -688,6 +700,7 @@ object Boot extends IOApp {
         cbasUiDao,
         wdsDao,
         hailBatchDao,
+        wsmDao,
         kubeAlg,
         wsmClientProvider
       )
@@ -777,6 +790,7 @@ object Boot extends IOApp {
         cbasUiDao,
         cromwellDao,
         hailBatchDao,
+        listenerDao,
         wsmClientProvider,
         kubeAlg,
         azureContainerService
@@ -901,6 +915,7 @@ final case class AppDependencies[F[_]](
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
+  listenerDAO: ListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider,
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]

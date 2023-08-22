@@ -145,6 +145,12 @@ trait SamDAO[F[_]] {
   def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[F, TraceId]
   ): F[Boolean]
+
+  /** Uses the user's token to query Sam's admin endpoint for their own user info.
+    * Returns true of this query is successful, indicating that the user is an admin in Sam. */
+  def isAdminUser(userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal

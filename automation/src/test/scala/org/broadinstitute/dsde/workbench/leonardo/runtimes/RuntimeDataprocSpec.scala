@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreat
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -207,15 +207,7 @@ class RuntimeDataprocSpec
         // preemptibles should be added in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
-        // check output of yarn node -list command
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list""")
-              output.get should include("Total Nodes:")
-            }
-          }
-        )
+        // TODO PR comment: we probably dont want to use selenium to verify the cluster/node status
 
         // startup script should have run again
         startScriptOutputs <- dep.storage

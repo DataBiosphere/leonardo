@@ -157,6 +157,9 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object StartApp extends LeoPubsubMessageType {
     val asString = "startApp"
   }
+  final case object UpdateApp extends LeoPubsubMessageType {
+    val asString = "updateApp"
+  }
   final case object CreateAzureRuntime extends LeoPubsubMessageType {
     val asString = "createAzureRuntime"
   }
@@ -355,6 +358,16 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
 
+  final case class UpdateAppMessage(appId: AppId,
+                                    appName: AppName,
+                                    cloudContext: CloudContext,
+                                    workspaceId: Option[WorkspaceId],
+                                    googleProject: Option[GoogleProject],
+                                    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateApp
+  }
+
   final case class CreateAzureRuntimeMessage(
     runtimeId: Long,
     workspaceId: WorkspaceId,
@@ -545,6 +558,11 @@ object LeoPubsubCodec {
   implicit val startAppDecoder: Decoder[StartAppMessage] =
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
+  implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
+    Decoder.forProduct6("appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
+      UpdateAppMessage.apply
+    )
+
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
     Decoder.forProduct8(
       "runtimeId",
@@ -616,6 +634,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.DeleteApp          => message.as[DeleteAppMessage]
         case LeoPubsubMessageType.StopApp            => message.as[StopAppMessage]
         case LeoPubsubMessageType.StartApp           => message.as[StartAppMessage]
+        case LeoPubsubMessageType.UpdateApp          => message.as[UpdateAppMessage]
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
         case LeoPubsubMessageType.CreateAppV2        => message.as[CreateAppV2Message]
@@ -934,6 +953,11 @@ object LeoPubsubCodec {
       (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
+  implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
+    Encoder.forProduct7("messageType", "appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
+      x => (x.messageType, x.appId, x.appName, x.cloudContext, x.workspaceId, x.googleProject, x.traceId)
+    )
+
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
     Encoder.forProduct9(
       "messageType",
@@ -1026,6 +1050,7 @@ object LeoPubsubCodec {
     case m: DeleteAppMessage          => m.asJson
     case m: StopAppMessage            => m.asJson
     case m: StartAppMessage           => m.asJson
+    case m: UpdateAppMessage          => m.asJson
     case m: CreateAzureRuntimeMessage => m.asJson
     case m: DeleteAzureRuntimeMessage => m.asJson
     case m: CreateAppV2Message        => m.asJson
@@ -1144,6 +1169,13 @@ object PubsubHandleMessageError {
       extends PubsubHandleMessageError {
     override def getMessage: String =
       s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+    val isRetryable: Boolean = false
+  }
+
+  final case class AppNotFound(appId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process transition finished message ${message} for app ${appId} because it was not found in the database"
+
     val isRetryable: Boolean = false
   }
 }

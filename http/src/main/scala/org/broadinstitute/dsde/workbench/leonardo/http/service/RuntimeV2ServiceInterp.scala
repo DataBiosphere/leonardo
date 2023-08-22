@@ -256,7 +256,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+      runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
 
       hasPermission <-
         if (runtime.auditInfo.creator == userInfo.userEmail)
@@ -426,7 +426,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+      runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
 
       hasResourcePermission <- checkSamPermission(
         WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),

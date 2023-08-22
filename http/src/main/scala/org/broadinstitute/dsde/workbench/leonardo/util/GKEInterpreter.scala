@@ -27,13 +27,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   tracedRetryF,
   DiskName,
+  GoogleComputeService,
   GoogleDiskService,
   GoogleResourceService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -70,7 +70,8 @@ class GKEInterpreter[F[_]](
   googleDiskService: GoogleDiskService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
-  googleResourceService: GoogleResourceService[F]
+  googleResourceService: GoogleResourceService[F],
+  computeService: GoogleComputeService[F]
 )(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
     extends GKEAlgebra[F] {
   // DoneCheckable instances
@@ -406,10 +407,9 @@ class GKEInterpreter[F[_]](
 
       // TODO: validate app release is the same as restore release
       appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(diskId).transaction
-      galaxyRestore: Option[GalaxyRestore] = appRestore.flatMap {
-        case a: GalaxyRestore   => Some(a)
-        case _: CromwellRestore => None
-        case _: RStudioRestore  => None
+      galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+        case a: AppRestore.GalaxyRestore => Some(a)
+        case _: AppRestore.Other         => None
       }
 
       // helm install and wait
@@ -452,11 +452,12 @@ class GKEInterpreter[F[_]](
             gsa,
             app.customEnvironmentVariables
           )
-        case AppType.RStudio =>
-          installRStudioApp(
+        case AppType.Allowed =>
+          installAouApp(
             helmAuthContext,
             app.appName,
             app.release,
+            app.chart,
             dbCluster,
             dbApp.nodepool.nodepoolName,
             namespaceName,
@@ -518,7 +519,7 @@ class GKEInterpreter[F[_]](
                     )
                   )
                 ) { galaxyPvc =>
-                  val galaxyDiskRestore = GalaxyRestore(
+                  val galaxyDiskRestore = AppRestore.GalaxyRestore(
                     PvcId(galaxyPvc.getMetadata.getUid),
                     app.id
                   )
@@ -529,13 +530,256 @@ class GKEInterpreter[F[_]](
                 }
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
-        case AppType.RStudio  => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
+        case AppType.Allowed  => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
         case AppType.Custom   => F.unit
         case _ =>
           F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
       }
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+    } yield ()
+
+  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      googleProject <- F.fromOption(
+        params.googleProject,
+        AppUpdateException(
+          s"${params.appName} must have a google project in the GCP cloud context",
+          Some(ctx.traceId)
+        )
+      )
+
+      // Grab records from the database
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Gcp(googleProject), params.appName)
+        .transaction
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(CloudContext.Gcp(googleProject), params.appName, ctx.traceId, "No active app found in DB")
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in project ${googleProject}")
+
+      // Grab all of the values that we need to resend to the helm update command for each app
+      dbCluster = dbApp.cluster
+      nodepoolName = dbApp.nodepool.nodepoolName
+      machineTypeName = dbApp.nodepool.machineType
+      gkeClusterId = dbCluster.getClusterId
+
+      app = dbApp.app
+      namespaceName = app.appResources.namespace.name
+      gsa = app.googleServiceAccount
+      nfsDisk <- F.fromOption(
+        dbApp.app.appResources.disk,
+        AppUpdateException(s"NFS disk not found in DB for app ${app.appName.value}", Some(ctx.traceId))
+      )
+      ksaName <- F.fromOption(
+        app.appResources.kubernetesServiceAccountName,
+        AppUpdateException(
+          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
+          Some(ctx.traceId)
+        )
+      )
+      userEmail = app.auditInfo.creator
+      stagingBucketName = generateUniqueBucketName("leostaging-" + params.appName.value)
+
+      // Resolve the cluster in Google
+      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
+      googleCluster <- F.fromOption(
+        googleClusterOpt,
+        AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
+      )
+
+      (chartOverrideValues, appOk) <- app.appType match {
+        case AppType.Galaxy =>
+          for {
+
+            postgresDiskNameOpt <- for {
+              disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, googleProject, nfsDisk.zone)
+            } yield disk.map(x => DiskName(x.getName))
+
+            postgresDiskName <- F.fromOption(
+              postgresDiskNameOpt,
+              AppUpdateException(s"No postgres disk found in google for app ${app.appName.value} ",
+                                 traceId = Some(ctx.traceId)
+              )
+            )
+
+            appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(nfsDisk.id).transaction
+            galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+              case a: AppRestore.GalaxyRestore => Some(a)
+              case _: AppRestore.Other         => None
+            }
+
+            machineType <- computeService
+              .getMachineType(googleProject,
+                              ZoneName("us-central1-a"),
+                              machineTypeName
+              ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+              .flatMap(opt =>
+                F.fromOption(
+                  opt,
+                  new AppUpdateException(s"Unknown machine type for ${machineTypeName.value}",
+                                         traceId = Some(ctx.traceId)
+                  )
+                )
+              )
+
+            appMachineType = AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)
+
+            chartValues = buildGalaxyChartOverrideValuesString(
+              config,
+              app.appName,
+              app.release,
+              dbCluster,
+              nodepoolName,
+              userEmail,
+              app.customEnvironmentVariables,
+              ksaName,
+              namespaceName,
+              nfsDisk,
+              postgresDiskName,
+              appMachineType,
+              galaxyRestore
+            )
+
+            last <- streamFUntilDone(
+              appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy")),
+              config.monitorConfig.updateApp.maxAttempts,
+              config.monitorConfig.updateApp.interval
+            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError
+
+          } yield (chartValues.mkString(","), last)
+        case AppType.Cromwell =>
+          for {
+
+            last <- streamFUntilDone(
+              config.cromwellAppConfig.services
+                .map(_.name)
+                .traverse(s => appDao.isProxyAvailable(googleProject, app.appName, s)),
+              config.monitorConfig.createApp.maxAttempts,
+              config.monitorConfig.createApp.interval
+            ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+
+            chartValues = buildCromwellAppChartOverrideValuesString(
+              config,
+              app.appName,
+              dbCluster,
+              nodepoolName,
+              namespaceName,
+              nfsDisk,
+              ksaName,
+              gsa,
+              app.customEnvironmentVariables
+            )
+
+          } yield (chartValues.mkString(","), last)
+        case AppType.Allowed =>
+          for {
+            // Create the throwaway staging bucket to be used by Welder
+            _ <- bucketHelper
+              .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
+              .compile
+              .drain
+
+            chartValues = buildRStudioAppChartOverrideValuesString(
+              config,
+              app.appName,
+              dbCluster,
+              nodepoolName,
+              namespaceName,
+              nfsDisk,
+              ksaName,
+              userEmail,
+              stagingBucketName,
+              app.customEnvironmentVariables
+            )
+
+            last <- streamFUntilDone(
+              config.allowedAppConfig.services
+                .map(_.name)
+                .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+              config.monitorConfig.updateApp.maxAttempts,
+              config.monitorConfig.updateApp.interval
+            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+
+          } yield (chartValues.mkString(","), last)
+        case AppType.Custom =>
+          for {
+
+            desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
+            descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
+              AppUpdateException(
+                s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}",
+                Some(ctx.traceId)
+              )
+            }
+
+            (serviceName, serviceConfig) = descriptor.services.head
+
+            chartValues = buildCustomChartOverrideValuesString(
+              config,
+              params.appName,
+              app.release,
+              nodepoolName,
+              serviceName,
+              dbCluster,
+              namespaceName,
+              serviceConfig,
+              app.extraArgs,
+              nfsDisk,
+              ksaName,
+              serviceConfig.environment ++ app.customEnvironmentVariables
+            )
+
+            last <- streamFUntilDone(
+              descriptor.services.keys.toList.traverse(s =>
+                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
+              ),
+              config.monitorConfig.updateApp.maxAttempts,
+              config.monitorConfig.updateApp.interval
+            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+
+          } yield (chartValues, last)
+        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId)))
+      }
+
+      // Authenticate helm client
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+
+      // Upgrade app chart version and explicitly pass the values
+      _ <- helmClient
+        .upgradeChart(
+          app.release,
+          app.chart.name,
+          params.appChartVersion,
+          org.broadinstitute.dsp.Values(chartOverrideValues)
+        )
+        .run(helmAuthContext)
+
+      // Fail if apps are not live
+      _ <-
+        if (appOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdateException(
+              s"App ${params.appName.value} failed to update in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}",
+              Some(ctx.traceId)
+            )
+          )
+
+      _ <- logger.info(
+        s"Update app operation has finished for app ${app.appName.value} in cluster ${googleCluster}"
+      )
+
+      // Update app chart version in the DB
+      _ <- appQuery.updateChart(app.id, Chart(app.chart.name, params.appChartVersion)).transaction
+      // Put app status back to running
+      _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
+
+      _ <- logger.info(s"Done updating app ${params.appName} in project ${params.googleProject}")
     } yield ()
 
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -711,11 +955,9 @@ class GKEInterpreter[F[_]](
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
-      appRestore: Option[GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
-        case a: GalaxyRestore   => Some(a)
-        case _: CromwellRestore => None
-        case _: RStudioRestore  => None
-
+      appRestore: Option[AppRestore.GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
+        case a: AppRestore.GalaxyRestore => Some(a)
+        case _: AppRestore.Other         => None
       }
       _ <- appRestore.traverse { restore =>
         for {
@@ -759,29 +1001,51 @@ class GKEInterpreter[F[_]](
         if (dbNodepool.autoscalingEnabled) {
           nodepoolLock.withKeyLock(dbCluster.getClusterId) {
             for {
-              op <- gkeService.setNodepoolAutoscaling(
-                nodepoolId,
-                NodePoolAutoscaling.newBuilder().setEnabled(false).build()
-              )
-              _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
-              lastOp <- gkeService
-                .pollOperation(
-                  KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                  config.monitorConfig.scalingDownNodepool.interval,
-                  config.monitorConfig.scalingDownNodepool.maxAttempts
+              opOrError <- gkeService
+                .setNodepoolAutoscaling(
+                  nodepoolId,
+                  NodePoolAutoscaling.newBuilder().setEnabled(false).build()
                 )
-                .compile
-                .lastOrError
-              _ <-
-                if (lastOp.isDone)
-                  logger.info(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
-                  )
-                else
-                  logger.error(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
-                  ) >>
-                    F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+                .attempt
+              _ <- opOrError match {
+                case Left(e: com.google.api.gax.rpc.NotFoundException) =>
+                  // Mark the app as `DELETED` instead of bubbling this error up to generic error handler
+                  for {
+                    _ <- appErrorQuery
+                      .save(
+                        dbApp.app.id,
+                        AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
+                      )
+                      .transaction
+                    _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
+                    _ <-
+                      nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now).transaction
+                  } yield ()
+                case Left(e) => F.raiseError(e)
+                case Right(op) =>
+                  for {
+                    _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
+                    lastOp <- gkeService
+                      .pollOperation(
+                        KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+                        config.monitorConfig.scalingDownNodepool.interval,
+                        config.monitorConfig.scalingDownNodepool.maxAttempts
+                      )
+                      .compile
+                      .lastOrError
+                    _ <-
+                      if (lastOp.isDone)
+                        logger.info(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
+                        )
+                      else
+                        logger.error(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
+                        ) >>
+                          F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+
+                  } yield ()
+              }
             } yield ()
           }
         } else F.unit
@@ -894,9 +1158,9 @@ class GKEInterpreter[F[_]](
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
-        case AppType.RStudio =>
+        case AppType.Allowed =>
           streamFUntilDone(
-            config.rStudioAppConfig.services
+            config.allowedAppConfig.services
               .map(_.name)
               .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
             config.monitorConfig.startApp.maxAttempts,
@@ -918,7 +1182,7 @@ class GKEInterpreter[F[_]](
               config.monitorConfig.startApp.interval
             ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
           } yield last.isDone
-        case AppType.Wds | AppType.HailBatch =>
+        case AppType.Wds | AppType.HailBatch | AppType.WorkflowsApp | AppType.CromwellRunnerApp =>
           F.raiseError(AppCreationException(s"App type ${dbApp.app.appType} not supported on GCP"))
       }
 
@@ -1068,7 +1332,7 @@ class GKEInterpreter[F[_]](
                                   kubernetesServiceAccount: ServiceAccountName,
                                   nfsDisk: PersistentDisk,
                                   machineType: AppMachineType,
-                                  galaxyRestore: Option[GalaxyRestore]
+                                  galaxyRestore: Option[AppRestore.GalaxyRestore]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -1076,7 +1340,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
+        s"Installing helm chart $chart for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(nfsDisk.cloudContext),
@@ -1232,10 +1496,11 @@ class GKEInterpreter[F[_]](
     } yield ()
   }
 
-  private[util] def installRStudioApp(
+  private[util] def installAouApp(
     helmAuthContext: AuthContext,
     appName: AppName,
     release: Release,
+    chart: Chart,
     cluster: KubernetesCluster,
     nodepoolName: NodepoolName,
     namespaceName: NamespaceName,
@@ -1244,9 +1509,7 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String]
-  )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val chart = config.rStudioAppConfig.chart
-
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
 
@@ -1267,6 +1530,7 @@ class GKEInterpreter[F[_]](
         .compile
         .drain
 
+      // TODO: update this depending on which chart this is
       chartValues = buildRStudioAppChartOverrideValuesString(config,
                                                              appName,
                                                              cluster,
@@ -1301,7 +1565,7 @@ class GKEInterpreter[F[_]](
 
       // Poll the app until it starts up
       last <- streamFUntilDone(
-        config.rStudioAppConfig.services
+        config.allowedAppConfig.services
           .map(_.name)
           .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
@@ -1311,13 +1575,12 @@ class GKEInterpreter[F[_]](
       _ <-
         if (!last.isDone) {
           val msg =
-            s"RStudio app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+            s"AoU app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
         } else F.unit
 
     } yield ()
-  }
 
   private[util] def installCustomApp(appId: AppId,
                                      appName: AppName,
@@ -1623,6 +1886,10 @@ final case class AppStartException(message: String) extends AppProcessingExcepti
   override def getMessage: String = message
 }
 
+final case class AppUpdateException(message: String, traceId: Option[TraceId] = None) extends AppProcessingException {
+  override def getMessage: String = message
+}
+
 final case class DiskNotFoundForAppException(appId: AppId, traceId: TraceId)
     extends LeoException(s"No persistent disk found for ${appId}", traceId = Some(traceId))
 
@@ -1637,7 +1904,7 @@ final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
                                       customAppConfig: CustomAppConfig,
-                                      rStudioAppConfig: RStudioAppConfig,
+                                      allowedAppConfig: AllowedAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,

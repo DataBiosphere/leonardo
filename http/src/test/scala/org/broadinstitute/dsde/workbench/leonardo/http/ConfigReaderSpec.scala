@@ -24,7 +24,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.19")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.1.0")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -68,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:9c988ec",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:b7a3e08",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -76,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.291"),
+          ChartVersion("0.2.328"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -88,11 +88,74 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List(
+            ChartVersion("0.2.232"),
+            ChartVersion("0.2.231"),
+            ChartVersion("0.2.229"),
+            ChartVersion("0.2.225"),
+            ChartVersion("0.2.223"),
+            ChartVersion("0.2.220"),
+            ChartVersion("0.2.219"),
+            ChartVersion("0.2.218"),
+            ChartVersion("0.2.217"),
+            ChartVersion("0.2.216"),
+            ChartVersion("0.2.215"),
+            ChartVersion("0.2.213"),
+            ChartVersion("0.2.212"),
+            ChartVersion("0.2.211"),
+            ChartVersion("0.2.210"),
+            ChartVersion("0.2.209"),
+            ChartVersion("0.2.204"),
+            ChartVersion("0.2.201"),
+            ChartVersion("0.2.199"),
+            ChartVersion("0.2.197"),
+            ChartVersion("0.2.195"),
+            ChartVersion("0.2.192"),
+            ChartVersion("0.2.191"),
+            ChartVersion("0.2.187"),
+            ChartVersion("0.2.184"),
+            ChartVersion("0.2.179"),
+            ChartVersion("0.2.160"),
+            ChartVersion("0.2.159"),
+            ChartVersion("0.2.148"),
+            ChartVersion("0.2.39")
+          )
+        ),
+        CromwellRunnerAppConfig(
+          ChartName("/leonardo/cromwell-runner-app"),
+          ChartVersion("0.1.0"),
+          ReleaseNameSuffix("cromwell-runner-app-rls"),
+          NamespaceNameSuffix("cromwell-runner-app-ns"),
+          KsaName("cromwell-runner-app-ksa"),
+          List(
+            ServiceConfig(ServiceName("cromwell-writer"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          instrumentationEnabled = false,
+          enabled = false,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List.empty
+        ),
+        WorkflowsAppConfig(
+          ChartName("/leonardo/workflows-app"),
+          ChartVersion("0.1.0"),
+          ReleaseNameSuffix("workflows-app-rls"),
+          NamespaceNameSuffix("workflows-app-ns"),
+          KsaName("workflows-app-ksa"),
+          List(
+            ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("cromwell-reader"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          instrumentationEnabled = false,
+          enabled = false,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List.empty
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.31.0"),
+          ChartVersion("0.38.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -101,7 +164,21 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          databaseEnabled = false
+          databaseEnabled = false,
+          chartVersionsToExcludeFromUpdates = List(
+            ChartVersion("0.3.0"),
+            ChartVersion("0.7.0"),
+            ChartVersion("0.13.0"),
+            ChartVersion("0.16.0"),
+            ChartVersion("0.17.0"),
+            ChartVersion("0.19.0"),
+            ChartVersion("0.20.0"),
+            ChartVersion("0.21.0"),
+            ChartVersion("0.22.0"),
+            ChartVersion("0.24.0"),
+            ChartVersion("0.26.0"),
+            ChartVersion("0.27.0")
+          )
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
@@ -112,7 +189,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           List(
             ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
           ),
-          false
+          false,
+          chartVersionsToExcludeFromUpdates = List()
         ),
         AadPodIdentityConfig(
           Namespace("aad-pod-identity"),
@@ -121,8 +199,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List("WDS"),
-        TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
+        List(AppType.Wds),
+        TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
+        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.1.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

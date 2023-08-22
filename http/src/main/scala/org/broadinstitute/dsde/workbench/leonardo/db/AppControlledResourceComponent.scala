@@ -9,6 +9,9 @@ import scala.concurrent.ExecutionContext
 
 sealed abstract class AppControlledResourceStatus
 object AppControlledResourceStatus {
+  case object Creating extends AppControlledResourceStatus {
+    override def toString: String = "CREATING"
+  }
   case object Created extends AppControlledResourceStatus {
     override def toString: String = "CREATED"
   }
@@ -41,26 +44,45 @@ class AppControlledResourceTable(tag: Tag) extends Table[AppControlledResourceRe
 }
 
 object appControlledResourceQuery extends TableQuery(new AppControlledResourceTable(_)) {
-  def save(appId: Long,
-           resourceId: WsmControlledResourceId,
-           resourceType: WsmResourceType,
-           status: AppControlledResourceStatus
+  def insert(appId: Long,
+             resourceId: WsmControlledResourceId,
+             resourceType: WsmResourceType,
+             status: AppControlledResourceStatus
   ): DBIO[Int] =
     appControlledResourceQuery += AppControlledResourceRecord(appId, resourceId, resourceType, status)
 
-  def delete(appId: Long, resourceId: WsmControlledResourceId): DBIO[Int] =
+  def updateStatus(resourceId: WsmControlledResourceId, status: AppControlledResourceStatus)(implicit
+    ec: ExecutionContext
+  ): DBIO[Int] =
+    appControlledResourceQuery.filter(_.resourceId === resourceId).map(_.status).update(status).flatMap { updateCount =>
+      if (updateCount == 0) {
+        DBIO.failed(new Exception(s"Failed to update status for resource $resourceId"))
+      } else {
+        DBIO.successful(updateCount)
+      }
+    }
+
+  def delete(resourceId: WsmControlledResourceId): DBIO[Int] =
     appControlledResourceQuery
-      .filter(_.resourceId === resourceId)
       .filter(_.resourceId === resourceId)
       .map(_.status)
       .update(AppControlledResourceStatus.Deleted)
 
-  def getAllForApp(appId: Long, status: AppControlledResourceStatus)(implicit
+  def getAllForAppByStatus(appId: Long, statuses: AppControlledResourceStatus*)(implicit
     ec: ExecutionContext
   ): DBIO[List[AppControlledResourceRecord]] =
     appControlledResourceQuery
       .filter(_.appId === appId)
-      .filter(_.status === status)
+      .filter(_.status inSet statuses)
+      .result
+      .map(_.toList)
+
+  def getAllForAppByType(appId: Long, resourceType: WsmResourceType)(implicit
+    ec: ExecutionContext
+  ): DBIO[List[AppControlledResourceRecord]] =
+    appControlledResourceQuery
+      .filter(_.appId === appId)
+      .filter(_.resourceType === resourceType)
       .result
       .map(_.toList)
 }

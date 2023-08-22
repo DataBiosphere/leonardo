@@ -90,7 +90,7 @@ class RuntimeStatusTransitionsSpec extends BillingProjectFixtureSpec with Parall
       }
     }
 
-    "Rutnime with bad user startup script should transition correctly" in { billingProject =>
+    "Runtime with bad user startup script should transition correctly" in { billingProject =>
       withNewErroredRuntime(billingProject, true) { runtime =>
         runtime.status shouldBe ClusterStatus.Error
 

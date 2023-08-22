@@ -1,15 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import org.broadinstitute.dsde.workbench.azure.{PrimaryKey, RelayHybridConnectionName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
 import org.broadinstitute.dsde.workbench.leonardo.http.kubernetesProxyHost
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
-import org.broadinstitute.dsp.Release
+import org.broadinstitute.dsp.{Release, Values}
+
+import java.net.URL
 private[leonardo] object BuildHelmChartValues {
   def buildGalaxyChartOverrideValuesString(config: GKEInterpreterConfig,
                                            appName: AppName,
@@ -245,7 +250,7 @@ private[leonardo] object BuildHelmChartValues {
                                                stagingBucket: GcsBucketName,
                                                customEnvironmentVariables: Map[String, String]
   ): List[String] = {
-    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
+    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -265,6 +270,7 @@ private[leonardo] object BuildHelmChartValues {
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${rstudioIngressPath}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None"""",
       raw"""ingress.host=${k8sProxyHost}""",
       raw"""ingress.rstudio.path=${rstudioIngressPath}${"(/|$)(.*)"}""",
       raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
@@ -292,5 +298,54 @@ private[leonardo] object BuildHelmChartValues {
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
     ) ++ ingress ++ welder ++ configs
+  }
+
+  def buildListenerChartOverrideValuesString(release: Release,
+                                             samResourceId: AppSamResourceId,
+                                             relayNamespace: RelayNamespace,
+                                             relayHcName: RelayHybridConnectionName,
+                                             relayPrimaryKey: PrimaryKey,
+                                             appType: AppType,
+                                             workspaceId: WorkspaceId,
+                                             appName: AppName,
+                                             validHosts: Set[String],
+                                             samConfig: SamConfig,
+                                             listenerImage: String,
+                                             leoUrlBase: URL
+  ): Values = {
+    val relayTargetHost = appType match {
+      case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
+      case AppType.HailBatch => "http://batch:8080"
+      case _                 => "uknown"
+    }
+
+    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
+    // so requires that we don't strip the entity path. For other app types we do
+    // strip the entity path.
+    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
+
+    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
+    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
+      raw"connection.validHosts[$idx]=$elem"
+    }
+
+    Values(
+      List(
+        raw"""connection.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
+        raw"connection.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
+        raw"connection.connectionName=${relayHcName.value}",
+        raw"connection.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
+        raw"connection.targetHost=$relayTargetHost",
+        raw"sam.url=${samConfig.server}",
+        raw"sam.resourceId=${samResourceId.resourceId}",
+        raw"sam.resourceType=${samResourceId.resourceType.asString}",
+        raw"sam.action=connect",
+        raw"leonardo.url=${leoUrlBase}",
+        raw"general.workspaceId=${workspaceId.value.toString}",
+        raw"general.appName=${appName.value}",
+        raw"general.image=${listenerImage}"
+      ).concat(validHostValues).mkString(",")
+    )
   }
 }

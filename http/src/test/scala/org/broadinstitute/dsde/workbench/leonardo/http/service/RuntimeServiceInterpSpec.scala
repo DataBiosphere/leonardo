@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
   calculateAutopauseThreshold,
   getToolFromImages
@@ -641,7 +642,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(120),
+        bootDiskSize = DiskSize(250),
         zone = ZoneName("us-central1-a"),
         None
       ) // TODO: this is a problem in terms of inconsistency
@@ -665,7 +666,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(120),
+                                                                              bootDiskSize = DiskSize(250),
                                                                               zone = ZoneName("us-central1-a"),
                                                                               None
           )
