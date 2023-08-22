@@ -132,9 +132,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ServiceConfig(ServiceName("cromwell-writer"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,
-          enabled = false,
+          enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false,
+          databaseEnabled = true,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
