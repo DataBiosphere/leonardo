@@ -129,12 +129,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       mayCromwellRunnerDatabaseNames <- mayCreateCromwellRunnerDatabases(app,
-        params.workspaceId,
-        params.landingZoneResources,
-        kubernetesNamespace)
+                                                                         params.workspaceId,
+                                                                         params.landingZoneResources,
+                                                                         kubernetesNamespace
+      )
 
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
-      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeCromwellDatabaseNames, mayCromwellRunnerDatabaseNames) match {
+      identityType = (maybeKsaFromDatabaseCreation,
+                      app.samResourceId.resourceType,
+                      maybeCromwellDatabaseNames,
+                      mayCromwellRunnerDatabaseNames
+      ) match {
         case (Some(_), _, _, _)                      => WorkloadIdentity
         case (None, SamResourceType.SharedApp, _, _) => NoIdentity
         case (None, _, Some(_), _)                   => WorkloadIdentity
@@ -280,7 +285,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           for {
             // Get the batch account key
             batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-              params.cloudContext
+                                                              params.cloudContext
             )
             batchAccountKey = batchAccount.getKeys().primary
 
@@ -918,7 +923,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                            sourceWorkspaceId: Option[WorkspaceId],
                                                            userAccessToken: String,
                                                            identityType: IdentityType,
-                                                           maybeDatabaseNames: Option[CromwellRunnerDatabaseNames]): Values = {
+                                                           maybeDatabaseNames: Option[CromwellRunnerDatabaseNames]
+  ): Values = {
     val valuesList =
       List(
         // azure resources configs
@@ -1319,12 +1325,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } else F.pure(None)
   }
 
-  private [util] def mayCreateCromwellRunnerDatabases(app: App, workspaceId: WorkspaceId,
-                                                      landingZoneResources: LandingZoneResources,
-                                                      namespace: KubernetesNamespace ): F[Option[CromwellRunnerDatabaseNames]] = {
+  private[util] def mayCreateCromwellRunnerDatabases(app: App,
+                                                     workspaceId: WorkspaceId,
+                                                     landingZoneResources: LandingZoneResources,
+                                                     namespace: KubernetesNamespace
+  ): F[Option[CromwellRunnerDatabaseNames]] =
     // TODO: What should be returned here until WM-2160 is done?
     F.pure(None)
-  }
 
   private[util] def createDatabaseInWsm(app: App,
                                         workspaceId: WorkspaceId,
