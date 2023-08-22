@@ -717,6 +717,18 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
         .transaction
       _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, now).transaction
+
+      auth <- samDAO.getLeoAuthToken
+
+      _ <- e.useExistingDisk match {
+        case false =>
+          for {
+            _ <- deleteDiskResource(Left(e.runtimeId), e.workspaceId, auth)
+            _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
+          } yield ()
+
+        case true => F.unit
+      }
     } yield ()
 
   override def createAndPollApp(appId: AppId,
