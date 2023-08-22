@@ -35,7 +35,7 @@ package object http {
   val bucketPathMaxLength = 1024
   val WORKSPACE_NAME_KEY = "WORKSPACE_NAME"
 
-  implicit val errorReportSource = ErrorReportSource("leonardo")
+  implicit val errorReportSource: ErrorReportSource = ErrorReportSource("leonardo")
   implicit def dbioToIO[A](dbio: DBIO[A]): DBIOOps[A] = new DBIOOps(dbio)
   implicit def cloudServiceOps(cloudService: CloudService): CloudServiceOps = new CloudServiceOps(cloudService)
   implicit val serviceDataEncoder: Encoder[ServiceData] = Encoder.forProduct2(

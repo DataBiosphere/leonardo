@@ -76,7 +76,7 @@ class HttpRoutes(
     DebuggingDirectives.logRequestResult(LoggingMagnet(myLoggingFunction))
   }
 
-  implicit val myExceptionHandler =
+  implicit val myExceptionHandler: ExceptionHandler =
     ExceptionHandler {
       case leoException: LeoException =>
         logger
@@ -98,7 +98,7 @@ class HttpRoutes(
         )
     }
 
-  implicit val myRejectionHandler =
+  implicit val myRejectionHandler: RejectionHandler =
     RejectionHandler
       .newBuilder()
       .handle { case ValidationRejection(msg, cause) =>
