@@ -963,7 +963,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
-      case (Some(databaseNames), Some(PostgresName(dbServer)), Some(pet)) =>
+      case (Some(_), Some(PostgresName(dbServer)), Some(pet)) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServer.postgres.database.azure.com",
@@ -1321,9 +1321,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private [util] def mayCreateCromwellRunnerDatabases(app: App, workspaceId: WorkspaceId,
                                                       landingZoneResources: LandingZoneResources,
-                                                      namespace: KubernetesNamespace )(implicit
-                                                                                       ev: Ask[F, AppContext]
-                                                     ): F[Option[CromwellRunnerDatabaseNames]] = {
+                                                      namespace: KubernetesNamespace ): F[Option[CromwellRunnerDatabaseNames]] = {
     // TODO: What should be returned here until WM-2160 is done?
     F.pure(None)
   }
