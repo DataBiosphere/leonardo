@@ -460,7 +460,7 @@ class GKEInterpreter[F[_]](
             app.customEnvironmentVariables
           )
         case AppType.Allowed =>
-          installAouApp(
+          installAllowedApp(
             helmAuthContext,
             app.appName,
             app.release,
@@ -1523,7 +1523,7 @@ class GKEInterpreter[F[_]](
     } yield ()
   }
 
-  private[util] def installAouApp(
+  private[util] def installAllowedApp(
     helmAuthContext: AuthContext,
     appName: AppName,
     release: Release,
@@ -1606,7 +1606,7 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for RSTUDIO app ${appName.value} in project ${cluster.cloudContext.asString}"
+        s"helm install for ALLOWED app ${appName.value} in project ${cluster.cloudContext.asString}"
       ).compile.lastOrError
 
       // Poll the app until it starts up

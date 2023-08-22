@@ -26,12 +26,16 @@ import scala.jdk.CollectionConverters._
 
 class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig =
-    SamAuthProviderConfig(false, customAppCreationAllowedGroup = GroupName("custom_app_users"))
+    SamAuthProviderConfig(false,
+                          customAppCreationAllowedGroup = GroupName("custom_app_users"),
+                          sasAppCreationAllowedGroup = GroupName("sas_app_users")
+    )
   val samAuthProviderConfigWithCache: SamAuthProviderConfig = SamAuthProviderConfig(
     true,
     10,
     1.minutes,
-    customAppCreationAllowedGroup = GroupName("custom_app_users")
+    customAppCreationAllowedGroup = GroupName("custom_app_users"),
+    sasAppCreationAllowedGroup = GroupName("sas_app_users")
   )
 
   val disabledUserInfo =
