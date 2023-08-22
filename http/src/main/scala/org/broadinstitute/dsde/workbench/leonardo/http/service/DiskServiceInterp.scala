@@ -227,7 +227,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         case Some(samVisibleDisks) =>
           val samVisibleDisksSet = samVisibleDisks.toSet
           disks
-            .filter(d => samVisibleDisksSet.contains(
+            .filter(d =>
+              samVisibleDisksSet.contains(
                 (GoogleProject(d.cloudContext.asString), d.samResource)
               )
             )

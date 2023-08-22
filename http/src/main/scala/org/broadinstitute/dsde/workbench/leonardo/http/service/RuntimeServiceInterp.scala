@@ -282,7 +282,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(samVisibleRuntimes) =>
           val samVisibleRuntimesSet = samVisibleRuntimes.toSet
           runtimes
-            .filter(c => samVisibleRuntimesSet
+            .filter(c =>
+              samVisibleRuntimesSet
                 .contains((GoogleProject(c.cloudContext.asString), c.samResource))
             )
             .toVector

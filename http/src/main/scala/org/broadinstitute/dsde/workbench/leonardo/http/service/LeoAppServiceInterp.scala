@@ -1266,25 +1266,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     // The reason we do this shared vs. private app access scope is represented by different Sam resource types/actions,
     // and therefore needs different decoders to process the result list.
     partition = apps.partition(_._2.accessScope == Some(AppAccessScope.WorkspaceShared))
-    _ <- log.info(ctx.loggingCtx)(
-      s"(LM) Access scope partition: ${partition._1}, ${partition._2}"
-    )
     samVisibleSharedAppsOpt <- NonEmptyList.fromList(partition._1).traverse { apps =>
       authProvider
         .filterResourceProjectVisible(apps, userInfo)(implicitly, sharedAppSamIdDecoder, implicitly)
         .map(_.map(_._2))
     }
-    _ <- log.info(ctx.loggingCtx)(
-      s"(LM) visible shared apps: $samVisibleSharedAppsOpt"
-    )
     samVisiblePrivateAppsOpt <- NonEmptyList.fromList(partition._2).traverse { apps =>
       authProvider
         .filterResourceProjectVisible(apps, userInfo)(implicitly, appSamIdDecoder, implicitly)
         .map(_.map(_._2))
     }
-    _ <- log.info(ctx.loggingCtx)(
-      s"(LM) visible private apps: $samVisiblePrivateAppsOpt"
-    )
     samVisibleAppsOpt = (samVisiblePrivateAppsOpt, samVisibleSharedAppsOpt) match {
       case (Some(a), Some(b)) => Some(a ++ b)
       case (Some(a), None)    => Some(a)
@@ -1305,32 +1296,20 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     // V1 endpoints use google project to determine user access
     // Azure apps don't have a google project
     partition = allClusters.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
-    _ <- log.info(ctx.loggingCtx) (
-    s"(LM) CC partition: ${partition._1}, ${partition._2}"
-    )
     samVisibleAppsOpt <- useGoogleProject match {
-      case true  => for {
+      case true =>
+        for {
           gcpApps <- getVisibleAppsByProject(partition._1, userInfo)
-          _ <- log.info(ctx.loggingCtx)(
-            s"(LM) gcpApps: $gcpApps"
-          )
           azureApps <- getVisibleApps(partition._2, userInfo)
-          _ <- log.info(ctx.loggingCtx)(
-            s"(LM) AzureApps: $azureApps"
-          )
           allVisibleApps = (gcpApps, azureApps) match {
             case (Some(a), Some(b)) => Some(a ++ b)
-            case (Some(a), None) => Some(a)
-            case (None, Some(b)) => Some(b)
-            case (None, None) => None
+            case (Some(a), None)    => Some(a)
+            case (None, Some(b))    => Some(b)
+            case (None, None)       => None
           }
         } yield allVisibleApps
       case false => getVisibleApps(allClusters, userInfo)
     }
-
-    _ <- log.info(ctx.loggingCtx)(
-      s"(LM) Visible apps: $samVisibleAppsOpt"
-    )
 
     res = samVisibleAppsOpt match {
       case None => Vector.empty

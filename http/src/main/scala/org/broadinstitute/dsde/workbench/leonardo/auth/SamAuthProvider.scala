@@ -156,44 +156,16 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
 
     for {
-      _ <- logger.info(s"(LM) resources: $resources")
-      _ <- logger.info(s"(LM) resourceTypes: $resourceTypes")
       projectPolicies <- samDao
         .getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
       readingProjects = projectPolicies.map(_._1.googleProject).toSet
       ownedProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
         r.googleProject
       }
-      _ <- logger.info(s"(LM) readingProjects: $readingProjects")
-      _ <- logger.info(s"(LM) ownedProjects: $ownedProjects")
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
-      _ <- logger.info(s"(LM) resourcePolicies: $resourcePolicies")
       res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
-      _ <- logger.info(s"(LM) filtered resourcePolicies: $res")
-
-      _ <- logger.info("(LM) _____________________________________________")
-
-      resFiltered = resources.filter { case (project, r) =>
-        // for {
-        val owned = ownedProjects.contains(project)
-        val reading = readingProjects.contains(project)
-        val ownedVal = ownedProjects.contains(project.value)
-        val policy = res.exists(_._1 == r)
-        val filtered = owned || (reading && policy)
-        println(s"(LM) owned: $owned")
-        println(s"(LM) ownedVal: $ownedVal")
-        println(s"(LM) reading: $reading")
-        println(s"(LM) policy: $policy")
-        println(s"(LM) filtered: $filtered")
-
-        // } yield         ownedProjects.contains(project) || (readingProjects.contains(project) && res.exists(_._1 == r))
-
-        filtered
-      }
-      _ <- logger.info(s"(LM) results filtered: $resFiltered")
-
     } yield resources.filter { case (project, r) =>
       // user must be a project owner or at least a reader on the project and resource
       ownedProjects.contains(project) || (readingProjects.contains(project) && res.exists(_._1 == r))
