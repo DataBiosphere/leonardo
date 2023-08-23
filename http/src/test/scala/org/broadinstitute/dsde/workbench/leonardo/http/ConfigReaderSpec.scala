@@ -201,7 +201,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         List(AppType.Wds),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.1.0"))
+        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
