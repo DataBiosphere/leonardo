@@ -308,8 +308,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
-      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, true)
-    } yield res
+
+      // V1 endpoints use google project to determine user access
+      // listAll apps includes both Azure and GCP apps
+      // but Azure apps don't have a google project, so useGoogleProject is false for Azure apps
+      partition = allClusters.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
+      gcpApps <- filterAppsBySamPermission(partition._1, userInfo, paramMap._3, true)
+      azureApps <- filterAppsBySamPermission(partition._2, userInfo, paramMap._3, false)
+    } yield gcpApps ++ azureApps
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
     implicit as: Ask[F, AppContext]
@@ -1324,23 +1330,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   )(implicit
     as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] = for {
-    ctx <- as.ask
+    _ <- as.ask
 
-    // V1 endpoints use google project to determine user access
-    // Azure apps don't have a google project
-    partition = allClusters.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
+    // V1 endpoints use google project to determine user access, but V2 doesn't
     samVisibleAppsOpt <- useGoogleProject match {
-      case true =>
-        for {
-          gcpApps <- getVisibleAppsByProject(partition._1, userInfo)
-          azureApps <- getVisibleApps(partition._2, userInfo)
-          allVisibleApps = (gcpApps, azureApps) match {
-            case (Some(a), Some(b)) => Some(a ++ b)
-            case (Some(a), None)    => Some(a)
-            case (None, Some(b))    => Some(b)
-            case (None, None)       => None
-          }
-        } yield allVisibleApps
+      case true  => getVisibleAppsByProject(allClusters, userInfo)
       case false => getVisibleApps(allClusters, userInfo)
     }
 
