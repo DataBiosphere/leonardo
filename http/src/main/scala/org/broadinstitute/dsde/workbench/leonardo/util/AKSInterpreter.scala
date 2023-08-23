@@ -1405,7 +1405,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         cromwellMetadataDb <- createDatabaseInWsm(app,
                                                   workspaceId,
                                                   namespace,
-                                                  "cbas",
+                                                  "cromwellmetadata",
                                                   wsmApi,
                                                   Option(createIdentityResponse.getResourceId)
         )
