@@ -22,10 +22,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Galaxy}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.appTypeToFormattedByType
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.appServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppNotFoundException,
+  AppTypeNotSupportedOnCloudException
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -38,6 +42,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsp.ChartVersion
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -105,6 +110,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           handleStopAppMessage(msg)
         case msg: StartAppMessage =>
           handleStartAppMessage(msg)
+        case msg: UpdateAppMessage =>
+          handleUpdateAppMessage(msg)
         case msg: CreateAzureRuntimeMessage =>
           azurePubsubHandler.createAndPollRuntime(msg).adaptError { case e =>
             PubsubHandleMessageError.AzureRuntimeCreationError(
@@ -921,7 +928,11 @@ class LeoPubsubMessageSubscriber[F[_]](
             // initial the createCluster call synchronously
             createClusterResultOpt <- gkeAlg
               .createCluster(
-                CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId))
+                CreateClusterParams(clusterId,
+                                    msg.project,
+                                    List(defaultNodepoolId, nodepoolId),
+                                    msg.enableIntraNodeVisibility
+                )
               )
               .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
               .adaptError { case e =>
@@ -1001,7 +1012,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
       // create second Galaxy disk asynchronously
       createSecondDiskOp =
-        if (msg.appType == Galaxy && disk.isDefined) {
+        if (msg.appType == AppType.Galaxy && disk.isDefined) {
           val d = disk.get // it's safe to do `.get` here because we've verified
           for {
             res <- createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, d.name)
@@ -1312,6 +1323,78 @@ class LeoPubsubMessageSubscriber[F[_]](
         }
 
       _ <- asyncTasks.offer(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now, "startApp"))
+    } yield ()
+
+  private[monitor] def handleUpdateAppMessage(
+    msg: UpdateAppMessage
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      appOpt <- KubernetesServiceDbQueries
+        .getFullAppById(msg.cloudContext, msg.appId)
+        .transaction
+      appResult <- appOpt.fold(
+        F.raiseError[GetAppResult](PubsubHandleMessageError.AppNotFound(msg.appId.id, msg))
+      )(F.pure)
+
+      latestAppChartVersion <- (appResult.app.appType, msg.cloudContext.cloudProvider) match {
+        case (AppType.Galaxy, CloudProvider.Gcp) =>
+          F.pure(appServiceConfig.leoKubernetesConfig.galaxyAppConfig.chartVersion)
+        case (AppType.Custom, CloudProvider.Gcp) =>
+          F.pure(appServiceConfig.leoKubernetesConfig.customAppConfig.chartVersion)
+        case (AppType.Cromwell, CloudProvider.Gcp) =>
+          F.pure(appServiceConfig.leoKubernetesConfig.cromwellAppConfig.chartVersion)
+        case (AppType.Allowed, CloudProvider.Gcp) =>
+          AllowedChartName.fromChartName(appResult.app.chart.name) match {
+            case Some(AllowedChartName.RStudio) =>
+              F.pure(appServiceConfig.leoKubernetesConfig.allowedAppConfig.rstudioChartVersion)
+            case Some(AllowedChartName.Sas) =>
+              F.pure(appServiceConfig.leoKubernetesConfig.allowedAppConfig.sasChartVersion)
+            case None =>
+              F.raiseError[ChartVersion](
+                AppTypeNotSupportedOnCloudException(msg.cloudContext.cloudProvider, appResult.app.appType, ctx.traceId)
+              )
+          }
+        case (AppType.Cromwell, CloudProvider.Azure) => F.pure(ConfigReader.appConfig.azure.coaAppConfig.chartVersion)
+        case (AppType.Wds, CloudProvider.Azure)      => F.pure(ConfigReader.appConfig.azure.wdsAppConfig.chartVersion)
+        case (AppType.HailBatch, CloudProvider.Azure) =>
+          F.pure(ConfigReader.appConfig.azure.hailBatchAppConfig.chartVersion)
+        case (appType, cloud) =>
+          F.raiseError[ChartVersion](
+            AppTypeNotSupportedOnCloudException(cloud, appType, ctx.traceId)
+          )
+      }
+
+      updateApp = msg.cloudContext match {
+        case CloudContext.Gcp(_) =>
+          gkeAlg
+            .updateAndPollApp(UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject))
+            .adaptError { case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
+                Some(msg.appId),
+                false,
+                None,
+                None,
+                None
+              )
+            }
+        case CloudContext.Azure(azureContext) =>
+          azurePubsubHandler
+            .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
+            .adaptError { case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
+                Some(msg.appId),
+                false,
+                None,
+                None,
+                None
+              )
+            }
+      }
+
+      _ <- asyncTasks.offer(Task(ctx.traceId, updateApp, Some(handleKubernetesError), ctx.now, "updateApp"))
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>

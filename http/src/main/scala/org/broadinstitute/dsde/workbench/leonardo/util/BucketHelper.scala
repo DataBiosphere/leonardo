@@ -98,6 +98,23 @@ class BucketHelper[F[_]](
         GcsBlobName(runtimeResource.asString)
       )).compile.drain
 
+  def uploadClusterCertsToInitBucket(initBucketName: GcsBucketName): F[Unit] = {
+    val uploadStream = for {
+      f <- Stream.emits(
+        Seq(
+          config.clusterFilesConfig.proxyServerCrt,
+          config.clusterFilesConfig.proxyServerKey,
+          config.clusterFilesConfig.proxyRootCaPem
+        )
+      )
+      upload <- TemplateHelper.fileStream[F](f) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(f.getFileName.toString)
+      )
+    } yield upload
+    uploadStream.compile.drain
+  }
+
   def initializeBucketObjects(
     initBucketName: GcsBucketName,
     serviceAccountKey: Option[ServiceAccountKey],
@@ -117,7 +134,6 @@ class BucketHelper[F[_]](
     val customEnvVars = customClusterEnvironmentVariables.foldLeft("") { case (memo, (key, value)) =>
       memo + s"$key=$value\n"
     }
-
     val uploadRawFiles = for {
       f <- Stream.emits(
         Seq(

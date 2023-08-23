@@ -4,7 +4,7 @@ package db
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -128,8 +128,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           formattedBy.flatMap {
             case FormattedBy.Galaxy =>
               (galaxyPvcId, lastUsedBy).mapN((gp, lb) => GalaxyRestore(gp, lb))
-            case FormattedBy.Cromwell                 => lastUsedBy.map(CromwellRestore)
-            case FormattedBy.RStudio                  => lastUsedBy.map(RStudioRestore)
+            case FormattedBy.Cromwell                 => lastUsedBy.map(Other)
+            case FormattedBy.Allowed                  => lastUsedBy.map(Other)
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
           sourceDisk,
@@ -159,10 +159,9 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
         record.blockSize,
         record.formattedBy,
         record.appRestore match {
-          case None                       => (None, None)
-          case Some(app: CromwellRestore) => (None, Some(app.lastUsedBy))
-          case Some(app: RStudioRestore)  => (None, Some(app.lastUsedBy))
-          case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
+          case None                     => (None, None)
+          case Some(app: Other)         => (None, Some(app.lastUsedBy))
+          case Some(app: GalaxyRestore) => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
         },
         record.sourceDisk,
         record.wsmResourceId,
@@ -275,7 +274,7 @@ object persistentDiskQuery {
             isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
             isAttached <- if (isAttachedToRuntime) DBIO.successful(true) else appQuery.isDiskAttached(diskId)
           } yield isAttached
-        case Some(FormattedBy.Galaxy | FormattedBy.Custom | FormattedBy.Cromwell | FormattedBy.RStudio) =>
+        case Some(FormattedBy.Galaxy | FormattedBy.Custom | FormattedBy.Cromwell | FormattedBy.Allowed) =>
           appQuery.isDiskAttached(diskId)
         case Some(FormattedBy.GCE) =>
           RuntimeConfigQueries.isDiskAttached(diskId)

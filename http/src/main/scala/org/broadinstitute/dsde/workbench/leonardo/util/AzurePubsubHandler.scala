@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsp.ChartVersion
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
@@ -315,24 +316,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
     ev: Ask[F, AppContext]
-  ): F[CreateDiskResponse] =
-    params.useExistingDisk match {
+  ): F[CreateDiskResponse] = for {
 
+    diskId <- F.fromOption(
+      params.runtimeConfig.persistentDiskId,
+      AzureRuntimeCreationError(
+        params.runtime.id,
+        params.workspaceId,
+        s"No associated diskId found for runtime:${params.runtime.id}",
+        params.useExistingDisk
+      )
+    )
+
+    resp <- params.useExistingDisk match {
       // if using existing disk, check conditions and update tables
       case true =>
         for {
           ctx <- ev.ask
-          diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
-            new RuntimeException(s"Disk id:${params.runtimeConfig.persistentDiskId} not found")
+            new RuntimeException(s"Disk id:${diskId.value} not found for runtime:${params.runtime.id}")
           )
           resourceId <- F.fromOption(
             disk.wsmResourceId,
             AzureRuntimeCreationError(
               params.runtime.id,
               params.workspaceId,
-              s"No associated resourceId found for Disk id:${params.runtimeConfig.persistentDiskId.value}",
+              s"No associated resourceId found for Disk id:${diskId.value}",
               params.useExistingDisk
             )
           )
@@ -344,7 +355,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             AzureRuntimeCreationError(
               params.runtime.id,
               params.workspaceId,
-              s"WSMResource:${resourceId} not found for disk id:${params.runtimeConfig.persistentDiskId.value}",
+              s"WSMResource:${resourceId.value} not found for disk id:${diskId.value}",
               params.useExistingDisk
             )
           )
@@ -359,12 +370,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       case false =>
         for {
           ctx <- ev.ask
-          diskOpt <- persistentDiskQuery.getById(params.runtimeConfig.persistentDiskId).transaction
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
             AzureRuntimeCreationError(params.runtime.id,
                                       params.workspaceId,
-                                      s"Disk ${params.runtimeConfig.persistentDiskId.value} not found",
+                                      s"Disk ${diskId} not found",
                                       params.useExistingDisk
             )
           )
@@ -390,6 +401,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           _ <- persistentDiskQuery.updateWSMResourceId(disk.id, diskResp.resourceId, ctx.now).transaction
         } yield diskResp
     }
+  } yield resp
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
@@ -738,6 +750,36 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
             ctx.now,
             ErrorAction.CreateApp,
+            ErrorSource.App,
+            None,
+            Some(ctx.traceId)
+          ),
+          Some(appId),
+          false,
+          None,
+          None,
+          None
+        )
+      }
+    } yield ()
+
+  override def updateAndPollApp(appId: AppId,
+                                appName: AppName,
+                                appChartVersion: ChartVersion,
+                                workspaceId: Option[WorkspaceId],
+                                cloudContext: AzureCloudContext
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
+      _ <- aksAlgebra.updateAndPollApp(params).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(
+            s"Error updating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
+            ctx.now,
+            ErrorAction.UpdateApp,
             ErrorSource.App,
             None,
             Some(ctx.traceId)

@@ -124,6 +124,7 @@ object Config {
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("customDataprocImage"),
+      config.as[DataprocCustomImage]("legacyAouCustomDataprocImage"),
       config.getAs[Double]("sparkMemoryConfigRatio"),
       config.getAs[Double]("minimumRuntimeMemoryInGb"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
@@ -646,7 +647,8 @@ object Config {
       config.as[GalaxyDrsUrl]("drsUrl"),
       config.as[Int]("minMemoryGb"),
       config.as[Int]("minNumOfCpus"),
-      config.as[Boolean]("enabled")
+      config.as[Boolean]("enabled"),
+      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
@@ -670,7 +672,8 @@ object Config {
       services = config.as[List[ServiceConfig]]("services"),
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
       dbPassword = config.as[DbPassword]("dbPassword"),
-      enabled = config.as[Boolean]("enabled")
+      enabled = config.as[Boolean]("enabled"),
+      chartVersionsToExcludeFromUpdates = config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
@@ -682,19 +685,21 @@ object Config {
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[CustomApplicationAllowListConfig]("customApplicationAllowList"),
-      config.as[Boolean]("enabled")
+      config.as[Boolean]("enabled"),
+      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
-  implicit private val rstudioAppConfigReader: ValueReader[RStudioAppConfig] = ValueReader.relative { config =>
-    RStudioAppConfig(
+  implicit private val aouAppConfigReader: ValueReader[AllowedAppConfig] = ValueReader.relative { config =>
+    AllowedAppConfig(
       config.as[ChartName]("chartName"),
-      config.as[ChartVersion]("chartVersion"),
+      config.as[ChartVersion]("rstudioChartVersion"),
+      config.as[ChartVersion]("sasChartVersion"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[Boolean]("enabled")
+      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
 
@@ -737,7 +742,7 @@ object Config {
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
-  val gkeRStudioAppConfig = config.as[RStudioAppConfig]("gke.rstudioApp")
+  val gkeAllowedAppConfig = config.as[AllowedAppConfig]("gke.allowedApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
 
@@ -761,7 +766,7 @@ object Config {
     ConfigReader.appConfig.persistentDisk,
     gkeCromwellAppConfig,
     gkeCustomAppConfig,
-    gkeRStudioAppConfig
+    gkeAllowedAppConfig
   )
 
   val appServiceConfig = AppServiceConfig(
@@ -855,7 +860,8 @@ object Config {
       config.as[PollMonitorConfig]("deleteApp"),
       config.as[PollMonitorConfig]("scalingUpNodepool"),
       config.as[PollMonitorConfig]("scalingDownNodepool"),
-      config.as[InterruptablePollMonitorConfig]("startApp")
+      config.as[InterruptablePollMonitorConfig]("startApp"),
+      config.as[InterruptablePollMonitorConfig]("updateApp")
     )
   }
 
@@ -869,7 +875,7 @@ object Config {
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
-      gkeRStudioAppConfig,
+      gkeAllowedAppConfig,
       appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,

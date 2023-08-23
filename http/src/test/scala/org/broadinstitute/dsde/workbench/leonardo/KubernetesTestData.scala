@@ -53,7 +53,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.268")
+  val coaChartVersion = ChartVersion("0.2.328")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -68,6 +68,7 @@ object KubernetesTestData {
   val createAppRequest = CreateAppRequest(
     Some(kubernetesRuntimeConfig),
     AppType.Galaxy,
+    None,
     None,
     None,
     Map.empty,
@@ -108,6 +109,7 @@ object KubernetesTestData {
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
+      None,
       None,
       diskConfig = diskConfig,
       labels = Map.empty,
@@ -197,7 +199,9 @@ object KubernetesTestData {
               status: AppStatus = AppStatus.Unspecified,
               appType: AppType = galaxyApp,
               workspaceId: WorkspaceId = WorkspaceId(UUID.randomUUID()),
-              appAccessScope: AppAccessScope = AppAccessScope.UserPrivate
+              appAccessScope: AppAccessScope = AppAccessScope.UserPrivate,
+              chart: Chart = galaxyChart,
+              releasePrefix: String = galaxyReleasePrefix
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
@@ -213,8 +217,8 @@ object KubernetesTestData {
       None,
       Some(workspaceId),
       status,
-      galaxyChart,
-      Release(galaxyReleasePrefix + index),
+      chart,
+      Release(releasePrefix + index),
       samId,
       serviceAccountEmail,
       auditInfo,

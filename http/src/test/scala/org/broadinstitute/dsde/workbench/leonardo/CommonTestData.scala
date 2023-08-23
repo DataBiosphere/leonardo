@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.effect.Ref
@@ -232,11 +231,13 @@ object CommonTestData {
     RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val customDataprocImage =
     RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val legacyAouCustomDataprocImage =
+    RuntimeImage(BootSource, "legacy_aou_custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680))
-  val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
+  val hostToIpMapping = Ref.unsafe[IO, Map[String, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(
@@ -568,7 +569,8 @@ object CommonTestData {
     SubnetworkName("batchsub"),
     SubnetworkName("akssub"),
     azureRegion,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresName("postgres"))
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

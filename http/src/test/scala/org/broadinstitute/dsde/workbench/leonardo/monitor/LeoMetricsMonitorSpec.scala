@@ -80,6 +80,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val rstudioDAO = setUpMockRStudioDAO
   val welderDAO = setUpMockWelderDAO
   val hailBatchDAO = setUpMockHailBatchDAO
+  val relayListenerDAO = setUpMockRelayListenerDAO
   val kube = setUpMockKubeDAO
   val containerService = setUpMockAzureContainerService
 
@@ -96,6 +97,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     cbasUiDAO,
     cromwellDAO,
     hailBatchDAO,
+    relayListenerDAO,
     samDAO,
     kube,
     containerService
@@ -133,7 +135,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) shouldBe Some(1)
     // RStudio on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.RStudio, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart)
     ) shouldBe Some(1)
     // Hail Batch on Azure
     test.get(
@@ -286,6 +288,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       cbasUiDAO,
       cromwellDAO,
       hailBatchDAO,
+      relayListenerDAO,
       samDAO,
       kube,
       containerService
@@ -440,7 +443,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def cromwellAppGcpAou: KubernetesCluster =
     genApp(false, AppType.Cromwell, cromwellChart, true, true)
   private def rstudioAppGcpAou: KubernetesCluster =
-    genApp(false, AppType.RStudio, rstudioChart, true, false)
+    genApp(false, AppType.Allowed, rstudioChart, true, false)
   private def hailBatchAppAzure: KubernetesCluster =
     genApp(true, AppType.HailBatch, hailBatchChart, false, false)
       .copy(cloudContext = CloudContext.Azure(azureContext))
@@ -585,6 +588,14 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       batch.getDriverStatus(any, any)(any)
     } thenReturn IO.pure(true)
     batch
+  }
+
+  private def setUpMockRelayListenerDAO: ListenerDAO[IO] = {
+    val listener = mock[ListenerDAO[IO]]
+    when {
+      listener.getStatus(any)(any)
+    } thenReturn IO.pure(true)
+    listener
   }
 
   private def setUpMockKubeDAO: KubernetesAlgebra[IO] = {

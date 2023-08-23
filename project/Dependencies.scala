@@ -9,26 +9,26 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.16"
-  val http4sVersion = "1.0.0-M38"
+  val http4sVersion = "1.0.0-M38" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
   val slickV = "3.4.1"
-  val guavaV = "31.1-jre"
-  val monocleV = "2.1.0"
+  val guavaV = "32.1.2-jre"
+  val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
 
-  private val workbenchLibsHash = "01a11c3"
-  val serviceTestV = s"2.1-$workbenchLibsHash"
-  val workbenchModelV = s"0.17-$workbenchLibsHash"
+  private val workbenchLibsHash = "63d2d78"
+  val serviceTestV = s"3.1-$workbenchLibsHash"
+  val workbenchModelV = s"0.18-$workbenchLibsHash"
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
   val workbenchGoogleV = s"0.23-4b46aac"
-  val workbenchGoogle2V = s"0.26-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.4-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.3-$workbenchLibsHash"
-  val workbenchAzureV = s"0.3-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.30-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.5-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.4-$workbenchLibsHash"
+  val workbenchAzureV = s"0.4-$workbenchLibsHash"
 
-  val helmScalaSdkV = "0.0.8"
+  val helmScalaSdkV = "0.0.20"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
@@ -62,10 +62,10 @@ object Dependencies {
 
   val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.3"
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.7"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.11"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
-  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
+  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.3"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
@@ -74,12 +74,12 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.55.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.56.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
-  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-4-1" % "3.2.12.1" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -129,9 +129,10 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.15" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.19" % Test // brought in for FakeStorageInterpreter
 
-  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.2"
+  // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
+  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
@@ -142,6 +143,15 @@ object Dependencies {
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
+
+  val workSpaceManagerV = "0.254.824-SNAPSHOT"
+
+  def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
+  def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
+  def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi, excludeJakartaXmlBindApi)
+
+  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+
 
   val coreDependencies = List(
     jose4j,
@@ -157,9 +167,9 @@ object Dependencies {
     workbenchOpenTelemetryTest,
     helmScalaSdk,
     helmScalaSdkTest,
-    "net.logstash.logback" % "logstash-logback-encoder" % "7.3", // for structured logging in logback
-    "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
-    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
+    "net.logstash.logback" % "logstash-logback-encoder" % "7.4", // for structured logging in logback
+    "dev.optics" %%  "monocle-core"  % monocleV,
+    "dev.optics" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
     "com.github.pureconfig" %% "pureconfig" % "0.17.4" % Provided,
@@ -170,7 +180,8 @@ object Dependencies {
     scalaTestScalaCheck,
     workbenchAzure,
     workbenchAzureTest,
-    logbackClassic
+    logbackClassic,
+    workspaceManager
   )
 
   val httpDependencies = Seq(
@@ -201,11 +212,12 @@ object Dependencies {
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
+  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-563edbd-SNAP"//"1.3.6-9d5d754"
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.0" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.2" % "test",
     logbackClassic % "test",
-
+    leonardoClient,
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
@@ -235,4 +247,5 @@ object Dependencies {
     http4sCirce,
     scalaTest
   )
+
 }

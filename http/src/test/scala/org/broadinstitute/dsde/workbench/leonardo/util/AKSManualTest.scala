@@ -12,7 +12,16 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, dbConcurrency, liquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CbasDAO, CbasUiDAO, CromwellDAO, HailBatchDAO, SamDAO, WdsDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  CbasDAO,
+  CbasUiDAO,
+  CromwellDAO,
+  HailBatchDAO,
+  SamDAO,
+  WdsDAO,
+  WsmApiClientProvider,
+  WsmDao
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -143,8 +152,9 @@ object AKSManualTest {
     helmConcurrency <- Resource.eval(Semaphore[IO](20L))
     helmClient = new HelmInterpreter[IO](helmConcurrency)
     config = AKSInterpreterConfig(
-      ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
+      ConfigReader.appConfig.azure.workflowsAppConfig,
+      ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
       ConfigReader.appConfig.azure.wdsAppConfig,
       ConfigReader.appConfig.azure.hailBatchAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
@@ -155,7 +165,8 @@ object AKSManualTest {
       ConfigReader.appConfig.drs,
       new URL("https://leo-dummy-url.org"),
       ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-      ConfigReader.appConfig.azure.tdr
+      ConfigReader.appConfig.azure.tdr,
+      ConfigReader.appConfig.azure.listenerChartConfig
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
@@ -171,7 +182,9 @@ object AKSManualTest {
     mock[CbasUiDAO[IO]],
     mock[WdsDAO[IO]],
     mock[HailBatchDAO[IO]],
-    mock[KubernetesAlgebra[IO]]
+    mock[WsmDao[IO]],
+    mock[KubernetesAlgebra[IO]],
+    mock[WsmApiClientProvider]
   )
 
   /** Deploys a CoA app */

@@ -155,7 +155,7 @@ class GceInterpreter[F[_]](
             )
             isFormatted <- persistentDisk.formattedBy match {
               case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) | Some(FormattedBy.Cromwell) | Some(
-                    FormattedBy.RStudio
+                    FormattedBy.Allowed
                   ) =>
                 F.raiseError[Boolean](
                   new RuntimeException(
@@ -395,6 +395,7 @@ class GceInterpreter[F[_]](
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
+
       res <- opFutureOpt match {
         case None =>
           F.raiseError(new Exception(s"${params.runtimeAndRuntimeConfig.runtime.projectNameString} not found in GCP"))

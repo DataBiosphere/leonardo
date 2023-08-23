@@ -13,7 +13,7 @@ start() {
     --restart "always" \
     -p 3306:3306 \
     --env-file="${SECRETS_DIR}/sqlproxy.env" \
-    broadinstitute/cloudsqlproxy:1.11_20180808
+    us-central1-docker.pkg.dev/dsp-artifact-registry/cloudsqlproxy/cloudsqlproxy:latest
 
     echo "Copying files to CloudSQL proxy container..."
     docker cp ${SECRETS_DIR}/leonardo-account.json sqlproxy:/etc/sqlproxy-service-account.json
@@ -62,7 +62,7 @@ dbconnect() {
         exit 1
     fi
 
-    mysql -u ${DB_USER} -p${DB_PASSWORD} --host 127.0.0.1 --port 3306
+    mysql -u ${DB_USER} -p${DB_PASSWORD} --host 127.0.0.1 --port 3306 leonardo
 }
 
 HELP_TEXT=$(cat <<EOF

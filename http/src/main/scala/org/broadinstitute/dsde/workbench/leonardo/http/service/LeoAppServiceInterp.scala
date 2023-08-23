@@ -21,12 +21,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
+import org.broadinstitute.dsp.ChartName
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
@@ -40,6 +41,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
+import monocle.macros.syntax.lens._
 
 import java.time.Instant
 import java.util.UUID
@@ -61,9 +63,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   metrics: OpenTelemetryMetrics[F],
   ec: ExecutionContext
 ) extends AppService[F] {
-  val SECURITY_GROUP = "security-group"
-  val SECURITY_GROUP_HIGH = "high"
-
   override def createApp(
     userInfo: UserInfo,
     cloudContext: CloudContext.Gcp,
@@ -83,7 +82,25 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
+      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
       _ <- req.appType match {
+        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
+            AppType.CromwellRunnerApp =>
+          F.unit
+        case AppType.Allowed =>
+          req.allowedChartName match {
+            case Some(cn) =>
+              cn match {
+                case AllowedChartName.RStudio => F.unit
+                case AllowedChartName.Sas     => F.unit // TODO: check group permission check here
+              }
+            case None =>
+              F.raiseError(
+                BadRequestException("when AppType is ALLOWED, allowedChartName needs to be specified",
+                                    Some(ctx.traceId)
+                )
+              )
+          }
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>
@@ -96,7 +113,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                 )
               )
           }
-        case _ => F.unit
       }
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(googleProject), appName).transaction
@@ -229,7 +245,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.appType,
         app.appResources.namespace.name,
         appMachineType,
-        Some(ctx.traceId)
+        Some(ctx.traceId),
+        enableIntraNodeVisibility
       )
       _ <- publisherQueue.offer(createAppMessage)
     } yield ()
@@ -493,7 +510,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Validate shared access scope apps against an allow-list. No-op for private apps.
       _ <- req.accessScope match {
         case Some(AppAccessScope.WorkspaceShared) =>
-          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType.toString))(
+          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType))(
             SharedAppNotAllowedException(req.appType, ctx.traceId)
           )
         case _ => F.unit
@@ -747,27 +764,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     }
 
     _ <-
-      if (app.status == AppStatus.Error) {
-        for {
-          _ <- appQuery.markAsDeleted(app.id, ctx.now).transaction >> authProvider
-            .notifyResourceDeletedV2(app.samResourceId, userInfo)
-            .void
-        } yield ()
-      } else {
-        for {
-          _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
-          deleteMessage = DeleteAppV2Message(
-            app.id,
-            app.appName,
-            workspaceId,
-            cloudContext,
-            diskOpt,
-            landingZoneResourcesOpt,
-            Some(ctx.traceId)
-          )
-          _ <- publisherQueue.offer(deleteMessage)
-        } yield ()
-      }
+      for {
+        _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
+        deleteMessage = DeleteAppV2Message(
+          app.id,
+          app.appName,
+          workspaceId,
+          cloudContext,
+          diskOpt,
+          landingZoneResourcesOpt,
+          Some(ctx.traceId)
+        )
+        _ <- publisherQueue.offer(deleteMessage)
+      } yield ()
   } yield ()
 
   private[service] def getSavableCluster(
@@ -811,8 +820,20 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   }
 
-  private def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject, descriptorPath: Uri)(
-    implicit ev: Ask[F, TraceId]
+  /**
+   * Short-cuit if app creation isn't allowed, and return whether or not the user's project is AoU project
+   *
+   * @param userEmail
+   * @param googleProject
+   * @param descriptorPath
+   * @param ev
+   * @return
+   */
+  private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
+                                                   googleProject: GoogleProject,
+                                                   descriptorPath: Uri
+  )(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit] =
     if (config.enableCustomAppCheck)
       for {
@@ -829,12 +850,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       if (securityGroupValue == SECURITY_GROUP_HIGH)
                         customAppConfig.customApplicationAllowList.highSecurity
                       else customAppConfig.customApplicationAllowList.default
-                    val res =
-                      if (appAllowList.contains(descriptorPath.toString()))
-                        Right(())
-                      else
-                        Left(s"${descriptorPath.toString()} is not in app allow list.")
-                    F.pure(res)
+                    if (appAllowList.contains(descriptorPath.toString()))
+                      authProvider.isCustomAppAllowed(userEmail) map { res =>
+                        if (res) Right(())
+                        else Left("No labels found for this project. User is not in CUSTOM_APP_USERS group")
+                      }
+                    else
+                      F.pure(s"${descriptorPath.toString()} is not in app allow list.".asLeft[Unit])
                   case None =>
                     authProvider.isCustomAppAllowed(userEmail) map { res =>
                       if (res) Right(())
@@ -869,8 +891,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
-                (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) |
-                (Some(FormattedBy.RStudio), Some(RStudioRestore(_))) =>
+                (Some(FormattedBy.Cromwell), Some(AppRestore.Other(_))) |
+                (Some(FormattedBy.Allowed), Some(AppRestore.Other(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
                 lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
@@ -890,7 +912,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                 }
               } yield lastUsed.some
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
-                (Some(FormattedBy.RStudio), None) =>
+                (Some(FormattedBy.Allowed), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
               )
@@ -912,7 +934,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               F.raiseError[Option[LastUsedApp]](
                 DiskAlreadyFormattedError(
                   diskResult.disk.formattedBy.get,
-                  s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString} or ${FormattedBy.RStudio.asString}",
+                  s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString} or ${FormattedBy.Allowed.asString}",
                   ctx.traceId
                 )
               )
@@ -1058,14 +1080,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       // Validate app type
       gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
-        case (Galaxy, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.galaxyAppConfig)
-        case (Custom, CloudProvider.Gcp)      => Right(config.leoKubernetesConfig.customAppConfig)
-        case (Cromwell, CloudProvider.Gcp)    => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (RStudio, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.rstudioAppConfig)
-        case (Cromwell, CloudProvider.Azure)  => Right(ConfigReader.appConfig.azure.coaAppConfig)
-        case (Wds, CloudProvider.Azure)       => Right(ConfigReader.appConfig.azure.wdsAppConfig)
-        case (HailBatch, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
-        case _ => Left(AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId))
+        case (Galaxy, CloudProvider.Gcp)              => Right(config.leoKubernetesConfig.galaxyAppConfig)
+        case (Custom, CloudProvider.Gcp)              => Right(config.leoKubernetesConfig.customAppConfig)
+        case (Cromwell, CloudProvider.Gcp)            => Right(config.leoKubernetesConfig.cromwellAppConfig)
+        case (AppType.Allowed, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.allowedAppConfig)
+        case (Cromwell, CloudProvider.Azure)          => Right(ConfigReader.appConfig.azure.coaAppConfig)
+        case (WorkflowsApp, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.workflowsAppConfig)
+        case (CromwellRunnerApp, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
+        case (Wds, CloudProvider.Azure)               => Right(ConfigReader.appConfig.azure.wdsAppConfig)
+        case (HailBatch, CloudProvider.Azure)         => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
+        case _ =>
+          AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId)
+            .asLeft[KubernetesAppConfig]
       }
 
       // Check if app type is enabled
@@ -1121,24 +1147,43 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
       )(app => app.namespaceName.asRight[Throwable])
 
+      potentialNewChart =
+        if (req.appType == AppType.Allowed) {
+          val chartVersion = req.allowedChartName.get match {
+            case AllowedChartName.RStudio => config.leoKubernetesConfig.allowedAppConfig.rstudioChartVersion
+            case AllowedChartName.Sas     => config.leoKubernetesConfig.allowedAppConfig.sasChartVersion
+          }
+          gkeAppConfig.chart
+            .lens(_.name)
+            .modify(cn => ChartName(cn.asString + req.allowedChartName.map(_.asString).get))
+            .lens(_.version)
+            .modify(_ => chartVersion)
+        } else gkeAppConfig.chart
+
       chart = lastUsedApp
         .map { lastUsed =>
           // if there's a patch version bump, then we use the later version defined in leo config; otherwise, we use lastUsed chart definition
           if (
-            lastUsed.chart.name == gkeAppConfig.chartName && isPatchVersionDifference(lastUsed.chart.version,
+            lastUsed.chart.name == potentialNewChart.name && isPatchVersionDifference(lastUsed.chart.version,
                                                                                       gkeAppConfig.chartVersion
             )
           )
-            gkeAppConfig.chart
+            potentialNewChart
           else lastUsed.chart
         }
-        .getOrElse(gkeAppConfig.chart)
+        .getOrElse(potentialNewChart)
+
       release <- lastUsedApp.fold(
-        KubernetesName.withValidation(
-          s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
-          Release.apply
-        )
+        KubernetesName
+          .withValidation(
+            s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
+            Release.apply
+          )
       )(app => app.release.asRight[Throwable])
+      services =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) {
+          gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
+        } else gkeAppConfig.kubernetesServices
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1160,7 +1205,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             namespaceName
           ),
           diskOpt,
-          gkeAppConfig.kubernetesServices,
+          services,
           Option(gkeAppConfig.serviceAccountName)
         ),
         List.empty,
@@ -1238,7 +1283,7 @@ object LeoAppServiceInterp {
                                  diskConfig: PersistentDiskConfig,
                                  cromwellAppConfig: CromwellAppConfig,
                                  customAppConfig: CustomAppConfig,
-                                 rstudioAppConfig: RStudioAppConfig
+                                 allowedAppConfig: AllowedAppConfig
   )
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {
