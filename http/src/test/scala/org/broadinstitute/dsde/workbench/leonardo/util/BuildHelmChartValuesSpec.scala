@@ -357,7 +357,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       "leonardo.url=https://leo.com," +
       s"general.workspaceId=${workspaceId.value.toString}," +
       "general.appName=app1," +
-      "general.image=acr/listener:1," +
+      "listener.image=acr/listener:1," +
       "connection.validHosts[0]=example.com," +
       "connection.validHosts[1]=foo.com," +
       "connection.validHosts[2]=bar.org"
