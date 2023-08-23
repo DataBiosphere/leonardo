@@ -918,11 +918,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     val postgresConfig = (ksaName, wdsDbName, landingZoneResources.postgresServer) match {
       case (Some(ksa), Some(db), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
-        val dbPort = if (pgBouncerEnabled) 6432 else 5432
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServerName.postgres.database.azure.com",
-          raw"postgres.dbport=$dbPort",
+          raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
           raw"postgres.dbname=$db",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${ksa.value}"

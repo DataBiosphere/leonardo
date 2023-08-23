@@ -381,7 +381,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "provenance.sourceWorkspaceId=," +
       "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
-      "postgres.dbport=5432," +
+      "postgres.pgbouncer.enabled=false," +
       "postgres.dbname=dbname," +
       "postgres.user=ksa"
   }
@@ -425,7 +425,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "provenance.sourceWorkspaceId=," +
       "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
-      "postgres.dbport=6432," +
+      "postgres.pgbouncer.enabled=true," +
       "postgres.dbname=dbname," +
       "postgres.user=ksa"
   }

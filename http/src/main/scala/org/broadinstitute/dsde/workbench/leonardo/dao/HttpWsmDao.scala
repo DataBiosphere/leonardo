@@ -215,9 +215,25 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       postgresServer
     )
 
+  /**
+   * Given a LandingZoneResource, retrieve the value of a specific tag on that resource.
+   *
+   * @param resource the LZ resource to inspect
+   * @param tagName  name of the tag whose value to return
+   * @return the tag's value, or None if the tag is not present on the resource
+   */
   private def getLandingZoneResourceTagValue(resource: LandingZoneResource, tagName: String): Option[String] =
     resource.tags.flatMap(_.get(tagName))
 
+  /**
+   * Given a collection of landing zone resources by purpose, return the single resource that
+   * matches a given resource type and purpose. Throws an error if the resource is not found.
+   *
+   * @param landingZoneResourcesByPurpose the collection in which to search
+   * @param resourceType                  type of resource to return
+   * @param purpose                       purpose of resource to return
+   * @return the LandingZoneResource
+   */
   private def getLandingZoneResource(
     landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
     resourceType: String,
@@ -232,6 +248,16 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         )
       )(F.pure)
 
+  /**
+   * Given a collection of landing zone resources by purpose, return the name of the single resource that
+   * matches a given resource type and purpose. Throws an error if the resource is not found.
+   *
+   * @param landingZoneResourcesByPurpose the collection in which to search
+   * @param resourceType                  type of resource to return
+   * @param purpose                       purpose of resource to return
+   * @param useParent                     whether to return the resource's name or its parent's name
+   * @return name of the specified resource
+   */
   private def getLandingZoneResourceName(
     landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
     resourceType: String,
@@ -246,9 +272,16 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
       )
 
-  private def getLandingZoneResourceName(r: LandingZoneResource, useParent: Boolean): Option[String] =
-    if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
-    else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
+  /**
+   * Given a landing zone resource, return that resource's name
+   *
+   * @param resource  the resource whose name to return
+   * @param useParent whether to return the resource's name or its parent's name
+   * @return name of the resource, or None if the name could not be determined
+   */
+  private def getLandingZoneResourceName(resource: LandingZoneResource, useParent: Boolean): Option[String] =
+    if (useParent) resource.resourceParentId.flatMap(_.split('/').lastOption)
+    else resource.resourceName.orElse(resource.resourceId.flatMap(_.split('/').lastOption))
 
   private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
