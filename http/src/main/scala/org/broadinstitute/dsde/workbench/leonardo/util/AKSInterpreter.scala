@@ -1026,7 +1026,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                          userAccessToken: String,
                                                          identityType: IdentityType,
                                                          ksaName: Option[ServiceAccountName],
-                                                         maybeDatabaseNames: Option[_]
+                                                         maybeDatabaseNames: Option[WorkflowsAppDatabaseNames]
   ): Values = {
 
     val valuesList =
@@ -1081,14 +1081,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, ksaName) match {
-      case (Some(_), Some(PostgresName(dbServer)), Some(ksa)) =>
+      case (Some(dbNames), Some(PostgresName(dbServer)), Some(ksa)) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServer.postgres.database.azure.com",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${ksa.value}",
-          raw"postgres.dbnames.cromwellMetadata=cromwellmetadata", // TODO: WM-2159
-          raw"postgres.dbnames.cbas=cbas"
+          raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}",
+          raw"postgres.dbnames.cbas=${dbNames.cbas}"
         )
       case _ => List.empty
     }
@@ -1345,7 +1345,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[(Option[ServiceAccountName], Option[_])] =
+  ): F[(Option[ServiceAccountName], Option[WorkflowsAppDatabaseNames])] =
     if (app.appType == AppType.WorkflowsApp) {
       for {
         ctx <- ev.ask
@@ -1395,14 +1395,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
           .transaction
 
-        databaseName <- createDatabaseInWsm(app,
-                                            workspaceId,
-                                            namespace,
-                                            "foo",
-                                            wsmApi,
-                                            Option(createIdentityResponse.getResourceId)
-        ) // TODO: WM-2159 create actual databases for workflows app
-      } yield (Some(ServiceAccountName(identityName)), Some(databaseName))
+        cbasDb <- createDatabaseInWsm(app,
+                                      workspaceId,
+                                      namespace,
+                                      "cbas",
+                                      wsmApi,
+                                      Option(createIdentityResponse.getResourceId)
+        )
+        cromwellMetadataDb <- createDatabaseInWsm(app,
+                                                  workspaceId,
+                                                  namespace,
+                                                  "cbas",
+                                                  wsmApi,
+                                                  Option(createIdentityResponse.getResourceId)
+        )
+      } yield (Some(ServiceAccountName(identityName)), Some(WorkflowsAppDatabaseNames(cbasDb, cromwellMetadataDb)))
     } else F.pure((None, None))
 
   private[util] def createDatabaseInWsm(app: App,
@@ -1600,3 +1607,5 @@ final case class AKSInterpreterConfig(
 )
 
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
+
+final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String)
