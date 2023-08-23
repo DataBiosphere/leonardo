@@ -401,7 +401,11 @@ private[leonardo] object BuildHelmChartValues {
       raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
       raw"""welder.extraEnv[2].value=${appName.value}""",
       raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
-      raw"""welder.extraEnv[3].value=${userEmail.value}"""
+      raw"""welder.extraEnv[3].value=${userEmail.value}""",
+      raw"""welder.extraEnv[4].name=WORKSPACE_ID""",
+      raw"""welder.extraEnv[4].value=dummy""", // TODO: welder requires this env, but it's not needed for welders in GCP
+      raw"""welder.extraEnv[5].name=WSM_URL""",
+      raw"""welder.extraEnv[5].value=dummy""" // TODO: welder requires this env, but it's not needed for welders in GCP
     )
 
     List(
