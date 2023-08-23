@@ -344,7 +344,7 @@ private[leonardo] object BuildHelmChartValues {
         raw"leonardo.url=${leoUrlBase}",
         raw"general.workspaceId=${workspaceId.value.toString}",
         raw"general.appName=${appName.value}",
-        raw"general.image=${listenerImage}"
+        raw"listener.image=${listenerImage}"
       ).concat(validHostValues).mkString(",")
     )
   }
