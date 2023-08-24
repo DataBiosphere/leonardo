@@ -140,6 +140,7 @@ class AzureRuntimeSpec
               .size(50)
               .labels(labelMap)
           )
+          .autoPauseThreshold(15)
 
         _ <- IO(runtimeClient.createAzureRuntime(workspaceId, runtimeName.asString, false, createReq))
         _ <- loggerIO.info(s"AzureAutoPauseSpec: Create runtime request submitted. Starting to poll GET")

@@ -212,7 +212,9 @@ object Dependencies {
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
-  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-563edbd-SNAP"//"1.3.6-9d5d754"
+  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-ef84695-SNAP"//"1.3.6-9d5d754"
+
+  //https://broadinstitute.jfrog.io/broadinstitute/libs-release-local;build.timestamp=1692888460/org/broadinstitute/dsde/workbench/leonardo-client_2.13/1.3.6-ef84695-SNAP/leonardo-client_2.13-1.3.6-ef84695-SNAP-tests-sources.jar
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.2" % "test",
