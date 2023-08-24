@@ -23,7 +23,7 @@ object Dependencies {
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
   val workbenchGoogleV = s"0.23-4b46aac"
-  val workbenchGoogle2V = s"0.32-63d2d78"
+  val workbenchGoogle2V = s"0.30-63d2d78"
   val workbenchOpenTelemetryV = s"0.6-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
   val workbenchAzureV = s"0.5-$workbenchLibsHash"
