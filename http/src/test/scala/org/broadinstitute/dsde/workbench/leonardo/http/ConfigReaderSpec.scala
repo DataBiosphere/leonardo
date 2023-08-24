@@ -154,7 +154,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.38.0"),
+          ChartVersion("0.39.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -200,7 +200,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         List(AppType.Wds),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.1.0"))
+        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
