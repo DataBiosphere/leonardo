@@ -193,9 +193,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
       postgresServer = postgresResource.toOption.flatMap { resource =>
         getLandingZoneResourceName(resource, false).map { pgName =>
-          val pgBouncerEnabled: Boolean = java.lang.Boolean.parseBoolean(
-            getLandingZoneResourceTagValue(resource, "pgbouncer-enabled")
-              .getOrElse("false")
+          val tagValue = getLandingZoneResourceTagValue(resource, "pgbouncer-enabled")
+          val pgBouncerEnabled: Boolean = java.lang.Boolean.parseBoolean(tagValue.getOrElse("false"))
+          logger.info(
+            s"Landing Zone Postgres server has 'pgbouncer-enabled' tag $tagValue; setting pgBouncerEnabled to $pgBouncerEnabled."
           )
           PostgresServer(pgName, pgBouncerEnabled)
         }
