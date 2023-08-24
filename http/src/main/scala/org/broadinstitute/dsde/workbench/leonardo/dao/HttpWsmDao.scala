@@ -189,9 +189,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       postgresResource <- getLandingZoneResource(groupedLzResources,
                                                  "Microsoft.DBforPostgreSQL/flexibleServers",
                                                  SHARED_RESOURCE
-      ).attempt
-      postgresServer = postgresResource.toOption.flatMap { resource =>
-        getLandingZoneResourceName(resource, false).map { pgName =>
+      ).attempt // use attempt here because older Landing Zones do not have a Postgres server
+      postgresServer <- postgresResource.toOption.traverse { resource =>
+        getLandingZoneResourceName(resource, useParent = false).map { pgName =>
           val tagValue = getLandingZoneResourceTagValue(resource, "pgbouncer-enabled")
           val pgBouncerEnabled: Boolean = java.lang.Boolean.parseBoolean(tagValue.getOrElse("false"))
           logger.info(
@@ -263,24 +263,27 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     purpose: LandingZoneResourcePurpose,
     useParent: Boolean
   ): F[String] =
-    OptionT(
-      getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
-        .map(res => getLandingZoneResourceName(res, useParent))
-    )
-      .getOrRaise(
-        AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-      )
+    for {
+      resource <- getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
+      name <- getLandingZoneResourceName(resource, useParent)
+    } yield name
 
   /**
-   * Given a landing zone resource, return that resource's name
+   * Given a landing zone resource, return that resource's name. Throws an error if the name is not found.
    *
    * @param resource  the resource whose name to return
    * @param useParent whether to return the resource's name or its parent's name
-   * @return name of the resource, or None if the name could not be determined
+   * @return name of the resource
    */
-  private def getLandingZoneResourceName(resource: LandingZoneResource, useParent: Boolean): Option[String] =
-    if (useParent) resource.resourceParentId.flatMap(_.split('/').lastOption)
-    else resource.resourceName.orElse(resource.resourceId.flatMap(_.split('/').lastOption))
+  private def getLandingZoneResourceName(resource: LandingZoneResource, useParent: Boolean): F[String] =
+    OptionT
+      .fromOption[F](
+        if (useParent) resource.resourceParentId.flatMap(_.split('/').lastOption)
+        else resource.resourceName.orElse(resource.resourceId.flatMap(_.split('/').lastOption))
+      )
+      .getOrRaise(
+        AppCreationException(s"could not determine name for resource $resource")
+      )
 
   private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
