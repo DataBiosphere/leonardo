@@ -63,16 +63,16 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo update
 
 
-COPY ./wds-0.0.2.tgz /leonardo
-RUN tar -xzf /leonardo/wds-0.0.2.tgz -C /leonardo
+COPY ./wds-0.0.3.tgz /leonardo
+RUN tar -xzf /leonardo/wds-0.0.3.tgz -C /leonardo
 
 
-COPY ./cromwell-on-azure-0.0.8.tgz /leonardo
-RUN tar -xzf /leonardo/cromwell-on-azure-0.0.8.tgz -C /leonardo
+COPY ./cromwell-on-azure-0.0.9.tgz /leonardo
+RUN tar -xzf /leonardo/cromwell-on-azure-0.0.9.tgz -C /leonardo
 
 
-COPY ./listener-0.0.4.tgz /leonardo
-RUN tar -xzf /leonardo/listener-0.0.4.tgz -C /leonardo
+COPY ./listener-0.0.5.tgz /leonardo
+RUN tar -xzf /leonardo/listener-0.0.5.tgz -C /leonardo
 
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
