@@ -163,7 +163,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       AppType.WorkflowsApp,
                       AppStatus.Running,
                       RuntimeUI.Terra,
-                      Some(azureContext),
+                      Some(azureContext2),
                       workflowsAppChart
       )
     ) shouldBe Some(1)
@@ -220,8 +220,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       leoMetricsMonitor
         .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp))
         .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 7 services: wds, 2 cbases, cbas-ui, cromwell, cromwell-reader, galaxy
-    test.size shouldBe 10
+    // An up and a down metric for 6 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, galaxy
+    test.size shouldBe 12
     List("cromwell", "cbas", "cbas-ui").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
@@ -270,8 +270,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         AppType.WorkflowsApp,
                         ServiceName(s),
                         RuntimeUI.Terra,
-                        Some(azureContext),
-                        true,
+                        Some(azureContext2),
+                        s != "cbas",
                         workflowsAppChart
         )
       ) shouldBe Some(1)
@@ -280,8 +280,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         AppType.WorkflowsApp,
                         ServiceName(s),
                         RuntimeUI.Terra,
-                        Some(azureContext),
-                        false,
+                        Some(azureContext2),
+                        s == "cbas",
                         workflowsAppChart
         )
       ) shouldBe Some(0)
@@ -331,8 +331,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       azureDisabledMetricsMonitor
         .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp))
         .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
-    test.size shouldBe 8
+    // An up and a down metric for 6 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, galaxy
+    test.size shouldBe 12
     List("cromwell", "cbas", "cbas-ui").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
