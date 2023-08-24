@@ -34,6 +34,7 @@ class MockSamDAO extends SamDAO[IO] {
   val apps: mutable.Map[(AppSamResourceId, Authorization), Set[AppAction]] = new TrieMap()
 
   var projectOwners: Map[Authorization, Set[(ProjectSamResourceId, SamPolicyName)]] = Map.empty
+  var projectUsers: Map[Authorization, Set[(ProjectSamResourceId, SamPolicyName)]] = Map.empty
   var runtimeCreators: Map[Authorization, Set[(RuntimeSamResourceId, SamPolicyName)]] = Map.empty
   var diskCreators: Map[Authorization, Set[(PersistentDiskSamResourceId, SamPolicyName)]] = Map.empty
   var appCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
@@ -108,7 +109,11 @@ class MockSamDAO extends SamDAO[IO] {
         )
       case SamResourceType.Project =>
         IO.pure(
-          projectOwners.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
+          (projectOwners ++ projectUsers)
+            .get(authHeader)
+            .map(_.toList)
+            .getOrElse(List.empty)
+            .asInstanceOf[List[(R, SamPolicyName)]]
         )
       case SamResourceType.PersistentDisk =>
         IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
@@ -384,6 +389,16 @@ class MockSamDAO extends SamDAO[IO] {
   def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Option[UserSubjectId]] = IO.pure(None)
+
+  def addUserToProject(creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Unit] = {
+    val authHeader = userEmailToAuthorization(creatorEmail)
+    val project = ProjectSamResourceId(googleProject)
+    IO {
+      projectUsers = projectUsers |+| Map(authHeader -> Set((project, SamPolicyName.User)))
+    }.void
+  }
 
   override def getLeoAuthToken: IO[Authorization] =
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))

@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, leonardoExceptionEq}
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -59,7 +60,8 @@ import scala.concurrent.duration._
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
   def makeRuntimeService(publisherQueue: Queue[IO, LeoPubsubMessage],
-                         computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+                         computeService: GoogleComputeService[IO] = FakeGoogleComputeService,
+                         allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
   ) =
     new RuntimeServiceInterp(
       RuntimeServiceConfig(
@@ -97,7 +99,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "fail with AuthorizationError if user doesn't have project level permission" in {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
-    val googleProject = GoogleProject("googleProject")
 
     val res = for {
       r <- runtimeService
@@ -108,7 +109,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           emptyCreateRuntimeReq
         )
         .attempt
-    } yield r shouldBe (Left(ForbiddenError(userInfo.userEmail)))
+    } yield r shouldBe Left(ForbiddenError(userInfo.userEmail))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -776,6 +777,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     exc shouldBe a[RuntimeNotFoundException]
   }
 
+  it should "fail to get a runtime when users don't have access to the project" in isolatedDbTest {
+    val exc = runtimeService
+      .getRuntime(userInfo4, cloudContextGcp, RuntimeName("cluster"))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+    exc shouldBe a[ForbiddenError]
+  }
+
   it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
@@ -808,6 +820,24 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "list runtimes with user access to project" taggedAs SlickPlainQueryTest in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allowlisted
+
+    val res = for {
+      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
+      _ <- IO(makeCluster(2, cloudContext = cloudContext2Gcp).copy(samResource = samResource2).save())
+      listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1111,6 +1141,37 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
         .attempt
     } yield r.isRight shouldBe true
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a runtime if user loses project access" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allowlisted
+    val runtimeService = makeRuntimeService(publisherQueue, allowListAuthProvider = allowListAuthProvider2)
+    val res = for {
+      context <- appContext.ask[AppContext]
+      pd <- makePersistentDisk().save()
+      testRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig
+            .GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                             Some(pd.id),
+                             bootDiskSize = DiskSize(50),
+                             zone = ZoneName("us-central1-a"),
+                             None
+            )
+        )
+      )
+      r <- runtimeService
+        .deleteRuntime(
+          DeleteRuntimeRequest(userInfo, GoogleProject(cloudContextGcp.asString), testRuntime.runtimeName, false)
+        )
+        .attempt
+    } yield r shouldBe Left(ForbiddenError(userInfo.userEmail, Some(context.traceId)))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
