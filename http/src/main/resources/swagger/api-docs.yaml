@@ -3446,6 +3446,9 @@ components:
           description: an optional set of key value pairs for environment variables to be injected into the VM
         disk:
           $ref: "#/components/schemas/AzureDiskConfig"
+        autoPauseThreshold:
+          type: int
+          description: an optional number to determine when a runtime should autopause
 
     AzureDiskConfig:
       description: The config for creating an azure disk
