@@ -128,17 +128,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                                  kubernetesNamespace
       )
 
-      mayCromwellRunnerDatabaseNames <- mayCreateCromwellRunnerDatabases(app,
-                                                                         params.workspaceId,
-                                                                         params.landingZoneResources,
-                                                                         kubernetesNamespace
+      maybeCromwellRunnerDatabaseNames <- mayCreateCromwellRunnerDatabases(app,
+                                                                           params.workspaceId,
+                                                                           params.landingZoneResources,
+                                                                           kubernetesNamespace
       )
 
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
       identityType = (maybeKsaFromDatabaseCreation,
                       app.samResourceId.resourceType,
                       maybeCromwellDatabaseNames,
-                      mayCromwellRunnerDatabaseNames
+                      maybeCromwellRunnerDatabaseNames
       ) match {
         case (Some(_), _, _, _)                      => WorkloadIdentity
         case (None, SamResourceType.SharedApp, _, _) => NoIdentity
@@ -314,7 +314,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   app.sourceWorkspaceId,
                   userToken,
                   identityType,
-                  mayCromwellRunnerDatabaseNames
+                  maybeCromwellRunnerDatabaseNames
                 ),
                 createNamespace = true
               )
@@ -969,14 +969,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
     val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
-      case (Some(_), Some(PostgresName(dbServer)), Some(pet)) =>
+      case (Some(databaseNames), Some(PostgresName(dbServer)), Some(pet)) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=$dbServer.postgres.database.azure.com",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${pet.name()}",
-          raw"postgres.dbnames.cromwell=cromwell", // ${databaseNames.cromwell}
-          raw"postgres.dbnames.tes=tes" // ${databaseNames.tes}
+          raw"postgres.dbnames.cromwell=${databaseNames.cromwellRunner}",
+          raw"postgres.dbnames.tes=${databaseNames.tes}"
         )
       case _ => List.empty
     }
@@ -1329,9 +1329,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      workspaceId: WorkspaceId,
                                                      landingZoneResources: LandingZoneResources,
                                                      namespace: KubernetesNamespace
-  ): F[Option[CromwellRunnerDatabaseNames]] =
-    // TODO: What should be returned here until WM-2160 is done?
-    F.pure(None)
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[CromwellRunnerDatabaseNames]] = {
+    val databaseConfigEnabled = app.appType match {
+      case AppType.CromwellRunnerApp => config.cromwellRunnerAppConfig.databaseEnabled
+      case _                         => false
+    }
+    val landingZoneSupportsDatabase = landingZoneResources.postgresName.isDefined
+    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
+      for {
+        // Build WSM client
+        auth <- samDao.getLeoAuthToken
+        token <- auth.credentials match {
+          case org.http4s.Credentials.Token(_, token) => F.pure(token)
+          case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        }
+        wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+
+        cromwellRunnerDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwellRunner", wsmApi, None)
+        tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
+      } yield Some(CromwellRunnerDatabaseNames(cromwellRunnerDb, tesDb))
+    } else F.pure(None)
+  }
 
   private[util] def createDatabaseInWsm(app: App,
                                         workspaceId: WorkspaceId,
@@ -1529,4 +1549,4 @@ final case class AKSInterpreterConfig(
 
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
 
-final case class CromwellRunnerDatabaseNames(cromwell: String, tes: String)
+final case class CromwellRunnerDatabaseNames(cromwellRunner: String, tes: String)
