@@ -190,7 +190,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                  "Microsoft.DBforPostgreSQL/flexibleServers",
                                                  SHARED_RESOURCE
       ).attempt
-
       postgresServer = postgresResource.toOption.flatMap { resource =>
         getLandingZoneResourceName(resource, false).map { pgName =>
           val tagValue = getLandingZoneResourceTagValue(resource, "pgbouncer-enabled")
@@ -201,7 +200,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
           PostgresServer(pgName, pgBouncerEnabled)
         }
       }
-
     } yield LandingZoneResources(
       landingZoneId,
       AKSClusterName(aksClusterName),
