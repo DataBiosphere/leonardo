@@ -276,6 +276,7 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
 
     try
       withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
+//      val projectName = "tmp-billing-project-beddf71a74"
         withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
           runTestAndCheckOutcome(workspace)
         }
@@ -284,7 +285,7 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
       case e: org.broadinstitute.dsde.workbench.service.RestException
           if e.message == "Project cannot be deleted because it contains workspaces." =>
         println(
-          s"Exception occurred in test, but it is classed as a non-fatal cleanup error (likely in `withTemporaryAzureBillingProject`: $e"
+          s"Exception occurred in test, but it is classed as a non-fatal cleanup error (likely in `withTemporaryAzureBillingProject`): $e"
         )
         Succeeded
       case e: Throwable => throw e
@@ -295,7 +296,7 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     projectName: AzureBillingProjectName
   )(testCode: WorkspaceResponse => T)(implicit authToken: AuthToken): T = {
     // hardcode this if you want to use a static workspace
-    //    val workspaceName = "ddf3f5fa-a80e-4b2f-ab6e-9bd07817fad1-azure-test-workspace"
+//        val workspaceName = "ddf3f5fa-a80e-4b2f-ab6e-9bd07817fad1-azure-test-workspace"
 
     val workspaceName = generateWorkspaceName()
 
@@ -315,7 +316,11 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
 
     try
       testCode(response)
-    finally
+    catch {
+      case e: Throwable =>
+        println(s"Exception occurred during test: ${e}")
+        throw e
+    } finally
       try
         Rawls.workspaces.delete(projectName.value, workspaceName)
       catch {
