@@ -153,7 +153,6 @@ final case class CromwellRunnerAppConfig(chartName: ChartName,
                                          services: List[ServiceConfig],
                                          instrumentationEnabled: Boolean,
                                          enabled: Boolean,
-                                         dockstoreBaseUrl: URL,
                                          databaseEnabled: Boolean,
                                          chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {

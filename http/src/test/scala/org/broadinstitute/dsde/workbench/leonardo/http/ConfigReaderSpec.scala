@@ -133,7 +133,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           databaseEnabled = true,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
