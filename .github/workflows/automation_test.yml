@@ -1,8 +1,8 @@
 name: leo-build-tag-publish-and-run-tests
 
 on:
-#  pull_request:
-#    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
 # if you want to debug this and trigger it on PRs against dev, you will need to add `github.head_ref` to the `branch=` line in `init-github-context` job
 # i.e. `echo "branch=${{ github.head_ref || inputs.branch }}" >> "$GITHUB_OUTPUT"`
   schedule:
@@ -35,7 +35,8 @@ jobs:
       - name: Get inputs or use defaults
         id: extract-inputs
         run: |
-          echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
+#          echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
+          echo "branch=${{ github.head_ref || inputs.branch }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
 
 
@@ -104,7 +105,7 @@ jobs:
     steps:
       - name: dispatch to terra-github-workflows
         env:
-          leo_test_command: "testOnly -n org.broadinstitute.dsde.workbench.leonardo.azure.AzureRuntimeSpec"
+          leo_test_command: "testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite"
         uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: .github/workflows/leonardo-swat-tests.yaml

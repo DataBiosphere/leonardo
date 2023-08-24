@@ -9,8 +9,8 @@ import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.azure.AzureRuntimeSpec
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Ron, Hermione}
+import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureRuntimeSpec, AzureDiskSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -430,7 +430,8 @@ final class LeonardoTerraDockerSuite
 
 final class LeonardoAzureSuite
     extends Suites(
-      new AzureRuntimeSpec
+      new AzureRuntimeSpec,
+      new AzureDiskSpec
     )
     with TestSuite
     with ParallelTestExecution
