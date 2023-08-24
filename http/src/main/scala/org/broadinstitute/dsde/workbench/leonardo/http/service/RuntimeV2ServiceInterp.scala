@@ -586,7 +586,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             samProjectVisibleSamIds <- NonEmptyList.fromList(runtimesAndProjects.map(x => (x._2, x._3))).traverse {
               rs =>
                 authProvider
-                  .filterUserVisibleWithProjectFallback(
+                  .filterResourceProjectVisible(
                     rs,
                     userInfo
                   )

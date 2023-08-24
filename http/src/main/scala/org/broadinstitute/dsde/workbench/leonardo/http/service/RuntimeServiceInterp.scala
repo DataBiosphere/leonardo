@@ -82,7 +82,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         userInfo
       )
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
       // Grab the service accounts from serviceAccountProvider for use later
       runtimeServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, cloudContext)
@@ -217,8 +217,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
+      ctx <- as.ask
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
+
       // throw 404 if no GetClusterStatus permission
       hasPermission <- authProvider.hasPermissionWithProjectFallback[RuntimeSamResourceId, RuntimeAction](
         resp.samResource,
@@ -240,6 +249,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
+
+      // throw 403 if user doesn't have project permission
+      hasProjectPermission <- cloudContext.traverse(cc =>
+        authProvider.isUserProjectReader(
+          cc,
+          userInfo
+        )
+      )
+      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
@@ -248,10 +267,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
       runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
+
       samVisibleRuntimesOpt <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
         // TODO: refactor `filterUserVisibleWithProjectFallback` to take `cloudContext` instead
         authProvider
-          .filterUserVisibleWithProjectFallback(
+          .filterResourceProjectVisible(
             rs,
             userInfo
           )
@@ -261,11 +281,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case None => Vector.empty
         case Some(samVisibleRuntimes) =>
           val samVisibleRuntimesSet = samVisibleRuntimes.toSet
-          // Making the assumption that users will always be able to access runtimes that they create
-          // Fix for https://github.com/DataBiosphere/leonardo/issues/821
           runtimes
             .filter(c =>
-              c.auditInfo.creator == userInfo.userEmail || samVisibleRuntimesSet
+              samVisibleRuntimesSet
                 .contains((GoogleProject(c.cloudContext.asString), c.samResource))
             )
             .toVector
@@ -281,6 +299,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- ev.ask
       cloudContext = CloudContext.Gcp(req.googleProject)
+
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        req.userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(req.userInfo.userEmail, Some(ctx.traceId)))
+
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, req.runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done getActiveClusterByNameMinimal")))
@@ -379,6 +405,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         AzureUnimplementedException("Azure runtime is not supported yet")
@@ -440,6 +473,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
       cloudContext = CloudContext.Gcp(googleProject)
+
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       // throw 404 if not existent
       runtimeOpt <- clusterQuery
         .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
@@ -493,6 +534,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
       cloudContext = CloudContext.Gcp(googleProject)
+
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterRecordByName(cloudContext, runtimeName).transaction
       runtime <- runtimeOpt.fold(
