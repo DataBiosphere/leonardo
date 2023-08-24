@@ -71,6 +71,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
+  val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), allowlistAuthProvider = allowListAuthProvider2)
   val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -819,6 +820,29 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
+  it should "error on delete if app creator is removed from app's project" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName)
+    }
+
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+
+    an[ForbiddenError] should be thrownBy {
+      appServiceInterp2
+        .deleteApp(userInfo, cloudContextGcp, appName, false)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "delete an app in Error status" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
@@ -937,6 +961,45 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .listApp(userInfo, Some(CloudContext.Gcp(GoogleProject("fakeProject"))), Map())
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listProject3Apps.length shouldBe 0
+  }
+
+  it should "list only apps for projects user has access to" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(diskConfig = Some(createDiskConfig1))
+
+    appServiceInterp
+      .createApp(userInfo, cloudContext2Gcp, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val listAllApps =
+      appServiceInterp2 // has a different allowlist
+        .listApp(userInfo, None, Map())
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    listAllApps.length shouldEqual 0
+  }
+
+  it should "error if listing apps in a project user doesn't have access to" in isolatedDbTest {
+    val appName1 = AppName("app1")
+    val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        diskConfig = Some(createDiskConfig1)
+    )
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName1, appReq1)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    a[ForbiddenError] should be thrownBy
+      appServiceInterp
+        .listApp(userInfo4, Some(cloudContextGcp), Map("includeLabels" -> "key1,key2,key4"))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list apps with labels" in isolatedDbTest {
@@ -1071,6 +1134,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     an[AppNotFoundException] should be thrownBy {
       appServiceInterp
         .getApp(userInfo, cloudContextGcp, AppName("schrodingersApp"))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "error on get app if user doesn't have project permission" in isolatedDbTest {
+    an[ForbiddenError] should be thrownBy {
+      appServiceInterp
+        .getApp(userInfo4, cloudContextGcp, AppName("schrodingersApp"))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }

@@ -42,6 +42,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     )
   val userInfo =
     UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
+  val userInfo2 =
+    UserInfo(OAuth2BearerToken(s"TokenFor${userEmail2}"), WorkbenchUserId("user2"), userEmail2, 0)
   val projectOwnerUserInfo =
     UserInfo(OAuth2BearerToken(s"TokenFor${MockSamDAO.projectOwnerEmail}"),
              WorkbenchUserId("project-owner"),
@@ -490,37 +492,61 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
   it should "filter user visible resources with project fallback" in {
     // positive tests
+    mockSam.addUserToProject(userInfo.userEmail, project).unsafeRunSync()
     val newRuntime = RuntimeSamResourceId("new_runtime")
     mockSam.createResourceAsGcpPet(newRuntime, userEmail2, project).unsafeRunSync()
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-                                            userInfo
-      )
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), userInfo)
       .unsafeRunSync() shouldBe List((project, runtimeSamResource))
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-                                            projectOwnerUserInfo
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
+                                    projectOwnerUserInfo
       )
       .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
 
     val newDisk = PersistentDiskSamResourceId("new_disk")
     mockSam.createResourceAsGcpPet(newDisk, userEmail2, project).unsafeRunSync()
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, diskSamResource), (project, newDisk)), userInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)), userInfo)
       .unsafeRunSync() shouldBe List((project, diskSamResource))
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
-                                            projectOwnerUserInfo
+      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
+                                    projectOwnerUserInfo
       )
       .unsafeRunSync() shouldBe List((project, diskSamResource), (project, newDisk))
 
     // negative tests
     samAuthProvider
-      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), unauthorizedUserInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
+                                    unauthorizedUserInfo
+      )
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), unauthorizedUserInfo)
+      .filterResourceProjectVisible(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
+                                    unauthorizedUserInfo
+      )
       .unsafeRunSync() shouldBe List.empty
+  }
+
+  it should "filter user visible resources by project access" in {
+    val newRuntime = RuntimeSamResourceId("new_runtime")
+    mockSam.createResourceAsGcpPet(newRuntime, userEmail2, project).unsafeRunSync()
+
+    // negative tests
+    samAuthProvider
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), userInfo)
+      .unsafeRunSync() shouldBe List.empty
+
+    // positive tests
+    mockSam.addUserToProject(userInfo.userEmail, project).unsafeRunSync()
+    samAuthProvider
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)), userInfo)
+      .unsafeRunSync() shouldBe List((project, runtimeSamResource))
+    samAuthProvider
+      .filterResourceProjectVisible(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
+                                    projectOwnerUserInfo
+      )
+      .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
   }
 
   it should "tell if user is enabled" in {

@@ -29,7 +29,7 @@ import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
 
-  implicit val getResultListRuntimeResponse2 = GetResult { r =>
+  implicit val getResultListRuntimeResponse2: GetResult[ListRuntimeResponse2] = GetResult { r =>
     val id = r.<<[Long]
     val workspaceId = r.<<?[WorkspaceId]
     val runtimeName = r.<<[RuntimeName]
