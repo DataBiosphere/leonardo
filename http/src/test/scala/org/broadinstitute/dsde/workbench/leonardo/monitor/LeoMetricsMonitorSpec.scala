@@ -382,7 +382,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         ServiceName(s),
                         RuntimeUI.Terra,
                         None,
-                        true,
+                        s != "cbas",
                         workflowsAppChart
         )
       ) shouldBe Some(1)
@@ -392,7 +392,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         ServiceName(s),
                         RuntimeUI.Terra,
                         None,
-                        false,
+                        s == "cbas",
                         workflowsAppChart
         )
       ) shouldBe Some(0)
