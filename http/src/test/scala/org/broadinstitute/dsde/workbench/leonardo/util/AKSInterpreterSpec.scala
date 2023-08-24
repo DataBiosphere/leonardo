@@ -33,7 +33,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   appControlledResourceQuery,
   AppControlledResourceStatus,
   KubernetesServiceDbQueries,
-  TestComponent
+  TestComponent,
+  WsmResourceType
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
 import org.broadinstitute.dsp.Release
@@ -635,6 +636,17 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           case _                    => 0
         }
         controlledResources.size shouldBe expectedControlledResourcesCount
+
+        val expectedControlledResourcesTypes = appType match {
+          case AppType.Wds => List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase)
+          case AppType.Cromwell =>
+            List(WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
+          case AppType.WorkflowsApp =>
+            List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
+          case _ => List()
+        }
+
+        controlledResources.map(a => a.resourceType) should contain theSameElementsAs expectedControlledResourcesTypes
 
         app
       }
