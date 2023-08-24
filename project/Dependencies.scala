@@ -23,9 +23,9 @@ object Dependencies {
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
   val workbenchGoogleV = s"0.23-4b46aac"
-  val workbenchGoogle2V = s"0.30-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.5-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.4-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.32-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.6-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.5-$workbenchLibsHash"
   val workbenchAzureV = s"0.5-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.20"
