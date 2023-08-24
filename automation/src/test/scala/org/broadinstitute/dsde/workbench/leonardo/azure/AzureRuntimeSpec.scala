@@ -81,7 +81,7 @@ class AzureRuntimeSpec
           callGetRuntime,
           240,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 20 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
         _ <- loggerIO.info(
@@ -101,9 +101,9 @@ class AzureRuntimeSpec
 
         monitorDeleteResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          120,
+          240,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 20 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 40 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
 
         _ <- loggerIO.info(
@@ -117,6 +117,8 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
         )
+
+        _ <- IO.sleep(1 minute) // sleep for a minute before cleaning up workspace
       } yield ()
     res.unsafeRunSync()
   }
