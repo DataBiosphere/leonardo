@@ -36,7 +36,7 @@ jobs:
         id: extract-inputs
         run: |
           echo "branch=${{ github.head_ref || inputs.branch }}" >> "$GITHUB_OUTPUT"
-#          echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
+          #echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
 
 
