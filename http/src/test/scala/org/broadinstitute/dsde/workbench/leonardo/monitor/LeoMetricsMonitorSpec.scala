@@ -480,7 +480,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     )
     val services =
       if (isCromwell) List("cbas", "cbas-ui", "cromwell")
-      else if (isWorkflowsApp) List("cbas", "cromwll-reader")
+      else if (isWorkflowsApp) List("cbas", "cromwell-reader")
       else List(appType.toString.toLowerCase)
     val appWithServices = app.copy(appResources = app.appResources.copy(services = services.map(genService)))
     clusterWithAsyncFields.copy(nodepools = List(nodepool.copy(apps = List(appWithServices))))
