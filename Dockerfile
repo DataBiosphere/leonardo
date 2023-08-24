@@ -40,6 +40,7 @@ ENV RSTUDIO_CHART_VERSION 0.2.0
 ENV SAS_CHART_VERSION 0.1.0
 ENV LISTENER_CHART_VERSION 0.0.5
 
+
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
 COPY --from=helm-go-lib-builder /helm-go-lib-build/helm-scala-sdk/helm-go-lib /leonardo/helm-go-lib
