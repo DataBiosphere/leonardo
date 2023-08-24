@@ -145,7 +145,10 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           KsaName("workflows-app-ksa"),
           List(
             ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
-            ServiceConfig(ServiceName("cromwell-reader"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/cromwell")))
+            ServiceConfig(ServiceName("cromwell-reader"),
+                          KubernetesServiceKindName("ClusterIP"),
+                          Some(ServicePath("/cromwell"))
+            )
           ),
           instrumentationEnabled = false,
           enabled = false,

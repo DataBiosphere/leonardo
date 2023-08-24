@@ -558,9 +558,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       val mockAzureRelayService = setUpMockAzureRelayService
 
       val aksInterp = new AKSInterpreter[IO](
-        config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
-                    coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true),
-                    workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)
+        config.copy(
+          wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
+          coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true),
+          workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)
         ),
         MockHelm,
         mockAzureBatchService,
@@ -628,10 +629,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app.get.cluster.asyncFields shouldBe defined
 
         val expectedControlledResourcesCount = appType match {
-          case AppType.Wds      => 2
-          case AppType.Cromwell => 3
+          case AppType.Wds          => 2
+          case AppType.Cromwell     => 3
           case AppType.WorkflowsApp => 3
-          case _                => 0
+          case _                    => 0
         }
         controlledResources.size shouldBe expectedControlledResourcesCount
 
