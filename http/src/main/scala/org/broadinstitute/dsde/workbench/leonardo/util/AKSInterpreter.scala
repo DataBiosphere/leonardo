@@ -148,8 +148,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case (None, _, _, _)                            => PodIdentity
       }
 
-      _ <- logger.info(ctx.loggingCtx)(s"Creating ${app.appType} with identity $identityType")
-
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
 

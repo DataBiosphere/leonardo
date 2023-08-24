@@ -463,12 +463,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch, AppType.WorkflowsApp))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
       val aksInterp = new AKSInterpreter[IO](
-        config,
+        config.copy(workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)),
         MockHelm,
         mockAzureBatchService,
         mockAzureContainerService,
@@ -553,13 +553,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.WorkflowsApp))
     it should s"create ${appType} with wsm resources, then successfully delete them" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
       val aksInterp = new AKSInterpreter[IO](
         config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
-                    coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true)
+                    coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true),
+                    workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)
         ),
         MockHelm,
         mockAzureBatchService,
@@ -629,6 +630,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         val expectedControlledResourcesCount = appType match {
           case AppType.Wds      => 2
           case AppType.Cromwell => 3
+          case AppType.WorkflowsApp => 3
           case _                => 0
         }
         controlledResources.size shouldBe expectedControlledResourcesCount
