@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.azure
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   AzureDiskConfig,
   ClusterStatus,
@@ -26,7 +27,7 @@ class AzureRuntimeSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken = Hermione.authToken()
+  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
 
   "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId

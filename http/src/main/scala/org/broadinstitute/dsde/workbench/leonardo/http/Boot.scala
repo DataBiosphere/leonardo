@@ -13,6 +13,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
+import fs2.io.file.Files
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
@@ -345,7 +346,8 @@ object Boot extends IOApp {
     logger: StructuredLogger[F],
     ec: ExecutionContext,
     as: ActorSystem,
-    F: Async[F]
+    F: Async[F],
+    files: Files[F]
   ): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
