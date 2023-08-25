@@ -411,6 +411,63 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "relay.subpath=/app"
   }
 
+  it should "build workflows-app override values with workload identity" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildWorkflowsAppChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources,
+      Uri.unsafeFromString("https://relay.com/app"),
+      Some(setUpMockIdentity),
+      storageContainer,
+      BatchAccountKey("batchKey"),
+      "applicationInsightsConnectionString",
+      None,
+      petUserInfo.accessToken.token,
+      IdentityType.WorkloadIdentity,
+      Some(ServiceAccountName("ksa")),
+      Some(WorkflowsAppDatabaseNames("cbasdbname", "cromwellmetadatadbname"))
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.batchAccountKey=batchKey," +
+      "config.batchAccountName=batch," +
+      "config.batchNodesSubnetId=subnet1," +
+      s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "relay.path=https://relay.com/app," +
+      "persistence.storageResourceGroup=mrg," +
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      "persistence.leoAppInstanceName=app," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+      "identity.enabled=false," +
+      "identity.name=identity-name," +
+      "identity.resourceId=identity-id," +
+      "identity.clientId=identity-client-id," +
+      "workloadIdentity.enabled=true," +
+      "workloadIdentity.serviceAccountName=ksa," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
+      "cbas.enabled=true," +
+      "cromwell.enabled=true," +
+      "dockstore.baseUrl=https://staging.dockstore.org/," +
+      "fullnameOverride=workflows-app-rel-1," +
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      s"postgres.host=${lzResources.postgresName.map(_.value).get}.postgres.database.azure.com," +
+      "postgres.user=ksa," +
+      s"postgres.dbnames.cromwellMetadata=cromwellmetadatadbname," +
+      s"postgres.dbnames.cbas=cbasdbname"
+  }
+
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
