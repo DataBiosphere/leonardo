@@ -42,7 +42,7 @@ class MockSamDAO extends SamDAO[IO] {
   var workspaceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
 
   // we don't care much about traceId in unit tests, hence providing a constant UUID here
-  implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
+  implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   override def registerLeo(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
   override def hasResourcePermissionUnchecked(resourceType: SamResourceType,
@@ -390,9 +390,7 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Option[UserSubjectId]] = IO.pure(None)
 
-  def addUserToProject(creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = {
+  def addUserToProject(creatorEmail: WorkbenchEmail, googleProject: GoogleProject): IO[Unit] = {
     val authHeader = userEmailToAuthorization(creatorEmail)
     val project = ProjectSamResourceId(googleProject)
     IO {

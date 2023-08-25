@@ -126,24 +126,19 @@ object TestUtils extends Matchers {
   private def fixIdsForServices(services: List[KubernetesService]): List[KubernetesService] =
     services.map(fixIdForService).sortBy(_.config.name.value)
 
-  implicit val serviceEq =
-    new Equality[KubernetesService] {
+  implicit val serviceEq: Equality[KubernetesService] =
+    (a: KubernetesService, b: Any) =>
+      b match {
+        case c: KubernetesService => fixIdForService(a) === fixIdForService(c)
+        case _                    => false
+      }
 
-      def areEqual(a: KubernetesService, b: Any): Boolean =
-        b match {
-          case c: KubernetesService => fixIdForService(a) === fixIdForService(c)
-          case _                    => false
-        }
-    }
-
-  implicit val namespaceListEq =
-    new Equality[List[Namespace]] {
-      def areEqual(as: List[Namespace], bs: Any): Boolean =
-        bs match {
-          case cs: List[_] => isNamespaceListEquivalent(as, cs)
-          case _           => false
-        }
-    }
+  implicit val namespaceListEq: Equality[List[Namespace]] =
+    (as: List[Namespace], bs: Any) =>
+      bs match {
+        case cs: List[_] => isNamespaceListEquivalent(as, cs)
+        case _           => false
+      }
 
   private def isNamespaceListEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
     val dummyId = NamespaceId(0)
@@ -154,25 +149,21 @@ object TestUtils extends Matchers {
     fcs1 == fcs2
   }
 
-  implicit val clusterSeqEq =
-    new Equality[Seq[Runtime]] {
-      def areEqual(as: Seq[Runtime], bs: Any): Boolean =
-        bs match {
-          case cs: Seq[_] => isEquivalent(as, cs)
-          case _          => false
-        }
-    }
+  implicit val clusterSeqEq: Equality[Seq[Runtime]] =
+    (as: Seq[Runtime], bs: Any) =>
+      bs match {
+        case cs: Seq[_] => isEquivalent(as, cs)
+        case _          => false
+      }
 
-  implicit val clusterSetEq =
-    new Equality[Set[Runtime]] {
-      def areEqual(as: Set[Runtime], bs: Any): Boolean =
-        bs match {
-          case cs: Set[_] => isEquivalent(as, cs)
-          case _          => false
-        }
-    }
+  implicit val clusterSetEq: Equality[Set[Runtime]] =
+    (as: Set[Runtime], bs: Any) =>
+      bs match {
+        case cs: Set[_] => isEquivalent(as, cs)
+        case _          => false
+      }
 
-  implicit val diskEq =
+  implicit val diskEq: Equality[PersistentDisk] =
     new Equality[PersistentDisk] {
       private val FixedId = DiskId(0)
 
