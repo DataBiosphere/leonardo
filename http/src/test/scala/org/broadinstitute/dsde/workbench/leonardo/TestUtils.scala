@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
 import cats.effect.{Async, IO}
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.http.SslContextReader
 
 import javax.net.ssl.SSLContext
@@ -12,14 +13,14 @@ import org.scalactic.Equality
 import org.scalatest.matchers.should.Matchers
 
 object TestUtils extends Matchers {
-  implicit val appContext = AppContext
+  implicit val appContext: Ask[IO, AppContext] = AppContext
     .lift[IO](None, "")
     .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
   // while comparing clusters as we typically don't care about the database assigned id field
   // http://www.scalactic.org/user_guide/CustomEquality
-  implicit val clusterEq =
+  implicit val clusterEq: Equality[Runtime] =
     new Equality[Runtime] {
       private val FixedId = 0
 
@@ -30,29 +31,25 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val leonardoExceptionEq =
-    new Equality[LeoException] {
-      def areEqual(a: LeoException, b: Any): Boolean =
-        b match {
-          case bb: LeoException =>
-            a.message == bb.message && a.statusCode == bb.statusCode && a.cause == bb.cause
-          case _ => false
-        }
-    }
+  implicit val leonardoExceptionEq: Equality[LeoException] =
+    (a: LeoException, b: Any) =>
+      b match {
+        case bb: LeoException =>
+          a.message == bb.message && a.statusCode == bb.statusCode && a.cause == bb.cause
+        case _ => false
+      }
 
   implicit def eitherEq[A, B](implicit ea: Equality[A], eb: Equality[B]): Equality[Either[A, B]] =
-    new Equality[Either[A, B]] {
-      def areEqual(a: Either[A, B], b: Any): Boolean =
-        (a, b) match {
-          case (Left(aa), Left(bb)) =>
-            aa === bb
-          case (Right(aa), Right(bb)) => aa === bb
-          case _                      => false
-        }
-    }
+    (a: Either[A, B], b: Any) =>
+      (a, b) match {
+        case (Left(aa), Left(bb)) =>
+          aa === bb
+        case (Right(aa), Right(bb)) => aa === bb
+        case _                      => false
+      }
 
   // these are not applied recursively, hence the need to dig into the nodepool Ids
-  implicit val kubeClusterEq =
+  implicit val kubeClusterEq: Equality[KubernetesCluster] =
     new Equality[KubernetesCluster] {
       private val FixedId = KubernetesClusterLeoId(0)
       private val FixedNodepoolId = NodepoolLeoId(0)
@@ -67,7 +64,7 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val namespaceEq =
+  implicit val namespaceEq: Equality[Namespace] =
     new Equality[Namespace] {
       private val FixedId = NamespaceId(0)
 
@@ -78,7 +75,7 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val nodepoolEq =
+  implicit val nodepoolEq: Equality[Nodepool] =
     new Equality[Nodepool] {
       private val FixedId = NodepoolLeoId(0)
 
@@ -89,7 +86,7 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val appEq =
+  implicit val appEq: Equality[App] =
     new Equality[App] {
       private val FixedId = AppId(0)
       private val FixedNamespaceId = NamespaceId(0)
