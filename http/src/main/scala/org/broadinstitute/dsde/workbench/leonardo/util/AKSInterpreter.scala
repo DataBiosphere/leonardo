@@ -128,11 +128,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                                  kubernetesNamespace
       )
 
-      maybeCromwellRunnerDatabaseNames <- mayCreateCromwellRunnerDatabases(app,
-                                                                           params.workspaceId,
-                                                                           params.landingZoneResources,
-                                                                           kubernetesNamespace
-      )
+      maybeCromwellRunnerDatabaseNames <- mayCreateCromwellRunnerDatabases(app, params.workspaceId, kubernetesNamespace)
 
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
       identityType = (maybeKsaFromDatabaseCreation,
@@ -1327,31 +1323,22 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def mayCreateCromwellRunnerDatabases(app: App,
                                                      workspaceId: WorkspaceId,
-                                                     landingZoneResources: LandingZoneResources,
                                                      namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[CromwellRunnerDatabaseNames]] = {
-    val databaseConfigEnabled = app.appType match {
-      case AppType.CromwellRunnerApp => config.cromwellRunnerAppConfig.databaseEnabled
-      case _                         => false
-    }
-    val landingZoneSupportsDatabase = landingZoneResources.postgresName.isDefined
-    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
-      for {
-        // Build WSM client
-        auth <- samDao.getLeoAuthToken
-        token <- auth.credentials match {
-          case org.http4s.Credentials.Token(_, token) => F.pure(token)
-          case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
-        }
-        wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+  ): F[Option[CromwellRunnerDatabaseNames]] =
+    for {
+      // Build WSM client
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
-        cromwellRunnerDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwellRunner", wsmApi, None)
-        tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
-      } yield Some(CromwellRunnerDatabaseNames(cromwellRunnerDb, tesDb))
-    } else F.pure(None)
-  }
+      cromwellRunnerDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwellRunner", wsmApi, None)
+      tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
+    } yield Some(CromwellRunnerDatabaseNames(cromwellRunnerDb, tesDb))
 
   private[util] def createDatabaseInWsm(app: App,
                                         workspaceId: WorkspaceId,

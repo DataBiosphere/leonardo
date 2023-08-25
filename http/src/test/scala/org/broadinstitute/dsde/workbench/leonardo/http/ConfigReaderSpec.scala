@@ -136,7 +136,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          databaseEnabled = true,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
