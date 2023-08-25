@@ -56,9 +56,7 @@ object TestUtils extends Matchers {
       def areEqual(a: KubernetesCluster, b: Any): Boolean =
         b match {
           case c: KubernetesCluster =>
-            a.copy(id = FixedId,
-                   nodepools = a.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId))
-            ) ===
+            a.copy(id = FixedId, nodepools = a.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId))) ==
               c.copy(id = FixedId, nodepools = c.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId)))
           case _ => false
         }
@@ -102,7 +100,7 @@ object TestUtils extends Matchers {
                 services = fixIdsForServices(a.appResources.services),
                 disk = a.appResources.disk.map(d => d.copy(id = FixedDiskId))
               )
-            ) ===
+            ) ==
               c.copy(
                 id = FixedId,
                 appResources = c.appResources.copy(
@@ -129,7 +127,7 @@ object TestUtils extends Matchers {
   implicit val serviceEq: Equality[KubernetesService] =
     (a: KubernetesService, b: Any) =>
       b match {
-        case c: KubernetesService => fixIdForService(a) === fixIdForService(c)
+        case c: KubernetesService => fixIdForService(a) == fixIdForService(c)
         case _                    => false
       }
 
