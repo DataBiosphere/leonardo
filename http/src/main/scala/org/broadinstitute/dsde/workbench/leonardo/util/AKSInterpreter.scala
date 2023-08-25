@@ -1080,10 +1080,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.userAccessToken=${userAccessToken}"
       )
 
-    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, ksaName) match {
-      case (Some(dbNames), Some(PostgresName(dbServer)), Some(ksa)) =>
+    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresServer, ksaName) match {
+      case (Some(dbNames), Some(PostgresServer(dbServer, pgBouncerEnabled)), Some(ksa)) =>
         List(
           raw"postgres.host=$dbServer.postgres.database.azure.com",
+          raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${ksa.value}",
           raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}",

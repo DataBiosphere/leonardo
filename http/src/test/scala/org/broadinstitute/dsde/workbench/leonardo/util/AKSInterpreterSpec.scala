@@ -518,14 +518,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "relay.subpath=/app"
   }
 
-  it should "build workflows-app override values with workload identity" in {
+  it should "build workflows-app override values with workload identity and pgbouncer" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
     val overrides = aksInterp.buildWorkflowsAppChartOverrideValues(
       Release("rel-1"),
       AppName("app"),
       cloudContext,
       workspaceId,
-      lzResources,
+      lzResources.copy(postgresServer = Option(PostgresServer("postgres", pgBouncerEnabled = true))),
       Uri.unsafeFromString("https://relay.com/app"),
       Some(setUpMockIdentity),
       storageContainer,
@@ -569,7 +569,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "fullnameOverride=workflows-app-rel-1," +
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
-      s"postgres.host=${lzResources.postgresName.map(_.value).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa," +
       s"postgres.dbnames.cromwellMetadata=cromwellmetadatadbname," +
       s"postgres.dbnames.cbas=cbasdbname"
@@ -930,9 +931,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
     val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true)))
       .maybeCreateWsmIdentityAndDatabases(app,
-                                         workspaceId,
-                                         landingZoneResources.copy(postgresServer = None),
-                                         KubernetesNamespace(NamespaceName("ns1"))
+                                          workspaceId,
+                                          landingZoneResources.copy(postgresServer = None),
+                                          KubernetesNamespace(NamespaceName("ns1"))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res shouldBe (None, None)
