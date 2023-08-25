@@ -8,6 +8,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.Identity
 import fs2._
+import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoInternalServerError, ServiceAccountProvider}
@@ -21,7 +22,7 @@ class BucketHelper[F[_]](
   config: BucketHelperConfig,
   google2StorageDAO: GoogleStorageService[F],
   serviceAccountProvider: ServiceAccountProvider[F]
-)(implicit val logger: Logger[F], F: Async[F]) {
+)(implicit val logger: Logger[F], F: Async[F], files: Files[F]) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 

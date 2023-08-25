@@ -8,7 +8,7 @@ import scala.concurrent.ExecutionContextExecutor
  * Created by dvoet on 10/9/15.
  */
 object TestExecutionContext {
-  implicit val testExecutionContext = new TestExecutionContext()
+  implicit val testExecutionContext: TestExecutionContext = new TestExecutionContext()
 }
 
 class TestExecutionContext() extends ExecutionContextExecutor {

@@ -44,7 +44,7 @@ trait TestLeoRoutes {
     with LeonardoTestSuite
     with TestComponent
     with MockitoSugar =>
-  implicit val timeout = RouteTestTimeout(20 seconds)
+  implicit val timeout: RouteTestTimeout = RouteTestTimeout(20 seconds)
 
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
   // to pull the custom dataproc image
