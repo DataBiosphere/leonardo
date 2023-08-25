@@ -8,6 +8,7 @@ import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
+import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
@@ -72,8 +73,13 @@ class GKEInterpreter[F[_]](
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   googleResourceService: GoogleResourceService[F],
   computeService: GoogleComputeService[F]
-)(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
-    extends GKEAlgebra[F] {
+)(implicit
+  val executionContext: ExecutionContext,
+  logger: StructuredLogger[F],
+  dbRef: DbReference[F],
+  F: Async[F],
+  files: Files[F]
+) extends GKEAlgebra[F] {
   // DoneCheckable instances
   implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
