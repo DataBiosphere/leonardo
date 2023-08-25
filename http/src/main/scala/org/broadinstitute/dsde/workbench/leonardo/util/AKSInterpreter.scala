@@ -1070,23 +1070,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"fullnameOverride=workflows-app-${release.asString}",
         raw"instrumentationEnabled=${config.workflowsAppConfig.instrumentationEnabled}",
         // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}"
+        raw"provenance.userAccessToken=${userAccessToken}",
+
+        // postgres configs
+        raw"postgres.host=${landingZoneResources.postgresServer.map(_.name).getOrElse("none")}.postgres.database.azure.com",
+        raw"postgres.pgbouncer.enabled=${landingZoneResources.postgresServer.map(_.pgBouncerEnabled).getOrElse("none")}",
+        // convention is that the database user is the same as the service account name
+        raw"postgres.user=${ksaName.map(_.value).getOrElse("none")}",
+        raw"postgres.dbnames.cromwellMetadata=${maybeDatabaseNames.map(_.cromwellMetadata).getOrElse("none")}",
+        raw"postgres.dbnames.cbas=${maybeDatabaseNames.map(_.cbas).getOrElse("none")}"
       )
 
-    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresServer, ksaName) match {
-      case (Some(dbNames), Some(PostgresServer(dbServer, pgBouncerEnabled)), Some(ksa)) =>
-        List(
-          raw"postgres.host=$dbServer.postgres.database.azure.com",
-          raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
-          // convention is that the database user is the same as the service account name
-          raw"postgres.user=${ksa.value}",
-          raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}",
-          raw"postgres.dbnames.cbas=${dbNames.cbas}"
-        )
-      case _ => List.empty
-    }
-
-    Values((valuesList ++ postgresConfig).mkString(","))
+    Values(valuesList.mkString(","))
   }
 
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
