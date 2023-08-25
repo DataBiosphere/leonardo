@@ -122,9 +122,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ChartVersion("0.2.39")
           )
         ),
-        CromwellRunnerAppConfig0.16.0(
+        CromwellRunnerAppConfig(
           ChartName("/leonardo/cromwell-runner-app"),
-          ChartVersion("0.1.0"),
+          ChartVersion("0.16.0"),
           ReleaseNameSuffix("cromwell-runner-app-rls"),
           NamespaceNameSuffix("cromwell-runner-app-ns"),
           KsaName("cromwell-runner-app-ksa"),
