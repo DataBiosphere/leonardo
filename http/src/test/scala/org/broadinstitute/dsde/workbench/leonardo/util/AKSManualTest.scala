@@ -42,10 +42,11 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.scalatestplus.mockito.MockitoSugar.mock
+import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.util.UUID
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 /**
  * Manual test for deploying CoA helm chart against an AKS cluster. Usage:
@@ -82,8 +83,8 @@ object AKSManualTest {
   val appSamResourceId = AppSamResourceId("sam-id", None)
 
   // Implicit dependencies
-  implicit val logger = Slf4jLogger.getLogger[IO]
-  implicit val executionContext = ExecutionContext.global
+  implicit val logger: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   /** Initializes DbReference */
   def getDbRef: Resource[IO, DbReference[IO]] = for {

@@ -22,6 +22,7 @@ import com.azure.resourcemanager.compute.models.{
 }
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
+import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
@@ -66,7 +67,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
-  F: Async[F]
+  F: Async[F],
+  files: Files[F]
 ) extends AKSAlgebra[F] {
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
 
@@ -893,11 +895,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.userAccessToken=${userAccessToken}"
       )
 
-    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
-      case (Some(databaseNames), Some(PostgresName(dbServer)), Some(pet)) =>
+    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresServer, petManagedIdentity) match {
+      case (Some(databaseNames), Some(PostgresServer(dbServerName, pgBouncerEnabled)), Some(pet)) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
-          raw"postgres.host=$dbServer.postgres.database.azure.com",
+          raw"postgres.host=$dbServerName.postgres.database.azure.com",
+          raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${pet.name()}",
           raw"postgres.dbnames.cromwell=${databaseNames.cromwell}",
@@ -966,11 +969,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.sourceWorkspaceId=${sourceWorkspaceId.map(_.value).getOrElse("")}"
       )
 
-    val postgresConfig = (ksaName, wdsDbName, landingZoneResources.postgresName) match {
-      case (Some(ksa), Some(db), Some(PostgresName(dbServer))) =>
+    val postgresConfig = (ksaName, wdsDbName, landingZoneResources.postgresServer) match {
+      case (Some(ksa), Some(db), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
-          raw"postgres.host=$dbServer.postgres.database.azure.com",
+          raw"postgres.host=$dbServerName.postgres.database.azure.com",
+          raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
           raw"postgres.dbname=$db",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${ksa.value}"
@@ -1240,12 +1244,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   )(implicit
     ev: Ask[F, AppContext]
   ): F[(Option[ServiceAccountName], Option[Map[String, String]])] = {
-    val shouldCreateDatabases = app.appType match {
-      case AppType.Wds          => landingZoneResources.postgresName.isDefined && config.wdsAppConfig.databaseEnabled
+    val shouldCreateLZDatabases = app.appType match {
+      case AppType.Wds          => landingZoneResources.postgresServer.isDefined && config.wdsAppConfig.databaseEnabled
       case AppType.WorkflowsApp => true
       case _                    => false
     }
-    if (shouldCreateDatabases) {
+    if (shouldCreateLZDatabases) {
       for {
         ctx <- ev.ask
         _ <- logger.info(ctx.loggingCtx)(
@@ -1331,7 +1335,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       case AppType.Cromwell => config.coaAppConfig.databaseEnabled
       case _                => false
     }
-    val landingZoneSupportsDatabase = landingZoneResources.postgresName.isDefined
+    val landingZoneSupportsDatabase = landingZoneResources.postgresServer.isDefined
     if (databaseConfigEnabled && landingZoneSupportsDatabase) {
       for {
         // Build WSM client
