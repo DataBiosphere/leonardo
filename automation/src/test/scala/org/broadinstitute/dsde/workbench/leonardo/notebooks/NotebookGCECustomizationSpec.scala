@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -9,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoApiClient,
   UserJupyterExtensionConfig
 }
+import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
@@ -21,7 +23,7 @@ final class NotebookGCECustomizationSpec
     extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with NotebookTestUtils {
-  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   "NotebookGCECustomizationSpec" - {
