@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesServiceKindName,
   LeonardoTestSuite,
   NetworkFields,
+  RuntimeContainerServiceType,
   RuntimeImage,
   RuntimeImageType,
   RuntimeMetrics,
@@ -54,6 +55,7 @@ import org.scalatestplus.mockito.MockitoSugar
 
 import java.time.Instant
 import java.util.UUID
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -85,9 +87,9 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val containerService = setUpMockAzureContainerService
 
   // Test object
-  implicit val clusterToolToToolDao =
+  implicit val clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] =
     ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, rstudioDAO)
-  implicit val ec = cats.effect.unsafe.IORuntime.global.compute
+  implicit val ec: ExecutionContext = cats.effect.unsafe.IORuntime.global.compute
   val config = LeoMetricsMonitorConfig(true, 1 minute, true)
   val leoMetricsMonitor = new LeoMetricsMonitor[IO](
     config,
