@@ -138,13 +138,13 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
-      res = resourcePolicies.filter { case (r, pn) =>
-        sr.policyNames(r).contains(pn)
+      res = resourcePolicies.filter { case (samResourceId, policyName) =>
+        sr.policyNames(samResourceId).contains(policyName)
       }
-    } yield resources.filter(r => res.exists(_._1 == r))
+    } yield resources.filter(samResourceId => res.exists(_._1 == samResourceId))
   }
 
-  def filterUserVisibleWithProjectFallback[R](
+  def filterResourceProjectVisible[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(implicit
@@ -154,18 +154,34 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
+
     for {
-      projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
-      owningProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
+      projectPolicies <- samDao
+        .getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
+      readingProjects = projectPolicies.map(_._1.googleProject).toSet
+      ownedProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
         r.googleProject
       }
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
-      res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
-    } yield resources.filter { case (project, r) =>
-      owningProjects.contains(project) || res.exists(_._1 == r)
+      res = resourcePolicies.filter { case (samResourceId, policyName) =>
+        sr.policyNames(samResourceId).contains(policyName)
+      }
+    } yield resources.filter { case (project, samResourceId) =>
+      // user must be a project owner or at least a reader on the project and resource
+      ownedProjects.contains(project) || (readingProjects.contains(project) && res.exists(_._1 == samResourceId))
     }
+  }
+
+  override def isUserProjectReader(cloudContext: CloudContext, userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] = {
+    val samProjectResource = ProjectSamResourceId(GoogleProject(cloudContext.asString))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      roles <- samDao.getResourceRoles(authHeader, samProjectResource)
+    } yield roles.nonEmpty
   }
 
   def filterWorkspaceOwner(
