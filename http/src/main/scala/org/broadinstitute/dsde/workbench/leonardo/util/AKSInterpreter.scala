@@ -1338,7 +1338,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
-      cromwellRunnerDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwellRunner", wsmApi, None)
+      cromwellRunnerDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwellrunner", wsmApi, None)
       tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
     } yield Some(CromwellRunnerDatabaseNames(cromwellRunnerDb, tesDb))
 
