@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.http4s.headers.Authorization
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -26,7 +27,7 @@ class RuntimePatchSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
