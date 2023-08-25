@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
 import cats.effect.{Async, IO}
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.http.SslContextReader
 
 import javax.net.ssl.SSLContext
@@ -12,14 +13,14 @@ import org.scalactic.Equality
 import org.scalatest.matchers.should.Matchers
 
 object TestUtils extends Matchers {
-  implicit val appContext = AppContext
+  implicit val appContext: Ask[IO, AppContext] = AppContext
     .lift[IO](None, "")
     .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
   // while comparing clusters as we typically don't care about the database assigned id field
   // http://www.scalactic.org/user_guide/CustomEquality
-  implicit val clusterEq =
+  implicit val clusterEq: Equality[Runtime] =
     new Equality[Runtime] {
       private val FixedId = 0
 
@@ -30,44 +31,38 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val leonardoExceptionEq =
-    new Equality[LeoException] {
-      def areEqual(a: LeoException, b: Any): Boolean =
-        b match {
-          case bb: LeoException =>
-            a.message == bb.message && a.statusCode == bb.statusCode && a.cause == bb.cause
-          case _ => false
-        }
-    }
+  implicit val leonardoExceptionEq: Equality[LeoException] =
+    (a: LeoException, b: Any) =>
+      b match {
+        case bb: LeoException =>
+          a.message == bb.message && a.statusCode == bb.statusCode && a.cause == bb.cause
+        case _ => false
+      }
 
   implicit def eitherEq[A, B](implicit ea: Equality[A], eb: Equality[B]): Equality[Either[A, B]] =
-    new Equality[Either[A, B]] {
-      def areEqual(a: Either[A, B], b: Any): Boolean =
-        (a, b) match {
-          case (Left(aa), Left(bb)) =>
-            aa === bb
-          case (Right(aa), Right(bb)) => aa === bb
-          case _                      => false
-        }
-    }
+    (a: Either[A, B], b: Any) =>
+      (a, b) match {
+        case (Left(aa), Left(bb)) =>
+          aa === bb
+        case (Right(aa), Right(bb)) => aa === bb
+        case _                      => false
+      }
 
   // these are not applied recursively, hence the need to dig into the nodepool Ids
-  implicit val kubeClusterEq =
+  implicit val kubeClusterEq: Equality[KubernetesCluster] =
     new Equality[KubernetesCluster] {
       private val FixedId = KubernetesClusterLeoId(0)
       private val FixedNodepoolId = NodepoolLeoId(0)
       def areEqual(a: KubernetesCluster, b: Any): Boolean =
         b match {
           case c: KubernetesCluster =>
-            a.copy(id = FixedId,
-                   nodepools = a.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId))
-            ) ===
+            a.copy(id = FixedId, nodepools = a.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId))) ==
               c.copy(id = FixedId, nodepools = c.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId)))
           case _ => false
         }
     }
 
-  implicit val namespaceEq =
+  implicit val namespaceEq: Equality[Namespace] =
     new Equality[Namespace] {
       private val FixedId = NamespaceId(0)
 
@@ -78,7 +73,7 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val nodepoolEq =
+  implicit val nodepoolEq: Equality[Nodepool] =
     new Equality[Nodepool] {
       private val FixedId = NodepoolLeoId(0)
 
@@ -89,7 +84,7 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val appEq =
+  implicit val appEq: Equality[App] =
     new Equality[App] {
       private val FixedId = AppId(0)
       private val FixedNamespaceId = NamespaceId(0)
@@ -105,7 +100,7 @@ object TestUtils extends Matchers {
                 services = fixIdsForServices(a.appResources.services),
                 disk = a.appResources.disk.map(d => d.copy(id = FixedDiskId))
               )
-            ) ===
+            ) ==
               c.copy(
                 id = FixedId,
                 appResources = c.appResources.copy(
@@ -129,24 +124,19 @@ object TestUtils extends Matchers {
   private def fixIdsForServices(services: List[KubernetesService]): List[KubernetesService] =
     services.map(fixIdForService).sortBy(_.config.name.value)
 
-  implicit val serviceEq =
-    new Equality[KubernetesService] {
+  implicit val serviceEq: Equality[KubernetesService] =
+    (a: KubernetesService, b: Any) =>
+      b match {
+        case c: KubernetesService => fixIdForService(a) == fixIdForService(c)
+        case _                    => false
+      }
 
-      def areEqual(a: KubernetesService, b: Any): Boolean =
-        b match {
-          case c: KubernetesService => fixIdForService(a) === fixIdForService(c)
-          case _                    => false
-        }
-    }
-
-  implicit val namespaceListEq =
-    new Equality[List[Namespace]] {
-      def areEqual(as: List[Namespace], bs: Any): Boolean =
-        bs match {
-          case cs: List[_] => isNamespaceListEquivalent(as, cs)
-          case _           => false
-        }
-    }
+  implicit val namespaceListEq: Equality[List[Namespace]] =
+    (as: List[Namespace], bs: Any) =>
+      bs match {
+        case cs: List[_] => isNamespaceListEquivalent(as, cs)
+        case _           => false
+      }
 
   private def isNamespaceListEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
     val dummyId = NamespaceId(0)
@@ -157,25 +147,21 @@ object TestUtils extends Matchers {
     fcs1 == fcs2
   }
 
-  implicit val clusterSeqEq =
-    new Equality[Seq[Runtime]] {
-      def areEqual(as: Seq[Runtime], bs: Any): Boolean =
-        bs match {
-          case cs: Seq[_] => isEquivalent(as, cs)
-          case _          => false
-        }
-    }
+  implicit val clusterSeqEq: Equality[Seq[Runtime]] =
+    (as: Seq[Runtime], bs: Any) =>
+      bs match {
+        case cs: Seq[_] => isEquivalent(as, cs)
+        case _          => false
+      }
 
-  implicit val clusterSetEq =
-    new Equality[Set[Runtime]] {
-      def areEqual(as: Set[Runtime], bs: Any): Boolean =
-        bs match {
-          case cs: Set[_] => isEquivalent(as, cs)
-          case _          => false
-        }
-    }
+  implicit val clusterSetEq: Equality[Set[Runtime]] =
+    (as: Set[Runtime], bs: Any) =>
+      bs match {
+        case cs: Set[_] => isEquivalent(as, cs)
+        case _          => false
+      }
 
-  implicit val diskEq =
+  implicit val diskEq: Equality[PersistentDisk] =
     new Equality[PersistentDisk] {
       private val FixedId = DiskId(0)
 
