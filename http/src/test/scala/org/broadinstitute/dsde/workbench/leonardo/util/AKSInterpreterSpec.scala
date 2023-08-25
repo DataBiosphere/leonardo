@@ -527,7 +527,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       workspaceId,
       lzResources.copy(postgresServer = Option(PostgresServer("postgres", pgBouncerEnabled = true))),
       Uri.unsafeFromString("https://relay.com/app"),
-      Some(setUpMockIdentity),
       storageContainer,
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
@@ -555,11 +554,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
-      "identity.enabled=false," +
-      "identity.name=identity-name," +
-      "identity.resourceId=identity-id," +
-      "identity.clientId=identity-client-id," +
-      "workloadIdentity.enabled=true," +
       "workloadIdentity.serviceAccountName=ksa," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
