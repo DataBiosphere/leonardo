@@ -967,11 +967,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"provenance.userAccessToken=${userAccessToken}"
       )
 
-    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresName, petManagedIdentity) match {
-      case (Some(databaseNames), Some(PostgresName(dbServer)), Some(pet)) =>
+    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresServer, petManagedIdentity) match {
+      case (Some(databaseNames), Some(PostgresServer(dbServerName, pgBouncerEnabled)), Some(pet)) =>
         List(
           raw"postgres.podLocalDatabaseEnabled=false",
-          raw"postgres.host=$dbServer.postgres.database.azure.com",
+          raw"postgres.host=$dbServerName.postgres.database.azure.com",
+          raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${pet.name()}",
           raw"postgres.dbnames.cromwell=${databaseNames.cromwellRunner}",
