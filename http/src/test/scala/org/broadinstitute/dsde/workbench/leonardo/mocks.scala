@@ -123,9 +123,9 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     ???
 
   override def filterUserVisibleWithProjectFallback[R](
-                                                        resources: NonEmptyList[(GoogleProject, R)],
-                                                        userInfo: UserInfo
-                                                      )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(GoogleProject, R)]] =
+    resources: NonEmptyList[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(GoogleProject, R)]] =
     ???
 
   override def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(

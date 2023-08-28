@@ -216,17 +216,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       partition = disks.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
 
-      gcpDiskAndProjects = partition._1.map(d =>
-        (GoogleProject(d.cloudContext.asString), d.samResource)
-      )
+      gcpDiskAndProjects = partition._1.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
       gcpSamVisibleDisksOpt <- NonEmptyList.fromList(gcpDiskAndProjects).traverse { ds =>
         authProvider
           .filterResourceProjectVisible(ds, userInfo)
       }
 
-      azureDiskAndProjects = disks.map(d =>
-        (GoogleProject(d.cloudContext.asString), d.samResource)
-      )
+      azureDiskAndProjects = disks.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
       azureSamVisibleDisksOpt <- NonEmptyList.fromList(azureDiskAndProjects).traverse { ds =>
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
@@ -234,9 +230,9 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
       samVisibleDisksOpt = (gcpSamVisibleDisksOpt, azureSamVisibleDisksOpt) match {
         case (Some(a), Some(b)) => Some(a ++ b)
-        case (Some(a), None) => Some(a)
-        case (None, Some(b)) => Some(b)
-        case (None, None) => None
+        case (Some(a), None)    => Some(a)
+        case (None, Some(b))    => Some(b)
+        case (None, None)       => None
       }
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))

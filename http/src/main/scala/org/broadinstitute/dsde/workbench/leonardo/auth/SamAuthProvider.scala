@@ -145,13 +145,13 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   }
 
   def filterUserVisibleWithProjectFallback[R](
-                                               resources: NonEmptyList[(GoogleProject, R)],
-                                               userInfo: UserInfo
-                                             )(implicit
-                                               sr: SamResource[R],
-                                               decoder: Decoder[R],
-                                               ev: Ask[F, TraceId]
-                                             ): F[List[(GoogleProject, R)]] = {
+    resources: NonEmptyList[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit
+    sr: SamResource[R],
+    decoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
     for {
