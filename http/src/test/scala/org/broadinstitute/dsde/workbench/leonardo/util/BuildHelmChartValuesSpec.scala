@@ -286,8 +286,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val savedCluster1 = makeKubeCluster(1)
     val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
     val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
-    val res = buildRStudioAppChartOverrideValuesString(
+    val res = buildAllowedAppChartOverrideValuesString(
       Config.gkeInterpConfig,
+      AllowedChartName.RStudio,
       appName = AppName("app1"),
       cluster = savedCluster1,
       nodepoolName = NodepoolName("pool1"),
@@ -300,19 +301,20 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     )
 
     res.mkString(",") shouldBe
+      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
+      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
+      """fullnameOverride=app1,""" +
       """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
       """ingress.enabled=true,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
-      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
-      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
@@ -323,9 +325,12 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[2].value=app1,""" +
       """welder.extraEnv[3].name=OWNER_EMAIL,""" +
       """welder.extraEnv[3].value=user2@example.com,""" +
+      """welder.extraEnv[4].name=WORKSPACE_ID,""" +
+      """welder.extraEnv[4].value=dummy,""" +
+      """welder.extraEnv[5].name=WSM_URL,""" +
+      """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name"""
-
   }
 
   it should "build relay listener override values string" in {

@@ -96,7 +96,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                   if (config.enableSasAppGroupCheck)
                     authProvider.isSasAppAllowed(userInfo.userEmail) map { res =>
                       if (res) Right(())
-                      else Left("You need to obtain a license in order to create SAS App")
+                      else Left("You need to obtain a license in order to create a SAS App")
                     }
                   else F.unit
               }

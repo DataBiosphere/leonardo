@@ -40,11 +40,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
+  buildAllowedAppChartOverrideValuesString,
   buildCromwellAppChartOverrideValuesString,
   buildCustomChartOverrideValuesString,
-  buildGalaxyChartOverrideValuesString,
-  buildRStudioAppChartOverrideValuesString,
-  buildSasAppChartOverrideValuesString
+  buildGalaxyChartOverrideValuesString
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
@@ -695,33 +694,19 @@ class GKEInterpreter[F[_]](
               new RuntimeException(s"invalid chart name for ALLOWED app: ${app.chart.name}")
             )
 
-            chartValues = allowedChart match {
-              case AllowedChartName.RStudio =>
-                buildRStudioAppChartOverrideValuesString(
-                  config,
-                  app.appName,
-                  dbCluster,
-                  nodepoolName,
-                  namespaceName,
-                  nfsDisk,
-                  ksaName,
-                  userEmail,
-                  stagingBucketName,
-                  app.customEnvironmentVariables
-                )
-              case AllowedChartName.Sas =>
-                buildSasAppChartOverrideValuesString(config,
-                                                     app.appName,
-                                                     dbCluster,
-                                                     nodepoolName,
-                                                     namespaceName,
-                                                     nfsDisk,
-                                                     ksaName,
-                                                     userEmail,
-                                                     stagingBucketName,
-                                                     app.customEnvironmentVariables
-                )
-            }
+            chartValues = buildAllowedAppChartOverrideValuesString(
+              config,
+              allowedChart,
+              app.appName,
+              dbCluster,
+              nodepoolName,
+              namespaceName,
+              nfsDisk,
+              ksaName,
+              userEmail,
+              stagingBucketName,
+              app.customEnvironmentVariables
+            )
 
             last <- streamFUntilDone(
               config.allowedAppConfig.services
@@ -1562,32 +1547,18 @@ class GKEInterpreter[F[_]](
         new RuntimeException(s"invalid chart name for ALLOWED app: ${chart.name}")
       )
 
-      chartValues = allowedChart match {
-        case AllowedChartName.RStudio =>
-          buildRStudioAppChartOverrideValuesString(config,
-                                                   appName,
-                                                   cluster,
-                                                   nodepoolName,
-                                                   namespaceName,
-                                                   disk,
-                                                   ksaName,
-                                                   userEmail,
-                                                   stagingBucketName,
-                                                   customEnvironmentVariables
-          )
-        case AllowedChartName.Sas =>
-          buildSasAppChartOverrideValuesString(config,
-                                               appName,
-                                               cluster,
-                                               nodepoolName,
-                                               namespaceName,
-                                               disk,
-                                               ksaName,
-                                               userEmail,
-                                               stagingBucketName,
-                                               customEnvironmentVariables
-          )
-      }
+      chartValues = buildAllowedAppChartOverrideValuesString(config,
+                                                             allowedChart,
+                                                             appName,
+                                                             cluster,
+                                                             nodepoolName,
+                                                             namespaceName,
+                                                             disk,
+                                                             ksaName,
+                                                             userEmail,
+                                                             stagingBucketName,
+                                                             customEnvironmentVariables
+      )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm

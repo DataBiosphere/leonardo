@@ -239,43 +239,6 @@ private[leonardo] object BuildHelmChartValues {
     ) ++ command ++ args ++ configs ++ ingress).mkString(",")
   }
 
-  def buildRStudioAppChartOverrideValuesString(config: GKEInterpreterConfig,
-                                               appName: AppName,
-                                               cluster: KubernetesCluster,
-                                               nodepoolName: NodepoolName,
-                                               namespaceName: NamespaceName,
-                                               disk: PersistentDisk,
-                                               ksaName: ServiceAccountName,
-                                               userEmail: WorkbenchEmail,
-                                               stagingBucket: GcsBucketName,
-                                               customEnvironmentVariables: Map[String, String]
-  ): List[String] = {
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
-    val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain)
-
-    val common = buildAllowedAppCommonChartValuesString(
-      config,
-      appName,
-      cluster,
-      nodepoolName,
-      namespaceName,
-      disk,
-      ksaName,
-      userEmail,
-      stagingBucket,
-      customEnvironmentVariables,
-      ingressPath,
-      k8sProxyHost
-    )
-
-    List(
-      raw"""ingress.rstudio.path=${ingressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost.address()}"""
-    ) ++ common
-  }
-
   def buildListenerChartOverrideValuesString(release: Release,
                                              samResourceId: AppSamResourceId,
                                              relayNamespace: RelayNamespace,
@@ -325,16 +288,17 @@ private[leonardo] object BuildHelmChartValues {
     )
   }
 
-  def buildSasAppChartOverrideValuesString(config: GKEInterpreterConfig,
-                                           appName: AppName,
-                                           cluster: KubernetesCluster,
-                                           nodepoolName: NodepoolName,
-                                           namespaceName: NamespaceName,
-                                           disk: PersistentDisk,
-                                           ksaName: ServiceAccountName,
-                                           userEmail: WorkbenchEmail,
-                                           stagingBucket: GcsBucketName,
-                                           customEnvironmentVariables: Map[String, String]
+  def buildAllowedAppChartOverrideValuesString(config: GKEInterpreterConfig,
+                                               allowedChartName: AllowedChartName,
+                                               appName: AppName,
+                                               cluster: KubernetesCluster,
+                                               nodepoolName: NodepoolName,
+                                               namespaceName: NamespaceName,
+                                               disk: PersistentDisk,
+                                               ksaName: ServiceAccountName,
+                                               userEmail: WorkbenchEmail,
+                                               stagingBucket: GcsBucketName,
+                                               customEnvironmentVariables: Map[String, String]
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
@@ -354,14 +318,25 @@ private[leonardo] object BuildHelmChartValues {
       k8sProxyHost
     )
 
-    List(
-      raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.proxyPath=${ingressPath}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost.address()}""",
-      raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
-      raw"""imageCredentials.password=${config.allowedAppConfig.sasContainerRegistryCredentials.password.asString}"""
-    ) ++ common
+    allowedChartName match {
+      case AllowedChartName.RStudio =>
+        List(
+          raw"""ingress.rstudio.path=${ingressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost
+              .address()}"""
+        ) ++ common
+      case AllowedChartName.Sas =>
+        List(
+          raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.proxyPath=${ingressPath}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost
+              .address()}""",
+          raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
+          raw"""imageCredentials.password=${config.allowedAppConfig.sasContainerRegistryCredentials.password.asString}"""
+        ) ++ common
+    }
   }
 
   private[util] def buildAllowedAppCommonChartValuesString(config: GKEInterpreterConfig,
