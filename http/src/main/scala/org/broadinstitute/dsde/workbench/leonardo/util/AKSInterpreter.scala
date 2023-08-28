@@ -957,10 +957,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"workloadIdentity.serviceAccountName=${petManagedIdentity.map(_.name).getOrElse("none")}",
 
         // Enabled services configs
-        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
+        raw"cromwell.enabled=${config.cromwellRunnerAppConfig.enabled}",
 
         // general configs
-        raw"fullnameOverride=coa-${release.asString}",
+        raw"fullnameOverride=cromwell-runner-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}"
@@ -1338,7 +1338,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
-      cromwellRunnerDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwellrunner", wsmApi, None)
+      cromwellRunnerDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwellRunner", wsmApi, None)
       tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
     } yield Some(CromwellRunnerDatabaseNames(cromwellRunnerDb, tesDb))
 
