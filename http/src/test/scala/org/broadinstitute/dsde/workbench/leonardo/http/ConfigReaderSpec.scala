@@ -68,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:b7a3e08",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:39641f8",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -139,7 +139,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.1.0"),
+          ChartVersion("0.24.0"),
           ReleaseNameSuffix("workflows-app-rls"),
           NamespaceNameSuffix("workflows-app-ns"),
           KsaName("workflows-app-ksa"),
