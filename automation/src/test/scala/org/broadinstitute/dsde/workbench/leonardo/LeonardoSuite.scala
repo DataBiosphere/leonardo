@@ -256,6 +256,7 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
   import org.broadinstitute.dsde.workbench.auth.AuthToken
   import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
   override type FixtureParam = WorkspaceResponse
+  val azureProjectKey = "leonardo.azureProject"
 
   // These are static coordinates for this managed app in the azure portal: https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview
   // Note that the final 'optional' field for a pre-created landing zone is not technically optional
@@ -268,6 +269,17 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
   )
 
+  override def beforeAll(): Unit = {
+    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val res = for {
+      _ <- IO(super.beforeAll())
+      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
+        IO(sys.props.put(azureProjectKey, projectName))
+      }
+    } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
@@ -275,11 +287,12 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     try
-      withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
-//      val projectName = "tmp-billing-project-beddf71a74"
-        withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
-          runTestAndCheckOutcome(workspace)
-        }
+      sys.props.get(azureProjectKey) match {
+        case None => throw new RuntimeException("leonardo.azureProject system property is not set")
+        case Some(projectName) =>
+          withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
+            runTestAndCheckOutcome(workspace)
+          }
       }
     catch {
       case e: org.broadinstitute.dsde.workbench.service.RestException
