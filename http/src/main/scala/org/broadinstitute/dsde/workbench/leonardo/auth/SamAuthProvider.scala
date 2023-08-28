@@ -144,6 +144,30 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield resources.filter(samResourceId => res.exists(_._1 == samResourceId))
   }
 
+  def filterUserVisibleWithProjectFallback[R](
+                                               resources: NonEmptyList[(GoogleProject, R)],
+                                               userInfo: UserInfo
+                                             )(implicit
+                                               sr: SamResource[R],
+                                               decoder: Decoder[R],
+                                               ev: Ask[F, TraceId]
+                                             ): F[List[(GoogleProject, R)]] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
+    for {
+      projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
+      owningProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
+        r.googleProject
+      }
+      resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
+        samDao.getResourcePolicies[R](authHeader, resourceType)
+      )
+      res = resourcePolicies.filter { case (r, pn) => sr.policyNames(r).contains(pn) }
+    } yield resources.filter { case (project, r) =>
+      owningProjects.contains(project) || res.exists(_._1 == r)
+    }
+  }
+
   def filterResourceProjectVisible[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo

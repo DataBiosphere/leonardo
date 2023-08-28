@@ -166,5 +166,20 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     }
   } yield filteredResources.toSet
 
+  def filterUserVisibleWithProjectFallback[R](
+                                               resources: NonEmptyList[(GoogleProject, R)],
+                                               userInfo: UserInfo
+                                             )(implicit
+                                               sr: SamResource[R],
+                                               decoder: Decoder[R],
+                                               ev: Ask[IO, TraceId]
+                                             ): IO[List[(GoogleProject, R)]] =
+    resources.toList.traverseFilter { a =>
+      checkAllowlist(userInfo).map {
+        case true => Some(a)
+        case false => None
+      }
+    }
+
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
