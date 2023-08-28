@@ -315,7 +315,7 @@ private[leonardo] object BuildHelmChartValues {
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell          => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.CromwellRunnerApp => s"http://cromwell-runner-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.CromwellRunnerApp => s"http://cra-${release.asString}-reverse-proxy-service:8000/"
       case AppType.Wds               => s"http://wds-${release.asString}-wds-svc:8080"
       case AppType.HailBatch         => "http://batch:8080"
       case _                         => "uknown"

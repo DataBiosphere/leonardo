@@ -961,7 +961,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"cromwell.enabled=${config.cromwellRunnerAppConfig.enabled}",
 
         // general configs
-        raw"fullnameOverride=cromwell-runner-${release.asString}",
+        raw"fullnameOverride=cra-${release.asString}",
         raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}"
