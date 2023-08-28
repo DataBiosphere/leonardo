@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.azure
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   AzureDiskConfig,
   ClusterStatus,
@@ -26,7 +27,7 @@ class AzureRuntimeSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken = Hermione.authToken()
+  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
 
   "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
@@ -81,7 +82,7 @@ class AzureRuntimeSpec
           callGetRuntime,
           240,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 20 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
         _ <- loggerIO.info(
@@ -101,9 +102,9 @@ class AzureRuntimeSpec
 
         monitorDeleteResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          120,
+          240,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 20 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 40 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
 
         _ <- loggerIO.info(
@@ -117,6 +118,8 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
         )
+
+        _ <- IO.sleep(1 minute) // sleep for a minute before cleaning up workspace
       } yield ()
     res.unsafeRunSync()
   }

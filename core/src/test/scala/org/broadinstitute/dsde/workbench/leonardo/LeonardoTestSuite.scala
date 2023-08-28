@@ -5,7 +5,7 @@ import cats.effect.{Deferred, IO}
 import com.github.benmanes.caffeine.cache.Caffeine
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
-import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
+import org.broadinstitute.dsde.workbench.openTelemetry.{FakeOpenTelemetryMetricsInterpreter, OpenTelemetryMetrics}
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.prop.Configuration
@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 trait LeonardoTestSuite extends Matchers {
-  implicit val metrics = FakeOpenTelemetryMetricsInterpreter
+  implicit val metrics: OpenTelemetryMetrics[IO] = FakeOpenTelemetryMetricsInterpreter
   implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
   def ioAssertion(test: => IO[Assertion]): Assertion = test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

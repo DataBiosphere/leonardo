@@ -22,6 +22,7 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
+import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine.CaffeineCache
 
@@ -37,7 +38,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
                                 10,
                                 ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test"))
   )
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  implicit def unsafeLogger: Logger[IO] = Slf4jLogger.getLogger[IO]
   val underlyingPetTokenCache = Caffeine
     .newBuilder()
     .maximumSize(httpSamDaoConfig.petCacheMaxSize)
