@@ -178,6 +178,15 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[R]]
 
+  def filterUserVisibleWithProjectFallback[R](
+    resources: NonEmptyList[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit
+    sr: SamResource[R],
+    decoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[List[(GoogleProject, R)]]
+
   def filterResourceProjectVisible[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
