@@ -252,6 +252,8 @@ private[leonardo] object BuildHelmChartValues {
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain)
+
     val common = buildAllowedAppCommonChartValuesString(
       config,
       appName,
@@ -263,12 +265,14 @@ private[leonardo] object BuildHelmChartValues {
       userEmail,
       stagingBucket,
       customEnvironmentVariables,
-      ingressPath
+      ingressPath,
+      k8sProxyHost
     )
 
     List(
       raw"""ingress.rstudio.path=${ingressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}"""
+      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost.address()}"""
     ) ++ common
   }
 
@@ -334,6 +338,7 @@ private[leonardo] object BuildHelmChartValues {
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain)
     val common = buildAllowedAppCommonChartValuesString(
       config,
       appName,
@@ -345,12 +350,15 @@ private[leonardo] object BuildHelmChartValues {
       userEmail,
       stagingBucket,
       customEnvironmentVariables,
-      ingressPath
+      ingressPath,
+      k8sProxyHost
     )
 
     List(
       raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
       raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.proxyPath=${ingressPath}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost.address()}""",
       raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
       raw"""imageCredentials.password=${config.allowedAppConfig.sasContainerRegistryCredentials.password.asString}"""
     ) ++ common
@@ -366,9 +374,10 @@ private[leonardo] object BuildHelmChartValues {
                                                            userEmail: WorkbenchEmail,
                                                            stagingBucket: GcsBucketName,
                                                            customEnvironmentVariables: Map[String, String],
-                                                           ingressPath: String
+                                                           ingressPath: String,
+                                                           k8sProxyHost: akka.http.scaladsl.model.Uri.Host
   ): List[String] = {
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
+    val k8sProxyHostString = k8sProxyHost.address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
 
     // Custom EV configs
@@ -384,13 +393,12 @@ private[leonardo] object BuildHelmChartValues {
     val ingress = List(
       raw"""ingress.enabled=true""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None"""",
-      raw"""ingress.host=${k8sProxyHost}""",
+      raw"""ingress.host=${k8sProxyHostString}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHostString}"""
     )
 
     val welder = List(
