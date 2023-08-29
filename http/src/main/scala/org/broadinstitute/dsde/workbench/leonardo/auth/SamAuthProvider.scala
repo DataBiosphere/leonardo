@@ -352,6 +352,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isGroupMembersOrAdmin(config.customAppCreationAllowedGroup, userEmail)
 
+  override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
+    samDao.isGroupMembersOrAdmin(config.sasAppCreationAllowedGroup, userEmail)
+
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isAdminUser(userInfo)
 
@@ -360,7 +363,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
                                        authCacheMaxSize: Int = 1000,
                                        authCacheExpiryTime: FiniteDuration = 15 minutes,
-                                       customAppCreationAllowedGroup: GroupName
+                                       customAppCreationAllowedGroup: GroupName,
+                                       sasAppCreationAllowedGroup: GroupName
 )
 
 private[leonardo] case class AuthCacheKey(samResourceType: SamResourceType,

@@ -182,6 +182,8 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   ): IO[Set[WorkspaceResourceSamResourceId]] = ???
 
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+
+  override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider

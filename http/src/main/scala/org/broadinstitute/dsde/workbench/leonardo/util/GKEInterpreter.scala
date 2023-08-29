@@ -40,10 +40,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
+  buildAllowedAppChartOverrideValuesString,
   buildCromwellAppChartOverrideValuesString,
   buildCustomChartOverrideValuesString,
-  buildGalaxyChartOverrideValuesString,
-  buildRStudioAppChartOverrideValuesString
+  buildGalaxyChartOverrideValuesString
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
@@ -459,7 +459,7 @@ class GKEInterpreter[F[_]](
             app.customEnvironmentVariables
           )
         case AppType.Allowed =>
-          installAouApp(
+          installAllowedApp(
             helmAuthContext,
             app.appName,
             app.release,
@@ -689,8 +689,14 @@ class GKEInterpreter[F[_]](
               .compile
               .drain
 
-            chartValues = buildRStudioAppChartOverrideValuesString(
+            allowedChart <- F.fromOption(
+              AllowedChartName.fromChartName(app.chart.name),
+              new RuntimeException(s"invalid chart name for ALLOWED app: ${app.chart.name}")
+            )
+
+            chartValues = buildAllowedAppChartOverrideValuesString(
               config,
+              allowedChart,
               app.appName,
               dbCluster,
               nodepoolName,
@@ -1502,7 +1508,7 @@ class GKEInterpreter[F[_]](
     } yield ()
   }
 
-  private[util] def installAouApp(
+  private[util] def installAllowedApp(
     helmAuthContext: AuthContext,
     appName: AppName,
     release: Release,
@@ -1536,8 +1542,13 @@ class GKEInterpreter[F[_]](
         .compile
         .drain
 
-      // TODO: update this depending on which chart this is
-      chartValues = buildRStudioAppChartOverrideValuesString(config,
+      allowedChart <- F.fromOption(
+        AllowedChartName.fromChartName(chart.name),
+        new RuntimeException(s"invalid chart name for ALLOWED app: ${chart.name}")
+      )
+
+      chartValues = buildAllowedAppChartOverrideValuesString(config,
+                                                             allowedChart,
                                                              appName,
                                                              cluster,
                                                              nodepoolName,
@@ -1566,7 +1577,7 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for RSTUDIO app ${appName.value} in project ${cluster.cloudContext.asString}"
+        s"helm install for ALLOWED app ${appName.value} in project ${cluster.cloudContext.asString}"
       ).compile.lastOrError
 
       // Poll the app until it starts up
