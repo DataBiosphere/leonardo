@@ -60,7 +60,6 @@ class AzureDiskSpec
           _ <- loggerIO.info(s"AzureDiskSpec: Create runtime request submitted. Starting to poll GET")
 
           // Verify the initial getRuntime call
-          _ <- IO.sleep(5 seconds)
           callGetRuntime = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
 
           intitialGetRuntimeResponse <- callGetRuntime
@@ -86,7 +85,7 @@ class AzureDiskSpec
             callGetRuntime,
             240,
             10 seconds,
-            s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 20 minutes"
+            s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
           )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
           _ <- loggerIO.info(
@@ -112,7 +111,7 @@ class AzureDiskSpec
             240,
             10 seconds,
             // TODO: increase timeout
-            s"AzureDiskSpec: disk ${workspaceId}/${diskName} was not ready after 5 minutes"
+            s"AzureDiskSpec: disk ${workspaceId}/${diskName} was not ready after 40 minutes"
           )(implicitly, (op: GetRuntimeResponse) => op.getRuntimeConfig.getAzureConfig.getPersistentDiskId === null)
 
           _ <- loggerIO.info(

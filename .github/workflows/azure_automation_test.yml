@@ -1,4 +1,4 @@
-name: leo-build-tag-publish-and-run-tests
+name: Azure automation tests
 
 on:
   pull_request:
