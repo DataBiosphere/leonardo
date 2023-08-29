@@ -129,7 +129,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
           List(
-            ServiceConfig(ServiceName("cromwell-writer"),
+            ServiceConfig(ServiceName("cromwell-runner"),
                           KubernetesServiceKindName("ClusterIP"),
                           Some(ServicePath("/cromwell"))
             )

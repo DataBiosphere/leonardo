@@ -175,7 +175,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 isUp <- serviceName match {
                   case ServiceName("cbas")    => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cbas-ui") => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cromwell") | ServiceName("cromwell-writer") =>
+                  case ServiceName("cromwell") | ServiceName("cromwell-runner") =>
                     cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("wds")   => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("batch") => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
