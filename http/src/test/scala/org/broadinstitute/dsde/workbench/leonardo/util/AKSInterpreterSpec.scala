@@ -557,8 +557,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "workloadIdentity.serviceAccountName=ksa," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
-      "cbas.enabled=true," +
-      "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=wfa-rel-1," +
       "instrumentationEnabled=false," +
