@@ -223,7 +223,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       }
 
       // TODO: use filterUserVisible (and remove old function) or make filterResourceProjectVisible handle both Azure and GCP
-      azureDiskAndProjects = disks.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
+      azureDiskAndProjects = partition._2.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
       azureSamVisibleDisksOpt <- NonEmptyList.fromList(azureDiskAndProjects).traverse { ds =>
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
