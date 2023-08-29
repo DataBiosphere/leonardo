@@ -560,7 +560,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "cbas.enabled=true," +
       "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
-      "fullnameOverride=workflows-app-rel-1," +
+      "fullnameOverride=wfa-rel-1," +
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
@@ -924,10 +924,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val nodepool = makeNodepool(1, cluster.id)
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
     val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true)))
-      .maybeCreateWsmIdentityAndDatabases(app,
-                                          workspaceId,
-                                          landingZoneResources.copy(postgresServer = None),
-                                          KubernetesNamespace(NamespaceName("ns1"))
+      .maybeCreateWsmIdentityAndSharedDatabases(app,
+                                                workspaceId,
+                                                landingZoneResources.copy(postgresServer = None),
+                                                KubernetesNamespace(NamespaceName("ns1"))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res shouldBe (None, None)
@@ -938,10 +938,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val nodepool = makeNodepool(1, cluster.id)
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
     val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = false)))
-      .maybeCreateWsmIdentityAndDatabases(app,
-                                          workspaceId,
-                                          landingZoneResources,
-                                          KubernetesNamespace(NamespaceName("ns1"))
+      .maybeCreateWsmIdentityAndSharedDatabases(app,
+                                                workspaceId,
+                                                landingZoneResources,
+                                                KubernetesNamespace(NamespaceName("ns1"))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res shouldBe (None, None)

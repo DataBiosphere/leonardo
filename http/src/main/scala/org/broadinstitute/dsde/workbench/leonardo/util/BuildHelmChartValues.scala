@@ -317,7 +317,7 @@ private[leonardo] object BuildHelmChartValues {
       case AppType.Cromwell     => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
       case AppType.Wds          => s"http://wds-${release.asString}-wds-svc:8080"
       case AppType.HailBatch    => "http://batch:8080"
-      case AppType.WorkflowsApp => s"http://workflows-app-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.WorkflowsApp => s"http://wfa-${release.asString}-reverse-proxy-service:8000/"
       case _                    => "unknown"
     }
 

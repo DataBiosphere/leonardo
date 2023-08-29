@@ -140,9 +140,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
           ChartVersion("0.24.0"),
-          ReleaseNameSuffix("workflows-app-rls"),
-          NamespaceNameSuffix("workflows-app-ns"),
-          KsaName("workflows-app-ksa"),
+          ReleaseNameSuffix("wfa-rls"),
+          NamespaceNameSuffix("wfa-ns"),
+          KsaName("wfa-ksa"),
           List(
             ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
             ServiceConfig(ServiceName("cromwell-reader"),

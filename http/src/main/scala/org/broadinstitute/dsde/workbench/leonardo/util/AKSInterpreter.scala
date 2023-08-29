@@ -118,7 +118,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // If configured for the app type, call WSM to create a managed identity and postgres database(s).
       // This returns a KSA authorized to access the database(s).
-      (maybeKSAFromSharedDatabaseCreation, maybeSharedDbNames) <- maybeCreateWsmIdentityAndDatabases(
+      (maybeKSAFromSharedDatabaseCreation, maybeSharedDbNames) <- maybeCreateWsmIdentityAndSharedDatabases(
         app,
         params.workspaceId,
         params.landingZoneResources,
@@ -780,16 +780,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .sequence
           .map(_.forall(identity))
       case AppType.WorkflowsApp =>
-        config.workflowsAppConfig.workflowsAppServices
-          .collect {
-            case Cromwell =>
-              cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-            case Cbas =>
-              cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          }
-          .toList
-          .sequence
-          .map(_.forall(identity))
+        List(
+          cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false),
+          cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        ).sequence.map(_.forall(identity))
       case AppType.CromwellRunnerApp =>
         cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       case AppType.Wds =>
@@ -1062,12 +1056,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         raw"leonardo.url=${config.leoUrlBase}",
 
         // Enabled services configs
-        raw"cbas.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cbas)}",
-        raw"cromwell.enabled=${config.workflowsAppConfig.workflowsAppServices.contains(Cromwell)}",
         raw"dockstore.baseUrl=${config.workflowsAppConfig.dockstoreBaseUrl}",
 
         // general configs
-        raw"fullnameOverride=workflows-app-${release.asString}",
+        raw"fullnameOverride=wfa-${release.asString}",
         raw"instrumentationEnabled=${config.workflowsAppConfig.instrumentationEnabled}",
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}",
@@ -1226,10 +1218,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private[util] def maybeCreateWsmIdentityAndDatabases(app: App,
-                                                       workspaceId: WorkspaceId,
-                                                       landingZoneResources: LandingZoneResources,
-                                                       namespace: KubernetesNamespace
+  private[util] def maybeCreateWsmIdentityAndSharedDatabases(app: App,
+                                                             workspaceId: WorkspaceId,
+                                                             landingZoneResources: LandingZoneResources,
+                                                             namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
   ): F[(Option[ServiceAccountName], Option[Map[String, String]])] = {
