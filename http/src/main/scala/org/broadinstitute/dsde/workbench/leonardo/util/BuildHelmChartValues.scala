@@ -261,10 +261,11 @@ private[leonardo] object BuildHelmChartValues {
                                              leoUrlBase: URL
   ): Values = {
     val relayTargetHost = appType match {
-      case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
-      case AppType.HailBatch => "http://batch:8080"
-      case _                 => "uknown"
+      case AppType.Cromwell          => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.CromwellRunnerApp => s"http://cra-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.Wds               => s"http://wds-${release.asString}-wds-svc:8080"
+      case AppType.HailBatch         => "http://batch:8080"
+      case _                         => "uknown"
     }
 
     // Hail batch serves requests on /{appName}/batch and uses relative redirects,
@@ -409,56 +410,6 @@ private[leonardo] object BuildHelmChartValues {
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
     ) ++ ingress ++ welder ++ configs
-  }
-
-  def buildListenerChartOverrideValuesString(release: Release,
-                                             samResourceId: AppSamResourceId,
-                                             relayNamespace: RelayNamespace,
-                                             relayHcName: RelayHybridConnectionName,
-                                             relayPrimaryKey: PrimaryKey,
-                                             appType: AppType,
-                                             workspaceId: WorkspaceId,
-                                             appName: AppName,
-                                             validHosts: Set[String],
-                                             samConfig: SamConfig,
-                                             listenerImage: String,
-                                             leoUrlBase: URL
-  ): Values = {
-    val relayTargetHost = appType match {
-      case AppType.Cromwell          => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.CromwellRunnerApp => s"http://cra-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.Wds               => s"http://wds-${release.asString}-wds-svc:8080"
-      case AppType.HailBatch         => "http://batch:8080"
-      case _                         => "uknown"
-    }
-
-    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
-    // so requires that we don't strip the entity path. For other app types we do
-    // strip the entity path.
-    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
-
-    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
-    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
-      raw"connection.validHosts[$idx]=$elem"
-    }
-
-    Values(
-      List(
-        raw"""connection.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"connection.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
-        raw"connection.connectionName=${relayHcName.value}",
-        raw"connection.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
-        raw"connection.targetHost=$relayTargetHost",
-        raw"sam.url=${samConfig.server}",
-        raw"sam.resourceId=${samResourceId.resourceId}",
-        raw"sam.resourceType=${samResourceId.resourceType.asString}",
-        raw"sam.action=connect",
-        raw"leonardo.url=${leoUrlBase}",
-        raw"general.workspaceId=${workspaceId.value.toString}",
-        raw"general.appName=${appName.value}",
-        raw"listener.image=${listenerImage}"
-      ).concat(validHostValues).mkString(",")
-    )
   }
 
   def buildCromwellRunnerChartOverrideValues(config: AKSInterpreterConfig,
