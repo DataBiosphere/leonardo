@@ -239,67 +239,6 @@ private[leonardo] object BuildHelmChartValues {
     ) ++ command ++ args ++ configs ++ ingress).mkString(",")
   }
 
-  def buildRStudioAppChartOverrideValuesString(config: GKEInterpreterConfig,
-                                               appName: AppName,
-                                               cluster: KubernetesCluster,
-                                               nodepoolName: NodepoolName,
-                                               namespaceName: NamespaceName,
-                                               disk: PersistentDisk,
-                                               ksaName: ServiceAccountName,
-                                               userEmail: WorkbenchEmail,
-                                               stagingBucket: GcsBucketName,
-                                               customEnvironmentVariables: Map[String, String]
-  ): List[String] = {
-    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
-    val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-
-    // Custom EV configs
-    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
-      List(
-        raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].value=$v"""
-      )
-    }
-
-    val rewriteTarget = "$2"
-    val ingress = List(
-      raw"""ingress.enabled=true""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${rstudioIngressPath}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None"""",
-      raw"""ingress.host=${k8sProxyHost}""",
-      raw"""ingress.rstudio.path=${rstudioIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
-    )
-
-    val welder = List(
-      raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",
-      raw"""welder.extraEnv[0].value=${cluster.cloudContext.asString}""",
-      raw"""welder.extraEnv[1].name=STAGING_BUCKET""",
-      raw"""welder.extraEnv[1].value=${stagingBucket.value}""",
-      raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
-      raw"""welder.extraEnv[2].value=${appName.value}""",
-      raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
-      raw"""welder.extraEnv[3].value=${userEmail.value}"""
-    )
-
-    List(
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Persistence
-      raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      // Service Account
-      raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder ++ configs
-  }
-
   def buildListenerChartOverrideValuesString(release: Release,
                                              samResourceId: AppSamResourceId,
                                              relayNamespace: RelayNamespace,
@@ -347,5 +286,120 @@ private[leonardo] object BuildHelmChartValues {
         raw"listener.image=${listenerImage}"
       ).concat(validHostValues).mkString(",")
     )
+  }
+
+  def buildAllowedAppChartOverrideValuesString(config: GKEInterpreterConfig,
+                                               allowedChartName: AllowedChartName,
+                                               appName: AppName,
+                                               cluster: KubernetesCluster,
+                                               nodepoolName: NodepoolName,
+                                               namespaceName: NamespaceName,
+                                               disk: PersistentDisk,
+                                               ksaName: ServiceAccountName,
+                                               userEmail: WorkbenchEmail,
+                                               stagingBucket: GcsBucketName,
+                                               customEnvironmentVariables: Map[String, String]
+  ): List[String] = {
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
+    val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain)
+    val common = buildAllowedAppCommonChartValuesString(
+      config,
+      appName,
+      cluster,
+      nodepoolName,
+      namespaceName,
+      disk,
+      ksaName,
+      userEmail,
+      stagingBucket,
+      customEnvironmentVariables,
+      ingressPath,
+      k8sProxyHost
+    )
+
+    allowedChartName match {
+      case AllowedChartName.RStudio =>
+        List(
+          raw"""ingress.rstudio.path=${ingressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost
+              .address()}"""
+        ) ++ common
+      case AllowedChartName.Sas =>
+        List(
+          raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.proxyPath=${ingressPath}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost
+              .address()}""",
+          raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
+          raw"""imageCredentials.password=${config.allowedAppConfig.sasContainerRegistryCredentials.password.asString}"""
+        ) ++ common
+    }
+  }
+
+  private[util] def buildAllowedAppCommonChartValuesString(config: GKEInterpreterConfig,
+                                                           appName: AppName,
+                                                           cluster: KubernetesCluster,
+                                                           nodepoolName: NodepoolName,
+                                                           namespaceName: NamespaceName,
+                                                           disk: PersistentDisk,
+                                                           ksaName: ServiceAccountName,
+                                                           userEmail: WorkbenchEmail,
+                                                           stagingBucket: GcsBucketName,
+                                                           customEnvironmentVariables: Map[String, String],
+                                                           ingressPath: String,
+                                                           k8sProxyHost: akka.http.scaladsl.model.Uri.Host
+  ): List[String] = {
+    val k8sProxyHostString = k8sProxyHost.address
+    val leoProxyhost = config.proxyConfig.getProxyServerHostName
+
+    // Custom EV configs
+    // todo: This may not apply to SAS apps
+    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
+      List(
+        raw"""extraEnv[$i].name=$k""",
+        raw"""extraEnv[$i].value=$v"""
+      )
+    }
+
+    val rewriteTarget = "$2"
+    val ingress = List(
+      raw"""ingress.enabled=true""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None"""",
+      raw"""ingress.host=${k8sProxyHostString}""",
+      raw"""ingress.tls[0].secretName=tls-secret""",
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHostString}"""
+    )
+
+    val welder = List(
+      raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",
+      raw"""welder.extraEnv[0].value=${cluster.cloudContext.asString}""",
+      raw"""welder.extraEnv[1].name=STAGING_BUCKET""",
+      raw"""welder.extraEnv[1].value=${stagingBucket.value}""",
+      raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
+      raw"""welder.extraEnv[2].value=${appName.value}""",
+      raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
+      raw"""welder.extraEnv[3].value=${userEmail.value}""",
+      raw"""welder.extraEnv[4].name=WORKSPACE_ID""",
+      raw"""welder.extraEnv[4].value=dummy""", // TODO: welder requires this env, but it's not needed for welders in GCP
+      raw"""welder.extraEnv[5].name=WSM_URL""",
+      raw"""welder.extraEnv[5].value=dummy""" // TODO: welder requires this env, but it's not needed for welders in GCP
+    )
+
+    List(
+      raw"""fullnameOverride=${appName.value}""",
+      // Node selector
+      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      // Persistence
+      raw"""persistence.size=${disk.size.gb.toString}G""",
+      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
+      // Service Account
+      raw"""serviceAccount.name=${ksaName.value}"""
+    ) ++ ingress ++ welder ++ configs
   }
 }

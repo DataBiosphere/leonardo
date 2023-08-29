@@ -22,13 +22,13 @@ class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], cli
             s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
         }
         client
-          .successful(
+          .status(
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(serviceUrl)
             )
           )
-          .handleError(_ => false)
+          .map(status => status.code < 400) // consider redirect also as success
       case _ => Async[F].pure(false) // Update once we support Relay for apps
     }
 }

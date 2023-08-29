@@ -366,6 +366,10 @@ object Config {
         config
           .getOrElse[GroupName]("customAppCreationAllowedGroup",
                                 throw new Exception("No customAppCreationAllowedGroup key found")
+          ),
+        config
+          .getOrElse[GroupName]("sasAppCreationAllowedGroup",
+                                throw new Exception("No sasAppCreationAllowedGroup key found")
           )
       )
   }
@@ -454,6 +458,10 @@ object Config {
   }
 
   implicit private val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
+  implicit private val containerRegistryUsernameValueReader: ValueReader[ContainerRegistryUsername] =
+    stringValueReader.map(ContainerRegistryUsername)
+  implicit private val containerRegistryPasswordValueReader: ValueReader[ContainerRegistryPassword] =
+    stringValueReader.map(ContainerRegistryPassword)
   implicit private val firewallRuleNameValueReader: ValueReader[FirewallRuleName] =
     stringValueReader.map(FirewallRuleName)
   implicit private val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
@@ -690,6 +698,14 @@ object Config {
     )
   }
 
+  implicit private val containerRegistryConfigReader: ValueReader[ContainerRegistryCredentials] = ValueReader.relative {
+    config =>
+      ContainerRegistryCredentials(
+        config.as[ContainerRegistryUsername]("sasRegistryUsername"),
+        config.as[ContainerRegistryPassword]("sasRegistryPassword")
+      )
+  }
+
   implicit private val aouAppConfigReader: ValueReader[AllowedAppConfig] = ValueReader.relative { config =>
     AllowedAppConfig(
       config.as[ChartName]("chartName"),
@@ -699,6 +715,7 @@ object Config {
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
+      config.as[ContainerRegistryCredentials]("sasContainerRegistry"),
       config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
     )
   }
@@ -771,6 +788,7 @@ object Config {
 
   val appServiceConfig = AppServiceConfig(
     config.getBoolean("app-service.enable-custom-app-check"),
+    config.getBoolean("app-service.enable-sas-group-app-check"),
     leoKubernetesConfig
   )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
