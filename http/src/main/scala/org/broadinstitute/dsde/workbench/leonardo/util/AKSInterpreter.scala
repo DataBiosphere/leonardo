@@ -36,6 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, WorkspaceNotFoundException}
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellRunnerChartOverrideValues
 import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.{NoIdentity, PodIdentity, WorkloadIdentity}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
@@ -299,6 +300,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                 app.chart.name,
                 app.chart.version,
                 buildCromwellRunnerChartOverrideValues(
+                  config,
                   app.release,
                   params.appName,
                   params.cloudContext,
@@ -901,81 +903,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           raw"postgres.user=${pet.name()}",
           raw"postgres.dbnames.cromwell=${databaseNames.cromwell}",
           raw"postgres.dbnames.cbas=${databaseNames.cbas}",
-          raw"postgres.dbnames.tes=${databaseNames.tes}"
-        )
-      case _ => List.empty
-    }
-
-    Values((valuesList ++ postgresConfig).mkString(","))
-  }
-
-  private[util] def buildCromwellRunnerChartOverrideValues(release: Release,
-                                                           appName: AppName,
-                                                           cloudContext: AzureCloudContext,
-                                                           workspaceId: WorkspaceId,
-                                                           landingZoneResources: LandingZoneResources,
-                                                           relayPath: Uri,
-                                                           petManagedIdentity: Option[Identity],
-                                                           storageContainer: StorageContainerResponse,
-                                                           batchAccountKey: BatchAccountKey,
-                                                           applicationInsightsConnectionString: String,
-                                                           sourceWorkspaceId: Option[WorkspaceId],
-                                                           userAccessToken: String,
-                                                           identityType: IdentityType,
-                                                           maybeDatabaseNames: Option[CromwellRunnerDatabaseNames]
-  ): Values = {
-    val valuesList =
-      List(
-        // azure resources configs
-        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        raw"config.batchAccountKey=${batchAccountKey.value}",
-        raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
-        raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
-        raw"config.drsUrl=${config.drsConfig.url}",
-        raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
-        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
-        raw"config.region=${landingZoneResources.region}",
-        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
-
-        // relay configs
-        raw"relay.path=${relayPath.renderString}",
-
-        // persistence configs
-        raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
-        raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
-        raw"persistence.blobContainer=${storageContainer.name.value}",
-        raw"persistence.leoAppInstanceName=${appName.value}",
-        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
-        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
-        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
-
-        // identity configs
-        raw"identity.enabled=${identityType == PodIdentity}",
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-        raw"workloadIdentity.enabled=${identityType == WorkloadIdentity}",
-        raw"workloadIdentity.serviceAccountName=${petManagedIdentity.map(_.name).getOrElse("none")}",
-
-        // Enabled services configs
-        raw"cromwell.enabled=${config.cromwellRunnerAppConfig.enabled}",
-
-        // general configs
-        raw"fullnameOverride=cra-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
-        // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}"
-      )
-
-    val postgresConfig = (maybeDatabaseNames, landingZoneResources.postgresServer, petManagedIdentity) match {
-      case (Some(databaseNames), Some(PostgresServer(dbServerName, pgBouncerEnabled)), Some(pet)) =>
-        List(
-          raw"postgres.podLocalDatabaseEnabled=false",
-          raw"postgres.host=$dbServerName.postgres.database.azure.com",
-          raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
-          // convention is that the database user is the same as the service account name
-          raw"postgres.user=${pet.name()}",
-          raw"postgres.dbnames.cromwell=${databaseNames.cromwellRunner}",
           raw"postgres.dbnames.tes=${databaseNames.tes}"
         )
       case _ => List.empty
