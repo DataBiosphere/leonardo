@@ -116,12 +116,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Create namespace
       _ <- kubeAlg.createNamespace(kubeClient, kubernetesNamespace)
 
-      // If configured for the app type, call WSM to create a managed identity and postgres database.
-      // This returns a KSA authorized to access the database.
-      (maybeKsaFromDatabaseCreation, maybeDbName) <- maybeCreateWsmIdentityAndDatabase(app,
-                                                                                       params.workspaceId,
-                                                                                       params.landingZoneResources,
-                                                                                       kubernetesNamespace
+      // If configured for the app type, call WSM to create a managed identity and postgres database(s).
+      // This returns a KSA authorized to access the database(s).
+      (maybeKSAFromSharedDatabaseCreation, maybeSharedDbNames) <- maybeCreateWsmIdentityAndSharedDatabases(
+        app,
+        params.workspaceId,
+        params.landingZoneResources,
+        kubernetesNamespace
       )
 
       maybeCromwellDatabaseNames <- maybeCreateCromwellDatabases(app,
@@ -131,7 +132,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
-      identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeCromwellDatabaseNames) match {
+      identityType = (maybeKSAFromSharedDatabaseCreation,
+                      app.samResourceId.resourceType,
+                      maybeCromwellDatabaseNames
+      ) match {
         case (Some(_), _, _)                      => WorkloadIdentity
         case (None, SamResourceType.SharedApp, _) => NoIdentity
         case (None, _, Some(_))                   => WorkloadIdentity
@@ -290,8 +294,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   app.sourceWorkspaceId,
                   userToken, // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                   identityType,
-                  maybeKsaFromDatabaseCreation,
-                  maybeDbName
+                  maybeKSAFromSharedDatabaseCreation,
+                  maybeSharedDbNames.flatMap {
+                    case WdsDatabaseNames(wds) => Some(wds)
+                    case _                     => None
+                  }
                 ),
                 createNamespace = true
               )
@@ -317,6 +324,48 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   storageContainer,
                   relayDomain,
                   hcName
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
+        case AppType.WorkflowsApp =>
+          for {
+            // Get the batch account key
+            batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
+                                                              params.cloudContext
+            )
+
+            batchAccountKey = batchAccount.getKeys().primary
+
+            // Storage container is required for Workflows app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Workflows app", Some(ctx.traceId))
+            )
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildWorkflowsAppChartOverrideValues(
+                  app.release,
+                  params.appName,
+                  params.cloudContext,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  relayPath,
+                  storageContainer,
+                  BatchAccountKey(batchAccountKey),
+                  applicationInsightsComponent.connectionString(),
+                  app.sourceWorkspaceId,
+                  userToken,
+                  identityType,
+                  maybeKSAFromSharedDatabaseCreation,
+                  maybeSharedDbNames.flatMap {
+                    case db: WorkflowsAppDatabaseNames => Some(db)
+                    case _                             => None
+                  }
                 ),
                 createNamespace = true
               )
@@ -731,16 +780,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .sequence
           .map(_.forall(identity))
       case AppType.WorkflowsApp =>
-        config.workflowsAppConfig.workflowsAppServices
-          .collect {
-            case Cromwell =>
-              cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-            case Cbas =>
-              cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-          }
-          .toList
-          .sequence
-          .map(_.forall(identity))
+        List(
+          cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false),
+          cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
+        ).sequence.map(_.forall(identity))
       case AppType.CromwellRunnerApp =>
         cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
       case AppType.Wds =>
@@ -962,6 +1005,77 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).mkString(",")
     )
 
+  private[util] def buildWorkflowsAppChartOverrideValues(release: Release,
+                                                         appName: AppName,
+                                                         cloudContext: AzureCloudContext,
+                                                         workspaceId: WorkspaceId,
+                                                         landingZoneResources: LandingZoneResources,
+                                                         relayPath: Uri,
+                                                         storageContainer: StorageContainerResponse,
+                                                         batchAccountKey: BatchAccountKey,
+                                                         applicationInsightsConnectionString: String,
+                                                         sourceWorkspaceId: Option[WorkspaceId],
+                                                         userAccessToken: String,
+                                                         identityType: IdentityType,
+                                                         ksaName: Option[ServiceAccountName],
+                                                         maybeDatabaseNames: Option[WorkflowsAppDatabaseNames]
+  ): Values = {
+
+    val valuesList =
+      List(
+        // azure resources configs
+        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
+        raw"config.batchAccountKey=${batchAccountKey.value}",
+        raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
+        raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
+        raw"config.drsUrl=${config.drsConfig.url}",
+        raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
+        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
+        raw"config.region=${landingZoneResources.region}",
+        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
+
+        // relay configs
+        raw"relay.path=${relayPath.renderString}",
+
+        // persistence configs
+        raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
+        raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
+        raw"persistence.blobContainer=${storageContainer.name.value}",
+        raw"persistence.leoAppInstanceName=${appName.value}",
+        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
+        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
+        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
+
+        // identity configs
+        raw"workloadIdentity.serviceAccountName=${ksaName.map(_.value).getOrElse("none")}",
+
+        // Sam configs
+        raw"sam.url=${config.samConfig.server}",
+
+        // Leo configs
+        raw"leonardo.url=${config.leoUrlBase}",
+
+        // Enabled services configs
+        raw"dockstore.baseUrl=${config.workflowsAppConfig.dockstoreBaseUrl}",
+
+        // general configs
+        raw"fullnameOverride=wfa-${release.asString}",
+        raw"instrumentationEnabled=${config.workflowsAppConfig.instrumentationEnabled}",
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userAccessToken}",
+
+        // postgres configs
+        raw"postgres.host=${landingZoneResources.postgresServer.map(_.name).getOrElse("none")}.postgres.database.azure.com",
+        raw"postgres.pgbouncer.enabled=${landingZoneResources.postgresServer.map(_.pgBouncerEnabled).getOrElse("none")}",
+        // convention is that the database user is the same as the service account name
+        raw"postgres.user=${ksaName.map(_.value).getOrElse("none")}",
+        raw"postgres.dbnames.cromwellMetadata=${maybeDatabaseNames.map(_.cromwellMetadata).getOrElse("none")}",
+        raw"postgres.dbnames.cbas=${maybeDatabaseNames.map(_.cbas).getOrElse("none")}"
+      )
+
+    Values(valuesList.mkString(","))
+  }
+
   private[util] def assignVmScaleSet(clusterName: AKSClusterName,
                                      cloudContext: AzureCloudContext,
                                      petManagedIdentity: Identity
@@ -1104,19 +1218,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private[util] def maybeCreateWsmIdentityAndDatabase(app: App,
-                                                      workspaceId: WorkspaceId,
-                                                      landingZoneResources: LandingZoneResources,
-                                                      namespace: KubernetesNamespace
+  private[util] def maybeCreateWsmIdentityAndSharedDatabases(app: App,
+                                                             workspaceId: WorkspaceId,
+                                                             landingZoneResources: LandingZoneResources,
+                                                             namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[(Option[ServiceAccountName], Option[String])] = {
-    val databaseConfigEnabled = app.appType match {
-      case AppType.Wds => config.wdsAppConfig.databaseEnabled
-      case _           => false
+  ): F[(Option[ServiceAccountName], Option[SharedDatabaseNames])] = {
+    val shouldCreateLZDatabases = app.appType match {
+      case AppType.Wds          => landingZoneResources.postgresServer.isDefined && config.wdsAppConfig.databaseEnabled
+      case AppType.WorkflowsApp => true
+      case _                    => false
     }
-    val landingZoneSupportsDatabase = landingZoneResources.postgresServer.isDefined
-    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
+    if (shouldCreateLZDatabases) {
       for {
         ctx <- ev.ask
         _ <- logger.info(ctx.loggingCtx)(
@@ -1165,14 +1279,33 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
           .transaction
 
-        dbName <- createDatabaseInWsm(app,
-                                      workspaceId,
-                                      namespace,
-                                      "wds",
-                                      wsmApi,
-                                      Option(createIdentityResponse.getResourceId)
-        )
-      } yield (Some(ServiceAccountName(identityName)), Some(dbName))
+        // make sure to keep length consistent with typedDbNames
+        dbNamePrefixes = app.appType match {
+          case AppType.Wds          => List("wds")
+          case AppType.WorkflowsApp => List("cbas", "cromwellmetadata")
+          case _                    => List()
+        }
+
+        dbNames <-
+          dbNamePrefixes
+            .traverse(databaseNamePrefix =>
+              createDatabaseInWsm(app,
+                                  workspaceId,
+                                  namespace,
+                                  databaseNamePrefix,
+                                  wsmApi,
+                                  Option(createIdentityResponse.getResourceId)
+              )
+            )
+
+        // make sure to keep length consistent with dbNamePrefixes
+        typedDbNames = app.appType match {
+          case AppType.Wds          => Some(WdsDatabaseNames(dbNames.head))
+          case AppType.WorkflowsApp => Some(WorkflowsAppDatabaseNames(dbNames.head, dbNames.apply(1)))
+          case _                    => None
+        }
+
+      } yield (Some(ServiceAccountName(identityName)), typedDbNames)
     } else F.pure((None, None))
   }
 
@@ -1400,3 +1533,7 @@ final case class AKSInterpreterConfig(
 )
 
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
+
+sealed trait SharedDatabaseNames
+final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String) extends SharedDatabaseNames
+final case class WdsDatabaseNames(wds: String) extends SharedDatabaseNames
