@@ -355,6 +355,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.path.sas=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
       """ingress.path.welder=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.proxyPath=/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+      """ingress.referer=https://replace_me,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://1455694897.jupyter.firecloud.org,""" +
       """imageCredentials.username=sasUserName,""" +
       """imageCredentials.password=sasPassword,""" +
@@ -364,7 +365,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
       """ingress.enabled=true,""" +
-      """ingress.referer=https://replace_me,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +

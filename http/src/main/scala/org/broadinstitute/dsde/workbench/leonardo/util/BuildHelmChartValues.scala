@@ -331,6 +331,7 @@ private[leonardo] object BuildHelmChartValues {
           raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
           raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
           raw"""ingress.proxyPath=${ingressPath}""",
+          raw"""ingress.referer=${config.leoUrlBase}""",
           raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost
               .address()}""",
           raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
@@ -367,7 +368,6 @@ private[leonardo] object BuildHelmChartValues {
     val rewriteTarget = "$2"
     val ingress = List(
       raw"""ingress.enabled=true""",
-      raw"""ingress.referer=${config.leoUrlBase}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
