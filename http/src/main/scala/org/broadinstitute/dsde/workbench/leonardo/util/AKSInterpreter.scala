@@ -1279,6 +1279,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
           .transaction
 
+        // make sure to keep length consistent with typedDbNames
         dbNamePrefixes = app.appType match {
           case AppType.Wds          => List("wds")
           case AppType.WorkflowsApp => List("cbas", "cromwellmetadata")
@@ -1297,6 +1298,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               )
             )
 
+        // make sure to keep length consistent with dbNamePrefixes
         typedDbNames = app.appType match {
           case AppType.Wds          => Some(WdsDatabaseNames(dbNames.head))
           case AppType.WorkflowsApp => Some(WorkflowsAppDatabaseNames(dbNames.head, dbNames.apply(1)))
