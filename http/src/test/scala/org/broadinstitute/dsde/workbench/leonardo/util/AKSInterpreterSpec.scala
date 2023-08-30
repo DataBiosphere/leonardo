@@ -660,13 +660,15 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.CromwellRunnerApp))
     it should s"create ${appType} with wsm resources, then successfully delete them" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
       val aksInterp = new AKSInterpreter[IO](
-        config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
-                    coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true)
+        config.copy(
+          wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
+          coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true),
+          cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true)
         ),
         MockHelm,
         mockAzureBatchService,
@@ -734,9 +736,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app.get.cluster.asyncFields shouldBe defined
 
         val expectedControlledResourcesCount = appType match {
-          case AppType.Wds      => 2
-          case AppType.Cromwell => 3
-          case _                => 0
+          case AppType.Wds               => 2
+          case AppType.Cromwell          => 3
+          case AppType.CromwellRunnerApp => 3
+          case _                         => 0
         }
         controlledResources.size shouldBe expectedControlledResourcesCount
 
