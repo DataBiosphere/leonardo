@@ -14,7 +14,12 @@ import com.azure.core.management.exception.ManagementException
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
+import com.azure.resourcemanager.compute.models.{
+  ResourceIdentityType,
+  VirtualMachineIdentityUserAssignedIdentities,
+  VirtualMachineScaleSetIdentity,
+  VirtualMachineScaleSetUpdate
+}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import fs2.io.file.Files
@@ -1282,19 +1287,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         dbNames <-
           dbNamePrefixes
-            .traverse(databaseNamePrefix => createDatabaseInWsm(app,
-                                      workspaceId,
-                                      namespace,
-                                      databaseNamePrefix,
-                                      wsmApi,
-                                      Option(createIdentityResponse.getResourceId)
-                  )
+            .traverse(databaseNamePrefix =>
+              createDatabaseInWsm(app,
+                                  workspaceId,
+                                  namespace,
+                                  databaseNamePrefix,
+                                  wsmApi,
+                                  Option(createIdentityResponse.getResourceId)
+              )
             )
 
         typedDbNames = app.appType match {
-          case AppType.Wds => Some(WdsDatabaseNames(dbNames.head))
+          case AppType.Wds          => Some(WdsDatabaseNames(dbNames.head))
           case AppType.WorkflowsApp => Some(WorkflowsAppDatabaseNames(dbNames.head, dbNames.apply(1)))
-          case _ => None
+          case _                    => None
         }
 
       } yield (Some(ServiceAccountName(identityName)), typedDbNames)
