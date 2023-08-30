@@ -367,6 +367,7 @@ private[leonardo] object BuildHelmChartValues {
     val rewriteTarget = "$2"
     val ingress = List(
       raw"""ingress.enabled=true""",
+      raw"""ingress.referer=${config.leoUrlBase}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
