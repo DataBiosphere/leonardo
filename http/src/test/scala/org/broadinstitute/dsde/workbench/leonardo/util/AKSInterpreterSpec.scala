@@ -33,7 +33,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   appControlledResourceQuery,
   AppControlledResourceStatus,
   KubernetesServiceDbQueries,
-  TestComponent
+  TestComponent,
+  WsmResourceType
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
 import org.broadinstitute.dsp.Release
@@ -517,6 +518,56 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "relay.subpath=/app"
   }
 
+  it should "build workflows-app override values with workload identity and pgbouncer" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val overrides = aksInterp.buildWorkflowsAppChartOverrideValues(
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources.copy(postgresServer = Option(PostgresServer("postgres", pgBouncerEnabled = true))),
+      Uri.unsafeFromString("https://relay.com/app"),
+      storageContainer,
+      BatchAccountKey("batchKey"),
+      "applicationInsightsConnectionString",
+      None,
+      petUserInfo.accessToken.token,
+      IdentityType.WorkloadIdentity,
+      Some(ServiceAccountName("ksa")),
+      Some(WorkflowsAppDatabaseNames("cbasdbname", "cromwellmetadatadbname"))
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.batchAccountKey=batchKey," +
+      "config.batchAccountName=batch," +
+      "config.batchNodesSubnetId=subnet1," +
+      s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "relay.path=https://relay.com/app," +
+      "persistence.storageResourceGroup=mrg," +
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      "persistence.leoAppInstanceName=app," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+      "workloadIdentity.serviceAccountName=ksa," +
+      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
+      "leonardo.url=https://leo-dummy-url.org," +
+      "dockstore.baseUrl=https://staging.dockstore.org/," +
+      "fullnameOverride=wfa-rel-1," +
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      "postgres.pgbouncer.enabled=true," +
+      "postgres.user=ksa," +
+      s"postgres.dbnames.cromwellMetadata=cromwellmetadatadbname," +
+      s"postgres.dbnames.cbas=cbasdbname"
+  }
+
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -570,12 +621,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch, AppType.WorkflowsApp))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
       val aksInterp = new AKSInterpreter[IO](
-        config,
+        config.copy(workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)),
         MockHelm,
         mockAzureBatchService,
         mockAzureContainerService,
@@ -660,7 +711,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.CromwellRunnerApp))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.CromwellRunnerApp, AppType.WorkflowsApp))
     it should s"create ${appType} with wsm resources, then successfully delete them" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
@@ -668,7 +719,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         config.copy(
           wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
           coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true),
-          cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true)
+          cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true),
+          workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)
         ),
         MockHelm,
         mockAzureBatchService,
@@ -736,12 +788,24 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app.get.cluster.asyncFields shouldBe defined
 
         val expectedControlledResourcesCount = appType match {
-          case AppType.Wds               => 2
-          case AppType.Cromwell          => 3
+          case AppType.Wds          => 2
+          case AppType.Cromwell     => 3
           case AppType.CromwellRunnerApp => 3
-          case _                         => 0
+          case AppType.WorkflowsApp => 3
+          case _                    => 0
         }
         controlledResources.size shouldBe expectedControlledResourcesCount
+
+        val expectedControlledResourcesTypes = appType match {
+          case AppType.Wds => List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase)
+          case AppType.Cromwell =>
+            List(WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
+          case AppType.WorkflowsApp =>
+            List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
+          case _ => List()
+        }
+
+        controlledResources.map(a => a.resourceType) should contain theSameElementsAs expectedControlledResourcesTypes
 
         app
       }
@@ -860,10 +924,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val nodepool = makeNodepool(1, cluster.id)
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
     val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true)))
-      .maybeCreateWsmIdentityAndDatabase(app,
-                                         workspaceId,
-                                         landingZoneResources.copy(postgresServer = None),
-                                         KubernetesNamespace(NamespaceName("ns1"))
+      .maybeCreateWsmIdentityAndSharedDatabases(app,
+                                                workspaceId,
+                                                landingZoneResources.copy(postgresServer = None),
+                                                KubernetesNamespace(NamespaceName("ns1"))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res shouldBe (None, None)
@@ -874,10 +938,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val nodepool = makeNodepool(1, cluster.id)
     val app = makeApp(1, nodepool.id).copy(appType = AppType.Wds)
     val res = newAksInterp(config.copy(wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = false)))
-      .maybeCreateWsmIdentityAndDatabase(app,
-                                         workspaceId,
-                                         landingZoneResources,
-                                         KubernetesNamespace(NamespaceName("ns1"))
+      .maybeCreateWsmIdentityAndSharedDatabases(app,
+                                                workspaceId,
+                                                landingZoneResources,
+                                                KubernetesNamespace(NamespaceName("ns1"))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res shouldBe (None, None)
