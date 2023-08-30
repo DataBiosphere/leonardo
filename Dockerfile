@@ -29,8 +29,8 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.334
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.334
+ENV CROMWELL_CHART_VERSION 0.2.335
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.335
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
 ENV CROMWELL_RUNNER_APP_VERSION 0.16.0
 # WORKFLOWS APP comment to prevent merge conflicts
@@ -65,14 +65,14 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo update
 
 
-COPY ./wds-0.42.8.tgz /leonardo
-RUN tar -xzf /leonardo/wds-0.42.8.tgz -C /leonardo
+COPY ./wds-0.42.9.tgz /leonardo
+RUN tar -xzf /leonardo/wds-0.42.9.tgz -C /leonardo
 
-COPY ./listener-0.2.8.tgz /leonardo
-RUN tar -xzf /leonardo/listener-0.2.8.tgz -C /leonardo
+COPY ./listener-0.2.9.tgz /leonardo
+RUN tar -xzf /leonardo/listener-0.2.9.tgz -C /leonardo
 
-COPY ./cromwell-on-azure-0.3.8.tgz /leonardo
-RUN tar -xzf /leonardo/cromwell-on-azure-0.3.8.tgz -C /leonardo
+COPY ./cromwell-on-azure-0.3.9.tgz /leonardo
+RUN tar -xzf /leonardo/cromwell-on-azure-0.3.9.tgz -C /leonardo
 
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
