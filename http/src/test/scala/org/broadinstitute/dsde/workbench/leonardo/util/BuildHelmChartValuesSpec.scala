@@ -364,6 +364,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
       """ingress.enabled=true,""" +
+      """ingress.referer=https://replace_me,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
