@@ -54,6 +54,8 @@ import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellRunnerChartOverrideValues
+
 class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite with MockitoSugar {
 
   val config = AKSInterpreterConfig(
@@ -568,6 +570,62 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"postgres.dbnames.cbas=cbasdbname"
   }
 
+  it should "build cromwell-runner-app override values with databases and pgbouncer" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val databaseNames = CromwellRunnerDatabaseNames("cromwellrunner", "tes")
+    val overrides = buildCromwellRunnerChartOverrideValues(
+      config.copy(cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true)),
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources.copy(postgresServer = Option(PostgresServer("postgres", pgBouncerEnabled = true))),
+      Uri.unsafeFromString("https://relay.com/app"),
+      Some(setUpMockIdentity),
+      storageContainer,
+      BatchAccountKey("batchKey"),
+      "applicationInsightsConnectionString",
+      None,
+      petUserInfo.accessToken.token,
+      IdentityType.WorkloadIdentity,
+      Some(databaseNames)
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+        "config.batchAccountKey=batchKey," +
+        "config.batchAccountName=batch," +
+        "config.batchNodesSubnetId=subnet1," +
+        s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+        "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
+        "config.subscriptionId=sub," +
+        s"config.region=${azureRegion}," +
+        "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+        "relay.path=https://relay.com/app," +
+        "persistence.storageResourceGroup=mrg," +
+        "persistence.storageAccount=storage," +
+        "persistence.blobContainer=sc-container," +
+        "persistence.leoAppInstanceName=app," +
+        s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+        s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+        s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+        "identity.enabled=false," +
+        "identity.name=identity-name," +
+        "identity.resourceId=identity-id," +
+        "identity.clientId=identity-client-id," +
+        "workloadIdentity.enabled=true," +
+        "workloadIdentity.serviceAccountName=identity-name," +
+        "cromwell.enabled=true," +
+        "fullnameOverride=cra-rel-1," +
+        "instrumentationEnabled=false," +
+        s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+        "postgres.podLocalDatabaseEnabled=false," +
+        s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+        "postgres.pgbouncer.enabled=true," +
+        "postgres.user=identity-name," +
+        s"postgres.dbnames.cromwell=${databaseNames.cromwellRunner}," +
+        s"postgres.dbnames.tes=${databaseNames.tes}"
+  }
+
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -621,12 +679,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch, AppType.WorkflowsApp))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.CromwellRunnerApp, AppType.HailBatch, AppType.WorkflowsApp))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
       val aksInterp = new AKSInterpreter[IO](
-        config.copy(workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)),
+        config.copy(cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true), workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)),
         MockHelm,
         mockAzureBatchService,
         mockAzureContainerService,
@@ -790,7 +848,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         val expectedControlledResourcesCount = appType match {
           case AppType.Wds               => 2
           case AppType.Cromwell          => 3
-          case AppType.CromwellRunnerApp => 3
+          case AppType.CromwellRunnerApp => 2
           case AppType.WorkflowsApp      => 3
           case _                         => 0
         }
@@ -800,6 +858,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           case AppType.Wds => List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase)
           case AppType.Cromwell =>
             List(WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
+          case AppType.CromwellRunnerApp =>
+            List(WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
           case AppType.WorkflowsApp =>
             List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
           case _ => List()
