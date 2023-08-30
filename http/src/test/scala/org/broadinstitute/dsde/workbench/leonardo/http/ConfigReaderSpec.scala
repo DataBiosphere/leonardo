@@ -139,7 +139,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.24.0"),
+          ChartVersion("0.26.0"),
           ReleaseNameSuffix("workflows-app-rls"),
           NamespaceNameSuffix("workflows-app-ns"),
           KsaName("workflows-app-ksa"),
