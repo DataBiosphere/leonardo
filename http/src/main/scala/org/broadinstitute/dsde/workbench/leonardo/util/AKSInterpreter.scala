@@ -14,12 +14,7 @@ import com.azure.core.management.exception.ManagementException
 import com.azure.core.management.profile.AzureProfile
 import com.azure.identity.ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{
-  ResourceIdentityType,
-  VirtualMachineIdentityUserAssignedIdentities,
-  VirtualMachineScaleSetIdentity,
-  VirtualMachineScaleSetUpdate
-}
+import com.azure.resourcemanager.compute.models.{ResourceIdentityType, VirtualMachineIdentityUserAssignedIdentities, VirtualMachineScaleSetIdentity, VirtualMachineScaleSetUpdate}
 import com.azure.resourcemanager.msi.MsiManager
 import com.azure.resourcemanager.msi.models.Identity
 import fs2.io.file.Files
@@ -295,7 +290,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   userToken, // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
                   identityType,
                   maybeKSAFromSharedDatabaseCreation,
-                  maybeSharedDbNames.flatMap(map => map.get("wds"))
+                  maybeSharedDbNames.flatMap {
+                    case WdsDatabaseNames(wds) => Some(wds)
+                    case _                     => None
+                  }
                 ),
                 createNamespace = true
               )
@@ -359,13 +357,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   userToken,
                   identityType,
                   maybeKSAFromSharedDatabaseCreation,
-                  maybeSharedDbNames.flatMap(map =>
-                    (map.get("cbas"), map.get("cromwellmetadata")) match {
-                      case (Some(cbas), Some(cromwellMetadata)) =>
-                        Some(WorkflowsAppDatabaseNames(cbas, cromwellMetadata))
-                      case _ => None
-                    }
-                  )
+                  maybeSharedDbNames.flatMap {
+                    case db: WorkflowsAppDatabaseNames => Some(db)
+                    case _                             => None
+                  }
                 ),
                 createNamespace = true
               )
@@ -1224,7 +1219,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                              namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[(Option[ServiceAccountName], Option[Map[String, String]])] = {
+  ): F[(Option[ServiceAccountName], Option[SharedDatabaseNames])] = {
     val shouldCreateLZDatabases = app.appType match {
       case AppType.Wds          => landingZoneResources.postgresServer.isDefined && config.wdsAppConfig.databaseEnabled
       case AppType.WorkflowsApp => true
@@ -1287,21 +1282,22 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         dbNames <-
           dbNamePrefixes
-            .traverse(databaseNamePrefix =>
-              for {
-                databaseName <-
-                  createDatabaseInWsm(app,
+            .traverse(databaseNamePrefix => createDatabaseInWsm(app,
                                       workspaceId,
                                       namespace,
                                       databaseNamePrefix,
                                       wsmApi,
                                       Option(createIdentityResponse.getResourceId)
                   )
-              } yield databaseNamePrefix -> databaseName
             )
-            .map(list => list.toMap)
 
-      } yield (Some(ServiceAccountName(identityName)), Some(dbNames))
+        typedDbNames = app.appType match {
+          case AppType.Wds => Some(WdsDatabaseNames(dbNames.head))
+          case AppType.WorkflowsApp => Some(WorkflowsAppDatabaseNames(dbNames.head, dbNames.apply(1)))
+          case _ => None
+        }
+
+      } yield (Some(ServiceAccountName(identityName)), typedDbNames)
     } else F.pure((None, None))
   }
 
@@ -1530,4 +1526,6 @@ final case class AKSInterpreterConfig(
 
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
 
-final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String)
+sealed trait SharedDatabaseNames
+final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String) extends SharedDatabaseNames
+final case class WdsDatabaseNames(wds: String) extends SharedDatabaseNames
