@@ -92,7 +92,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case Some(cn) =>
               cn match {
                 case AllowedChartName.RStudio => F.unit
-                case AllowedChartName.Sas     => F.unit // TODO: check group permission check here
+                case AllowedChartName.Sas =>
+                  if (config.enableSasAppGroupCheck)
+                    authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
+                      if (res) F.unit
+                      else
+                        F.raiseError[Unit](
+                          AuthenticationError(Some(userInfo.userEmail),
+                                              "You need to obtain a license in order to create a SAS App"
+                          )
+                        )
+                    }
+                  else F.unit
               }
             case None =>
               F.raiseError(

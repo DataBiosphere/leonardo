@@ -188,6 +188,9 @@ final case class HailBatchAppConfig(chartName: ChartName,
   val appType: AppType = AppType.HailBatch
 }
 
+final case class ContainerRegistryUsername(asString: String) extends AnyVal
+final case class ContainerRegistryPassword(asString: String) extends AnyVal
+final case class ContainerRegistryCredentials(username: ContainerRegistryUsername, password: ContainerRegistryPassword)
 final case class AllowedAppConfig(chartName: ChartName,
                                   rstudioChartVersion: ChartVersion,
                                   sasChartVersion: ChartVersion,
@@ -195,6 +198,7 @@ final case class AllowedAppConfig(chartName: ChartName,
                                   releaseNameSuffix: ReleaseNameSuffix,
                                   services: List[ServiceConfig],
                                   serviceAccountName: ServiceAccountName,
+                                  sasContainerRegistryCredentials: ContainerRegistryCredentials,
                                   chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   val cloudProvider: CloudProvider = CloudProvider.Gcp

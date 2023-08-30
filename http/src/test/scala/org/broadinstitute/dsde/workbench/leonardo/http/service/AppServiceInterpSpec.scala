@@ -165,7 +165,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(None)
     }
     val interp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -196,7 +196,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(false)
     }
     val interp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(false, leoKubernetesConfig),
+      AppServiceConfig(false, false, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1224,7 +1224,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1256,6 +1256,50 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
+  it should "reject create SAS app if user is not in SAS user group" in isolatedDbTest {
+    val appName = AppName("sas_app")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customApplicationAllowList =
+      CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+      override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val testInterp = new LeoAppServiceInterp[IO](
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      authProvider,
+      serviceAccountProvider,
+      QueueFactory.makePublisherQueue(),
+      FakeGoogleComputeService,
+      FakeGoogleResourceService,
+      CustomAppConfig(
+        ChartName(""),
+        ChartVersion(""),
+        ReleaseNameSuffix(""),
+        NamespaceNameSuffix(""),
+        ServiceAccountName(""),
+        customApplicationAllowList,
+        true,
+        List()
+      ),
+      wsmDao,
+      samDao
+    )
+    val appReq = createAppRequest.copy(
+      diskConfig = Some(createDiskConfig),
+      appType = AppType.Allowed,
+      allowedChartName = Some(AllowedChartName.Sas),
+      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+    )
+
+    val res = testInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    res.isLeft shouldBe true
+  }
+
   it should "create a custom app with default security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
@@ -1266,7 +1310,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(true)
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1310,7 +1354,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1353,7 +1397,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1393,7 +1437,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1439,7 +1483,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1485,7 +1529,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),

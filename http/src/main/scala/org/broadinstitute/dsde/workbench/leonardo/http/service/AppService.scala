@@ -71,4 +71,7 @@ trait AppService[F[_]] {
   ): F[Unit]
 }
 
-final case class AppServiceConfig(enableCustomAppCheck: Boolean, leoKubernetesConfig: LeoKubernetesConfig)
+final case class AppServiceConfig(enableCustomAppCheck: Boolean,
+                                  enableSasAppGroupCheck: Boolean,
+                                  leoKubernetesConfig: LeoKubernetesConfig
+)
