@@ -788,11 +788,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app.get.cluster.asyncFields shouldBe defined
 
         val expectedControlledResourcesCount = appType match {
-          case AppType.Wds          => 2
-          case AppType.Cromwell     => 3
+          case AppType.Wds               => 2
+          case AppType.Cromwell          => 3
           case AppType.CromwellRunnerApp => 3
-          case AppType.WorkflowsApp => 3
-          case _                    => 0
+          case AppType.WorkflowsApp      => 3
+          case _                         => 0
         }
         controlledResources.size shouldBe expectedControlledResourcesCount
 

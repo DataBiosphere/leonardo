@@ -138,7 +138,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       identityType = (maybeKSAFromSharedDatabaseCreation,
                       app.samResourceId.resourceType,
                       maybeCromwellDatabaseNames,
-        maybeCromwellRunnerDatabaseNames
+                      maybeCromwellRunnerDatabaseNames
       ) match {
         case (Some(_), _, _, _)                      => WorkloadIdentity
         case (None, SamResourceType.SharedApp, _, _) => NoIdentity
@@ -1603,4 +1603,3 @@ final case class CromwellRunnerDatabaseNames(cromwellRunner: String, tes: String
 sealed trait SharedDatabaseNames
 final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String) extends SharedDatabaseNames
 final case class WdsDatabaseNames(wds: String) extends SharedDatabaseNames
-
