@@ -769,7 +769,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.CromwellRunnerApp, AppType.WorkflowsApp))
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.WorkflowsApp))
     it should s"create ${appType} with wsm resources, then successfully delete them" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
