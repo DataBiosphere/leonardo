@@ -887,6 +887,7 @@ object Config {
 
   val gkeInterpConfig =
     GKEInterpreterConfig(
+      applicationConfig.leoUrlBase,
       vpcConfig.networkTag,
       org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader.appConfig.terraAppSetupChart,
       gkeIngressConfig,
