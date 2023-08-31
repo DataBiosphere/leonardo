@@ -17,16 +17,16 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
 
-  private val workbenchLibsHash = "63d2d78"
-  val serviceTestV = s"3.1-$workbenchLibsHash"
-  val workbenchModelV = s"0.18-$workbenchLibsHash"
+  private val workbenchLibsHash = "f87cad5"
+  val serviceTestV = s"4.0-$workbenchLibsHash"
+  val workbenchModelV = s"0.19-$workbenchLibsHash"
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
   val workbenchGoogleV = s"0.23-4b46aac"
-  val workbenchGoogle2V = s"0.30-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.5-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.4-$workbenchLibsHash"
-  val workbenchAzureV = s"0.4-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.33-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.7-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.5-$workbenchLibsHash"
+  val workbenchAzureV = s"0.6-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.20"
 
@@ -74,7 +74,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.56.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.56.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -129,8 +129,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.126.19" % Test // brought in for FakeStorageInterpreter
-
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.2" % Test // brought in for FakeStorageInterpreter
   // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion

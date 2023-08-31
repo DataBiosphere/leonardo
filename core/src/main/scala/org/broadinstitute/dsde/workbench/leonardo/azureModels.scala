@@ -25,7 +25,7 @@ final case class ManagedIdentityName(value: String) extends AnyVal
 
 final case class BatchAccountKey(value: String) extends AnyVal
 
-final case class PostgresName(value: String) extends AnyVal
+final case class PostgresServer(name: String, pgBouncerEnabled: Boolean)
 
 final case class LandingZoneResources(landingZoneId: UUID,
                                       clusterName: AKSClusterName,
@@ -37,5 +37,5 @@ final case class LandingZoneResources(landingZoneId: UUID,
                                       aksSubnetName: SubnetworkName,
                                       region: com.azure.core.management.Region,
                                       applicationInsightsName: ApplicationInsightsName,
-                                      postgresName: Option[PostgresName]
+                                      postgresServer: Option[PostgresServer]
 )

@@ -2870,6 +2870,7 @@ components:
       type: string
       enum:
         - aou-rstudio-chart
+        - aou-sas-chart
     AppStatus:
       type: string
       enum:

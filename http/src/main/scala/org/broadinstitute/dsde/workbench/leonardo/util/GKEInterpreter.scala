@@ -8,6 +8,7 @@ import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
+import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
@@ -39,10 +40,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
+  buildAllowedAppChartOverrideValuesString,
   buildCromwellAppChartOverrideValuesString,
   buildCustomChartOverrideValuesString,
-  buildGalaxyChartOverrideValuesString,
-  buildRStudioAppChartOverrideValuesString
+  buildGalaxyChartOverrideValuesString
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
@@ -52,6 +53,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
 
+import java.net.URL
 import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -72,8 +74,13 @@ class GKEInterpreter[F[_]](
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   googleResourceService: GoogleResourceService[F],
   computeService: GoogleComputeService[F]
-)(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
-    extends GKEAlgebra[F] {
+)(implicit
+  val executionContext: ExecutionContext,
+  logger: StructuredLogger[F],
+  dbRef: DbReference[F],
+  F: Async[F],
+  files: Files[F]
+) extends GKEAlgebra[F] {
   // DoneCheckable instances
   implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
@@ -453,7 +460,7 @@ class GKEInterpreter[F[_]](
             app.customEnvironmentVariables
           )
         case AppType.Allowed =>
-          installAouApp(
+          installAllowedApp(
             helmAuthContext,
             app.appName,
             app.release,
@@ -683,8 +690,14 @@ class GKEInterpreter[F[_]](
               .compile
               .drain
 
-            chartValues = buildRStudioAppChartOverrideValuesString(
+            allowedChart <- F.fromOption(
+              AllowedChartName.fromChartName(app.chart.name),
+              new RuntimeException(s"invalid chart name for ALLOWED app: ${app.chart.name}")
+            )
+
+            chartValues = buildAllowedAppChartOverrideValuesString(
               config,
+              allowedChart,
               app.appName,
               dbCluster,
               nodepoolName,
@@ -1496,7 +1509,7 @@ class GKEInterpreter[F[_]](
     } yield ()
   }
 
-  private[util] def installAouApp(
+  private[util] def installAllowedApp(
     helmAuthContext: AuthContext,
     appName: AppName,
     release: Release,
@@ -1530,8 +1543,13 @@ class GKEInterpreter[F[_]](
         .compile
         .drain
 
-      // TODO: update this depending on which chart this is
-      chartValues = buildRStudioAppChartOverrideValuesString(config,
+      allowedChart <- F.fromOption(
+        AllowedChartName.fromChartName(chart.name),
+        new RuntimeException(s"invalid chart name for ALLOWED app: ${chart.name}")
+      )
+
+      chartValues = buildAllowedAppChartOverrideValuesString(config,
+                                                             allowedChart,
                                                              appName,
                                                              cluster,
                                                              nodepoolName,
@@ -1560,7 +1578,7 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for RSTUDIO app ${appName.value} in project ${cluster.cloudContext.asString}"
+        s"helm install for ALLOWED app ${appName.value} in project ${cluster.cloudContext.asString}"
       ).compile.lastOrError
 
       // Poll the app until it starts up
@@ -1898,7 +1916,8 @@ final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       getAppResult: GetAppResult
 )
 
-final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
+final case class GKEInterpreterConfig(leoUrlBase: URL,
+                                      vpcNetworkTag: NetworkTag,
                                       terraAppSetupChartConfig: TerraAppSetupChartConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,

@@ -33,7 +33,7 @@ class StatusRoutesSpec
     with TestComponent
     with TestLeoRoutes
     with MockitoSugar {
-  implicit override val patienceConfig = PatienceConfig(timeout = 1.second)
+  implicit override val patienceConfig: PatienceConfig = PatienceConfig(timeout = 1.second)
 
   "GET /version" should "give 200 for ok" in {
     eventually {

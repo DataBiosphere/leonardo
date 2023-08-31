@@ -22,6 +22,7 @@ import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
+import org.http4s.headers.Authorization
 
 import java.util.UUID
 
@@ -142,7 +143,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  implicit val ronTestersonAuthorization = Ron.authorization()
+  implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
 
   override def beforeAll(): Unit = {
     val res = for {
@@ -260,7 +261,7 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
   // Note that the final 'optional' field for a pre-created landing zone is not technically optional
   // If you fail to include a landing zone, the wb-libs call to create the billing project will fail, timing out due to landing zone creation not being an expected part of creation
   // Contact the workspaces team if this fails to work
-  implicit val azureManagedAppCoordinates = AzureManagedAppCoordinates(
+  implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
     UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
     UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
     "staticTestingMrg",

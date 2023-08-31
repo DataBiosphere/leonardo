@@ -116,6 +116,12 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     userInfo: UserInfo
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[R]] = ???
 
+  override def filterResourceProjectVisible[R](
+    resources: NonEmptyList[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(GoogleProject, R)]] =
+    ???
+
   override def filterUserVisibleWithProjectFallback[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
@@ -134,6 +140,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
+
+  override def isUserProjectReader(cloudContext: CloudContext, userInfo: UserInfo)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Boolean] = ???
 
   override def isUserWorkspaceOwner(workspaceResource: WorkspaceResourceSamResourceId, userInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
@@ -172,6 +182,8 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   ): IO[Set[WorkspaceResourceSamResourceId]] = ???
 
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+
+  override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider
