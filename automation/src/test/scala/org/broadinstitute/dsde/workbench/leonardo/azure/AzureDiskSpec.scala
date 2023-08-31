@@ -93,6 +93,8 @@ class AzureDiskSpec
           )
           _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
+          // TODO: https://broadworkbench.atlassian.net/browse/IA-4524, ssh into vm and add a file to disk
+
           _ <- loggerIO.info(
             s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
           )
@@ -105,12 +107,10 @@ class AzureDiskSpec
           )
 
           // Wait until disk is unattached
-          // TODO: is there a better way to do this?
           monitorGetRuntimeUntilUnattached <- streamUntilDoneOrTimeout(
             callGetRuntime,
             240,
             10 seconds,
-            // TODO: increase timeout
             s"AzureDiskSpec: disk ${workspaceId}/${diskName} was not ready after 40 minutes"
           )(implicitly, (op: GetRuntimeResponse) => op.getRuntimeConfig.getAzureConfig.getPersistentDiskId === null)
 
@@ -178,8 +178,10 @@ class AzureDiskSpec
           )
           _ = monitorCreateResult2.getStatus() shouldBe ClusterStatus.RUNNING
 
+          // TODO: https://broadworkbench.atlassian.net/browse/IA-4524, ssh into vm and verify disk contents
           disk2 <- getDisk2
           _ = disk2.getStatus() shouldBe DiskStatus.READY
+          // TODO: verify disk Id
 
         } yield ()
       res.unsafeRunSync()
