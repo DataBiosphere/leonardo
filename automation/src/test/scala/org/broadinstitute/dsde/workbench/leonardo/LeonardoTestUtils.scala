@@ -728,7 +728,8 @@ sealed trait TestUser extends Product with Serializable {
 }
 
 object TestUser {
-  def getAuthTokenAndAuthorization(user: TestUser) = (user.authToken(), user.authorization())
+  def getAuthTokenAndAuthorization(user: TestUser): (IO[AuthToken], IO[Authorization]) =
+    (user.authToken(), user.authorization())
 
   final case object Ron extends TestUser { override val name: String = "ron" }
   final case object Hermione extends TestUser { override val name: String = "hermione" }
