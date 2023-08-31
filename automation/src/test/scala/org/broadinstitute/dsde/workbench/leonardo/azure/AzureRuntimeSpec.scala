@@ -100,8 +100,9 @@ class AzureRuntimeSpec
           s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
         )
 
+        callGetRuntime2 = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
         monitorDeleteResult <- streamUntilDoneOrTimeout(
-          callGetRuntime,
+          callGetRuntime2,
           240,
           10 seconds,
           s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 40 minutes"
