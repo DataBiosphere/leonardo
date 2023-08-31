@@ -53,7 +53,7 @@ Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do th
 
 ### Developing azure automation tests locally
 
-When running azure automation tests locally against a fresh [bee](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/104399223/Callisto+Developer+Handbook#Running-in-a-BEE), you will have to perform a few extra steps:
+When running azure automation tests locally against a fresh [bee](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE), you will have to perform a few extra steps:
 
 - Change all sections of `application.conf` to have the proper bee/terra URLS. For example, for a bee named `jc-bee-10`:
 ```
