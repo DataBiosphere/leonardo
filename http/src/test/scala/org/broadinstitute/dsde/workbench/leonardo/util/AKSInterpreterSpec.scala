@@ -207,7 +207,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build coa override values with databases" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val databaseNames = CromwellDatabaseNames("cromwell", "cbas", "tes")
+    val databaseNames = CromwellAppDatabaseNames("cromwell", "cbas", "tes")
     val overrides = aksInterp.buildCromwellChartOverrideValues(
       Release("rel-1"),
       AppName("app"),
@@ -268,7 +268,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build coa override values with databases and pgbouncer" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val databaseNames = CromwellDatabaseNames("cromwell", "cbas", "tes")
+    val databaseNames = CromwellAppDatabaseNames("cromwell", "cbas", "tes")
     val overrides = aksInterp.buildCromwellChartOverrideValues(
       Release("rel-1"),
       AppName("app"),
@@ -572,7 +572,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build cromwell-runner-app override values with databases and pgbouncer" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val databaseNames = CromwellRunnerDatabaseNames("cromwellrunner", "tes")
+    val databaseNames = CromwellRunnerAppDatabaseNames("cromwellrunner", "tes")
     val overrides = buildCromwellRunnerChartOverrideValues(
       config.copy(cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true)),
       Release("rel-1"),
@@ -679,16 +679,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     deletion.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  for (
-    appType <- List(AppType.Wds, AppType.Cromwell, AppType.CromwellRunnerApp, AppType.HailBatch, AppType.WorkflowsApp)
-  )
+  for (appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch, AppType.WorkflowsApp))
     it should s"create and poll a shared ${appType} app, then successfully delete it" in isolatedDbTest {
       val mockAzureRelayService = setUpMockAzureRelayService
 
       val aksInterp = new AKSInterpreter[IO](
-        config.copy(cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true),
-                    workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)
-        ),
+        config.copy(workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)),
         MockHelm,
         mockAzureBatchService,
         mockAzureContainerService,
@@ -781,7 +777,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         config.copy(
           wdsAppConfig = config.wdsAppConfig.copy(databaseEnabled = true),
           coaAppConfig = config.coaAppConfig.copy(databaseEnabled = true),
-          cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true),
           workflowsAppConfig = config.workflowsAppConfig.copy(enabled = true)
         ),
         MockHelm,
@@ -850,11 +845,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app.get.cluster.asyncFields shouldBe defined
 
         val expectedControlledResourcesCount = appType match {
-          case AppType.Wds               => 2
-          case AppType.Cromwell          => 3
-          case AppType.CromwellRunnerApp => 2
-          case AppType.WorkflowsApp      => 3
-          case _                         => 0
+          case AppType.Wds          => 2
+          case AppType.Cromwell     => 3
+          case AppType.WorkflowsApp => 3
+          case _                    => 0
         }
         controlledResources.size shouldBe expectedControlledResourcesCount
 
@@ -862,8 +856,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           case AppType.Wds => List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase)
           case AppType.Cromwell =>
             List(WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
-          case AppType.CromwellRunnerApp =>
-            List(WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
           case AppType.WorkflowsApp =>
             List(WsmResourceType.AzureManagedIdentity, WsmResourceType.AzureDatabase, WsmResourceType.AzureDatabase)
           case _ => List()

@@ -128,16 +128,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // If configured for the app type, calls WSM to create a managed identity and postgres databases
       // for CROMWELL and CROMWELL_RUNNER_APP app types
-      maybeSharedCromwellDatabaseNames <- maybeCreateCromwellDatabases(app,
-                                                                       params.workspaceId,
-                                                                       params.landingZoneResources,
-                                                                       kubernetesNamespace
+      maybeCromwellDatabaseNames <- maybeCreateCromwellDatabases(app,
+                                                                 params.workspaceId,
+                                                                 params.landingZoneResources,
+                                                                 kubernetesNamespace
       )
 
       // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
       identityType = (maybeKSAFromSharedDatabaseCreation,
                       app.samResourceId.resourceType,
-                      maybeSharedCromwellDatabaseNames
+                      maybeCromwellDatabaseNames
       ) match {
         case (Some(_), _, _)                      => WorkloadIdentity
         case (None, SamResourceType.SharedApp, _) => NoIdentity
@@ -273,9 +273,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   app.sourceWorkspaceId,
                   userToken,
                   identityType,
-                  maybeSharedCromwellDatabaseNames.flatMap {
-                    case db: CromwellDatabaseNames => Some(db)
-                    case _                         => None
+                  maybeCromwellDatabaseNames.flatMap {
+                    case db: CromwellAppDatabaseNames => Some(db)
+                    case _                            => None
                   }
                 ),
                 createNamespace = true
@@ -316,9 +316,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   app.sourceWorkspaceId,
                   userToken,
                   identityType,
-                  maybeSharedCromwellDatabaseNames.flatMap {
-                    case db: CromwellRunnerDatabaseNames => Some(db)
-                    case _                               => None
+                  maybeCromwellDatabaseNames.flatMap {
+                    case db: CromwellRunnerAppDatabaseNames => Some(db)
+                    case _                                  => None
                   }
                 ),
                 createNamespace = true
@@ -592,7 +592,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             maybeDbNames = (wsmDbNames.find(_.startsWith("cromwell")),
                             wsmDbNames.find(_.startsWith("cbas")),
                             wsmDbNames.find(_.startsWith("tes"))
-            ).mapN(CromwellDatabaseNames)
+            ).mapN(CromwellAppDatabaseNames)
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
             identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeDbNames) match {
@@ -883,7 +883,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      sourceWorkspaceId: Option[WorkspaceId],
                                                      userAccessToken: String,
                                                      identityType: IdentityType,
-                                                     maybeDatabaseNames: Option[CromwellDatabaseNames]
+                                                     maybeDatabaseNames: Option[CromwellAppDatabaseNames]
   ): Values = {
     val valuesList =
       List(
@@ -1364,7 +1364,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                  namespace: KubernetesNamespace
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[SharedCromwellDatabaseNames]] = {
+  ): F[Option[CromwellDatabaseNames]] = {
     val databaseConfigEnabled = app.appType match {
       case AppType.Cromwell => config.coaAppConfig.databaseEnabled && landingZoneResources.postgresServer.isDefined
       case AppType.CromwellRunnerApp => true
@@ -1403,11 +1403,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         createdDatabases = app.appType match {
           case AppType.Cromwell =>
             if (dbNames.size == 3) {
-              Some(CromwellDatabaseNames(dbNames.get(0).get, dbNames.get(1).get, dbNames.get(2).get))
+              Some(CromwellAppDatabaseNames(dbNames.get(0).get, dbNames.get(1).get, dbNames.get(2).get))
             } else None
           case AppType.CromwellRunnerApp =>
             if (dbNames.size == 2) {
-              Some(CromwellRunnerDatabaseNames(dbNames.get(0).get, dbNames.get(1).get))
+              Some(CromwellRunnerAppDatabaseNames(dbNames.get(0).get, dbNames.get(1).get))
             } else None
           case _ => None
         }
@@ -1609,9 +1609,9 @@ final case class AKSInterpreterConfig(
   listenerChartConfig: ListenerChartConfig
 )
 
-sealed trait SharedCromwellDatabaseNames
-final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String) extends SharedCromwellDatabaseNames
-final case class CromwellRunnerDatabaseNames(cromwellRunner: String, tes: String) extends SharedCromwellDatabaseNames
+sealed trait CromwellDatabaseNames
+final case class CromwellAppDatabaseNames(cromwell: String, cbas: String, tes: String) extends CromwellDatabaseNames
+final case class CromwellRunnerAppDatabaseNames(cromwellRunner: String, tes: String) extends CromwellDatabaseNames
 
 sealed trait SharedDatabaseNames
 final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String) extends SharedDatabaseNames

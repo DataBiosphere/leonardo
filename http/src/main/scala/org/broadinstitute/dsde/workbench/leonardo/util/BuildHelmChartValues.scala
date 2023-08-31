@@ -428,7 +428,7 @@ private[leonardo] object BuildHelmChartValues {
                                              sourceWorkspaceId: Option[WorkspaceId],
                                              userAccessToken: String,
                                              identityType: IdentityType,
-                                             maybeDatabaseNames: Option[CromwellRunnerDatabaseNames]
+                                             maybeDatabaseNames: Option[CromwellRunnerAppDatabaseNames]
   ): Values = {
     val valuesList =
       List(
