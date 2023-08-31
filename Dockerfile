@@ -29,8 +29,8 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.335
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.335
+ENV CROMWELL_CHART_VERSION 0.2.336
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.336
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
 ENV CROMWELL_RUNNER_APP_VERSION 0.16.0
 # WORKFLOWS APP comment to prevent merge conflicts
