@@ -53,6 +53,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
 
+import java.net.URL
 import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -1915,7 +1916,8 @@ final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       getAppResult: GetAppResult
 )
 
-final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
+final case class GKEInterpreterConfig(leoUrlBase: URL,
+                                      vpcNetworkTag: NetworkTag,
                                       terraAppSetupChartConfig: TerraAppSetupChartConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
