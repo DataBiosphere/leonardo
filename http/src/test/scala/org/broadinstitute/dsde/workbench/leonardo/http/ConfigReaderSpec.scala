@@ -76,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.333"),
+          ChartVersion("0.2.336"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -140,22 +140,24 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
           ChartVersion("0.24.0"),
-          ReleaseNameSuffix("workflows-app-rls"),
-          NamespaceNameSuffix("workflows-app-ns"),
-          KsaName("workflows-app-ksa"),
+          ReleaseNameSuffix("wfa-rls"),
+          NamespaceNameSuffix("wfa-ns"),
+          KsaName("wfa-ksa"),
           List(
             ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
-            ServiceConfig(ServiceName("cromwell-reader"), KubernetesServiceKindName("ClusterIP"))
+            ServiceConfig(ServiceName("cromwell-reader"),
+                          KubernetesServiceKindName("ClusterIP"),
+                          Some(ServicePath("/cromwell"))
+            )
           ),
           instrumentationEnabled = false,
           enabled = false,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.41.0"),
+          ChartVersion("0.42.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -199,7 +201,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ChartVersion("4.1.14"),
           Values("operationMode=managed")
         ),
-        List(AppType.Wds),
+        List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
         ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
       ),
