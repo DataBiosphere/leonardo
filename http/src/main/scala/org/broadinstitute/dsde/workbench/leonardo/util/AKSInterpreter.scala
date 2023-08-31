@@ -1611,7 +1611,6 @@ final case class AKSInterpreterConfig(
 
 sealed trait SharedCromwellDatabaseNames
 final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String) extends SharedCromwellDatabaseNames
-
 final case class CromwellRunnerDatabaseNames(cromwellRunner: String, tes: String) extends SharedCromwellDatabaseNames
 
 sealed trait SharedDatabaseNames
