@@ -14,6 +14,7 @@ src_managed/
 test-output/
 failure_screenshots/
 *.iml
+*.jar
 .classpath_nb
 .cache
 .classpath
