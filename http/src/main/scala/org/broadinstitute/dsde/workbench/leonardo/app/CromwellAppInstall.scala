@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{
   AppUpdateException,
   CreateAKSAppParams
 }
-import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, AppType, PostgresServer}
+import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, PostgresServer}
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
