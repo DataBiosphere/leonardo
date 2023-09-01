@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.Database
+import org.broadinstitute.dsde.workbench.leonardo.app.Database
+import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.util.{AKSInterpreterConfig, CreateAKSAppParams}
-import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, AppType}
+import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, AppType, LandingZoneResources, WorkspaceId}
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -18,21 +20,13 @@ trait AppInstall[F[_]] {
   def databases: List[Database]
 
   /** Builds helm values to be passed to the app. */
-  def helmValues(params: CreateAKSAppParams,
-                 config: AKSInterpreterConfig,
-                 app: App,
-                 relayPath: Uri,
-                 ksaName: ServiceAccountName,
-                 databaseNames: List[String]
-  )(implicit ev: Ask[F, AppContext]): F[Values]
+  def buildHelmOverrideValues(params: BuildHelmOverrideValuesParams)(implicit ev: Ask[F, AppContext]): F[Values]
 
   /** Checks status of the app. */
   def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean]
 }
 
 object AppInstall {
-  case class Database(prefix: String, allowAccessForAllWorkspaceUsers: Boolean)
-
   def appTypeToAppInstall[F[_]](wdsAppInstall: WdsAppInstall[F],
                                 cromwellAppInstall: CromwellAppInstall[F],
                                 workflowsAppInstall: WorkflowAppInstall[F]
@@ -42,3 +36,16 @@ object AppInstall {
     case AppType.WorkflowsApp => workflowsAppInstall
   }
 }
+
+case class Database(prefix: String, allowAccessForAllWorkspaceUsers: Boolean)
+
+case class BuildHelmOverrideValuesParams(app: App,
+                                         workspaceId: WorkspaceId,
+                                         cloudContext: AzureCloudContext,
+                                         landingZoneResources: LandingZoneResources,
+                                         storageContainer: Option[StorageContainerResponse],
+                                         relayPath: Uri,
+                                         ksaName: ServiceAccountName,
+                                         databaseNames: List[String],
+                                         config: AKSInterpreterConfig
+)
