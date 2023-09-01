@@ -3,9 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.app.Database
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
-import org.broadinstitute.dsde.workbench.leonardo.util.{AKSInterpreterConfig, CreateAKSAppParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.AKSInterpreterConfig
 import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, AppType, LandingZoneResources, WorkspaceId}
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
@@ -27,13 +26,17 @@ trait AppInstall[F[_]] {
 }
 
 object AppInstall {
+
+  /** Maps AppType to AppInstall. */
   def appTypeToAppInstall[F[_]](wdsAppInstall: WdsAppInstall[F],
                                 cromwellAppInstall: CromwellAppInstall[F],
-                                workflowsAppInstall: WorkflowAppInstall[F]
+                                workflowsAppInstall: WorkflowAppInstall[F],
+                                hailBatchAppInstall: HailBatchAppInstall[F]
   ): AppType => AppInstall[F] = _ match {
     case AppType.Wds          => wdsAppInstall
     case AppType.Cromwell     => cromwellAppInstall
     case AppType.WorkflowsApp => workflowsAppInstall
+    case AppType.HailBatch    => hailBatchAppInstall
   }
 }
 
