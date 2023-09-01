@@ -37,6 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   WsmResourceType
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellRunnerChartOverrideValues
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
@@ -53,8 +54,6 @@ import java.util.{Base64, UUID}
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
-
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellRunnerChartOverrideValues
 
 class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite with MockitoSugar {
 
@@ -585,9 +584,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       storageContainer,
       BatchAccountKey("batchKey"),
       "applicationInsightsConnectionString",
-      None,
       petUserInfo.accessToken.token,
-      IdentityType.WorkloadIdentity,
       Some(databaseNames)
     )
     overrides.asString shouldBe
@@ -608,11 +605,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
-      "identity.enabled=false," +
-      "identity.name=identity-name," +
-      "identity.resourceId=identity-id," +
-      "identity.clientId=identity-client-id," +
-      "workloadIdentity.enabled=true," +
       "workloadIdentity.serviceAccountName=identity-name," +
       "cromwell.enabled=true," +
       "fullnameOverride=cra-rel-1," +

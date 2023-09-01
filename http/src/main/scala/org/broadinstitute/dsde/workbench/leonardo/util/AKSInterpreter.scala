@@ -313,9 +313,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   storageContainer,
                   BatchAccountKey(batchAccountKey),
                   applicationInsightsComponent.connectionString(),
-                  app.sourceWorkspaceId,
                   userToken,
-                  identityType,
                   maybeCromwellDatabaseNames.flatMap {
                     case db: CromwellRunnerAppDatabaseNames => Some(db)
                     case _                                  => None
@@ -1402,13 +1400,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         createdDatabases = app.appType match {
           case AppType.Cromwell =>
-            if (dbNames.size == 3) {
-              Some(CromwellAppDatabaseNames(dbNames.get(0).get, dbNames.get(1).get, dbNames.get(2).get))
-            } else None
+            Some(CromwellAppDatabaseNames(dbNames.head, dbNames.apply(1), dbNames.apply(2)))
           case AppType.CromwellRunnerApp =>
-            if (dbNames.size == 2) {
-              Some(CromwellRunnerAppDatabaseNames(dbNames.get(0).get, dbNames.get(1).get))
-            } else None
+            Some(CromwellRunnerAppDatabaseNames(dbNames.head, dbNames.apply(1)))
           case _ => None
         }
       } yield createdDatabases

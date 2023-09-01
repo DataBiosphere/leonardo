@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CustomAppService, StorageContainerResponse}
 import org.broadinstitute.dsde.workbench.leonardo.http.kubernetesProxyHost
-import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.{PodIdentity, WorkloadIdentity}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.{Release, Values}
@@ -425,9 +424,7 @@ private[leonardo] object BuildHelmChartValues {
                                              storageContainer: StorageContainerResponse,
                                              batchAccountKey: BatchAccountKey,
                                              applicationInsightsConnectionString: String,
-                                             sourceWorkspaceId: Option[WorkspaceId],
                                              userAccessToken: String,
-                                             identityType: IdentityType,
                                              maybeDatabaseNames: Option[CromwellRunnerAppDatabaseNames]
   ): Values = {
     val valuesList =
@@ -456,11 +453,6 @@ private[leonardo] object BuildHelmChartValues {
         raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
         // identity configs
-        raw"identity.enabled=${identityType == PodIdentity}",
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-        raw"workloadIdentity.enabled=${identityType == WorkloadIdentity}",
         raw"workloadIdentity.serviceAccountName=${petManagedIdentity.map(_.name).getOrElse("none")}",
 
         // Enabled services configs
@@ -468,7 +460,7 @@ private[leonardo] object BuildHelmChartValues {
 
         // general configs
         raw"fullnameOverride=cra-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
+        raw"instrumentationEnabled=${config.cromwellRunnerAppConfig.instrumentationEnabled}",
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userAccessToken}"
       )
