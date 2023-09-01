@@ -3,10 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService, AzureCloudContext}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName
+import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.Database
 import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -17,8 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{
   AppUpdateException,
   CreateAKSAppParams
 }
-import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, LandingZoneResources, PostgresServer, WorkspaceId}
-import org.broadinstitute.dsp.{Release, Values}
+import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, AppType, PostgresServer}
+import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
 
@@ -31,6 +29,7 @@ class CromwellAppInstall[F[_]](samDao: SamDAO[F],
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
+
   override def databases: List[AppInstall.Database] =
     List(
       Database("cromwell", allowAccessForAllWorkspaceUsers = false),
@@ -47,10 +46,10 @@ class CromwellAppInstall[F[_]](samDao: SamDAO[F],
   )(implicit ev: Ask[F, AppContext]): F[Values] = for {
     ctx <- ev.ask
 
-    // Get the batch account
+    // Resolve batch account in Azure
     batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName, params.cloudContext)
 
-    // Get app insights
+    // Resolve application insights in Azure
     applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
       params.landingZoneResources.applicationInsightsName,
       params.cloudContext
@@ -62,12 +61,13 @@ class CromwellAppInstall[F[_]](samDao: SamDAO[F],
       AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
     )
 
-    // get the pet userToken
+    // Get the pet userToken
     tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
     userToken <- F.fromOption(
       tokenOpt,
       AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
     )
+
     values = List(
       // azure resources configs
       raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",

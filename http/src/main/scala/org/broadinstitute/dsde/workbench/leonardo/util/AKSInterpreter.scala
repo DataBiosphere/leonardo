@@ -65,6 +65,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            kubeAlg: KubernetesAlgebra[F],
                            wsmClientProvider: WsmApiClientProvider
 )(implicit
+  appTypeToAppInstall: AppType => AppInstall[F],
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
@@ -109,21 +110,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespacePrefix = app.appResources.namespace.name.value
-      // TODO
-      appInstall: AppInstall[F] = new AppInstall[F] {
-        override def databases: List[AppInstall.Database] = ???
-
-        override def helmValues(params: CreateAKSAppParams,
-                                config: AKSInterpreterConfig,
-                                app: App,
-                                relayPath: Uri,
-                                ksaName: ServiceAccountName,
-                                databaseNames: List[String]
-        )(implicit ev: Ask[F, AppContext]): F[Values] = ???
-
-        override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
-          ???
-      }
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
@@ -138,7 +124,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Create WSM databases
       wsmDatabases <- createWsmDatabaseResources(app,
-                                                 appInstall,
+                                                 app.appType,
                                                  params.workspaceId,
                                                  namespacePrefix,
                                                  wsmManagedIdentityOpt.map(_.getResourceId),
@@ -203,7 +189,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .run(authContext)
 
       // Build app helm values
-      values <- appInstall.helmValues(
+      values <- app.appType.helmValues(
         params,
         config,
         app,
@@ -223,7 +209,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .run(authContext)
 
-      appOk <- pollAppCreation(app.auditInfo.creator, relayPath, appInstall)
+      appOk <- pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
       _ <-
         if (appOk)
           F.unit
