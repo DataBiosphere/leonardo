@@ -34,9 +34,11 @@ object AppInstall {
   case class Database(prefix: String, allowAccessForAllWorkspaceUsers: Boolean)
 
   def appTypeToAppInstall[F[_]](wdsAppInstall: WdsAppInstall[F],
-                                cromwellAppInstall: CromwellAppInstall[F]
+                                cromwellAppInstall: CromwellAppInstall[F],
+                                workflowsAppInstall: WorkflowAppInstall[F]
   ): AppType => AppInstall[F] = _ match {
-    case AppType.Wds      => wdsAppInstall
-    case AppType.Cromwell => cromwellAppInstall
+    case AppType.Wds          => wdsAppInstall
+    case AppType.Cromwell     => cromwellAppInstall
+    case AppType.WorkflowsApp => workflowsAppInstall
   }
 }

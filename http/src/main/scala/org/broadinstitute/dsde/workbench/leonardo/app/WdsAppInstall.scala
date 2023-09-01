@@ -5,13 +5,13 @@ package app
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureCloudContext}
+import org.broadinstitute.dsde.workbench.azure.AzureApplicationInsightsService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.Database
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.{AKSInterpreterConfig, AppUpdateException, CreateAKSAppParams}
-import org.broadinstitute.dsp.{Release, Values}
+import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
 
