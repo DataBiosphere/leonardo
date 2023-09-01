@@ -36,16 +36,9 @@ import scala.jdk.CollectionConverters._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
-                           azureBatchService: AzureBatchService[F],
                            azureContainerService: AzureContainerService[F],
-                           azureApplicationInsightsService: AzureApplicationInsightsService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
-                           cromwellDao: CromwellDAO[F],
-                           cbasDao: CbasDAO[F],
-                           cbasUiDao: CbasUiDAO[F],
-                           wdsDao: WdsDAO[F],
-                           hailBatchDao: HailBatchDAO[F],
                            wsmDao: WsmDao[F],
                            kubeAlg: KubernetesAlgebra[F],
                            wsmClientProvider: WsmApiClientProvider

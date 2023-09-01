@@ -6,11 +6,9 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureApplicationInsightsService
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.Database
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.util.{AKSInterpreterConfig, AppUpdateException, CreateAKSAppParams}
+import org.broadinstitute.dsde.workbench.leonardo.util.AppUpdateException
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -21,7 +19,7 @@ class WdsAppInstall[F[_]](samDao: SamDAO[F],
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
-  override def databases: List[AppInstall.Database] =
+  override def databases: List[Database] =
     List(
       Database("wds",
                // The WDS database should only be accessed by WDS-app
@@ -29,12 +27,8 @@ class WdsAppInstall[F[_]](samDao: SamDAO[F],
       )
     )
 
-  override def helmValues(params: CreateAKSAppParams,
-                          config: AKSInterpreterConfig,
-                          app: App,
-                          relayPath: Uri,
-                          ksaName: ServiceAccountName,
-                          databaseNames: List[String]
+  override def buildHelmOverrideValues(
+    params: BuildHelmOverrideValuesParams
   )(implicit ev: Ask[F, AppContext]): F[Values] =
     for {
       ctx <- ev.ask
@@ -46,10 +40,10 @@ class WdsAppInstall[F[_]](samDao: SamDAO[F],
       )
 
       // Get the pet userToken
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
       userToken <- F.fromOption(
         tokenOpt,
-        AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
+        AppUpdateException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
       valuesList =
@@ -63,36 +57,36 @@ class WdsAppInstall[F[_]](samDao: SamDAO[F],
           raw"config.region=${params.landingZoneResources.region}",
 
           // persistence configs
-          raw"general.leoAppInstanceName=${app.appName.value}",
+          raw"general.leoAppInstanceName=${params.app.appName.value}",
           raw"general.workspaceManager.workspaceId=${params.workspaceId.value}",
 
           // identity configs
           raw"identity.enabled=false",
           raw"workloadIdentity.enabled=true",
-          raw"workloadIdentity.serviceAccountName=${ksaName.value}",
+          raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
 
           // Sam configs
-          raw"sam.url=${config.samConfig.server}",
+          raw"sam.url=${params.config.samConfig.server}",
 
           // Leo configs
-          raw"leonardo.url=${config.leoUrlBase}",
+          raw"leonardo.url=${params.config.leoUrlBase}",
 
           // workspace manager
-          raw"workspacemanager.url=${config.wsmConfig.uri.renderString}",
+          raw"workspacemanager.url=${params.config.wsmConfig.uri.renderString}",
 
           // general configs
-          raw"fullnameOverride=wds-${app.release.asString}",
-          raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
+          raw"fullnameOverride=wds-${params.app.release.asString}",
+          raw"instrumentationEnabled=${params.config.wdsAppConfig.instrumentationEnabled}",
 
           // import configs
-          raw"import.dataRepoUrl=${config.tdr.url}",
+          raw"import.dataRepoUrl=${params.config.tdr.url}",
 
           // provenance (app-cloning) configs
           raw"provenance.userAccessToken=${userToken}",
-          raw"provenance.sourceWorkspaceId=${app.sourceWorkspaceId.map(_.value).getOrElse("")}"
+          raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}"
         )
 
-      postgresConfig = (databaseNames.headOption, params.landingZoneResources.postgresServer) match {
+      postgresConfig = (params.databaseNames.headOption, params.landingZoneResources.postgresServer) match {
         case (Some(db), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
           List(
             raw"postgres.podLocalDatabaseEnabled=false",
@@ -100,7 +94,7 @@ class WdsAppInstall[F[_]](samDao: SamDAO[F],
             raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
             raw"postgres.dbname=$db",
             // convention is that the database user is the same as the service account name
-            raw"postgres.user=${ksaName.value}"
+            raw"postgres.user=${params.ksaName.value}"
           )
         case _ => List.empty
       }

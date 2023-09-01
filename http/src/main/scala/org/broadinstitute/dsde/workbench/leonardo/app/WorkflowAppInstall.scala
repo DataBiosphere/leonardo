@@ -4,17 +4,9 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName
-import org.broadinstitute.dsde.workbench.leonardo
-import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.Database
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  AKSInterpreterConfig,
-  AppCreationException,
-  AppUpdateException,
-  CreateAKSAppParams
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, AppUpdateException}
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, PostgresServer}
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
@@ -29,7 +21,7 @@ class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
   F: Async[F]
 ) extends AppInstall[F] {
 
-  override def databases: List[AppInstall.Database] =
+  override def databases: List[Database] =
     List(
       // CBAS database is only accessed by CBAS-app
       Database("cbas", allowAccessForAllWorkspaceUsers = false),
@@ -37,12 +29,8 @@ class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
       Database("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
     )
 
-  override def helmValues(params: CreateAKSAppParams,
-                          config: AKSInterpreterConfig,
-                          app: leonardo.App,
-                          relayPath: Uri,
-                          ksaName: KubernetesSerializableName.ServiceAccountName,
-                          databaseNames: List[String]
+  override def buildHelmOverrideValues(
+    params: BuildHelmOverrideValuesParams
   )(implicit ev: Ask[F, AppContext]): F[Values] =
     for {
       ctx <- ev.ask
@@ -65,10 +53,10 @@ class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
       )
 
       // Get the pet userToken
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
       userToken <- F.fromOption(
         tokenOpt,
-        AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
+        AppUpdateException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
       values =
@@ -78,51 +66,51 @@ class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
           raw"config.batchAccountKey=${batchAccount.getKeys().primary}",
           raw"config.batchAccountName=${params.landingZoneResources.batchAccountName.value}",
           raw"config.batchNodesSubnetId=${params.landingZoneResources.batchNodesSubnetName.value}",
-          raw"config.drsUrl=${config.drsConfig.url}",
+          raw"config.drsUrl=${params.config.drsConfig.url}",
           raw"config.landingZoneId=${params.landingZoneResources.landingZoneId}",
           raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
           raw"config.region=${params.landingZoneResources.region}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
 
           // relay configs
-          raw"relay.path=${relayPath.renderString}",
+          raw"relay.path=${params.relayPath.renderString}",
 
           // persistence configs
           raw"persistence.storageResourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
           raw"persistence.blobContainer=${storageContainer.name.value}",
-          raw"persistence.leoAppInstanceName=${app.appName.value}",
-          raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
+          raw"persistence.leoAppInstanceName=${params.app.appName.value}",
+          raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
           raw"persistence.workspaceManager.workspaceId=${params.workspaceId.value}",
           raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
           // identity configs
-          raw"workloadIdentity.serviceAccountName=${ksaName.value}",
+          raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
 
           // Sam configs
-          raw"sam.url=${config.samConfig.server}",
+          raw"sam.url=${params.config.samConfig.server}",
 
           // Leo configs
-          raw"leonardo.url=${config.leoUrlBase}",
+          raw"leonardo.url=${params.config.leoUrlBase}",
 
           // Enabled services configs
-          raw"dockstore.baseUrl=${config.workflowsAppConfig.dockstoreBaseUrl}",
+          raw"dockstore.baseUrl=${params.config.workflowsAppConfig.dockstoreBaseUrl}",
 
           // general configs
-          raw"fullnameOverride=wfa-${app.release.asString}",
-          raw"instrumentationEnabled=${config.workflowsAppConfig.instrumentationEnabled}",
+          raw"fullnameOverride=wfa-${params.app.release.asString}",
+          raw"instrumentationEnabled=${params.config.workflowsAppConfig.instrumentationEnabled}",
           // provenance (app-cloning) configs
           raw"provenance.userAccessToken=${userToken}"
         )
 
-      postgresConfig = (databaseNames, params.landingZoneResources.postgresServer) match {
+      postgresConfig = (params.databaseNames, params.landingZoneResources.postgresServer) match {
         case (List(cbas, cromwellmetadata), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
           List(
             raw"postgres.podLocalDatabaseEnabled=false",
             raw"postgres.host=$dbServerName.postgres.database.azure.com",
             raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
             // convention is that the database user is the same as the service account name
-            raw"postgres.user=${ksaName.value}",
+            raw"postgres.user=${params.ksaName.value}",
             raw"postgres.dbnames.cromwellMetadata=$cromwellmetadata",
             raw"postgres.dbnames.cbas=$cbas"
           )
