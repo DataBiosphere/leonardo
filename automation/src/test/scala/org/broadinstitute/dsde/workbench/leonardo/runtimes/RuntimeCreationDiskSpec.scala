@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.Status
+import org.http4s.headers.Authorization
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -32,7 +33,7 @@ class RuntimeCreationDiskSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val (authTokenForOldApiClient, auth) = getAuthTokenAndAuthorization(Ron)
+  implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))

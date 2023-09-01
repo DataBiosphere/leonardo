@@ -1,17 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
-import RuntimeFixtureSpec._
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
+import org.http4s.headers.Authorization
 import org.scalatest.freespec.FixtureAnyFreeSpec
+import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -22,7 +23,7 @@ abstract class RuntimeFixtureSpec
     with LeonardoTestUtils
     with Retries {
 
-  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   def toolDockerImage: Option[String] = None
   def welderRegistry: Option[ContainerRegistry] = None

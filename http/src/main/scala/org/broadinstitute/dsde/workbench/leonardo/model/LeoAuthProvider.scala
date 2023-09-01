@@ -187,6 +187,20 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]]
 
+  def filterResourceProjectVisible[R](
+    resources: NonEmptyList[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit
+    sr: SamResource[R],
+    decoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[List[(GoogleProject, R)]]
+
+  def isUserProjectReader(
+    cloudContext: CloudContext,
+    userInfo: UserInfo
+  )(implicit ev: Ask[F, TraceId]): F[Boolean]
+
   def filterWorkspaceOwner(
     resources: NonEmptyList[WorkspaceResourceSamResourceId],
     userInfo: UserInfo
@@ -247,6 +261,7 @@ trait LeoAuthProvider[F[_]] {
   def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Unit]
 
   def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean]
+  def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean]
 
   def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean]
 }
