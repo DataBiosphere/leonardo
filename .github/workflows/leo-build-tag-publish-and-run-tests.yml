@@ -30,33 +30,33 @@ jobs:
           RELEASE_BRANCHES: develop
           WITH_V: true
 
+      # we need this because github can't actually provide the branch name reliably
+      # https://github.com/orgs/community/discussions/5251
       - name: Extract branch
         id: extract-branch
         run: |
-          GITHUB_EVENT_NAME=${{ github.event_name }}
-          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-            GITHUB_REF=${{ github.ref }}
-            GITHUB_SHA=${{ github.sha }}
-          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            GITHUB_REF=refs/heads/${{ github.head_ref }}
-            GITHUB_SHA=${{ github.event.pull_request.head.sha }}
+          if [[ '${{ github.event_name }}' == 'push' ]]; then
+            BRANCH_NAME=${{ github.ref_name }}
+          elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
+            BRANCH_NAME=${{ github.head_ref }}
           else
             echo "Failed to extract branch information"
             exit 1
           fi
 
-          echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
-          echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
+          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-      - name: dispatch build to terra-github-workflows
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+      # Builds Leonardo elsewhere to protect secrets.  Upon success, will tag the commit in git.
+      - name: dispatch to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: leonardo-build
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "${{ steps.extract-branch.outputs.ref }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "${{ steps.extract-branch.outputs.name }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
 
+      # formats the app version string to be usable by create-bee
       - name: Render Leonardo version
         id: render-leo-version
         env:
@@ -64,6 +64,49 @@ jobs:
         run: |
           echo "$GITHUB_CONTEXT"
           echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
+
+  # prepare misc configs for later consumption
+  prepare-configs:
+    runs-on: ubuntu-latest
+    outputs:
+      log-results: ${{ steps.prepare-outputs.outputs.log-results }}
+      test-context: ${{ steps.prepare-outputs.outputs.test-context }}
+    steps:
+      # set testing context for test reporting
+      - id: prepare-outputs
+        run: |-
+          echo 'log-results=true' >> $GITHUB_OUTPUT
+          if ${{ github.ref_name == 'develop' }}; then
+            echo 'test-context=leonardo-dev-merge' >> $GITHUB_OUTPUT
+          else
+            echo 'test-context=pr-test' >> $GITHUB_OUTPUT
+          fi
+
+  report-to-sherlock:
+    # Report new Leonardo version to Broad DevOps
+    uses: broadinstitute/sherlock/.github/workflows/client-report-app-version.yaml@main
+    needs: [ leonardo-build-tag-publish-job ]
+    with:
+      new-version: ${{ needs.leonardo-build-tag-publish-job.outputs.tag }}
+      chart-name: 'leonardo'
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+  set-version-in-dev:
+    # Put new Leonardo version in Broad dev environment
+    uses: broadinstitute/sherlock/.github/workflows/client-set-environment-app-version.yaml@main
+    needs: [ leonardo-build-tag-publish-job, report-to-sherlock ]
+    if: false # disabled for now, use the below line when ready to cut over from jenkins.
+    # if: ${{ github.ref_name == 'develop' }}
+    with:
+      new-version: ${{ needs.leonardo-build-tag-publish-job.outputs.tag }}
+      chart-name: 'leonardo'
+      environment-name: 'dev'
+    secrets:
+      sync-git-token: ${{ secrets.BROADBOT_TOKEN }}
+    permissions:
+      id-token: 'write'
 
   create-bee-workflow:
     strategy:
@@ -80,7 +123,7 @@ jobs:
           echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
 
       - name: dispatch to terra-github-workflows
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: bee-create
           repo: broadinstitute/terra-github-workflows
@@ -102,7 +145,7 @@ jobs:
       id-token: 'write'
     steps:
       - name: dispatch to terra-github-workflows
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: leonardo-swat-tests
           repo: broadinstitute/terra-github-workflows
@@ -123,11 +166,12 @@ jobs:
       id-token: 'write'
     steps:
       - name: dispatch to terra-github-workflows
-        uses: aurelien-baudet/workflow-dispatch@93e95b157d791ae7f42aef8f8a0d3d723eba1c31 #commit sha for v2.1.1
+        uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: bee-destroy
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
+          wait-for-completion: false
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
           inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}" }'
