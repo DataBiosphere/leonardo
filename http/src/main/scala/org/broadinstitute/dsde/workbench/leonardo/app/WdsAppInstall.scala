@@ -38,16 +38,20 @@ class WdsAppInstall[F[_]](samDao: SamDAO[F],
   )(implicit ev: Ask[F, AppContext]): F[Values] =
     for {
       ctx <- ev.ask
+
+      // Resolve Application Insights in Azure
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
         params.cloudContext
       )
-      // get the pet userToken
+
+      // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
       userToken <- F.fromOption(
         tokenOpt,
         AppUpdateException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
       )
+
       valuesList =
         List(
           // azure resources configs
