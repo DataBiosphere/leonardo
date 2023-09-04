@@ -37,7 +37,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   WsmResourceType
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellRunnerChartOverrideValues
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
@@ -58,20 +57,11 @@ import scala.jdk.CollectionConverters._
 class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite with MockitoSugar {
 
   val config = AKSInterpreterConfig(
-    ConfigReader.appConfig.azure.coaAppConfig,
-    ConfigReader.appConfig.azure.workflowsAppConfig,
-    ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
-    ConfigReader.appConfig.azure.wdsAppConfig,
-    ConfigReader.appConfig.azure.hailBatchAppConfig,
-    ConfigReader.appConfig.azure.aadPodIdentityConfig,
-    ConfigReader.appConfig.azure.appRegistration,
     SamConfig("https://sam.dsde-dev.broadinstitute.org/"),
     appMonitorConfig,
     ConfigReader.appConfig.azure.wsm,
-    ConfigReader.appConfig.drs,
     new URL("https://leo-dummy-url.org"),
     ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-    ConfigReader.appConfig.azure.tdr,
     ConfigReader.appConfig.azure.listenerChartConfig
   )
 
@@ -91,22 +81,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   def newAksInterp(configuration: AKSInterpreterConfig) = new AKSInterpreter[IO](
     configuration,
     MockHelm,
-    mockAzureBatchService,
     mockAzureContainerService,
-    mockAzureApplicationInsightsService,
     mockAzureRelayService,
     mockSamDAO,
-    mockCromwellDAO,
-    mockCbasDAO,
-    mockWdsDAO,
-    mockHailBatchDAO,
     mockWsmDAO,
     mockKube,
     mockWsm
-  ) {
-    override private[util] def buildMsiManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockMsiManager)
-    override private[util] def buildComputeManager(cloudContext: AzureCloudContext) = IO.pure(setUpMockComputeManager)
-  }
+  )
 
   val aksInterp = newAksInterp(config)
 
@@ -194,6 +175,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
+      "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=coa-rel-1," +

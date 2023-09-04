@@ -194,13 +194,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           false,
           chartVersionsToExcludeFromUpdates = List()
         ),
-        AadPodIdentityConfig(
-          Namespace("aad-pod-identity"),
-          Release("aad-pod-identity"),
-          ChartName("aad-pod-identity/aad-pod-identity"),
-          ChartVersion("4.1.14"),
-          Values("operationMode=managed")
-        ),
         List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
         ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
