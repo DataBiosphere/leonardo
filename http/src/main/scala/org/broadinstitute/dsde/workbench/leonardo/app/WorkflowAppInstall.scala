@@ -12,6 +12,10 @@ import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
 
+/**
+ * Workflows app.
+ * Helm chart: https://github.com/broadinstitute/terra-helmfile/tree/master/charts/workflows-app
+ */
 class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
                                cromwellDao: CromwellDAO[F],
                                cbasDao: CbasDAO[F],

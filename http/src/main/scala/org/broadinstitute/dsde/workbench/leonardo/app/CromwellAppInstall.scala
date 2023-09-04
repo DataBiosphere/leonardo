@@ -13,6 +13,10 @@ import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
 
+/**
+ * Legacy Cromwell-as-an-app. Replaced by WorkflowApp and CromwellRunner app types.
+ * Helm chart: https://github.com/broadinstitute/cromwhelm/tree/main/coa-helm
+ */
 class CromwellAppInstall[F[_]](samDao: SamDAO[F],
                                cromwellDao: CromwellDAO[F],
                                cbasDao: CbasDAO[F],

@@ -31,12 +31,14 @@ object AppInstall {
   def appTypeToAppInstall[F[_]](wdsAppInstall: WdsAppInstall[F],
                                 cromwellAppInstall: CromwellAppInstall[F],
                                 workflowsAppInstall: WorkflowAppInstall[F],
-                                hailBatchAppInstall: HailBatchAppInstall[F]
+                                hailBatchAppInstall: HailBatchAppInstall[F],
+                                cromwellRunnerAppInstall: CromwellRunnerAppInstall[F]
   ): AppType => AppInstall[F] = _ match {
-    case AppType.Wds          => wdsAppInstall
-    case AppType.Cromwell     => cromwellAppInstall
-    case AppType.WorkflowsApp => workflowsAppInstall
-    case AppType.HailBatch    => hailBatchAppInstall
+    case AppType.Wds               => wdsAppInstall
+    case AppType.Cromwell          => cromwellAppInstall
+    case AppType.WorkflowsApp      => workflowsAppInstall
+    case AppType.HailBatch         => hailBatchAppInstall
+    case AppType.CromwellRunnerApp => cromwellRunnerAppInstall
   }
 }
 
