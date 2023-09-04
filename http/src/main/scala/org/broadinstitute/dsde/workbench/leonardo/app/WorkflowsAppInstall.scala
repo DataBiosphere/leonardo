@@ -4,6 +4,7 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
+import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, AppUpdateException}
@@ -16,11 +17,13 @@ import org.http4s.headers.Authorization
  * Workflows app.
  * Helm chart: https://github.com/broadinstitute/terra-helmfile/tree/master/charts/workflows-app
  */
-class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
-                               cromwellDao: CromwellDAO[F],
-                               cbasDao: CbasDAO[F],
-                               azureBatchService: AzureBatchService[F],
-                               azureApplicationInsightsService: AzureApplicationInsightsService[F]
+class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
+                                drsConfig: DrsConfig,
+                                samDao: SamDAO[F],
+                                cromwellDao: CromwellDAO[F],
+                                cbasDao: CbasDAO[F],
+                                azureBatchService: AzureBatchService[F],
+                                azureApplicationInsightsService: AzureApplicationInsightsService[F]
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
@@ -70,7 +73,7 @@ class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
           raw"config.batchAccountKey=${batchAccount.getKeys().primary}",
           raw"config.batchAccountName=${params.landingZoneResources.batchAccountName.value}",
           raw"config.batchNodesSubnetId=${params.landingZoneResources.batchNodesSubnetName.value}",
-          raw"config.drsUrl=${params.config.drsConfig.url}",
+          raw"config.drsUrl=${drsConfig.url}",
           raw"config.landingZoneId=${params.landingZoneResources.landingZoneId}",
           raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
           raw"config.region=${params.landingZoneResources.region}",
@@ -98,11 +101,11 @@ class WorkflowAppInstall[F[_]](samDao: SamDAO[F],
           raw"leonardo.url=${params.config.leoUrlBase}",
 
           // Enabled services configs
-          raw"dockstore.baseUrl=${params.config.workflowsAppConfig.dockstoreBaseUrl}",
+          raw"dockstore.baseUrl=${config.dockstoreBaseUrl}",
 
           // general configs
           raw"fullnameOverride=wfa-${params.app.release.asString}",
-          raw"instrumentationEnabled=${params.config.workflowsAppConfig.instrumentationEnabled}",
+          raw"instrumentationEnabled=${config.instrumentationEnabled}",
           // provenance (app-cloning) configs
           raw"provenance.userAccessToken=${userToken}"
         )

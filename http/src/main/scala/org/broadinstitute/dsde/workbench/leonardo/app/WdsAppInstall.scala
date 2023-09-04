@@ -6,6 +6,7 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureApplicationInsightsService
+import org.broadinstitute.dsde.workbench.leonardo.config.WdsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppUpdateException
@@ -17,7 +18,9 @@ import org.http4s.headers.Authorization
  * WDS app.
  * Helm chart: https://github.com/broadinstitute/terra-helmfile/tree/master/charts/wds
  */
-class WdsAppInstall[F[_]](samDao: SamDAO[F],
+class WdsAppInstall[F[_]](config: WdsAppConfig,
+                          tdrConfig: TdrConfig,
+                          samDao: SamDAO[F],
                           wdsDao: WdsDAO[F],
                           azureApplicationInsightsService: AzureApplicationInsightsService[F]
 )(implicit
@@ -80,10 +83,10 @@ class WdsAppInstall[F[_]](samDao: SamDAO[F],
 
           // general configs
           raw"fullnameOverride=wds-${params.app.release.asString}",
-          raw"instrumentationEnabled=${params.config.wdsAppConfig.instrumentationEnabled}",
+          raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // import configs
-          raw"import.dataRepoUrl=${params.config.tdr.url}",
+          raw"import.dataRepoUrl=${tdrConfig.url}",
 
           // provenance (app-cloning) configs
           raw"provenance.userAccessToken=${userToken}",

@@ -3,6 +3,7 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
+import org.broadinstitute.dsde.workbench.leonardo.config.HailBatchAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HailBatchDAO
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsp.Values
@@ -12,7 +13,8 @@ import org.http4s.headers.Authorization
 /**
  * Hail Batch app.
  */
-class HailBatchAppInstall[F[_]](hailBatchDao: HailBatchDAO[F])(implicit F: Async[F]) extends AppInstall[F] {
+class HailBatchAppInstall[F[_]](config: HailBatchAppConfig, hailBatchDao: HailBatchDAO[F])(implicit F: Async[F])
+    extends AppInstall[F] {
   override def databases: List[Database] = List.empty
 
   override def buildHelmOverrideValues(
@@ -45,7 +47,7 @@ class HailBatchAppInstall[F[_]](hailBatchDao: HailBatchDAO[F])(implicit F: Async
           raw"relay.domain=${params.relayPath.authority.getOrElse("none")}",
           raw"relay.subpath=/${params.relayPath.path.segments.last.toString}"
         )
-    } yield values.mkString(",")
+    } yield Values(values.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     hailBatchDao.getStatus(baseUri, authHeader)

@@ -30,7 +30,7 @@ object AppInstall {
   /** Maps AppType to AppInstall. */
   def appTypeToAppInstall[F[_]](wdsAppInstall: WdsAppInstall[F],
                                 cromwellAppInstall: CromwellAppInstall[F],
-                                workflowsAppInstall: WorkflowAppInstall[F],
+                                workflowsAppInstall: WorkflowsAppInstall[F],
                                 hailBatchAppInstall: HailBatchAppInstall[F],
                                 cromwellRunnerAppInstall: CromwellRunnerAppInstall[F]
   ): AppType => AppInstall[F] = _ match {
@@ -39,6 +39,7 @@ object AppInstall {
     case AppType.WorkflowsApp      => workflowsAppInstall
     case AppType.HailBatch         => hailBatchAppInstall
     case AppType.CromwellRunnerApp => cromwellRunnerAppInstall
+    case e                         => throw new IllegalArgumentException(s"Unexpected app type: ${e}")
   }
 }
 
