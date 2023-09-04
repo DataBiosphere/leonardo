@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
@@ -107,15 +106,6 @@ final case class CoaAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.Cromwell
-
-  def coaServices: Set[WorkflowsAppService] = services
-    .map(_.name)
-    .collect {
-      case ServiceName("cbas")     => Cbas
-      case ServiceName("cbas-ui")  => CbasUI
-      case ServiceName("cromwell") => Cromwell
-    }
-    .toSet
 }
 
 final case class WorkflowsAppConfig(chartName: ChartName,
@@ -208,12 +198,4 @@ final case class AllowedAppConfig(chartName: ChartName,
   def chartVersion: ChartVersion = ChartVersion(
     "dummy"
   ) // For AoU apps, chart version will vary, and will be populated from user request
-}
-
-sealed trait WorkflowsAppService
-
-object WorkflowsAppService {
-  final case object Cbas extends WorkflowsAppService
-  final case object Cromwell extends WorkflowsAppService
-  final case object CbasUI extends WorkflowsAppService
 }

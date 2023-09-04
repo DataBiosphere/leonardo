@@ -617,7 +617,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         res <- appInstall.databases.traverse { database =>
           createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
         }
-      } yield Some(res)
+      } yield res
     } else {
       F.raiseError(AppCreationException("Postgres server not found in landing zone"))
     }
@@ -824,7 +824,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
         case WsmResourceType.AzureKubernetesNamespace =>
           // TODO delete namespace is async; should we poll or fire-and-forget?
-          val body = new DeleteControlledAzureResourceRequest().jobControl(
+          val body = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
             new JobControl().id(s"delete-${wsmResource.resourceId.value.toString}")
           )
           F.delay(wsmApi.deleteAzureKubernetesNamespace(body, workspaceId.value, wsmResource.resourceId.value))
@@ -889,20 +889,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 }
 
 final case class AKSInterpreterConfig(
-  coaAppConfig: CoaAppConfig,
-  workflowsAppConfig: WorkflowsAppConfig,
-  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
-  wdsAppConfig: WdsAppConfig,
-  hailBatchAppConfig: HailBatchAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig,
-  appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
-  drsConfig: DrsConfig,
   leoUrlBase: URL,
   listenerImage: String,
-  tdr: TdrConfig,
   listenerChartConfig: ListenerChartConfig
 )
 

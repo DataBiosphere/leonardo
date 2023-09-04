@@ -4,6 +4,7 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
+import org.broadinstitute.dsde.workbench.leonardo.config.CromwellRunnerAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, AppUpdateException}
@@ -16,7 +17,9 @@ import org.http4s.headers.Authorization
  * Cromwell runner app type.
  * Helm chart: https://github.com/broadinstitute/terra-helmfile/tree/master/charts/cromwell-runner-app
  */
-class CromwellRunnerAppInstall[F[_]](samDao: SamDAO[F],
+class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
+                                     drsConfig: DrsConfig,
+                                     samDao: SamDAO[F],
                                      cromwellDao: CromwellDAO[F],
                                      azureBatchService: AzureBatchService[F],
                                      azureApplicationInsightsService: AzureApplicationInsightsService[F]
@@ -64,7 +67,7 @@ class CromwellRunnerAppInstall[F[_]](samDao: SamDAO[F],
         raw"config.batchAccountKey=${batchAccount.getKeys().primary}",
         raw"config.batchAccountName=${params.landingZoneResources.batchAccountName.value}",
         raw"config.batchNodesSubnetId=${params.landingZoneResources.batchNodesSubnetName.value}",
-        raw"config.drsUrl=${params.config.drsConfig.url}",
+        raw"config.drsUrl=${drsConfig.url}",
         raw"config.landingZoneId=${params.landingZoneResources.landingZoneId}",
         raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
         raw"config.region=${params.landingZoneResources.region}",
@@ -86,11 +89,11 @@ class CromwellRunnerAppInstall[F[_]](samDao: SamDAO[F],
         raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
 
         // Enabled services configs
-        raw"cromwell.enabled=${params.config.cromwellRunnerAppConfig.enabled}",
+        raw"cromwell.enabled=${config.enabled}",
 
         // general configs
         raw"fullnameOverride=cra-${params.app.release.asString}",
-        raw"instrumentationEnabled=${params.config.cromwellRunnerAppConfig.instrumentationEnabled}",
+        raw"instrumentationEnabled=${config.instrumentationEnabled}",
         // provenance (app-cloning) configs
         raw"provenance.userAccessToken=${userToken}"
       )

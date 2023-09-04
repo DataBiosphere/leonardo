@@ -4,7 +4,7 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
-import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.CoaAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, AppUpdateException}
@@ -17,7 +17,9 @@ import org.http4s.headers.Authorization
  * Legacy Cromwell-as-an-app. Replaced by WorkflowApp and CromwellRunner app types.
  * Helm chart: https://github.com/broadinstitute/cromwhelm/tree/main/coa-helm
  */
-class CromwellAppInstall[F[_]](samDao: SamDAO[F],
+class CromwellAppInstall[F[_]](config: CoaAppConfig,
+                               drsConfig: DrsConfig,
+                               samDao: SamDAO[F],
                                cromwellDao: CromwellDAO[F],
                                cbasDao: CbasDAO[F],
                                cbasUIDao: CbasUiDAO[F],
@@ -67,7 +69,7 @@ class CromwellAppInstall[F[_]](samDao: SamDAO[F],
       raw"config.batchAccountKey=${batchAccount.getKeys().primary}",
       raw"config.batchAccountName=${params.landingZoneResources.batchAccountName.value}",
       raw"config.batchNodesSubnetId=${params.landingZoneResources.batchNodesSubnetName.value}",
-      raw"config.drsUrl=${params.config.drsConfig.url}",
+      raw"config.drsUrl=${drsConfig.url}",
       raw"config.landingZoneId=${params.landingZoneResources.landingZoneId}",
       raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
       raw"config.region=${params.landingZoneResources.region}",
@@ -97,14 +99,14 @@ class CromwellAppInstall[F[_]](samDao: SamDAO[F],
       raw"leonardo.url=${params.config.leoUrlBase}",
 
       // Enabled services configs
-      raw"cbas.enabled=${params.config.coaAppConfig.coaServices.contains(Cbas)}",
-      raw"cbasUI.enabled=${params.config.coaAppConfig.coaServices.contains(CbasUI)}",
-      raw"cromwell.enabled=${params.config.coaAppConfig.coaServices.contains(Cromwell)}",
-      raw"dockstore.baseUrl=${params.config.coaAppConfig.dockstoreBaseUrl}",
+      raw"cbas.enabled=true",
+      raw"cbasUI.enabled=true",
+      raw"cromwell.enabled=true",
+      raw"dockstore.baseUrl=${config.dockstoreBaseUrl}",
 
       // general configs
       raw"fullnameOverride=coa-${params.app.release.asString}",
-      raw"instrumentationEnabled=${params.config.coaAppConfig.instrumentationEnabled}",
+      raw"instrumentationEnabled=${config.instrumentationEnabled}",
       // provenance (app-cloning) configs
       raw"provenance.userAccessToken=${userToken}"
     )
