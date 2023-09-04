@@ -9,6 +9,9 @@ import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
 
+/**
+ * Hail Batch app.
+ */
 class HailBatchAppInstall[F[_]](hailBatchDao: HailBatchDAO[F])(implicit F: Async[F]) extends AppInstall[F] {
   override def databases: List[Database] = List.empty
 

@@ -13,6 +13,10 @@ import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
 
+/**
+ * WDS app.
+ * Helm chart: https://github.com/broadinstitute/terra-helmfile/tree/master/charts/wds
+ */
 class WdsAppInstall[F[_]](samDao: SamDAO[F],
                           wdsDao: WdsDAO[F],
                           azureApplicationInsightsService: AzureApplicationInsightsService[F]
