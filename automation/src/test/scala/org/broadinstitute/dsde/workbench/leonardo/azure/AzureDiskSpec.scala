@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   AzureDiskConfig,
   ClusterStatus,
@@ -28,7 +29,7 @@ class AzureDiskSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken = Hermione.authToken()
+  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
 
   "create a disk, keep it on runtime delete, and then attach it to a new runtime" taggedAs ExcludeFromJenkins in {
     workspaceDetails =>
