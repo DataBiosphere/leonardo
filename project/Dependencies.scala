@@ -17,8 +17,8 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.9.0"
 
-  private val workbenchLibsHash = "3429dfde-SNAP"
-  val serviceTestV = s"4.1-ce68967"
+  private val workbenchLibsHash = "aa2afae"
+  val serviceTestV = s"4.1-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
@@ -82,7 +82,7 @@ object Dependencies {
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-4-1" % "3.2.12.1" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
-  // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
+  // workbench-google pulls in workbench-{util, model, metrics} and workbench-metrics pulls in workbench-util.
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
   val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (
     excludeIoGrpc,
