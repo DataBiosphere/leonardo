@@ -1,5 +1,25 @@
 Quickstart: running swintegration tests locally on Mac/Docker 
 
+## Set Up
+
+Run this command on the VPN to generate you `application.conf` file
+```bash
+BEE_NAME=[Your BEE instance name] ./render-local-env.sh [branch of firecloud-automated-testing] [vault token] [env] [service root]
+```
+
+**Arguments:** (arguments are positional)
+
+* branch of firecloud-automated-testing
+	* Configs branch; defaults to `master`
+* Vault auth token
+	* Defaults to reading it from the .vault-token via `$(cat ~/.vault-token)`.
+* env
+	* Environment of your FiaB; defaults to `dev`
+* service root
+	* the name of your local clone of leonardo if not `leonardo`
+
+
+
 ## Running in docker
 
 See [firecloud-automated-testing](https://github.com/broadinstitute/firecloud-automated-testing).
@@ -14,21 +34,6 @@ brew install chromedriver
 ```
 
 Note: Leonardo integration tests are not currently web-based but may fail due to dependencies without chromedriver
-
-```bash
-BEE_NAME=[Your BEE instance name] ./render-local-env.sh [branch of firecloud-automated-testing] [vault token] [env] [service root]
-```
-
-**Arguments:** (arguments are positional)
-
-* branch of firecloud-automated-testing
-    * Configs branch; defaults to `master`
-* Vault auth token
-	* Defaults to reading it from the .vault-token via `$(cat ~/.vault-token)`.
-* env
-	* Environment of your FiaB; defaults to `dev`
-* service root
-    * the name of your local clone of leonardo if not `leonardo`
 	
 ### Run tests
 

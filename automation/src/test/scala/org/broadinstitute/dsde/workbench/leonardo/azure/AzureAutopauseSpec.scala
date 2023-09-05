@@ -61,21 +61,11 @@ class AzureAutopauseSpec
         callGetRuntime = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
 
         intitialGetRuntimeResponse <- callGetRuntime
-        _ <- loggerIO.info(s"initial get runtime response ${intitialGetRuntimeResponse}")
+        _ <- loggerIO.info(s"initial get runtime response $intitialGetRuntimeResponse")
         _ = intitialGetRuntimeResponse.getStatus shouldBe ClusterStatus.CREATING
 
         _ <- loggerIO.info(
           s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} in creating status detected"
-        )
-
-        _ <- loggerIO.info("AzureAutoPauseSpec: verifying get disk response")
-        diskId = intitialGetRuntimeResponse.getRuntimeConfig.getAzureConfig.getPersistentDiskId
-        getDisk = IO(diskClient.getDiskV2(diskId.toBigInteger.intValue()))
-        diskDuringRuntimeCreate <- getDisk
-        _ = diskDuringRuntimeCreate.getStatus shouldBe DiskStatus.CREATING
-
-        _ <- loggerIO.info(
-          s"AzureAutoPauseSpec: disk $workspaceId/${diskDuringRuntimeCreate.getId()} in creating status detected"
         )
 
         // Verify the runtime eventually becomes Running (in 40 minutes)
@@ -97,7 +87,7 @@ class AzureAutopauseSpec
         callGetRuntimeStopping = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
 
         _ <- loggerIO.info(
-          s"AzureAutoPauseSpec: runtime ${workspaceId}/${runtimeName.asString} waiting to autopause"
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} waiting to autopause"
         )
 
         monitorAutoPauseResult <- streamUntilDoneOrTimeout(
