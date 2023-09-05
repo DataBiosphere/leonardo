@@ -4,11 +4,11 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.leonardo.config.CromwellRunnerAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, AppUpdateException}
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, PostgresServer}
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -51,14 +51,25 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
       // Storage container is required for Cromwell app
       storageContainer <- F.fromOption(
         params.storageContainer,
-        AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
+        AppCreationException("Storage container required for Cromwell Runner app", Some(ctx.traceId))
+      )
+
+      // Databases required for Cromwell App
+      dbNames <- F.fromOption(toCromwellRunnerAppDatabaseNames(params.databaseNames),
+                              AppCreationException("Database names required for Cromwell Runner app", Some(ctx.traceId))
+      )
+
+      // Postgres server required for Cromwell App
+      postgresServer <- F.fromOption(
+        params.landingZoneResources.postgresServer,
+        AppCreationException("Postgres server required for Cromwell Runner app", Some(ctx.traceId))
       )
 
       // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
       userToken <- F.fromOption(
         tokenOpt,
-        AppUpdateException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
+        AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
       values = List(
@@ -94,25 +105,27 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         // general configs
         raw"fullnameOverride=cra-${params.app.release.asString}",
         raw"instrumentationEnabled=${config.instrumentationEnabled}",
-        // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userToken}"
-      )
 
-      postgresConfig = (params.databaseNames, params.landingZoneResources.postgresServer) match {
-        case (List(cromwell, tes), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
-          List(
-            raw"postgres.podLocalDatabaseEnabled=false",
-            raw"postgres.host=$dbServerName.postgres.database.azure.com",
-            raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
-            // convention is that the database user is the same as the service account name
-            raw"postgres.user=${params.ksaName.value}",
-            raw"postgres.dbnames.cromwell=$cromwell",
-            raw"postgres.dbnames.tes=$tes"
-          )
-        case _ => List.empty
-      }
-    } yield Values((values ++ postgresConfig).mkString(","))
+        // provenance (app-cloning) configs
+        raw"provenance.userAccessToken=${userToken}",
+
+        // database configs
+        raw"postgres.podLocalDatabaseEnabled=false",
+        raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
+        raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
+        // convention is that the database user is the same as the service account name
+        raw"postgres.user=${params.ksaName.value}",
+        raw"postgres.dbnames.cromwell=${dbNames.cromwell}",
+        raw"postgres.dbnames.tes=${dbNames.tes}"
+      )
+    } yield Values(values.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     cromwellDao.getStatus(baseUri, authHeader)
+
+  private def toCromwellRunnerAppDatabaseNames(dbNames: List[String]): Option[CromwellRunnerAppDatabaseNames] =
+    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("tes")))
+      .mapN(CromwellRunnerAppDatabaseNames)
 }
+
+final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String)

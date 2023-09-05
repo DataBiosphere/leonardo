@@ -43,15 +43,15 @@ object AppInstall {
   }
 }
 
-case class Database(prefix: String, allowAccessForAllWorkspaceUsers: Boolean)
+final case class Database(prefix: String, allowAccessForAllWorkspaceUsers: Boolean)
 
-case class BuildHelmOverrideValuesParams(app: App,
-                                         workspaceId: WorkspaceId,
-                                         cloudContext: AzureCloudContext,
-                                         landingZoneResources: LandingZoneResources,
-                                         storageContainer: Option[StorageContainerResponse],
-                                         relayPath: Uri,
-                                         ksaName: ServiceAccountName,
-                                         databaseNames: List[String],
-                                         config: AKSInterpreterConfig
+final case class BuildHelmOverrideValuesParams(app: App,
+                                               workspaceId: WorkspaceId,
+                                               cloudContext: AzureCloudContext,
+                                               landingZoneResources: LandingZoneResources,
+                                               storageContainer: Option[StorageContainerResponse],
+                                               relayPath: Uri,
+                                               ksaName: ServiceAccountName,
+                                               databaseNames: List[String],
+                                               config: AKSInterpreterConfig
 )

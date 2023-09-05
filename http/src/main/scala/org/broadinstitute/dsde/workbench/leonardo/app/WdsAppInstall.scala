@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.azure.AzureApplicationInsightsService
 import org.broadinstitute.dsde.workbench.leonardo.config.WdsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.util.AppUpdateException
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -46,11 +46,22 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
         params.cloudContext
       )
 
+      // Database required for WDS App
+      dbName <- F.fromOption(params.databaseNames.headOption,
+                             AppCreationException("Database names required for WDS app", Some(ctx.traceId))
+      )
+
+      // Postgres server required for WDS App
+      postgresServer <- F.fromOption(
+        params.landingZoneResources.postgresServer,
+        AppCreationException("Postgres server required for WDS app", Some(ctx.traceId))
+      )
+
       // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
       userToken <- F.fromOption(
         tokenOpt,
-        AppUpdateException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
+        AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
       valuesList =
@@ -90,23 +101,17 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
           // provenance (app-cloning) configs
           raw"provenance.userAccessToken=${userToken}",
-          raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}"
+          raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
+
+          // database configs
+          raw"postgres.podLocalDatabaseEnabled=false",
+          raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
+          raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
+          raw"postgres.dbname=$dbName",
+          // convention is that the database user is the same as the service account name
+          raw"postgres.user=${params.ksaName.value}"
         )
-
-      postgresConfig = (params.databaseNames.headOption, params.landingZoneResources.postgresServer) match {
-        case (Some(db), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
-          List(
-            raw"postgres.podLocalDatabaseEnabled=false",
-            raw"postgres.host=$dbServerName.postgres.database.azure.com",
-            raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
-            raw"postgres.dbname=$db",
-            // convention is that the database user is the same as the service account name
-            raw"postgres.user=${params.ksaName.value}"
-          )
-        case _ => List.empty
-      }
-
-    } yield Values((valuesList ++ postgresConfig).mkString(","))
+    } yield Values(valuesList.mkString(",")
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     wdsDao.getStatus(baseUri, authHeader)

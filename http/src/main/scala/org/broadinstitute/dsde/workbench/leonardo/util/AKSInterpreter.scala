@@ -285,7 +285,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmDatabases <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
         .transaction
-      // TODO: order!!!
       wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
         F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
       }
