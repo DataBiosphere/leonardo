@@ -4,7 +4,12 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.client.leonardo.api.{DisksApi, RuntimesApi}
 import org.broadinstitute.dsde.workbench.client.leonardo.ApiClient
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{ClusterStatus, GetRuntimeResponse}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{
+  ClusterStatus,
+  DiskStatus,
+  GetPersistentDiskV2Response,
+  GetRuntimeResponse
+}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoConfig
 import org.http4s.Uri
 
@@ -16,7 +21,10 @@ object GeneratedLeonardoClient {
   private val rootUri = Uri.fromString(LeonardoConfig.Leonardo.apiUrl)
 
   def runtimeInStateOrError(status: ClusterStatus): DoneCheckable[GetRuntimeResponse] =
-    (op: GetRuntimeResponse) => op.getStatus().equals(status) || op.getStatus().equals(ClusterStatus.ERROR)
+    (op: GetRuntimeResponse) => op.getStatus.equals(status) || op.getStatus.equals(ClusterStatus.ERROR)
+
+  def diskInStateOrError(status: DiskStatus): DoneCheckable[GetPersistentDiskV2Response] =
+    (op: GetPersistentDiskV2Response) => op.getStatus.equals(status) || op.getStatus.equals(DiskStatus.FAILED)
 
   def generateRuntimesApi()(implicit accessToken: IO[AuthToken]): IO[RuntimesApi] =
     for {

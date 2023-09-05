@@ -37,6 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   WsmResourceType
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellRunnerChartOverrideValues
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
@@ -205,7 +206,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build coa override values with databases" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val databaseNames = CromwellDatabaseNames("cromwell", "cbas", "tes")
+    val databaseNames = CromwellAppDatabaseNames("cromwell", "cbas", "tes")
     val overrides = aksInterp.buildCromwellChartOverrideValues(
       Release("rel-1"),
       AppName("app"),
@@ -266,7 +267,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build coa override values with databases and pgbouncer" in {
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val databaseNames = CromwellDatabaseNames("cromwell", "cbas", "tes")
+    val databaseNames = CromwellAppDatabaseNames("cromwell", "cbas", "tes")
     val overrides = aksInterp.buildCromwellChartOverrideValues(
       Release("rel-1"),
       AppName("app"),
@@ -566,6 +567,55 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "postgres.user=ksa," +
       s"postgres.dbnames.cromwellMetadata=cromwellmetadatadbname," +
       s"postgres.dbnames.cbas=cbasdbname"
+  }
+
+  it should "build cromwell-runner-app override values with databases and pgbouncer" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val databaseNames = CromwellRunnerAppDatabaseNames("cromwellrunner", "tes")
+    val overrides = buildCromwellRunnerChartOverrideValues(
+      config.copy(cromwellRunnerAppConfig = config.cromwellRunnerAppConfig.copy(enabled = true)),
+      Release("rel-1"),
+      AppName("app"),
+      cloudContext,
+      workspaceId,
+      lzResources.copy(postgresServer = Option(PostgresServer("postgres", pgBouncerEnabled = true))),
+      Uri.unsafeFromString("https://relay.com/app"),
+      Some(setUpMockIdentity),
+      storageContainer,
+      BatchAccountKey("batchKey"),
+      "applicationInsightsConnectionString",
+      petUserInfo.accessToken.token,
+      Some(databaseNames)
+    )
+    overrides.asString shouldBe
+      "config.resourceGroup=mrg," +
+      "config.batchAccountKey=batchKey," +
+      "config.batchAccountName=batch," +
+      "config.batchNodesSubnetId=subnet1," +
+      s"config.drsUrl=${ConfigReader.appConfig.drs.url}," +
+      "config.landingZoneId=5c12f64b-f4ac-4be1-ae4a-4cace5de807d," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "relay.path=https://relay.com/app," +
+      "persistence.storageResourceGroup=mrg," +
+      "persistence.storageAccount=storage," +
+      "persistence.blobContainer=sc-container," +
+      "persistence.leoAppInstanceName=app," +
+      s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
+      s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
+      "workloadIdentity.serviceAccountName=identity-name," +
+      "cromwell.enabled=true," +
+      "fullnameOverride=cra-rel-1," +
+      "instrumentationEnabled=false," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      "postgres.podLocalDatabaseEnabled=false," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      "postgres.pgbouncer.enabled=true," +
+      "postgres.user=identity-name," +
+      s"postgres.dbnames.cromwell=${databaseNames.cromwellRunner}," +
+      s"postgres.dbnames.tes=${databaseNames.tes}"
   }
 
   it should "create and poll a coa app, then successfully delete it" in isolatedDbTest {
