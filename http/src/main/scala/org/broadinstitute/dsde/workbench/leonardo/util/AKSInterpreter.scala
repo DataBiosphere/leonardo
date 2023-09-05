@@ -36,6 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, WorkspaceNotFoundException}
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellRunnerChartOverrideValues
 import org.broadinstitute.dsde.workbench.leonardo.util.IdentityType.{NoIdentity, PodIdentity, WorkloadIdentity}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
@@ -125,6 +126,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         kubernetesNamespace
       )
 
+      // If configured for the app type, calls WSM to create a managed identity and postgres databases
+      // for CROMWELL and CROMWELL_RUNNER_APP app types
       maybeCromwellDatabaseNames <- maybeCreateCromwellDatabases(app,
                                                                  params.workspaceId,
                                                                  params.landingZoneResources,
@@ -270,7 +273,51 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   app.sourceWorkspaceId,
                   userToken,
                   identityType,
-                  maybeCromwellDatabaseNames
+                  maybeCromwellDatabaseNames.flatMap {
+                    case db: CromwellAppDatabaseNames => Some(db)
+                    case _                            => None
+                  }
+                ),
+                createNamespace = true
+              )
+              .run(authContext)
+          } yield ()
+        case AppType.CromwellRunnerApp =>
+          for {
+            // Get the batch account key
+            batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
+                                                              params.cloudContext
+            )
+            batchAccountKey = batchAccount.getKeys().primary
+
+            // Storage container is required for Cromwell Runner app
+            storageContainer <- F.fromOption(
+              params.storageContainer,
+              AppCreationException("Storage container required for Cromwell Runner app", Some(ctx.traceId))
+            )
+
+            _ <- helmClient
+              .installChart(
+                app.release,
+                app.chart.name,
+                app.chart.version,
+                buildCromwellRunnerChartOverrideValues(
+                  config,
+                  app.release,
+                  params.appName,
+                  params.cloudContext,
+                  params.workspaceId,
+                  params.landingZoneResources,
+                  relayPath,
+                  petMi,
+                  storageContainer,
+                  BatchAccountKey(batchAccountKey),
+                  applicationInsightsComponent.connectionString(),
+                  userToken,
+                  maybeCromwellDatabaseNames.flatMap {
+                    case db: CromwellRunnerAppDatabaseNames => Some(db)
+                    case _                                  => None
+                  }
                 ),
                 createNamespace = true
               )
@@ -543,7 +590,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             maybeDbNames = (wsmDbNames.find(_.startsWith("cromwell")),
                             wsmDbNames.find(_.startsWith("cbas")),
                             wsmDbNames.find(_.startsWith("tes"))
-            ).mapN(CromwellDatabaseNames)
+            ).mapN(CromwellAppDatabaseNames)
 
             // Determine which type of identity to link to the app: pod identity, workload identity, or nothing.
             identityType = (maybeKsaFromDatabaseCreation, app.samResourceId.resourceType, maybeDbNames) match {
@@ -834,7 +881,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                      sourceWorkspaceId: Option[WorkspaceId],
                                                      userAccessToken: String,
                                                      identityType: IdentityType,
-                                                     maybeDatabaseNames: Option[CromwellDatabaseNames]
+                                                     maybeDatabaseNames: Option[CromwellAppDatabaseNames]
   ): Values = {
     val valuesList =
       List(
@@ -1317,11 +1364,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     ev: Ask[F, AppContext]
   ): F[Option[CromwellDatabaseNames]] = {
     val databaseConfigEnabled = app.appType match {
-      case AppType.Cromwell => config.coaAppConfig.databaseEnabled
-      case _                => false
+      case AppType.Cromwell => config.coaAppConfig.databaseEnabled && landingZoneResources.postgresServer.isDefined
+      case AppType.CromwellRunnerApp => true
+      case _                         => false
     }
-    val landingZoneSupportsDatabase = landingZoneResources.postgresServer.isDefined
-    if (databaseConfigEnabled && landingZoneSupportsDatabase) {
+
+    if (databaseConfigEnabled) {
       for {
         // Build WSM client
         auth <- samDao.getLeoAuthToken
@@ -1331,10 +1379,33 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
         wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
-        cromwellDb <- createDatabaseInWsm(app, workspaceId, namespace, "cromwell", wsmApi, None)
-        cbasDb <- createDatabaseInWsm(app, workspaceId, namespace, "cbas", wsmApi, None)
-        tesDb <- createDatabaseInWsm(app, workspaceId, namespace, "tes", wsmApi, None)
-      } yield Some(CromwellDatabaseNames(cromwellDb, cbasDb, tesDb))
+        dbNamePrefixes = app.appType match {
+          case AppType.Cromwell          => List("cromwell", "cbas", "tes")
+          case AppType.CromwellRunnerApp => List("cromwell", "tes")
+          case _                         => List()
+        }
+
+        dbNames <-
+          dbNamePrefixes
+            .traverse(databaseNamePrefix =>
+              createDatabaseInWsm(
+                app,
+                workspaceId,
+                namespace,
+                databaseNamePrefix,
+                wsmApi,
+                None
+              )
+            )
+
+        createdDatabases = app.appType match {
+          case AppType.Cromwell =>
+            Some(CromwellAppDatabaseNames(dbNames.head, dbNames.apply(1), dbNames.apply(2)))
+          case AppType.CromwellRunnerApp =>
+            Some(CromwellRunnerAppDatabaseNames(dbNames.head, dbNames.apply(1)))
+          case _ => None
+        }
+      } yield createdDatabases
     } else F.pure(None)
   }
 
@@ -1532,7 +1603,9 @@ final case class AKSInterpreterConfig(
   listenerChartConfig: ListenerChartConfig
 )
 
-final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
+sealed trait CromwellDatabaseNames
+final case class CromwellAppDatabaseNames(cromwell: String, cbas: String, tes: String) extends CromwellDatabaseNames
+final case class CromwellRunnerAppDatabaseNames(cromwellRunner: String, tes: String) extends CromwellDatabaseNames
 
 sealed trait SharedDatabaseNames
 final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String) extends SharedDatabaseNames
