@@ -4,11 +4,11 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, AppUpdateException}
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, PostgresServer}
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -53,17 +53,28 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
         params.cloudContext
       )
 
-      // Storage container is required for Cromwell app
+      // Storage container is required for Workflows app
       storageContainer <- F.fromOption(
         params.storageContainer,
-        AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
+        AppCreationException("Storage container required for Workflows app", Some(ctx.traceId))
+      )
+
+      // Databases required for Workflows App
+      dbNames <- F.fromOption(toWorkflowsAppDatabaseNames(params.databaseNames),
+                              AppCreationException("Database names required for Workflows app", Some(ctx.traceId))
+      )
+
+      // Postgres server required for Workflows App
+      postgresServer <- F.fromOption(
+        params.landingZoneResources.postgresServer,
+        AppCreationException("Postgres server required for Workflows app", Some(ctx.traceId))
       )
 
       // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
       userToken <- F.fromOption(
         tokenOpt,
-        AppUpdateException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
+        AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
       values =
@@ -106,26 +117,28 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           // general configs
           raw"fullnameOverride=wfa-${params.app.release.asString}",
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
-          // provenance (app-cloning) configs
-          raw"provenance.userAccessToken=${userToken}"
-        )
 
-      postgresConfig = (params.databaseNames, params.landingZoneResources.postgresServer) match {
-        case (List(cbas, cromwellmetadata), Some(PostgresServer(dbServerName, pgBouncerEnabled))) =>
-          List(
-            raw"postgres.podLocalDatabaseEnabled=false",
-            raw"postgres.host=$dbServerName.postgres.database.azure.com",
-            raw"postgres.pgbouncer.enabled=$pgBouncerEnabled",
-            // convention is that the database user is the same as the service account name
-            raw"postgres.user=${params.ksaName.value}",
-            raw"postgres.dbnames.cromwellMetadata=$cromwellmetadata",
-            raw"postgres.dbnames.cbas=$cbas"
-          )
-        case _ => List.empty
-      }
-    } yield Values((values ++ postgresConfig).mkString(","))
+          // provenance (app-cloning) configs
+          raw"provenance.userAccessToken=${userToken}",
+
+          // database configs
+          raw"postgres.podLocalDatabaseEnabled=false",
+          raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
+          raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
+          // convention is that the database user is the same as the service account name
+          raw"postgres.user=${params.ksaName.value}",
+          raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}",
+          raw"postgres.dbnames.cbas=${dbNames.cbas}"
+        )
+    } yield Values(values.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     List(cromwellDao.getStatus(baseUri, authHeader), cbasDao.getStatus(baseUri, authHeader)).sequence
       .map(_.forall(identity))
+
+  private def toWorkflowsAppDatabaseNames(dbNames: List[String]): Option[WorkflowsAppDatabaseNames] =
+    (dbNames.find(_.startsWith("cromwellmetadata")), dbNames.find(_.startsWith("cbas")))
+      .mapN(WorkflowsAppDatabaseNames)
 }
+
+final case class WorkflowsAppDatabaseNames(cromwellMetadata: String, cbas: String)
