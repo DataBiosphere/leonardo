@@ -111,7 +111,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${params.ksaName.value}"
         )
-    } yield Values(valuesList.mkString(",")
+    } yield Values(valuesList.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     wdsDao.getStatus(baseUri, authHeader)

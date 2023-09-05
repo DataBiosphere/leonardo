@@ -27,10 +27,7 @@ class HailBatchAppInstallSpec extends BaseAppInstallSpec {
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       s"persistence.workspaceManager.storageContainerUrl=https://${lzResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}," +
-      "persistence.leoAppName=app," +
-      "identity.name=identity-name," +
-      "identity.resourceId=identity-id," +
-      "identity.clientId=identity-client-id," +
+      "persistence.leoAppName=app1," +
       s"relay.domain=relay.com," +
       "relay.subpath=/app"
   }

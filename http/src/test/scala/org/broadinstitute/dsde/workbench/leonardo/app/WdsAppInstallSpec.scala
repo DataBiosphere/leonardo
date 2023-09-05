@@ -33,14 +33,11 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
-      "general.leoAppInstanceName=app," +
+      "general.leoAppInstanceName=app1," +
       s"general.workspaceManager.workspaceId=${workspaceId.value}," +
       "identity.enabled=false," +
-      "identity.name=identity-name," +
-      "identity.resourceId=identity-id," +
-      "identity.clientId=identity-client-id," +
       "workloadIdentity.enabled=true," +
-      "workloadIdentity.serviceAccountName=ksa," +
+      "workloadIdentity.serviceAccountName=ksa-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
@@ -53,7 +50,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.dbname=wds1," +
-      "postgres.user=ksa"
+      "postgres.user=ksa-1"
   }
 
   it should "build wds override values with a sourceWorkspaceId" in {
@@ -69,14 +66,11 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
-      "general.leoAppInstanceName=app," +
+      "general.leoAppInstanceName=app1," +
       s"general.workspaceManager.workspaceId=${workspaceId.value}," +
-      "identity.enabled=true," +
-      "identity.name=identity-name," +
-      "identity.resourceId=identity-id," +
-      "identity.clientId=identity-client-id," +
-      "workloadIdentity.enabled=false," +
-      "workloadIdentity.serviceAccountName=none," +
+      "identity.enabled=false," +
+      "workloadIdentity.enabled=true," +
+      "workloadIdentity.serviceAccountName=ksa-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
@@ -84,7 +78,12 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
-      s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}"
+      s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}," +
+      "postgres.podLocalDatabaseEnabled=false," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      "postgres.pgbouncer.enabled=true," +
+      "postgres.dbname=wds1," +
+      "postgres.user=ksa-1"
   }
 
   it should "fail if there is no postgres server" in {

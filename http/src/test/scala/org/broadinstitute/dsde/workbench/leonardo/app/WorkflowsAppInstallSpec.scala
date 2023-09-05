@@ -37,20 +37,21 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
-      "persistence.leoAppInstanceName=app," +
+      "persistence.leoAppInstanceName=app1," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
-      "workloadIdentity.serviceAccountName=ksa," +
+      "workloadIdentity.serviceAccountName=ksa-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=wfa-rel-1," +
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
-      "postgres.user=ksa," +
+      "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwellMetadata=cromwellmetadata1," +
       s"postgres.dbnames.cbas=cbas1"
   }
