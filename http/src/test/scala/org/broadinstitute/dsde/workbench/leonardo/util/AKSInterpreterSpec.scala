@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
+import org.broadinstitute.dsp.Values
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -225,7 +226,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledResources.head.resourceId.value shouldBe createdIdentity.getResourceId
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureManagedIdentity
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
-      controlledResources.head.appId shouldBe appId
+      controlledResources.head.appId shouldBe appId.id
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -257,7 +258,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       createdDatabase <- aksInterp.createWsmDatabaseResource(saveApp,
                                                              workspaceId,
                                                              Database("test", false),
-                                                             "ns",
+                                                             "wds",
                                                              Some(owner),
                                                              mockControlledResourceApi
       )
@@ -266,13 +267,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
     } yield {
-      createdDatabase.getAzureDatabase.getMetadata.getName shouldBe "test_db"
+      createdDatabase.getAzureDatabase.getMetadata.getName shouldBe "test_wds"
       createdDatabase.getAzureDatabase.getAttributes.getDatabaseOwner shouldBe owner
       controlledResources.size shouldBe 1
       controlledResources.head.resourceId.value shouldBe createdDatabase.getResourceId
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
-      controlledResources.head.appId shouldBe appId
+      controlledResources.head.appId shouldBe appId.id
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -313,15 +314,15 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
     } yield {
-      createdNamespace.getAzureKubernetesNamespace.getMetadata.getName should startWith("ns")
-      createdNamespace.getAzureKubernetesNamespace.getAttributes.getDatabases shouldBe databases
+      createdNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace should startWith("ns")
+      createdNamespace.getAzureKubernetesNamespace.getAttributes.getDatabases.asScala.toSet shouldBe databases.toSet
       createdNamespace.getAzureKubernetesNamespace.getAttributes.getManagedIdentity shouldBe identity
-      createdNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesServiceAccount shouldBe identity
+      createdNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesServiceAccount shouldBe identity.toString
       controlledResources.size shouldBe 1
       controlledResources.head.resourceId.value shouldBe createdNamespace.getResourceId
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureKubernetesNamespace
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
-      controlledResources.head.appId shouldBe appId
+      controlledResources.head.appId shouldBe appId.id
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -457,34 +458,84 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockWsmApiClientProvider: (WsmApiClientProvider, ControlledAzureResourceApi) = {
     val wsm = mock[WsmApiClientProvider]
     val api = mock[ControlledAzureResourceApi]
-    val dbUUIDsByName = mutable.Map.empty[String, UUID]
+    val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
+    val namespacesByJob = mutable.Map.empty[String, CreateControlledAzureKubernetesNamespaceRequestBody]
     when {
       api.createAzureManagedIdentity(any, any)
     } thenAnswer { invocation =>
-      new CreatedControlledAzureManagedIdentity().resourceId(
-        invocation.getArgument[CreateControlledAzureManagedIdentityRequestBody](0).getCommon.getResourceId
-      )
+      val requestBody = invocation.getArgument[CreateControlledAzureManagedIdentityRequestBody](0)
+      new CreatedControlledAzureManagedIdentity()
+        .resourceId(requestBody.getCommon.getResourceId)
+        .azureManagedIdentity(
+          new AzureManagedIdentityResource().metadata(new ResourceMetadata().name(requestBody.getCommon.getName))
+        )
     }
     when {
       api.createAzureDatabase(any, any)
     } thenAnswer { invocation =>
-      val uuid = invocation.getArgument[CreateControlledAzureDatabaseRequestBody](0).getCommon.getResourceId
-      val name = invocation.getArgument[CreateControlledAzureDatabaseRequestBody](0).getAzureDatabase.getName
-      dbUUIDsByName += (name -> uuid)
+      val requestBody = invocation.getArgument[CreateControlledAzureDatabaseRequestBody](0)
+      val uuid = requestBody.getCommon.getResourceId
+      val jobId = requestBody.getJobControl.getId
+      dbsByJob += (jobId -> requestBody)
       new CreatedControlledAzureDatabaseResult().resourceId(uuid)
     }
     when {
       api.getCreateAzureDatabaseResult(any, any)
-    } thenAnswer { // thenAnswer is used so that the result of the call is different each time
-      invocation =>
-        new CreatedControlledAzureDatabaseResult()
-          .azureDatabase(
-            new AzureDatabaseResource()
-              .metadata(new ResourceMetadata().resourceId(dbUUIDsByName(invocation.getArgument[String](1))))
-          )
-          .jobReport(
-            new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
-          )
+    } thenAnswer { invocation =>
+      val jobId = invocation.getArgument[String](1)
+      val request = dbsByJob(jobId)
+      new CreatedControlledAzureDatabaseResult()
+        .resourceId(request.getCommon.getResourceId)
+        .azureDatabase(
+          new AzureDatabaseResource()
+            .metadata(
+              new ResourceMetadata()
+                .resourceId(request.getCommon.getResourceId)
+                .name(request.getCommon.getName)
+            )
+            .attributes(
+              new AzureDatabaseAttributes()
+                .allowAccessForAllWorkspaceUsers(request.getAzureDatabase.isAllowAccessForAllWorkspaceUsers)
+                .databaseName(request.getAzureDatabase.getName)
+                .databaseOwner(request.getAzureDatabase.getOwner)
+            )
+        )
+        .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
+    }
+    when {
+      api.createAzureKubernetesNamespace(any, any)
+    } thenAnswer { invocation =>
+      val requestBody = invocation.getArgument[CreateControlledAzureKubernetesNamespaceRequestBody](0)
+      val uuid = requestBody.getCommon.getResourceId
+      val jobId = requestBody.getJobControl.getId
+      namespacesByJob += (jobId -> requestBody)
+      new CreatedControlledAzureKubernetesNamespaceResult().resourceId(uuid)
+    }
+    when {
+      api.getCreateAzureKubernetesNamespaceResult(any, any)
+    } thenAnswer { invocation =>
+      val jobId = invocation.getArgument[String](1)
+      val request = namespacesByJob(jobId)
+      new CreatedControlledAzureKubernetesNamespaceResult()
+        .resourceId(request.getCommon.getResourceId)
+        .azureKubernetesNamespace(
+          new AzureKubernetesNamespaceResource()
+            .metadata(
+              new ResourceMetadata().resourceId(request.getCommon.getResourceId).name(request.getCommon.getName)
+            )
+            .attributes(
+              new AzureKubernetesNamespaceAttributes()
+                .kubernetesNamespace(request.getAzureKubernetesNamespace.getNamespacePrefix)
+                .databases(request.getAzureKubernetesNamespace.getDatabases)
+                .managedIdentity(request.getAzureKubernetesNamespace.getManagedIdentity)
+                .kubernetesServiceAccount(
+                  Option(request.getAzureKubernetesNamespace.getManagedIdentity).map(_.toString).getOrElse("ksa-1")
+                )
+            )
+        )
+        .jobReport(
+          new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
+        )
     }
     when {
       wsm.getControlledAzureResourceApi(any)
@@ -494,6 +545,15 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   private def setUpMockAppInstall: AppInstall[IO] = {
     val appInstall = mock[AppInstall[IO]]
+    when {
+      appInstall.databases
+    } thenReturn List(Database("db1", false))
+    when {
+      appInstall.buildHelmOverrideValues(any)(any)
+    } thenReturn IO.pure(Values("values"))
+    when {
+      appInstall.checkStatus(any, any)(any)
+    } thenReturn IO.pure(true)
     appInstall
   }
 

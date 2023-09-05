@@ -118,7 +118,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // The k8s namespace name and service account name are in the WSM response
-      namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getMetadata.getName)
+      namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
       ksaName = ServiceAccountName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesServiceAccount)
 
       // Create relay hybrid connection pool
@@ -296,6 +296,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmNamespaceOpt <- wsmNamespaces.headOption.traverse { wsmNamespace =>
         F.delay(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value))
       }
+      // TODO: handle apps without a namespace
       wsmNamespace <- F.fromOption(wsmNamespaceOpt,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
       )
