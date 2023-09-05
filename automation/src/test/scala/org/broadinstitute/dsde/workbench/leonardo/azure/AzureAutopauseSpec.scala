@@ -40,6 +40,7 @@ class AzureAutopauseSpec
         runtimeClient <- GeneratedLeonardoClient.generateRuntimesApi
         diskClient <- GeneratedLeonardoClient.generateDisksApi
 
+        // autopause set to 15 minutes to make sure metrics monitor call is ignored (doesn't reset the clock)
         createReq = new CreateAzureRuntimeRequest()
           .labels(labelMap)
           .machineSize("Standard_DS1_v2")
@@ -68,10 +69,10 @@ class AzureAutopauseSpec
           s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} in creating status detected"
         )
 
-        // Verify the runtime eventually becomes Running (in 40 minutes)
+        // Verify the runtime eventually becomes Running (in 20 minutes)
         monitorCreateResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          240,
+          120,
           10 seconds,
           s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not finish creating after 40 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
