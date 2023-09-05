@@ -36,19 +36,19 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
-      "persistence.leoAppInstanceName=app," +
+      "persistence.leoAppInstanceName=app1," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
-      "workloadIdentity.serviceAccountName=identity-name," +
-      "cromwell.enabled=true," +
+      "workloadIdentity.serviceAccountName=ksa-1," +
+      "cromwell.enabled=false," +
       "fullnameOverride=cra-rel-1," +
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
-      "postgres.user=identity-name," +
+      "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=cromwell1," +
       s"postgres.dbnames.tes=tes1"
   }

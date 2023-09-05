@@ -841,14 +841,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
-  private def updateListener(authContext: AuthContext,
-                             app: App,
-                             landingZoneResources: LandingZoneResources,
-                             workspaceId: WorkspaceId,
-                             hcName: RelayHybridConnectionName,
-                             primaryKey: PrimaryKey,
-                             relayDomain: String,
-                             listenerChartConfig: ListenerChartConfig
+  private[util] def updateListener(authContext: AuthContext,
+                                   app: App,
+                                   landingZoneResources: LandingZoneResources,
+                                   workspaceId: WorkspaceId,
+                                   hcName: RelayHybridConnectionName,
+                                   primaryKey: PrimaryKey,
+                                   relayDomain: String,
+                                   listenerChartConfig: ListenerChartConfig
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     // Update the Relay Listener if the app tracks it as a service.
     // We're not tracking the listener version in the DB so we can't really pick and choose which versions to update.

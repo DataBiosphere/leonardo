@@ -41,16 +41,13 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
-      "persistence.leoAppInstanceName=app," +
+      "persistence.leoAppInstanceName=app1," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       "identity.enabled=false," +
-      "identity.name=identity-name," +
-      "identity.resourceId=identity-id," +
-      "identity.clientId=identity-client-id," +
       "workloadIdentity.enabled=true," +
-      "workloadIdentity.serviceAccountName=identity-name," +
+      "workloadIdentity.serviceAccountName=ksa-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
@@ -63,7 +60,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
-      "postgres.user=identity-name," +
+      "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=cromwell1," +
       s"postgres.dbnames.cbas=cbas1," +
       s"postgres.dbnames.tes=tes1"
@@ -74,7 +71,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       app,
       workspaceId,
       cloudContext,
-      lzResources.copy(postgresServer = Some(PostgresServer("pg", false))),
+      lzResources.copy(postgresServer = Some(PostgresServer("postgres", false))),
       Some(storageContainer),
       Uri.unsafeFromString("https://relay.com/app"),
       ServiceAccountName("ksa-1"),
@@ -98,16 +95,13 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
-      "persistence.leoAppInstanceName=app," +
+      "persistence.leoAppInstanceName=app1," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       "identity.enabled=false," +
-      "identity.name=identity-name," +
-      "identity.resourceId=identity-id," +
-      "identity.clientId=identity-client-id," +
       "workloadIdentity.enabled=true," +
-      "workloadIdentity.serviceAccountName=identity-name," +
+      "workloadIdentity.serviceAccountName=ksa-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
@@ -120,7 +114,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=false," +
-      "postgres.user=identity-name," +
+      "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=cromwell1," +
       s"postgres.dbnames.cbas=cbas1," +
       s"postgres.dbnames.tes=tes1"

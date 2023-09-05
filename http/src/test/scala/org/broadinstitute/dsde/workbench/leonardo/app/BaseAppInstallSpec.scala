@@ -98,7 +98,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
     val sam = mock[SamDAO[IO]]
     when {
       sam.getCachedArbitraryPetAccessToken(any)(any)
-    } thenReturn IO.pure(Some("token"))
+    } thenReturn IO.pure(Some("accessToken"))
     sam
   }
 
@@ -132,6 +132,9 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
     when {
       service.getApplicationInsights(any[String].asInstanceOf[ApplicationInsightsName], any)(any)
     } thenReturn IO.pure(applicationInsightsComponent)
+    when {
+      applicationInsightsComponent.connectionString()
+    } thenReturn "applicationInsightsConnectionString"
     service
   }
 
@@ -147,6 +150,9 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
     when {
       batchAccount.getKeys()
     } thenReturn batchAccountKeys
+    when {
+      batchAccountKeys.primary()
+    } thenReturn "batchKey"
     service
   }
 }
