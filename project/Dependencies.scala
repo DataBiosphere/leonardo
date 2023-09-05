@@ -18,7 +18,7 @@ object Dependencies {
   val pact4sV = "0.9.0"
 
   private val workbenchLibsHash = "aa2afae"
-  val serviceTestV = s"4.1-$workbenchLibsHash"
+  val serviceTestV = s"4.1-ce68967"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
 
   // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
