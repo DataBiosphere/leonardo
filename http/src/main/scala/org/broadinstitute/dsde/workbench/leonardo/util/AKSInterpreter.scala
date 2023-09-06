@@ -110,11 +110,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Create WSM kubernetes namespace
-      wsmNamespace <- createWsmKubernetesNamespaceResource(app,
-                                                           params.workspaceId,
-                                                           namespacePrefix,
-                                                           wsmDatabases.map(_.getResourceId),
-                                                           wsmManagedIdentityOpt.map(_.getResourceId)
+      wsmNamespace <- createWsmKubernetesNamespaceResource(
+        app,
+        params.workspaceId,
+        namespacePrefix,
+        wsmDatabases.map(_.getAzureDatabase.getMetadata.getResourceId),
+        wsmManagedIdentityOpt.map(_.getResourceId)
       )
 
       // The k8s namespace name and service account name are in the WSM response
