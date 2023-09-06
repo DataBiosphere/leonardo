@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench
 
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.api.{DisksApi, ProxyApi, RuntimesApi}
+import org.broadinstitute.dsde.workbench.client.leonardo.api.{DisksApi, RuntimesApi}
 import org.broadinstitute.dsde.workbench.client.leonardo.ApiClient
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   ClusterStatus,
@@ -18,7 +18,6 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.headers.Authorization
 import org.http4s.blaze.client.BlazeClientBuilder
-import org.http4s.circe.CirceEntityEncoder._
 import scala.concurrent.duration._
 
 /**
@@ -57,8 +56,6 @@ object GeneratedLeonardoClient {
     for {
       apiClient <- getClient()
       client <- IO(apiClient.setBasePath(s"${runtime.getProxyUrl}/lab"))
-//      x: Call = new Call
-//      _ <- client.execute(Call())
     } yield client
 
   def testProxyUrl(

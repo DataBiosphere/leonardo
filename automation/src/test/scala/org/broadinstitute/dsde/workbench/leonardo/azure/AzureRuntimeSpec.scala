@@ -17,11 +17,10 @@ import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, L
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.http4s.headers.Authorization
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
+import org.scalatest.{ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
 class AzureRuntimeSpec
     extends AzureBillingBeforeAndAfter
     with LeonardoTestUtils
