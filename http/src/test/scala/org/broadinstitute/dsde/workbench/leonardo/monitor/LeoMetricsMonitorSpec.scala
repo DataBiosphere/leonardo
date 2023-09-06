@@ -349,7 +349,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       appDAO,
       wdsDAO,
       cbasDAO,
-      cbasUiDAO,
       cromwellDAO,
       hailBatchDAO,
       relayListenerDAO,
