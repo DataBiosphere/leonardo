@@ -159,13 +159,12 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |  }
         |}
         |""".stripMargin
-    val expectedResult = {
+    val expectedResult =
       // TODO [IA-4419] once we can upgrade Circe past 14.2/0.15.0-M1, restore human-readable "missing required field" expect.
       // See https://github.com/pbyrne84/scala-circe-error-rendering/blob/035972dc9407506d1de084421531668526ddff26/src/main/scala/com/github/pbyrne84/circe/rendering/CirceErrorRendering.scala#L40
 
       // DecodingFailure("Missing required field", List(DownField("config")))
       DecodingFailure("Attempt to decode value on failed cursor", List(DownField("config")))
-    }
     decode[ContainerConfigResponse](jsonString).swap.toOption.get.getMessage shouldBe expectedResult.leftSideValue
       .getMessage()
   }
