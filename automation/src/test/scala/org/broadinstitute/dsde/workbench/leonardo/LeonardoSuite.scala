@@ -435,8 +435,8 @@ final class LeonardoAzureSuite
       new AzureDiskSpec
     )
     with TestSuite
-    with ParallelTestExecution
     with AzureBilling
+    with ParallelTestExecution
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
