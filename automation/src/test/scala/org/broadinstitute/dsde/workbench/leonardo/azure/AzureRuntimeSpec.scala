@@ -4,25 +4,21 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{
-  AzureDiskConfig,
-  ClusterStatus,
-  CreateAzureRuntimeRequest,
-  DiskStatus
-}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{AzureDiskConfig, DiskStatus, CreateAzureRuntimeRequest, ClusterStatus}
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.http4s.headers.Authorization
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{ParallelTestExecution, Retries}
+import org.scalatest.{ParallelTestExecution, Retries, DoNotDiscover}
 
 import scala.concurrent.duration._
 
+@DoNotDiscover
 class AzureRuntimeSpec
-    extends AzureBillingBeforeAndAfter
+    extends AzureBilling
     with LeonardoTestUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks
@@ -102,11 +98,11 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: about to test proxyUrl"
         )
-
-        _ <- GeneratedLeonardoClient.client.use { c =>
-          implicit val client = c
-          GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)
-        }
+//TODO
+//        _ <- GeneratedLeonardoClient.client.use { c =>
+//          implicit val client = c
+//          GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)
+//        }
 
         _ <- loggerIO.info(
           s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"

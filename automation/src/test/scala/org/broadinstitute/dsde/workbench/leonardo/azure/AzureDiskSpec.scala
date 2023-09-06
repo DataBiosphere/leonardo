@@ -6,23 +6,18 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{
-  AzureDiskConfig,
-  ClusterStatus,
-  CreateAzureRuntimeRequest,
-  DiskStatus,
-  GetRuntimeResponse
-}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{CreateAzureRuntimeRequest, GetRuntimeResponse, ClusterStatus, AzureDiskConfig, DiskStatus}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.scalatest.{ParallelTestExecution, Retries}
+import org.scalatest.{ParallelTestExecution, Retries, DoNotDiscover}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 
 import scala.concurrent.duration._
 
+@DoNotDiscover
 class AzureDiskSpec
-    extends AzureBillingBeforeAndAfter
+    extends AzureBilling
     with LeonardoTestUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks
