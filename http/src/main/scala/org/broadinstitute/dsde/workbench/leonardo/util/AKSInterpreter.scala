@@ -269,7 +269,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Build WSM client
       token <- leoAuth.credentials match {
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        case _ => F.raiseError(AppUpdateException("Could not obtain Leo auth token", Some(ctx.traceId)))
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
@@ -564,7 +564,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        case _ => F.raiseError(AppCreationException("Could not obtain Leo auth token", Some(ctx.traceId)))
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
@@ -607,11 +607,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   )(implicit ev: Ask[F, AppContext]): F[List[CreatedControlledAzureDatabaseResult]] =
     if (landingZoneResources.postgresServer.isDefined) {
       for {
+        ctx <- ev.ask
         // Build WSM client
         auth <- samDao.getLeoAuthToken
         token <- auth.credentials match {
           case org.http4s.Credentials.Token(_, token) => F.pure(token)
-          case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+          case _ => F.raiseError(AppCreationException("Could not obtain Leo auth token", Some(ctx.traceId)))
         }
         wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
@@ -620,7 +621,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
       } yield res
     } else {
-      F.raiseError(AppCreationException("Postgres server not found in landing zone"))
+      ev.ask.flatMap(ctx =>
+        F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
+      )
     }
 
   private[util] def createWsmDatabaseResource(app: App,
@@ -731,7 +734,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        case _ => F.raiseError(AppCreationException("Could not obtain Leo auth token", Some(ctx.traceId)))
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
@@ -792,7 +795,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+        case _ => F.raiseError(AppDeletionException("Could not obtain Leo auth token"))
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
@@ -826,12 +829,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case WsmResourceType.AzureKubernetesNamespace =>
           // TODO delete namespace is async; should we poll or fire-and-forget?
           val body = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
-            new JobControl().id(s"delete-${wsmResource.resourceId.value.toString}")
+            new JobControl().id(wsmResource.resourceId.value.toString)
           )
           F.delay(wsmApi.deleteAzureKubernetesNamespace(body, workspaceId.value, wsmResource.resourceId.value))
         case _ =>
           // only managed identities, databases, and namespaces are supported for apps.
-          F.raiseError(new RuntimeException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
+          F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
     } yield ()
 
