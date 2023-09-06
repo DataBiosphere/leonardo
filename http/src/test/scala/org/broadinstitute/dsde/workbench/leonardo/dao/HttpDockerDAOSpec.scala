@@ -183,7 +183,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       // See https://github.com/pbyrne84/scala-circe-error-rendering/blob/035972dc9407506d1de084421531668526ddff26/src/main/scala/com/github/pbyrne84/circe/rendering/CirceErrorRendering.scala#L40
 
       // DecodingFailure("Missing required field", List(DownField("Env")))
-      DecodingFailure("Attempt to decode value on failed cursor", List(DownField("Env")))
+      DecodingFailure("Attempt to decode value on failed cursor", List(DownField("Env"), DownField("container_config")))
 
     decode[ContainerConfigResponse](jsonString).swap.toOption.get.getMessage shouldBe expectedResult.leftSideValue
       .getMessage()
