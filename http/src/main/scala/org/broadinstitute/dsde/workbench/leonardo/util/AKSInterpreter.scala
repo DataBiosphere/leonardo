@@ -270,11 +270,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, leoAuth)
 
       // Build WSM client
-      token <- leoAuth.credentials match {
-        case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(AppUpdateException("Could not obtain Leo auth token", Some(ctx.traceId)))
-      }
-      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+      wsmApi <- buildWsmClient
 
       // Call WSM to get the managed identity for the app.
       // This is optional because a WSM identity is only created for shared apps.
@@ -398,8 +394,31 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       app = dbApp.app
 
-      // Delete WSM resources associated with the app
-      deletedNamespace <- deleteAppWsmResources(app, params.workspaceId)
+      // WSM deletion order matters here. Delete WSM database resources first.
+      wsmDatabases <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+      _ <- wsmDatabases.traverse { database =>
+        deleteWsmResource(workspaceId, app, database)
+      }
+
+      // Then delete namespace resources
+      wsmNamespaces <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
+        .transaction
+      deletedNamespace <- wsmNamespaces
+        .traverse { namespace =>
+          deleteWsmNamespaceResource(workspaceId, app, namespace)
+        }
+        .map(_.nonEmpty)
+
+      // Then delete identity resources
+      wsmIdentities <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
+        .transaction
+      _ <- wsmIdentities.traverse { identity =>
+        deleteWsmResource(workspaceId, app, identity)
+      }
 
       // If this app did not have a WSM-tracked kubernetes namespace, delete it explicitly
       _ <-
@@ -569,12 +588,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Build WSM client
-      auth <- samDao.getLeoAuthToken
-      token <- auth.credentials match {
-        case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(AppCreationException("Could not obtain Leo auth token", Some(ctx.traceId)))
-      }
-      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+      wsmApi <- buildWsmClient
 
       // Build create managed identity request.
       // Use the k8s namespace for the name. Note dashes aren't allowed.
@@ -616,14 +630,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     if (landingZoneResources.postgresServer.isDefined) {
       for {
         ctx <- ev.ask
-        // Build WSM client
-        auth <- samDao.getLeoAuthToken
-        token <- auth.credentials match {
-          case org.http4s.Credentials.Token(_, token) => F.pure(token)
-          case _ => F.raiseError(AppCreationException("Could not obtain Leo auth token", Some(ctx.traceId)))
-        }
-        wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
-
+        wsmApi <- buildWsmClient
         res <- appInstall.databases.traverse { database =>
           createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
         }
@@ -739,12 +746,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Build WSM client
-      auth <- samDao.getLeoAuthToken
-      token <- auth.credentials match {
-        case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(AppCreationException("Could not obtain Leo auth token", Some(ctx.traceId)))
-      }
-      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+      wsmApi <- buildWsmClient
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace request: ${createNamespaceRequest}")
 
@@ -794,51 +796,22 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield result
   }
 
-  private[util] def deleteAppWsmResources(app: App, workspaceId: WorkspaceId)(implicit
+  private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
+                                               app: App,
+                                               wsmResource: AppControlledResourceRecord
+  )(implicit
     ev: Ask[F, AppContext]
-  ): F[Boolean] =
+  ): F[Unit] =
     for {
       ctx <- ev.ask
+
       // Build WSM client
-      auth <- samDao.getLeoAuthToken
-      token <- auth.credentials match {
-        case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(AppDeletionException("Could not obtain Leo auth token"))
-      }
-      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
-
-      // Get WSM resources from the database
-      wsmResources <- appControlledResourceQuery
-        .getAllForAppByStatus(app.id.id,
-                              AppControlledResourceStatus.Created,
-                              AppControlledResourceStatus.Creating,
-                              AppControlledResourceStatus.Deleting
-        )
-        .transaction
-
-      // Delete AzureKubernetesNamespace resource first, since deletion depends on the managed identity
-      deletedNamespace <- wsmResources.find(_.resourceType == WsmResourceType.AzureKubernetesNamespace).traverse {
-        wsmResource =>
-          deleteNamespaceWsmResource(workspaceId, app, wsmApi, wsmResource)
-      }
-
-      // Delete the remaining WSM resources
-      _ <- wsmResources.filterNot(_.resourceType == WsmResourceType.AzureKubernetesNamespace).traverse { wsmResource =>
-        deleteWsmResource(workspaceId, app, wsmApi, wsmResource)
-      }
-    } yield deletedNamespace.isDefined
-
-  private def deleteNamespaceWsmResource(workspaceId: WorkspaceId,
-                                         app: App,
-                                         wsmApi: ControlledAzureResourceApi,
-                                         wsmResource: AppControlledResourceRecord
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      ctx <- ev.ask
+      wsmApi <- buildWsmClient
 
       // Build delete namespace request
+      jobId = UUID.randomUUID()
       deleteNamespaceRequest = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
-        new JobControl().id(wsmResource.resourceId.value.toString)
+        new JobControl().id(jobId.toString)
       )
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteNamespaceRequest}")
@@ -860,7 +833,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Poll for namespace deletion
       op = F.delay(
-        wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, wsmResource.resourceId.value.toString)
+        wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, jobId.toString)
       )
       result <- streamFUntilDone(
         op,
@@ -884,15 +857,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
     } yield ()
 
-  private def deleteWsmResource(workspaceId: WorkspaceId,
-                                app: App,
-                                wsmApi: ControlledAzureResourceApi,
-                                wsmResource: AppControlledResourceRecord
-  )(implicit
-    ev: Ask[F, AppContext]
+  private[util] def deleteWsmResource(workspaceId: WorkspaceId, app: App, wsmResource: AppControlledResourceRecord)(
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val delete = for {
       ctx <- ev.ask
+      wsmApi <- buildWsmClient
       _ <- logger.info(ctx.loggingCtx)(
         s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
       )
@@ -902,7 +872,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case WsmResourceType.AzureDatabase =>
           F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
         case _ =>
-          // only managed identities, databases, and namespaces are supported for apps.
           F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
       // Update record in APP_CONTROLLED_RESOURCE table
@@ -961,6 +930,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } else {
       ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
     }
+
+  private def buildWsmClient: F[ControlledAzureResourceApi] =
+    for {
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmApi
 }
 
 final case class AKSInterpreterConfig(
