@@ -114,5 +114,5 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
     } yield Values(valuesList.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
-    wdsDao.getStatus(baseUri, authHeader)
+    wdsDao.getStatus(baseUri, authHeader).handleError(_ => false)
 }

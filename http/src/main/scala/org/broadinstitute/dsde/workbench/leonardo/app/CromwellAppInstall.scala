@@ -134,9 +134,10 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
   } yield Values(values.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
-    List(cromwellDao.getStatus(baseUri, authHeader),
-         cbasDao.getStatus(baseUri, authHeader),
-         cbasUIDao.getStatus(baseUri, authHeader)
+    List(
+      cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false),
+      cbasDao.getStatus(baseUri, authHeader).handleError(_ => false),
+      cbasUIDao.getStatus(baseUri, authHeader).handleError(_ => false)
     ).sequence.map(_.forall(identity))
 
   private def toCromwellAppDatabaseNames(dbNames: List[String]): Option[CromwellAppDatabaseNames] =

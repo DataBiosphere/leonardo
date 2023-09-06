@@ -50,5 +50,5 @@ class HailBatchAppInstall[F[_]](config: HailBatchAppConfig, hailBatchDao: HailBa
     } yield Values(values.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
-    hailBatchDao.getStatus(baseUri, authHeader)
+    hailBatchDao.getStatus(baseUri, authHeader).handleError(_ => false)
 }

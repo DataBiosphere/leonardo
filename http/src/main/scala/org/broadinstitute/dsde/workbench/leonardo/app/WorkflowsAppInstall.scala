@@ -133,7 +133,9 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
     } yield Values(values.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
-    List(cromwellDao.getStatus(baseUri, authHeader), cbasDao.getStatus(baseUri, authHeader)).sequence
+    List(cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false),
+         cbasDao.getStatus(baseUri, authHeader).handleError(_ => false)
+    ).sequence
       .map(_.forall(identity))
 
   private def toWorkflowsAppDatabaseNames(dbNames: List[String]): Option[WorkflowsAppDatabaseNames] =
