@@ -82,7 +82,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           KsaName("coa-ksa"),
           List(
             ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
-            ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,

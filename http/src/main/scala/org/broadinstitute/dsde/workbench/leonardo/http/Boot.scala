@@ -283,7 +283,7 @@ object Boot extends IOApp {
 
           // LeoMetricsMonitor collects metrics from both runtimes and apps.
           // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
-          // - appDAO, wdsDAO, cbasDAO, cbasUiDAO, cromwellDAO are for status checking apps.
+          // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,
@@ -294,7 +294,6 @@ object Boot extends IOApp {
             appDependencies.appDAO,
             appDependencies.wdsDAO,
             appDependencies.cbasDAO,
-            appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
             appDependencies.hailBatchDAO,
             appDependencies.listenerDAO,
@@ -401,9 +400,6 @@ object Boot extends IOApp {
       )
       cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
         new HttpCbasDAO[F](client)
-      )
-      cbasUiDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_ui_client"), false).map(
-        client => new HttpCbasUiDAO[F](client)
       )
       wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
         new HttpWdsDAO[F](client)
@@ -699,7 +695,6 @@ object Boot extends IOApp {
         samDao,
         cromwellDao,
         cbasDao,
-        cbasUiDao,
         wdsDao,
         hailBatchDao,
         wsmDao,
@@ -789,7 +784,6 @@ object Boot extends IOApp {
         appDAO,
         wdsDao,
         cbasDao,
-        cbasUiDao,
         cromwellDao,
         hailBatchDao,
         listenerDao,
@@ -914,7 +908,6 @@ final case class AppDependencies[F[_]](
   appDAO: AppDAO[F],
   wdsDAO: WdsDAO[F],
   cbasDAO: CbasDAO[F],
-  cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
   listenerDAO: ListenerDAO[F],

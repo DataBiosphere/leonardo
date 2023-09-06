@@ -75,7 +75,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val appDAO = setUpMockAppDAO
   val wdsDAO = setUpMockWdsDAO
   val cbasDAO = setUpMockCbasDAO
-  val cbasUiDAO = setUpMockCbasUiDAO
   val cromwellDAO = setUpMockCromwellDAO
   val samDAO = setUpMockSamDAO
   val jupyterDAO = setUpMockJupyterDAO
@@ -96,7 +95,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     appDAO,
     wdsDAO,
     cbasDAO,
-    cbasUiDAO,
     cromwellDAO,
     hailBatchDAO,
     relayListenerDAO,
@@ -651,14 +649,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       cbas.getStatus(any, any)(any)
     } thenReturn IO.pure(false)
     cbas
-  }
-
-  private def setUpMockCbasUiDAO: CbasUiDAO[IO] = {
-    val cbasUi = mock[CbasUiDAO[IO]]
-    when {
-      cbasUi.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    cbasUi
   }
 
   private def setUpMockWdsDAO: WdsDAO[IO] = {

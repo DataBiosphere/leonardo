@@ -14,7 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfi
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   CbasDAO,
-  CbasUiDAO,
   CromwellDAO,
   HailBatchDAO,
   SamDAO,
@@ -22,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   WsmApiClientProvider,
   WsmDao
 }
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, SaveKubernetesCluster, _}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
@@ -180,7 +179,6 @@ object AKSManualTest {
     mock[SamDAO[IO]],
     mock[CromwellDAO[IO]],
     mock[CbasDAO[IO]],
-    mock[CbasUiDAO[IO]],
     mock[WdsDAO[IO]],
     mock[HailBatchDAO[IO]],
     mock[WsmDao[IO]],
