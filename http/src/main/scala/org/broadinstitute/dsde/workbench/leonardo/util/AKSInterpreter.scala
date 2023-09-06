@@ -67,6 +67,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     : DoneCheckable[CreatedControlledAzureKubernetesNamespaceResult] =
     _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
 
+  implicit private def deleteWsmResourceDoneCheckable: DoneCheckable[DeleteControlledAzureResourceResult] =
+    _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
+
   private def getListenerReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-listener-rls")
 
@@ -396,15 +399,34 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
 
       // Delete WSM resources associated with the app
-      // Ideally an app only consists of WSM resources, as more resources are moved into WSM
-      // everything between deleteAppWsmResources and appQuery.markAsDeleted should be removed
-      _ <- deleteAppWsmResources(app, params.workspaceId)
+      deletedNamespace <- deleteAppWsmResources(app, params.workspaceId)
 
-      namespaceName = app.appResources.namespace.name
-      kubernetesNamespace = KubernetesNamespace(namespaceName)
+      // If this app did not have a WSM-tracked kubernetes namespace, delete it explicitly
+      _ <-
+        if (deletedNamespace) F.unit
+        else {
+          for {
+            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
+
+            kubernetesNamespace = KubernetesNamespace(app.appResources.namespace.name)
+
+            // Delete the namespace which should delete all resources in it
+            _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)
+
+            // Poll until the namespace is actually deleted
+            // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
+            fa = kubeAlg.namespaceExists(client, kubernetesNamespace).map(exists => !exists)
+            _ <- streamUntilDoneOrTimeout(fa,
+                                          config.appMonitorConfig.deleteApp.maxAttempts,
+                                          config.appMonitorConfig.deleteApp.initialDelay,
+                                          "delete namespace timed out"
+            )
+          } yield ()
+        }
 
       // Delete hybrid connection for this app
       // for backwards compatibility, name used to be just the appName
+      // TODO: make relay hybrid connection a WSM resource
       name = app.customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", app.appName.value)
 
       _ <- azureRelayService
@@ -418,20 +440,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             logger.info(s"${name} does not exist to delete in ${cloudContext}")
           case e => F.raiseError[Unit](e)
         }
-
-      client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
-
-      // Delete the namespace which should delete all resources in it
-      _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)
-
-      // Poll until the namespace is actually deleted
-      // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
-      fa = kubeAlg.namespaceExists(client, kubernetesNamespace).map(exists => !exists)
-      _ <- streamUntilDoneOrTimeout(fa,
-                                    config.appMonitorConfig.deleteApp.maxAttempts,
-                                    config.appMonitorConfig.deleteApp.initialDelay,
-                                    "delete namespace timed out"
-      )
 
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
@@ -756,7 +764,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace response: ${createNamespaceResponse}")
 
-      // Poll for namepsace creation
+      // Poll for namespace creation
       op = F.delay(wsmApi.getCreateAzureKubernetesNamespaceResult(workspaceId.value, namespacePrefix))
       result <- streamFUntilDone(
         op,
@@ -788,7 +796,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def deleteAppWsmResources(app: App, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[Boolean] =
     for {
       ctx <- ev.ask
       // Build WSM client
@@ -799,14 +807,81 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
+      // Get WSM resources from the database
       wsmResources <- appControlledResourceQuery
-        .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created, AppControlledResourceStatus.Creating)
+        .getAllForAppByStatus(app.id.id,
+                              AppControlledResourceStatus.Created,
+                              AppControlledResourceStatus.Creating,
+                              AppControlledResourceStatus.Deleting
+        )
         .transaction
 
-      _ <- wsmResources.traverse { wsmResource =>
-        deleteWsmResource(workspaceId, app, wsmApi, wsmResource) >>
-          appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+      // Delete AzureKubernetesNamespace resource first, since deletion depends on the managed identity
+      deletedNamespace <- wsmResources.find(_.resourceType == WsmResourceType.AzureKubernetesNamespace).traverse {
+        wsmResource =>
+          deleteNamespaceWsmResource(workspaceId, app, wsmApi, wsmResource)
       }
+
+      // Delete the remaining WSM resources
+      _ <- wsmResources.filterNot(_.resourceType == WsmResourceType.AzureKubernetesNamespace).traverse { wsmResource =>
+        deleteWsmResource(workspaceId, app, wsmApi, wsmResource)
+      }
+    } yield deletedNamespace.isDefined
+
+  private def deleteNamespaceWsmResource(workspaceId: WorkspaceId,
+                                         app: App,
+                                         wsmApi: ControlledAzureResourceApi,
+                                         wsmResource: AppControlledResourceRecord
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      // Build delete namespace request
+      deleteNamespaceRequest = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
+        new JobControl().id(wsmResource.resourceId.value.toString)
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteNamespaceRequest}")
+
+      // Execute WSM call
+      result <- F.delay(
+        wsmApi.deleteAzureKubernetesNamespace(deleteNamespaceRequest, workspaceId.value, wsmResource.resourceId.value)
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace response: ${result}")
+
+      // Update record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery
+        .updateStatus(
+          wsmResource.resourceId,
+          AppControlledResourceStatus.Deleting
+        )
+        .transaction
+
+      // Poll for namespace deletion
+      op = F.delay(
+        wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, wsmResource.resourceId.value.toString)
+      )
+      result <- streamFUntilDone(
+        op,
+        config.appMonitorConfig.createApp.maxAttempts,
+        config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace job result: ${result}")
+
+      _ <-
+        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+          F.raiseError(
+            AppCreationException(
+              s"WSM namespace deletion failed for app ${app.appName.value}. WSM response: ${result}",
+              Some(ctx.traceId)
+            )
+          )
+        } else F.unit
+
+      // Update record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
     } yield ()
 
   private def deleteWsmResource(workspaceId: WorkspaceId,
@@ -826,16 +901,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           F.delay(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
         case WsmResourceType.AzureDatabase =>
           F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
-        case WsmResourceType.AzureKubernetesNamespace =>
-          // TODO delete namespace is async; should we poll or fire-and-forget?
-          val body = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
-            new JobControl().id(wsmResource.resourceId.value.toString)
-          )
-          F.delay(wsmApi.deleteAzureKubernetesNamespace(body, workspaceId.value, wsmResource.resourceId.value))
         case _ =>
           // only managed identities, databases, and namespaces are supported for apps.
           F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
+      // Update record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
     } yield ()
 
     delete.handleErrorWith {

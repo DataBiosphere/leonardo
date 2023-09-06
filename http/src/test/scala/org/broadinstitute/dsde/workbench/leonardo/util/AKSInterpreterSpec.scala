@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import bio.terra.workspace.api.ControlledAzureResourceApi
-import bio.terra.workspace.model._
+import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, _}
 import cats.effect.IO
 import com.azure.resourcemanager.containerservice.models.KubernetesCluster
 import io.kubernetes.client.openapi.apis.CoreV1Api
@@ -460,6 +460,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val api = mock[ControlledAzureResourceApi]
     val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
     val namespacesByJob = mutable.Map.empty[String, CreateControlledAzureKubernetesNamespaceRequestBody]
+    // Create managed identity
     when {
       api.createAzureManagedIdentity(any, any)
     } thenAnswer { invocation =>
@@ -470,6 +471,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           new AzureManagedIdentityResource().metadata(new ResourceMetadata().name(requestBody.getCommon.getName))
         )
     }
+    // Create database
     when {
       api.createAzureDatabase(any, any)
     } thenAnswer { invocation =>
@@ -479,6 +481,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       dbsByJob += (jobId -> requestBody)
       new CreatedControlledAzureDatabaseResult().resourceId(uuid)
     }
+    // Get create database job result
     when {
       api.getCreateAzureDatabaseResult(any, any)
     } thenAnswer { invocation =>
@@ -502,6 +505,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
         .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
+    // Create Kubernetes Namespace
     when {
       api.createAzureKubernetesNamespace(any, any)
     } thenAnswer { invocation =>
@@ -511,6 +515,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       namespacesByJob += (jobId -> requestBody)
       new CreatedControlledAzureKubernetesNamespaceResult().resourceId(uuid)
     }
+    // Get create Kubernetes Namespace job result
     when {
       api.getCreateAzureKubernetesNamespaceResult(any, any)
     } thenAnswer { invocation =>
@@ -536,6 +541,21 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .jobReport(
           new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
         )
+    }
+    // Delete Kubernetes Namespace
+    when {
+      api.deleteAzureKubernetesNamespace(any, any, any)
+    } thenAnswer { invocation =>
+      val request = invocation.getArgument[DeleteControlledAzureResourceRequest](0)
+      new DeleteControlledAzureResourceResult().jobReport(
+        new JobReport().status(JobReport.StatusEnum.SUCCEEDED).id(request.getJobControl.getId)
+      )
+    }
+    // Get delete Kubernetes Namespace job
+    when {
+      api.getDeleteAzureKubernetesNamespaceResult(any, any)
+    } thenReturn {
+      new DeleteControlledAzureResourceResult().jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
     when {
       wsm.getControlledAzureResourceApi(any)
