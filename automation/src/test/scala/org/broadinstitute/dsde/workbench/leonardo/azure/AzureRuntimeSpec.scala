@@ -104,10 +104,10 @@ class AzureRuntimeSpec
           s"AzureRuntimeSpec: about to test proxyUrl"
         )
 //TODO
-//        _ <- GeneratedLeonardoClient.client.use { c =>
-//          implicit val client = c
-//          GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)
-//        }
+        _ <- GeneratedLeonardoClient.client.use { c =>
+          implicit val client = c
+          GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)
+        }
 
         _ <- loggerIO.info(
           s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
