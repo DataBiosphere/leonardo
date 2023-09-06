@@ -106,7 +106,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       json <- io.circe.parser.parse(inputString)
       r <- json.as[RuntimeConfigRequest.DataprocConfig]
     } yield r
-    decodeResult.leftMap(_.getMessage) shouldBe Left("DecodingFailure at : Minimum required masterDiskSize is 50GB")
+    decodeResult.leftMap(_.getMessage) shouldBe Left("Minimum required masterDiskSize is 50GB")
   }
 
   it should "fail with oneWorkerSpecifiedDecodingFailure when numberOfPreemptibleWorkers is negative" in {
