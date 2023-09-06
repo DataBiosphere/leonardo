@@ -14,7 +14,7 @@ BEE_NAME=[Your BEE instance name] ./render-local-env.sh [branch of firecloud-aut
 * Vault auth token
 	* Defaults to reading it from the .vault-token via `$(cat ~/.vault-token)`.
 * env
-	* Environment of your FiaB; defaults to `dev`
+	* Environment of your BEE; defaults to `dev`
 * service root
 	* the name of your local clone of leonardo if not `leonardo`
 

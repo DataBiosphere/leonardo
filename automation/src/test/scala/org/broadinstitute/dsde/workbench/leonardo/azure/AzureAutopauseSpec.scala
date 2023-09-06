@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.azure
 
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
@@ -7,15 +9,12 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   AzureDiskConfig,
   ClusterStatus,
   CreateAzureRuntimeRequest,
-  DiskStatus
 }
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
-import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.scalatest.prop.TableDrivenPropertyChecks
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.scalatest.{ParallelTestExecution, Retries}
+import org.broadinstitute.dsde.workbench.service.test.CleanUp
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
 
 import scala.concurrent.duration._
 class AzureAutopauseSpec
@@ -27,6 +26,7 @@ class AzureAutopauseSpec
     with CleanUp {
 
   implicit val accessToken = Hermione.authToken()
+
   "azure runtime autopauses" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
@@ -38,7 +38,6 @@ class AzureAutopauseSpec
       for {
         _ <- loggerIO.info(s"AzureAutoPauseSpec: About to create runtime")
         runtimeClient <- GeneratedLeonardoClient.generateRuntimesApi
-        diskClient <- GeneratedLeonardoClient.generateDisksApi
 
         // autopause set to 15 minutes to make sure metrics monitor call is ignored (doesn't reset the clock)
         createReq = new CreateAzureRuntimeRequest()
@@ -58,7 +57,6 @@ class AzureAutopauseSpec
         // ------------------ Waiting for Create ------------------ //
 
         // Verify the initial getRuntime call
-        _ <- IO.sleep(5 seconds)
         callGetRuntime = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
 
         intitialGetRuntimeResponse <- callGetRuntime
@@ -93,9 +91,9 @@ class AzureAutopauseSpec
 
         monitorAutoPauseResult <- streamUntilDoneOrTimeout(
           callGetRuntimeStopping,
-          240,
+          120,
           10 seconds,
-          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopping after 40 minutes"
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopping after 20 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPING))
 
         _ <- loggerIO.info(
@@ -112,9 +110,9 @@ class AzureAutopauseSpec
 
         monitorStoppingResult <- streamUntilDoneOrTimeout(
           callGetRuntimeStopped,
-          60,
+          30,
           10 seconds,
-          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopped after 10 minutes"
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopped after 5 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
 
         _ <- loggerIO.info(
