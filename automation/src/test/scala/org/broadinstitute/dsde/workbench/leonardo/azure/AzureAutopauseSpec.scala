@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   AzureDiskConfig,
   ClusterStatus,
-  CreateAzureRuntimeRequest,
+  CreateAzureRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
