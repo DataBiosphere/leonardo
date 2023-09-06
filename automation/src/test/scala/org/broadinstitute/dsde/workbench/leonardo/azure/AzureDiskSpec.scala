@@ -182,7 +182,7 @@ class AzureDiskSpec
           // TODO: https://broadworkbench.atlassian.net/browse/IA-4524, ssh into vm and verify disk contents
           disk2 <- getDisk2
           _ = disk2.getStatus() shouldBe DiskStatus.READY
-          // TODO: verify disk Id
+          _ = disk2.getId() shouldBe monitorGetDisk.getId()
 
         } yield ()
       res.unsafeRunSync()

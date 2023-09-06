@@ -2,14 +2,9 @@ package org.broadinstitute.dsde.workbench
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.api.{DisksApi, RuntimesApi}
+import org.broadinstitute.dsde.workbench.client.leonardo.api.{DisksApi, RuntimesApi, ProxyApi}
 import org.broadinstitute.dsde.workbench.client.leonardo.ApiClient
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{
-  ClusterStatus,
-  DiskStatus,
-  GetPersistentDiskV2Response,
-  GetRuntimeResponse
-}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{GetPersistentDiskV2Response, GetRuntimeResponse, DiskStatus, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoConfig
 import org.http4s.Uri
 
@@ -37,6 +32,14 @@ object GeneratedLeonardoClient {
       apiClient <- getClient()
       api <- IO(new DisksApi(apiClient))
     } yield api
+
+  def generateProxyApi(runtime: GetRuntimeResponse)(implicit accessToken: IO[AuthToken]): IO[ApiClient] =
+    for {
+      apiClient <- getClient()
+      client <- IO(apiClient.setBasePath(s"${runtime.getProxyUrl}/lab"))
+//      x: Call = new Call
+//      _ <- client.execute(Call())
+    } yield client
 
   private def getClient()(implicit accessToken: IO[AuthToken]): IO[ApiClient] =
     for {

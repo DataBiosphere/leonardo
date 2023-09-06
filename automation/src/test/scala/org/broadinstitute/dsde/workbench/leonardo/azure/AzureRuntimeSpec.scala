@@ -43,6 +43,7 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
         runtimeClient <- GeneratedLeonardoClient.generateRuntimesApi
         diskClient <- GeneratedLeonardoClient.generateDisksApi
+        proxyClient <- GeneratedLeonardoClient.generateProxyApi
 
         createReq = new CreateAzureRuntimeRequest()
           .labels(labelMap)
