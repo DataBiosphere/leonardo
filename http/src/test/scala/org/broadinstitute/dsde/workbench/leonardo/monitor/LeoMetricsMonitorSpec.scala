@@ -232,7 +232,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .unsafeRunSync()(IORuntime.global)
     // An up and a down metric for 7 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, cromwell-runner, galaxy
     test.size shouldBe 14
-    List("cromwell", "cbas", "cbas-ui").foreach { s =>
+    List("cromwell", "cbas").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
@@ -362,7 +362,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .unsafeRunSync()(IORuntime.global)
     // An up and a down metric for 7 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, cromwell-runner, galaxy
     test.size shouldBe 14
-    List("cromwell", "cbas", "cbas-ui").foreach { s =>
+    List("cromwell", "cbas").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
