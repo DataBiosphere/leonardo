@@ -349,29 +349,60 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       saveApp <- IO(app.save())
 
       appId = saveApp.id
+      databaseId = UUID.randomUUID()
       _ <- appControlledResourceQuery
         .insert(appId.id,
-                WsmControlledResourceId(UUID.randomUUID()),
+                WsmControlledResourceId(databaseId),
                 WsmResourceType.AzureDatabase,
                 AppControlledResourceStatus.Created
         )
         .transaction
+      namespaceId = UUID.randomUUID()
       _ <- appControlledResourceQuery
         .insert(appId.id,
-                WsmControlledResourceId(UUID.randomUUID()),
+                WsmControlledResourceId(namespaceId),
                 WsmResourceType.AzureKubernetesNamespace,
                 AppControlledResourceStatus.Created
         )
         .transaction
+      identityId = UUID.randomUUID()
       _ <- appControlledResourceQuery
         .insert(appId.id,
-                WsmControlledResourceId(UUID.randomUUID()),
+                WsmControlledResourceId(identityId),
                 WsmResourceType.AzureManagedIdentity,
                 AppControlledResourceStatus.Created
         )
         .transaction
 
-      _ <- aksInterp.deleteAppWsmResources(saveApp, workspaceId)
+      _ <- aksInterp.deleteWsmResource(
+        workspaceId,
+        saveApp,
+        AppControlledResourceRecord(appId.id,
+                                    WsmControlledResourceId(databaseId),
+                                    WsmResourceType.AzureDatabase,
+                                    AppControlledResourceStatus.Created
+        )
+      )
+
+      _ <- aksInterp.deleteWsmNamespaceResource(
+        workspaceId,
+        saveApp,
+        AppControlledResourceRecord(appId.id,
+                                    WsmControlledResourceId(namespaceId),
+                                    WsmResourceType.AzureKubernetesNamespace,
+                                    AppControlledResourceStatus.Created
+        )
+      )
+
+      _ <- aksInterp.deleteWsmResource(
+        workspaceId,
+        saveApp,
+        AppControlledResourceRecord(appId.id,
+                                    WsmControlledResourceId(identityId),
+                                    WsmResourceType.AzureManagedIdentity,
+                                    AppControlledResourceStatus.Created
+        )
+      )
 
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created)
