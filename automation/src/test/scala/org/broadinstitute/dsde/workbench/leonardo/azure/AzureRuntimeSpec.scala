@@ -103,7 +103,7 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: about to test proxyUrl"
         )
-//TODO
+
         _ <- GeneratedLeonardoClient.client.use { c =>
           implicit val client = c
           GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)

@@ -52,12 +52,6 @@ object GeneratedLeonardoClient {
       api <- IO(new DisksApi(apiClient))
     } yield api
 
-  def generateProxyApi(runtime: GetRuntimeResponse)(implicit accessToken: IO[AuthToken]): IO[ApiClient] =
-    for {
-      apiClient <- getClient()
-      client <- IO(apiClient.setBasePath(s"${runtime.getProxyUrl}/lab"))
-    } yield client
-
   def testProxyUrl(
     runtime: org.broadinstitute.dsde.workbench.client.leonardo.model.GetRuntimeResponse
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
