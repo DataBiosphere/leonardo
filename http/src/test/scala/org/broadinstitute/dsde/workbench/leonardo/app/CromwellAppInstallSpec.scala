@@ -102,6 +102,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "identity.enabled=false," +
       "workloadIdentity.enabled=true," +
       "workloadIdentity.serviceAccountName=ksa-1," +
+      "identity.name=ksa-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
