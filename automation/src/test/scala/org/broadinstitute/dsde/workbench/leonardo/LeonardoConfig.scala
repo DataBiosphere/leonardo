@@ -29,10 +29,11 @@ object LeonardoConfig extends CommonConfig {
 
     val publisherConfig: PublisherConfig = PublisherConfig(GCS.pathToQAJson, topic)
 
-    val tenantId = azure.getString("tenantId")
-    val subscriptionId = azure.getString("subscriptionId")
-    val managedResourceGroup = azure.getString("managedResourceGroup")
-    val workspaceId = WorkspaceId(UUID.fromString(azure.getString("workspaceId")))
+    // TODO: test these in generation script
+    val vmUser = azure.getString("leoVmUser")
+    val vmPassword = azure.getString("leoVmPassword")
+    val bastionName = azure.getString("bastionName")
+    val defaultBastionPort = azure.getInt("defaultBastionPort")
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson
