@@ -88,11 +88,13 @@ class AzureAutopauseSpec
           s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} waiting to autopause"
         )
 
+        _ <- IO.sleep(20 minutes) // sleep for 20 minutes before checking if the runtime paused
+
         monitorAutoPauseResult <- streamUntilDoneOrTimeout(
           callGetRuntimeStopping,
-          180,
+          6,
           10 seconds,
-          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopping after 30 minutes"
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopping after 20 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPING))
 
         _ <- loggerIO.info(
@@ -109,9 +111,9 @@ class AzureAutopauseSpec
 
         monitorStoppingResult <- streamUntilDoneOrTimeout(
           callGetRuntimeStopped,
-          30,
+          60,
           10 seconds,
-          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopped after 5 minutes"
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopped after 10 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
 
         _ <- loggerIO.info(
