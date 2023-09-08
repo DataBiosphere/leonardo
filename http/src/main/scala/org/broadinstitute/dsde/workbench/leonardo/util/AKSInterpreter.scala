@@ -971,9 +971,3 @@ final case class AKSInterpreterConfig(
   listenerImage: String,
   listenerChartConfig: ListenerChartConfig
 )
-
-final case class CromwellDatabaseNames(cromwell: String, cbas: String, tes: String)
-
-sealed trait SharedDatabaseNames
-final case class WorkflowsAppDatabaseNames(cbas: String, cromwellMetadata: String) extends SharedDatabaseNames
-final case class WdsDatabaseNames(wds: String) extends SharedDatabaseNames
