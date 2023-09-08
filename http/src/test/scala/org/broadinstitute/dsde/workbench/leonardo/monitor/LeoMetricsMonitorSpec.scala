@@ -230,7 +230,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       leoMetricsMonitor
         .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
         .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 7 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, cromwell-runner, galaxy
+    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
     test.size shouldBe 14
     List("cromwell", "cbas").foreach { s =>
       test.get(
@@ -360,7 +360,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       azureDisabledMetricsMonitor
         .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
         .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 7 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, cromwell-runner, galaxy
+    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
     test.size shouldBe 14
     List("cromwell", "cbas").foreach { s =>
       test.get(
@@ -529,7 +529,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       labels = if (isAou) Map(Config.uiConfig.allOfUsLabel -> "true") else Map(Config.uiConfig.terraLabel -> "true")
     )
     val services =
-      if (isCromwell) List("cbas", "cbas-ui", "cromwell")
+      if (isCromwell) List("cbas", "cromwell")
       else if (isCromwellRunnerApp) List("cromwell-runner")
       else if (isWorkflowsApp) List("cbas", "cromwell-reader")
       else List(appType.toString.toLowerCase)
