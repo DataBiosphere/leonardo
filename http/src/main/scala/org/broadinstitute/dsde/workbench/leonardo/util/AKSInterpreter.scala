@@ -684,14 +684,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // Build create DB request
 
     // Name of the database. Must be unique per landing zone.
-    val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}_db"
+    val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
 
     // Name of the WSM resource. Must be unique per workspace.
     // For shared apps, name it by the databasePrefix so it's semantically meaningful.
     // There can only be at most 1 shared app type per workspace anyway.
     // For private apps, use the database name to ensure uniqueness.
     val wsmResourceName = app.samResourceId.resourceType match {
-      case SamResourceType.SharedApp => s"${database.prefix}_db"
+      case SamResourceType.SharedApp => database.prefix
       case _                         => dbName
     }
 
