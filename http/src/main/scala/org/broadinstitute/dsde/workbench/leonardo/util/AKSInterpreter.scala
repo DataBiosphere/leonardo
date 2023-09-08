@@ -620,7 +620,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // There can only be at most 1 shared app type per workspace anyway.
       // For private apps, use managed identity name to ensure uniqueness.
       wsmResourceName = app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => app.appType.toString.toLowerCase
+        case SamResourceType.SharedApp => s"id${app.appType.toString.toLowerCase}"
         case _                         => identityName
       }
 
@@ -684,14 +684,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // Build create DB request
 
     // Name of the database. Must be unique per landing zone.
-    val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
+    val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}_db"
 
     // Name of the WSM resource. Must be unique per workspace.
     // For shared apps, name it by the databasePrefix so it's semantically meaningful.
     // There can only be at most 1 shared app type per workspace anyway.
     // For private apps, use the database name to ensure uniqueness.
     val wsmResourceName = app.samResourceId.resourceType match {
-      case SamResourceType.SharedApp => database.prefix
+      case SamResourceType.SharedApp => s"${database.prefix}_db"
       case _                         => dbName
     }
 
@@ -780,7 +780,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // There can only be at most 1 shared app type per workspace anyway.
       // For private apps, use the namespacePrefix to ensure uniqueness.
       wsmResourceName = app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => app.appType.toString.toLowerCase
+        case SamResourceType.SharedApp => s"${app.appType.toString.toLowerCase}-ns"
         case _                         => namespacePrefix
       }
 
