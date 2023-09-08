@@ -6,6 +6,7 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureApplicationInsightsService
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.WdsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -27,12 +28,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
   F: Async[F]
 ) extends AppInstall[F] {
   override def databases: List[Database] =
-    List(
-      Database("wds",
-               // The WDS database should only be accessed by WDS-app
-               allowAccessForAllWorkspaceUsers = false
-      )
-    )
+    List(CreateDatabase("wds"))
 
   override def buildHelmOverrideValues(
     params: BuildHelmOverrideValuesParams

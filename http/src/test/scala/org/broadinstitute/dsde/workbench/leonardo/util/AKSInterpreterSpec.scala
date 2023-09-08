@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, _}
 import cats.effect.IO
 import com.azure.resourcemanager.containerservice.models.KubernetesCluster
@@ -13,7 +13,8 @@ import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, Database}
+import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -261,7 +262,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       createdDatabase <- aksInterp.createWsmDatabaseResource(saveApp,
                                                              workspaceId,
-                                                             Database("test", false),
+                                                             CreateDatabase("test", false),
                                                              "wds",
                                                              Some(owner),
                                                              mockControlledResourceApi
@@ -493,6 +494,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   private def setUpMockWsmApiClientProvider: (WsmApiClientProvider, ControlledAzureResourceApi) = {
     val wsm = mock[WsmApiClientProvider]
     val api = mock[ControlledAzureResourceApi]
+    val resourceApi = mock[ResourceApi]
     val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
     val namespacesByJob = mutable.Map.empty[String, CreateControlledAzureKubernetesNamespaceRequestBody]
     // Create managed identity
@@ -594,9 +596,16 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       new DeleteControlledAzureResourceResult().jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
+    // Enumerate resources
+    when {
+      resourceApi.enumerateResources(any, any, any, any, any)
+    } thenReturn new ResourceList()
     when {
       wsm.getControlledAzureResourceApi(any)
     } thenReturn api
+    when {
+      wsm.getResourceApi(any)
+    } thenReturn resourceApi
     (wsm, api)
   }
 
@@ -604,7 +613,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val appInstall = mock[AppInstall[IO]]
     when {
       appInstall.databases
-    } thenReturn List(Database("db1", false))
+    } thenReturn List(CreateDatabase("db1", false))
     when {
       appInstall.buildHelmOverrideValues(any)(any)
     } thenReturn IO.pure(Values("values"))

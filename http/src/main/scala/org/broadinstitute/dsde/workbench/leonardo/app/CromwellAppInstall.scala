@@ -5,6 +5,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -31,9 +32,9 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
 
   override def databases: List[Database] =
     List(
-      Database("cromwell", allowAccessForAllWorkspaceUsers = false),
-      Database("cbas", allowAccessForAllWorkspaceUsers = false),
-      Database("tes", allowAccessForAllWorkspaceUsers = false)
+      CreateDatabase("cromwell"),
+      CreateDatabase("cbas"),
+      CreateDatabase("tes")
     )
 
   override def buildHelmOverrideValues(

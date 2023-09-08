@@ -3,7 +3,7 @@ package leonardo
 package util
 
 import akka.http.scaladsl.model.StatusCodes
-import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model._
 import cats.effect.Async
@@ -16,7 +16,8 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
-import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams, Database}
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -280,7 +281,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, leoAuth)
 
       // Build WSM client
-      wsmApi <- buildWsmClient
+      wsmApi <- buildWsmControlledResourceApiClient
 
       // Call WSM to get the managed identity for the app.
       // This is optional because a WSM identity is only created for shared apps.
@@ -609,12 +610,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Build WSM client
-      wsmApi <- buildWsmClient
+      wsmApi <- buildWsmControlledResourceApiClient
 
-      // Build create managed identity request.
-      // Use the k8s namespace for the name. Note dashes aren't allowed.
+      // Name of the managed identity. Must be unique per landing zone.
       identityName = s"id${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
-      identityCommonFields = getWsmCommonFields(identityName, s"Identity for Leo app ${app.appName.value}", app)
+
+      // Name of the WSM resource. Must be unique per workspace.
+      // For shared apps, name it by the appType so it's semantically meaningful.
+      // There can only be at most 1 shared app type per workspace anyway.
+      // For private apps, use managed identity name to ensure uniqueness.
+      wsmResourceName = app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp => app.appType.toString.toLowerCase
+        case _                         => identityName
+      }
+
+      identityCommonFields = getWsmCommonFields(wsmResourceName, s"Identity for Leo app ${app.appName.value}", app)
       createIdentityParams = new AzureManagedIdentityCreationParameters().name(
         identityName
       )
@@ -651,8 +661,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     if (landingZoneResources.postgresServer.isDefined) {
       for {
         ctx <- ev.ask
-        wsmApi <- buildWsmClient
-        res <- appInstall.databases.traverse { database =>
+        wsmApi <- buildWsmControlledResourceApiClient
+        res <- appInstall.databases.collect { case d @ CreateDatabase(_, _) => d }.traverse { database =>
           createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
         }
       } yield res
@@ -664,7 +674,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def createWsmDatabaseResource(app: App,
                                               workspaceId: WorkspaceId,
-                                              database: Database,
+                                              database: CreateDatabase,
                                               namespacePrefix: String,
                                               owner: Option[UUID],
                                               wsmApi: ControlledAzureResourceApi
@@ -672,10 +682,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     ev: Ask[F, AppContext]
   ): F[CreatedControlledAzureDatabaseResult] = {
     // Build create DB request
-    // Use the k8s namespace for the name. Note dashes aren't allowed.
+
+    // Name of the database. Must be unique per landing zone.
     val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
+
+    // Name of the WSM resource. Must be unique per workspace.
+    // For shared apps, name it by the databasePrefix so it's semantically meaningful.
+    // There can only be at most 1 shared app type per workspace anyway.
+    // For private apps, use the database name to ensure uniqueness.
+    val wsmResourceName = app.samResourceId.resourceType match {
+      case SamResourceType.SharedApp => database.prefix
+      case _                         => dbName
+    }
+
     val databaseCommonFields =
-      getWsmCommonFields(dbName, s"${database.prefix} database for Leo app ${app.appName.value}", app)
+      getWsmCommonFields(wsmResourceName, s"${database.prefix} database for Leo app ${app.appName.value}", app)
     val createDatabaseParams = new AzureDatabaseCreationParameters()
       .name(dbName)
       .allowAccessForAllWorkspaceUsers(database.allowAccessForAllWorkspaceUsers)
@@ -743,31 +764,58 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                          namespacePrefix: String,
                                                          databases: List[UUID],
                                                          identity: Option[UUID]
-  )(implicit ev: Ask[F, AppContext]): F[CreatedControlledAzureKubernetesNamespaceResult] = {
-    // Build create namespace request
-    val namespaceCommonFields =
-      getWsmCommonFields(namespacePrefix,
-                         s"$namespacePrefix kubernetes namespace for Leo app ${app.appName.value}",
-                         app
-      )
-    val createNamespaceParams = new AzureKubernetesNamespaceCreationParameters()
-      .namespacePrefix(namespacePrefix)
-      .databases(databases.asJava)
-    identity.foreach(createNamespaceParams.setManagedIdentity)
-    val createNamespaceJobControl = new JobControl().id(namespacePrefix)
-    val createNamespaceRequest = new CreateControlledAzureKubernetesNamespaceRequestBody()
-      .common(namespaceCommonFields)
-      .azureKubernetesNamespace(createNamespaceParams)
-      .jobControl(createNamespaceJobControl)
-
+  )(implicit ev: Ask[F, AppContext]): F[CreatedControlledAzureKubernetesNamespaceResult] =
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(
         s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
       )
 
-      // Build WSM client
-      wsmApi <- buildWsmClient
+      // Build WSM clients
+      wsmApi <- buildWsmControlledResourceApiClient
+      wsmResourceApi <- buildWsmResourceApiClient
+
+      // Name of the WSM resource. Must be unique per workspace.
+      // For shared apps, name it by the appType so it's semantically meaningful.
+      // There can only be at most 1 shared app type per workspace anyway.
+      // For private apps, use the namespacePrefix to ensure uniqueness.
+      wsmResourceName = app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp => app.appType.toString.toLowerCase
+        case _                         => namespacePrefix
+      }
+
+      // Obtain external database IDs by querying WSM and filtering by name
+      // TODO this will get simpler once WSM createNamespace supports passing databases by name instead of UUID
+      wsmDatabases <- F.delay(
+        wsmResourceApi
+          .enumerateResources(workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
+          .getResources
+          .asScala
+      )
+      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      externalDatabaseIds = wsmDatabases
+        .filter(wsmDb => appExternalDatabaseNames.contains(wsmDb.getMetadata.getName))
+        .map(_.getMetadata.getResourceId)
+
+      // Build common fields
+      namespaceCommonFields =
+        getWsmCommonFields(wsmResourceName,
+                           s"$namespacePrefix kubernetes namespace for Leo app ${app.appName.value}",
+                           app
+        )
+
+      // Build createNamespace fields
+      createNamespaceParams = new AzureKubernetesNamespaceCreationParameters()
+        .namespacePrefix(namespacePrefix)
+        .databases((databases ++ externalDatabaseIds).asJava)
+      _ = identity.foreach(createNamespaceParams.setManagedIdentity)
+
+      // Build request
+      createNamespaceJobControl = new JobControl().id(namespacePrefix)
+      createNamespaceRequest = new CreateControlledAzureKubernetesNamespaceRequestBody()
+        .common(namespaceCommonFields)
+        .azureKubernetesNamespace(createNamespaceParams)
+        .jobControl(createNamespaceJobControl)
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace request: ${createNamespaceRequest}")
 
@@ -815,7 +863,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .transaction
     } yield result
-  }
 
   private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
                                                app: App,
@@ -827,7 +874,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ctx <- ev.ask
 
       // Build WSM client
-      wsmApi <- buildWsmClient
+      wsmApi <- buildWsmControlledResourceApiClient
 
       // Build delete namespace request
       jobId = UUID.randomUUID()
@@ -883,7 +930,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[Unit] = {
     val delete = for {
       ctx <- ev.ask
-      wsmApi <- buildWsmClient
+      wsmApi <- buildWsmControlledResourceApiClient
       _ <- logger.info(ctx.loggingCtx)(
         s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
       )
@@ -952,7 +999,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
     }
 
-  private def buildWsmClient: F[ControlledAzureResourceApi] =
+  private def buildWsmControlledResourceApiClient: F[ControlledAzureResourceApi] =
     for {
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {
@@ -960,6 +1007,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmApi
+
+  private def buildWsmResourceApiClient: F[ResourceApi] =
+    for {
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi = wsmClientProvider.getResourceApi(token)
     } yield wsmApi
 }
 
