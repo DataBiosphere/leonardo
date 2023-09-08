@@ -76,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.336"),
+          ChartVersion("0.2.341"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -125,21 +125,22 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         CromwellRunnerAppConfig(
           ChartName("/leonardo/cromwell-runner-app"),
           ChartVersion("0.16.0"),
-          ReleaseNameSuffix("cromwell-runner-app-rls"),
-          NamespaceNameSuffix("cromwell-runner-app-ns"),
-          KsaName("cromwell-runner-app-ksa"),
+          ReleaseNameSuffix("cra-rls"),
+          NamespaceNameSuffix("cra-ns"),
+          KsaName("cra-ksa"),
           List(
-            ServiceConfig(ServiceName("cromwell-writer"), KubernetesServiceKindName("ClusterIP"))
+            ServiceConfig(ServiceName("cromwell-runner"),
+                          KubernetesServiceKindName("ClusterIP"),
+                          Some(ServicePath("/cromwell"))
+            )
           ),
           instrumentationEnabled = false,
           enabled = false,
-          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.24.0"),
+          ChartVersion("0.30.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
