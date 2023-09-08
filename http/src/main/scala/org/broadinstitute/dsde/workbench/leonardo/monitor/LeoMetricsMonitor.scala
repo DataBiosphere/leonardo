@@ -31,7 +31,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               appDAO: AppDAO[F],
                               wdsDAO: WdsDAO[F],
                               cbasDAO: CbasDAO[F],
-                              cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
                               hailBatchDAO: HailBatchDAO[F],
                               listenerDAO: ListenerDAO[F],
@@ -173,8 +172,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 relayPath = Uri
                   .unsafeFromString(baseUri.asString) / s"${app.appName.value}-${app.workspaceId.map(_.value.toString).getOrElse("")}"
                 isUp <- serviceName match {
-                  case ServiceName("cbas")    => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cbas-ui") => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cbas") => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("cromwell") | ServiceName("cromwell-reader") | ServiceName("cromwell-runner") =>
                     cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("wds")   => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
