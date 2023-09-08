@@ -5,7 +5,14 @@ import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.util.AKSInterpreterConfig
-import org.broadinstitute.dsde.workbench.leonardo.{App, AppContext, AppType, LandingZoneResources, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
+  AppContext,
+  AppType,
+  LandingZoneResources,
+  ManagedIdentityName,
+  WorkspaceId
+}
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -52,6 +59,7 @@ final case class BuildHelmOverrideValuesParams(app: App,
                                                storageContainer: Option[StorageContainerResponse],
                                                relayPath: Uri,
                                                ksaName: ServiceAccountName,
+                                               managedIdentityName: ManagedIdentityName,
                                                databaseNames: List[String],
                                                config: AKSInterpreterConfig
 )

@@ -499,7 +499,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       new CreatedControlledAzureManagedIdentity()
         .resourceId(requestBody.getCommon.getResourceId)
         .azureManagedIdentity(
-          new AzureManagedIdentityResource().metadata(new ResourceMetadata().name(requestBody.getCommon.getName))
+          new AzureManagedIdentityResource()
+            .metadata(new ResourceMetadata().name(requestBody.getCommon.getName))
+            .attributes(new AzureManagedIdentityAttributes().managedIdentityName(requestBody.getCommon.getName))
         )
     }
     // Create database
