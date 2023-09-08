@@ -311,7 +311,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // The k8s namespace name and service account name are in the WSM response
-      namespaceName = NamespaceName(wsmNamespace.getMetadata.getName)
+      namespaceName = NamespaceName(wsmNamespace.getAttributes.getKubernetesNamespace)
       ksaName = ServiceAccountName(wsmNamespace.getAttributes.getKubernetesServiceAccount)
 
       // The managed identity name is either the WSM identity (for shared apps) or the
