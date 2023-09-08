@@ -98,7 +98,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
         // identity configs
         raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
-        // TODO: cromwell-runner-app doesn't read this value. See:
         raw"identity.name=${params.managedIdentityName.value}",
 
         // Enabled services configs
