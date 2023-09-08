@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
-import org.broadinstitute.dsde.workbench.leonardo.PostgresServer
+import org.broadinstitute.dsde.workbench.leonardo.{ManagedIdentityName, PostgresServer}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -75,6 +75,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       Some(storageContainer),
       Uri.unsafeFromString("https://relay.com/app"),
       ServiceAccountName("ksa-1"),
+      ManagedIdentityName("mi-1"),
       List("cromwell1", "cbas1", "tes1"),
       aksInterpConfig
     )
@@ -102,7 +103,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "identity.enabled=false," +
       "workloadIdentity.enabled=true," +
       "workloadIdentity.serviceAccountName=ksa-1," +
-      "identity.name=ksa-1," +
+      "identity.name=mi-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +

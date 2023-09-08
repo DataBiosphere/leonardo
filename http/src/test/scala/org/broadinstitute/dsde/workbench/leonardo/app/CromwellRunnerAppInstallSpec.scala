@@ -41,6 +41,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       "workloadIdentity.serviceAccountName=ksa-1," +
+      "identity.name=mi-1," +
       "cromwell.enabled=false," +
       "fullnameOverride=cra-rel-1," +
       "instrumentationEnabled=false," +
