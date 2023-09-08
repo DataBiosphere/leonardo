@@ -250,7 +250,7 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 }
 
 final case class AzureBillingProjectName(value: String) extends AnyVal
-trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAfterAll {
+trait AzureBilling extends FixtureAnyFreeSpecLike {
   this: TestSuite =>
   import io.circe.{parser, Decoder}
   import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -268,20 +268,6 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     "staticTestingMrg",
     Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
   )
-
-  override def beforeAll(): Unit = {
-    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val res = for {
-      _ <- IO(super.beforeAll())
-      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
-        IO(sys.props.put(azureProjectKey, projectName))
-      }
-      // hardcode this if you want to use a static billing project
-//  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
-    } yield ()
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
@@ -449,4 +435,21 @@ final class LeonardoAzureSuite
       new AzureDiskSpec
     )
     with TestSuite
+    with AzureBilling
     with ParallelTestExecution
+    with BeforeAndAfterAll {
+  override def beforeAll(): Unit = {
+    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val res = for {
+      _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
+      _ <- IO(super.beforeAll())
+      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
+        IO(sys.props.put(azureProjectKey, projectName))
+      }
+      // hardcode this if you want to use a static billing project
+      //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
+    } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+}

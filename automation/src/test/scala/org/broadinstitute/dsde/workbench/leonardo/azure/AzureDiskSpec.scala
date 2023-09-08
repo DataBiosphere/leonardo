@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   AzureDiskConfig,
   ClusterStatus,
@@ -14,21 +15,22 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.scalatest.{ParallelTestExecution, Retries}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 
 import scala.concurrent.duration._
 
+@DoNotDiscover
 class AzureDiskSpec
-    extends AzureBillingBeforeAndAfter
+    extends AzureBilling
     with LeonardoTestUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks
     with Retries
     with CleanUp {
 
-  implicit val accessToken = Hermione.authToken()
+  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
 
   "create a disk, keep it on runtime delete, and then attach it to a new runtime" taggedAs ExcludeFromJenkins in {
     workspaceDetails =>
@@ -181,7 +183,7 @@ class AzureDiskSpec
           // TODO: https://broadworkbench.atlassian.net/browse/IA-4524, ssh into vm and verify disk contents
           disk2 <- getDisk2
           _ = disk2.getStatus() shouldBe DiskStatus.READY
-          // TODO: verify disk Id
+          _ = disk2.getId() shouldBe monitorGetDisk.getId()
 
         } yield ()
       res.unsafeRunSync()
