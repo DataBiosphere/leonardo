@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.Values
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
@@ -124,6 +125,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+          ),
+          googleServiceAccount = WorkbenchEmail(
+            "/subscriptions/sub/resourcegroups/mrg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/mi-1"
           )
         )
         saveApp <- IO(app.save())

@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.AKSInterpreterConfig
 import org.broadinstitute.dsde.workbench.leonardo.{
   LandingZoneResources,
   LeonardoTestSuite,
+  ManagedIdentityName,
   NodepoolLeoId,
   PostgresServer,
   StorageAccountName,
@@ -90,6 +91,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
       Some(storageContainer),
       Uri.unsafeFromString("https://relay.com/app"),
       ServiceAccountName("ksa-1"),
+      ManagedIdentityName("mi-1"),
       databases,
       aksInterpConfig
     )
