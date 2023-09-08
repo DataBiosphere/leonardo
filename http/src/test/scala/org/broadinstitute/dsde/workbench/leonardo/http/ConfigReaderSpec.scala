@@ -89,7 +89,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List(
-            ChartVersion("0.2.342"),
+            ChartVersion("0.2.341"),
             ChartVersion("0.2.338"),
             ChartVersion("0.2.334"),
             ChartVersion("0.2.332"),
@@ -201,8 +201,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ChartVersion("0.39.0"),
             ChartVersion("0.41.0"),
             ChartVersion("0.42.0"),
-            ChartVersion("0.43.0"),
-            ChartVersion("0.44.0")
+            ChartVersion("0.43.0")
           )
         ),
         HailBatchAppConfig(
