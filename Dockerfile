@@ -23,18 +23,24 @@ EXPOSE 5050
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
-ENV TERRA_APP_SETUP_VERSION 0.0.19
+ENV TERRA_APP_SETUP_VERSION 0.1.0
 ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.291
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.291
-ENV WDS_CHART_VERSION 0.31.0
+ENV CROMWELL_CHART_VERSION 0.2.341
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.341
+# These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
+ENV CROMWELL_RUNNER_APP_VERSION 0.16.0
+# WORKFLOWS APP comment to prevent merge conflicts
+ENV WORKFLOWS_APP_VERSION 0.30.0
+# WDS CHART comment to prevent merge conflicts
+ENV WDS_CHART_VERSION 0.43.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.2.0
 ENV SAS_CHART_VERSION 0.1.0
+ENV LISTENER_CHART_VERSION 0.2.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -72,9 +78,12 @@ RUN cd /leonardo && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
+    helm pull terra-helm/workflows-app --version $WORKFLOWS_APP_VERSION --untar && \
+    helm pull terra-helm/cromwell-runner-app --version $CROMWELL_RUNNER_APP_VERSION --untar && \
     helm pull aou-rstudio-chart/aou-rstudio-chart --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull aou-sas-chart/aou-sas-chart --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
+    helm pull terra-helm/listener --version $LISTENER_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools

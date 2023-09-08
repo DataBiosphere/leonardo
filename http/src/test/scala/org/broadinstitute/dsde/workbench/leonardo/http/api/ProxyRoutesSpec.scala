@@ -51,7 +51,7 @@ class ProxyRoutesSpec
     with GcsPathUtils
     with TestLeoRoutes
     with MockitoSugar {
-  implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
+  implicit val patience: PatienceConfig = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   override def proxyConfig: ProxyConfig = CommonTestData.proxyConfig
 
   val clusterName = "test"

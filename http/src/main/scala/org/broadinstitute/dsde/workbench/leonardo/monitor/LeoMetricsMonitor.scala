@@ -34,6 +34,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
                               hailBatchDAO: HailBatchDAO[F],
+                              listenerDAO: ListenerDAO[F],
                               samDAO: SamDAO[F],
                               kubeAlg: KubernetesAlgebra[F],
                               azureContainerService: AzureContainerService[F]
@@ -172,11 +173,14 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 relayPath = Uri
                   .unsafeFromString(baseUri.asString) / s"${app.appName.value}-${app.workspaceId.map(_.value.toString).getOrElse("")}"
                 isUp <- serviceName match {
-                  case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cbas-ui")  => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("batch")    => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cbas")    => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cbas-ui") => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cromwell") | ServiceName("cromwell-reader") | ServiceName("cromwell-runner") =>
+                    cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("wds")   => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("batch") => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case s if s == ConfigReader.appConfig.azure.listenerChartConfig.service.config.name =>
+                    listenerDAO.getStatus(relayPath).handleError(_ => false)
                   case s =>
                     logger.warn(ctx.loggingCtx)(
                       s"Unexpected app service encountered during health checks: ${s.value}"

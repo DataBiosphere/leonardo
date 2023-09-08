@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 import java.net.URL
 
-sealed trait KubernetesAppConfig {
+sealed trait KubernetesAppConfig extends Product with Serializable {
   def chartName: ChartName
 
   def chartVersion: ChartVersion
@@ -49,7 +49,7 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  enabled: Boolean,
                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Galaxy
@@ -65,7 +65,7 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    enabled: Boolean,
                                    chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Cromwell
@@ -83,7 +83,7 @@ final case class CustomAppConfig(chartName: ChartName,
                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   // Not known at config. Generated at runtime.
-  override lazy val kubernetesServices: List[KubernetesService] = List.empty
+  override val kubernetesServices: List[KubernetesService] = List.empty
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Custom
@@ -101,13 +101,14 @@ final case class CoaAppConfig(chartName: ChartName,
                               databaseEnabled: Boolean,
                               chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.Cromwell
 
-  def coaServices: Set[CoaService] = services
+  def coaServices: Set[WorkflowsAppService] = services
     .map(_.name)
     .collect {
       case ServiceName("cbas")     => Cbas
@@ -115,6 +116,40 @@ final case class CoaAppConfig(chartName: ChartName,
       case ServiceName("cromwell") => Cromwell
     }
     .toSet
+}
+
+final case class WorkflowsAppConfig(chartName: ChartName,
+                                    chartVersion: ChartVersion,
+                                    releaseNameSuffix: ReleaseNameSuffix,
+                                    namespaceNameSuffix: NamespaceNameSuffix,
+                                    ksaName: KsaName,
+                                    services: List[ServiceConfig],
+                                    instrumentationEnabled: Boolean,
+                                    enabled: Boolean,
+                                    dockstoreBaseUrl: URL,
+                                    chartVersionsToExcludeFromUpdates: List[ChartVersion]
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
+
+  val cloudProvider: CloudProvider = CloudProvider.Azure
+  val appType: AppType = AppType.WorkflowsApp
+}
+
+final case class CromwellRunnerAppConfig(chartName: ChartName,
+                                         chartVersion: ChartVersion,
+                                         releaseNameSuffix: ReleaseNameSuffix,
+                                         namespaceNameSuffix: NamespaceNameSuffix,
+                                         ksaName: KsaName,
+                                         services: List[ServiceConfig],
+                                         instrumentationEnabled: Boolean,
+                                         enabled: Boolean,
+                                         chartVersionsToExcludeFromUpdates: List[ChartVersion]
+) extends KubernetesAppConfig {
+  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
+  val cloudProvider: CloudProvider = CloudProvider.Azure
+  val appType: AppType = AppType.CromwellRunnerApp
 }
 
 final case class WdsAppConfig(chartName: ChartName,
@@ -144,36 +179,41 @@ final case class HailBatchAppConfig(chartName: ChartName,
                                     enabled: Boolean,
                                     chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.HailBatch
 }
 
-final case class RStudioAppConfig(chartName: ChartName,
-                                  chartVersion: ChartVersion,
+final case class ContainerRegistryUsername(asString: String) extends AnyVal
+final case class ContainerRegistryPassword(asString: String) extends AnyVal
+final case class ContainerRegistryCredentials(username: ContainerRegistryUsername, password: ContainerRegistryPassword)
+final case class AllowedAppConfig(chartName: ChartName,
+                                  rstudioChartVersion: ChartVersion,
+                                  sasChartVersion: ChartVersion,
                                   namespaceNameSuffix: NamespaceNameSuffix,
                                   releaseNameSuffix: ReleaseNameSuffix,
                                   services: List[ServiceConfig],
                                   serviceAccountName: ServiceAccountName,
-                                  enabled: Boolean,
+                                  sasContainerRegistryCredentials: ContainerRegistryCredentials,
                                   chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-
   val cloudProvider: CloudProvider = CloudProvider.Gcp
-  val appType: AppType = AppType.RStudio
+  val appType: AppType = AppType.Allowed
+
+  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  def enabled: Boolean = true
+
+  def chartVersion: ChartVersion = ChartVersion(
+    "dummy"
+  ) // For AoU apps, chart version will vary, and will be populated from user request
 }
 
-sealed trait CoaService
+sealed trait WorkflowsAppService
 
-object CoaService {
-  final case object Cbas extends CoaService
-
-  final case object CbasUI extends CoaService
-
-  final case object Cromwell extends CoaService
-
-  final case object Tes extends CoaService
+object WorkflowsAppService {
+  final case object Cbas extends WorkflowsAppService
+  final case object Cromwell extends WorkflowsAppService
+  final case object CbasUI extends WorkflowsAppService
 }

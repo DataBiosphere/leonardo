@@ -313,6 +313,27 @@ object ErrorSource {
   def stringToObject: Map[String, ErrorSource] = values.map(v => v.toString -> v).toMap
 }
 
+sealed abstract class AllowedChartName extends Product with Serializable {
+  def asString: String
+}
+object AllowedChartName {
+  final case object RStudio extends AllowedChartName {
+    def asString: String = "aou-rstudio-chart"
+  }
+  final case object Sas extends AllowedChartName {
+    def asString: String = "aou-sas-chart"
+  }
+  def stringToObject: Map[String, AllowedChartName] = sealerate.values[AllowedChartName].map(v => v.asString -> v).toMap
+
+  // Chartname from DB has the following format: /leonardo/cromwell-0.2.291
+  def fromChartName(chartName: ChartName): Option[AllowedChartName] = {
+    val splittedString = chartName.asString.split("/")
+    if (splittedString.size == 3) {
+      stringToObject.get(splittedString(2))
+    } else None
+  }
+}
+
 sealed abstract class AppType
 object AppType {
   case object Galaxy extends AppType {
@@ -320,6 +341,12 @@ object AppType {
   }
   case object Cromwell extends AppType {
     override def toString: String = "CROMWELL"
+  }
+  case object WorkflowsApp extends AppType {
+    override def toString: String = "WORKFLOWS_APP"
+  }
+  case object CromwellRunnerApp extends AppType {
+    override def toString: String = "CROMWELL_RUNNER_APP"
   }
 
   case object Wds extends AppType {
@@ -330,8 +357,9 @@ object AppType {
     override def toString: String = "HAIL_BATCH"
   }
 
-  case object RStudio extends AppType {
-    override def toString: String = "RSTUDIO"
+  // See more context in https://docs.google.com/document/d/1RaQRMqAx7ymoygP6f7QVdBbZC-iD9oY_XLNMe_oz_cs/edit
+  case object Allowed extends AppType {
+    override def toString: String = "ALLOWED"
   }
 
   case object Custom extends AppType {
@@ -348,10 +376,10 @@ object AppType {
    */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
-      case Galaxy                     => FormattedBy.Galaxy
-      case Custom                     => FormattedBy.Custom
-      case RStudio                    => FormattedBy.RStudio
-      case Cromwell | Wds | HailBatch => FormattedBy.Cromwell
+      case Galaxy                                                        => FormattedBy.Galaxy
+      case Custom                                                        => FormattedBy.Custom
+      case Allowed                                                       => FormattedBy.Allowed
+      case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp => FormattedBy.Cromwell
     }
 }
 

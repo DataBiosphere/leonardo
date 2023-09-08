@@ -138,10 +138,10 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
       resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
         samDao.getResourcePolicies[R](authHeader, resourceType)
       )
-      res = resourcePolicies.filter { case (r, pn) =>
-        sr.policyNames(r).contains(pn)
+      res = resourcePolicies.filter { case (samResourceId, policyName) =>
+        sr.policyNames(samResourceId).contains(policyName)
       }
-    } yield resources.filter(r => res.exists(_._1 == r))
+    } yield resources.filter(samResourceId => res.exists(_._1 == samResourceId))
   }
 
   def filterUserVisibleWithProjectFallback[R](
@@ -166,6 +166,46 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield resources.filter { case (project, r) =>
       owningProjects.contains(project) || res.exists(_._1 == r)
     }
+  }
+
+  def filterResourceProjectVisible[R](
+    resources: NonEmptyList[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit
+    sr: SamResource[R],
+    decoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[List[(GoogleProject, R)]] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    val resourceTypes = resources.map(r => sr.resourceType(r._2)).toList.toSet
+
+    for {
+      projectPolicies <- samDao
+        .getResourcePolicies[ProjectSamResourceId](authHeader, SamResourceType.Project)
+      readingProjects = projectPolicies.map(_._1.googleProject).toSet
+      ownedProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
+        r.googleProject
+      }
+      resourcePolicies <- resourceTypes.toList.flatTraverse(resourceType =>
+        samDao.getResourcePolicies[R](authHeader, resourceType)
+      )
+      res = resourcePolicies.filter { case (samResourceId, policyName) =>
+        sr.policyNames(samResourceId).contains(policyName)
+      }
+    } yield resources.filter { case (project, samResourceId) =>
+      // user must be a project owner or at least a reader on the project and resource
+      ownedProjects.contains(project) || (readingProjects.contains(project) && res.exists(_._1 == samResourceId))
+    }
+  }
+
+  override def isUserProjectReader(cloudContext: CloudContext, userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] = {
+    val samProjectResource = ProjectSamResourceId(GoogleProject(cloudContext.asString))
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      roles <- samDao.getResourceRoles(authHeader, samProjectResource)
+    } yield roles.nonEmpty
   }
 
   def filterWorkspaceOwner(
@@ -312,6 +352,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isGroupMembersOrAdmin(config.customAppCreationAllowedGroup, userEmail)
 
+  override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
+    samDao.isGroupMembersOrAdmin(config.sasAppCreationAllowedGroup, userEmail)
+
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isAdminUser(userInfo)
 
@@ -320,7 +363,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
                                        authCacheMaxSize: Int = 1000,
                                        authCacheExpiryTime: FiniteDuration = 15 minutes,
-                                       customAppCreationAllowedGroup: GroupName
+                                       customAppCreationAllowedGroup: GroupName,
+                                       sasAppCreationAllowedGroup: GroupName
 )
 
 private[leonardo] case class AuthCacheKey(samResourceType: SamResourceType,

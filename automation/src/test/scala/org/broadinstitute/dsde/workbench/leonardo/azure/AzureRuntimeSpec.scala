@@ -3,21 +3,22 @@ package org.broadinstitute.dsde.workbench.leonardo.azure
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
-import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
-import org.broadinstitute.dsde.workbench.service.test.CleanUp
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   AzureDiskConfig,
   ClusterStatus,
   CreateAzureRuntimeRequest,
   DiskStatus
 }
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.service.test.CleanUp
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.scalatest.{ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
-//@DoNotDiscover
 class AzureRuntimeSpec
     extends AzureBillingBeforeAndAfter
     with LeonardoTestUtils
@@ -26,9 +27,9 @@ class AzureRuntimeSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken = Hermione.authToken()
+  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
 
-  "create, get, delete azure runtime" in { workspaceDetails =>
+  "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
@@ -76,12 +77,12 @@ class AzureRuntimeSpec
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskDuringRuntimeCreate.getId()} in creating status detected"
         )
 
-        // Verify the runtime eventually becomes Running
+        // Verify the runtime eventually becomes Running (in 40 minutes)
         monitorCreateResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          120,
+          240,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 20 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
         _ <- loggerIO.info(
@@ -99,11 +100,12 @@ class AzureRuntimeSpec
           s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
         )
 
+        callGetRuntime2 = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
         monitorDeleteResult <- streamUntilDoneOrTimeout(
-          callGetRuntime,
-          120,
+          callGetRuntime2,
+          240,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 20 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 40 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
 
         _ <- loggerIO.info(
@@ -117,6 +119,8 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
         )
+
+        _ <- IO.sleep(1 minute) // sleep for a minute before cleaning up workspace
       } yield ()
     res.unsafeRunSync()
   }

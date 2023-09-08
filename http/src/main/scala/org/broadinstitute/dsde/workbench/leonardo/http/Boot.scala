@@ -13,6 +13,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
+import fs2.io.file.Files
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
@@ -296,6 +297,7 @@ object Boot extends IOApp {
             appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
             appDependencies.hailBatchDAO,
+            appDependencies.listenerDAO,
             appDependencies.samDAO,
             appDependencies.kubeAlg,
             appDependencies.azureContainerService
@@ -344,7 +346,8 @@ object Boot extends IOApp {
     logger: StructuredLogger[F],
     ec: ExecutionContext,
     as: ActorSystem,
-    F: Async[F]
+    F: Async[F],
+    files: Files[F]
   ): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
@@ -407,6 +410,9 @@ object Boot extends IOApp {
       )
       hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
         .map(client => new HttpHailBatchDAO[F](client))
+      listenerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_listener_client"), false).map(
+        client => new HttpListenerDAO[F](client)
+      )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -425,9 +431,8 @@ object Boot extends IOApp {
       appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
-      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
-        new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
-      )
+      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true)
+        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
@@ -670,8 +675,9 @@ object Boot extends IOApp {
 
       val aksAlg = new AKSInterpreter[F](
         AKSInterpreterConfig(
-          ConfigReader.appConfig.terraAppSetupChart,
           ConfigReader.appConfig.azure.coaAppConfig,
+          ConfigReader.appConfig.azure.workflowsAppConfig,
+          ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
           ConfigReader.appConfig.azure.wdsAppConfig,
           ConfigReader.appConfig.azure.hailBatchAppConfig,
           ConfigReader.appConfig.azure.aadPodIdentityConfig,
@@ -682,7 +688,8 @@ object Boot extends IOApp {
           ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.azure.tdr
+          ConfigReader.appConfig.azure.tdr,
+          ConfigReader.appConfig.azure.listenerChartConfig
         ),
         helmClient,
         azureBatchService,
@@ -785,6 +792,7 @@ object Boot extends IOApp {
         cbasUiDao,
         cromwellDao,
         hailBatchDao,
+        listenerDao,
         wsmClientProvider,
         kubeAlg,
         azureContainerService
@@ -909,6 +917,7 @@ final case class AppDependencies[F[_]](
   cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
+  listenerDAO: ListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider,
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]

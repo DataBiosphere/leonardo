@@ -2,13 +2,28 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AllowedAppConfig,
+  CoaAppConfig,
+  Config,
+  CromwellAppConfig,
+  CromwellRunnerAppConfig,
+  CustomAppConfig,
+  GalaxyAppConfig,
+  HailBatchAppConfig,
+  HttpWsmDaoConfig,
+  KubernetesAppConfig,
+  PersistentDiskConfig,
+  WdsAppConfig,
+  WorkflowsAppConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
 import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 
 object ConfigReader {
@@ -25,20 +40,24 @@ object ConfigReader {
       Config.gkeCustomAppConfig,
       Config.gkeGalaxyAppConfig,
       appConfig.azure.hailBatchAppConfig,
-      Config.gkeRStudioAppConfig,
+      Config.gkeAllowedAppConfig,
       appConfig.azure.wdsAppConfig
     )
 }
 
-final case class AzureConfig(pubsubHandler: AzurePubsubHandlerConfig,
-                             wsm: HttpWsmDaoConfig,
-                             appRegistration: AzureAppRegistrationConfig,
-                             coaAppConfig: CoaAppConfig,
-                             wdsAppConfig: WdsAppConfig,
-                             hailBatchAppConfig: HailBatchAppConfig,
-                             aadPodIdentityConfig: AadPodIdentityConfig,
-                             allowedSharedApps: List[String],
-                             tdr: TdrConfig
+final case class AzureConfig(
+  pubsubHandler: AzurePubsubHandlerConfig,
+  wsm: HttpWsmDaoConfig,
+  appRegistration: AzureAppRegistrationConfig,
+  coaAppConfig: CoaAppConfig,
+  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
+  workflowsAppConfig: WorkflowsAppConfig,
+  wdsAppConfig: WdsAppConfig,
+  hailBatchAppConfig: HailBatchAppConfig,
+  aadPodIdentityConfig: AadPodIdentityConfig,
+  allowedSharedApps: List[AppType],
+  tdr: TdrConfig,
+  listenerChartConfig: ListenerChartConfig
 )
 
 final case class OidcAuthConfig(
@@ -59,14 +78,22 @@ final case class DrsConfig(url: String)
 
 final case class TdrConfig(url: String)
 
+final case class ListenerChartConfig(chartName: ChartName, chartVersion: ChartVersion) {
+  def service = KubernetesService(
+    ServiceId(-1),
+    ServiceConfig(ServiceName("listener"), KubernetesServiceKindName("ClusterIP"))
+  )
+}
+
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
-final case class AppConfig(terraAppSetupChart: TerraAppSetupChartConfig,
-                           persistentDisk: PersistentDiskConfig,
-                           azure: AzureConfig,
-                           oidc: OidcAuthConfig,
-                           drs: DrsConfig,
-                           metrics: LeoMetricsMonitorConfig
+final case class AppConfig(
+  terraAppSetupChart: TerraAppSetupChartConfig,
+  persistentDisk: PersistentDiskConfig,
+  azure: AzureConfig,
+  oidc: OidcAuthConfig,
+  drs: DrsConfig,
+  metrics: LeoMetricsMonitorConfig
 )
 
 final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
@@ -74,7 +101,7 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
                                 customAppConfig: CustomAppConfig,
                                 galaxyAppConfig: GalaxyAppConfig,
                                 hailBatchAppConfig: HailBatchAppConfig,
-                                rstudioAppConfig: RStudioAppConfig,
+                                allowedAppConfig: AllowedAppConfig,
                                 wdsAppConfig: WdsAppConfig
 ) {
 
@@ -87,7 +114,7 @@ final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
     customAppConfig,
     galaxyAppConfig,
     hailBatchAppConfig,
-    rstudioAppConfig,
+    allowedAppConfig,
     wdsAppConfig
   )
 }

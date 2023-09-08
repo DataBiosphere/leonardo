@@ -44,6 +44,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
 import java.net.URL
@@ -253,6 +254,8 @@ object JsonCodec {
     "traceId"
   )(x => RuntimeError.unapply(x).get)
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
+  implicit val allowedChartNameEncoder: Encoder[AllowedChartName] = Encoder.encodeString.contramap(_.asString)
+  implicit val chartNameEncoder: Encoder[ChartName] = Encoder.encodeString.contramap(_.asString)
   implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
   implicit val appErrorEncoder: Encoder[AppError] =
     Encoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(x =>
@@ -679,8 +682,12 @@ object JsonCodec {
   implicit val appTypeDecoder: Decoder[AppType] =
     Decoder.decodeString.emap(s => AppType.stringToObject.get(s).toRight(s"Invalid app type ${s}"))
   implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.decodeString.map(RelayNamespace)
+  implicit val chartNameDecoder: Decoder[ChartName] = Decoder.decodeString.map(ChartName)
+  implicit val allowedChartNameDecoder: Decoder[AllowedChartName] =
+    Decoder.decodeString.emap(x => AllowedChartName.stringToObject.get(x).toRight("chart name not allowed"))
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
-  implicit val postgresNameDecoder: Decoder[PostgresName] = Decoder.decodeString.map(PostgresName)
+  implicit val postgresServerDecoder: Decoder[PostgresServer] =
+    Decoder.forProduct2("name", "pgBouncerEnabled")(PostgresServer)
 
   implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
   implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
@@ -748,7 +755,8 @@ object JsonCodec {
   implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
   implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
-  implicit val postgresNameEncoder: Encoder[PostgresName] = Encoder.encodeString.contramap(_.value)
+  implicit val postgresServerEncoder: Encoder[PostgresServer] =
+    Encoder.forProduct2("name", "pgBouncerEnabled")(x => (x.name, x.pgBouncerEnabled))
 
   implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct4(
     "publisher",
@@ -797,7 +805,7 @@ object JsonCodec {
      x.aksSubnetName,
      x.region,
      x.applicationInsightsName,
-     x.postgresName
+     x.postgresServer
     )
   )
 }

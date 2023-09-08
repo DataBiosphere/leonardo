@@ -53,7 +53,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.291")
+  val coaChartVersion = ChartVersion("0.2.341")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -68,6 +68,7 @@ object KubernetesTestData {
   val createAppRequest = CreateAppRequest(
     Some(kubernetesRuntimeConfig),
     AppType.Galaxy,
+    None,
     None,
     None,
     Map.empty,
@@ -108,6 +109,7 @@ object KubernetesTestData {
     CreateAppRequest(
       kubernetesRuntimeConfig = None,
       appType = AppType.Cromwell,
+      None,
       None,
       diskConfig = diskConfig,
       labels = Map.empty,

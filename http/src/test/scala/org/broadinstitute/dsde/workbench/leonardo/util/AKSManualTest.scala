@@ -42,10 +42,11 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.{ChartName, HelmInterpreter, Release}
 import org.scalatestplus.mockito.MockitoSugar.mock
+import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.util.UUID
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 /**
  * Manual test for deploying CoA helm chart against an AKS cluster. Usage:
@@ -82,8 +83,8 @@ object AKSManualTest {
   val appSamResourceId = AppSamResourceId("sam-id", None)
 
   // Implicit dependencies
-  implicit val logger = Slf4jLogger.getLogger[IO]
-  implicit val executionContext = ExecutionContext.global
+  implicit val logger: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
+  implicit val executionContext: ExecutionContextExecutor = ExecutionContext.global
 
   /** Initializes DbReference */
   def getDbRef: Resource[IO, DbReference[IO]] = for {
@@ -152,8 +153,9 @@ object AKSManualTest {
     helmConcurrency <- Resource.eval(Semaphore[IO](20L))
     helmClient = new HelmInterpreter[IO](helmConcurrency)
     config = AKSInterpreterConfig(
-      ConfigReader.appConfig.terraAppSetupChart.copy(chartName = ChartName("terra-app-setup-charts/terra-app-setup")),
       ConfigReader.appConfig.azure.coaAppConfig,
+      ConfigReader.appConfig.azure.workflowsAppConfig,
+      ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
       ConfigReader.appConfig.azure.wdsAppConfig,
       ConfigReader.appConfig.azure.hailBatchAppConfig,
       ConfigReader.appConfig.azure.aadPodIdentityConfig,
@@ -164,7 +166,8 @@ object AKSManualTest {
       ConfigReader.appConfig.drs,
       new URL("https://leo-dummy-url.org"),
       ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-      ConfigReader.appConfig.azure.tdr
+      ConfigReader.appConfig.azure.tdr,
+      ConfigReader.appConfig.azure.listenerChartConfig
     )
     // TODO Sam and Cromwell should not be using mocks
   } yield new AKSInterpreter(
