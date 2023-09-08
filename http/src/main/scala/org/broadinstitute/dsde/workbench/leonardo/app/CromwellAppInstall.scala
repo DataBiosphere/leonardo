@@ -101,7 +101,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"identity.enabled=false",
       raw"workloadIdentity.enabled=true",
       raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
-      raw"identity.name=${params.ksaName.value}",
+      raw"identity.name=${params.managedIdentityName.value}",
 
       // Sam configs
       raw"sam.url=${params.config.samConfig.server}",

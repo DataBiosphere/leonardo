@@ -125,6 +125,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
       ksaName = ServiceAccountName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesServiceAccount)
 
+      // The managed identity name is either the WSM identity (for shared apps) or the
+      // pet managed identity (for private apps). The latter is confusingly stored in the
+      // 'googleServiceAccount' column in the APP table.
+      managedIdentityName = ManagedIdentityName(
+        wsmManagedIdentityOpt
+          .map(_.getAzureManagedIdentity.getAttributes.getManagedIdentityName)
+          .getOrElse(app.googleServiceAccount.value.split('/').last)
+      )
+
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
@@ -179,6 +188,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         params.storageContainer,
         relayPath,
         ksaName,
+        managedIdentityName,
         wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
         config
       )
@@ -296,12 +306,22 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmNamespaceOpt <- wsmNamespaces.headOption.traverse { wsmNamespace =>
         F.delay(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value))
       }
-      // TODO: handle apps without a namespace
       wsmNamespace <- F.fromOption(wsmNamespaceOpt,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
       )
+
+      // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getMetadata.getName)
       ksaName = ServiceAccountName(wsmNamespace.getAttributes.getKubernetesServiceAccount)
+
+      // The managed identity name is either the WSM identity (for shared apps) or the
+      // pet managed identity (for private apps). The latter is confusingly stored in the
+      // 'googleServiceAccount' column in the APP table.
+      managedIdentityName = ManagedIdentityName(
+        wsmIdentityOpt
+          .map(_.getAttributes.getManagedIdentityName)
+          .getOrElse(app.googleServiceAccount.value.split('/').last)
+      )
 
       // Get relay hybrid connection information
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${workspaceId.value}")
@@ -336,6 +356,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         storageContainer,
         relayPath,
         ksaName,
+        managedIdentityName,
         wsmDbNames.map(_.getMetadata.getName),
         config
       )
