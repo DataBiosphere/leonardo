@@ -190,7 +190,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
+        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName),
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -358,7 +358,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDbNames.map(_.getMetadata.getName),
+        wsmDbNames.map(_.getAttributes.getDatabaseName),
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
