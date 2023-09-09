@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -58,7 +58,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            samDao: SamDAO[F],
                            cromwellDao: CromwellDAO[F],
                            cbasDao: CbasDAO[F],
-                           cbasUiDao: CbasUiDAO[F],
                            wdsDao: WdsDAO[F],
                            hailBatchDao: HailBatchDAO[F],
                            wsmDao: WsmDao[F],
@@ -818,8 +817,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .collect {
             case Cbas =>
               cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-            case CbasUI =>
-              cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
             case Cromwell =>
               cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
           }
@@ -924,7 +921,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
         // Enabled services configs
         raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
-        raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
         raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
         raw"dockstore.baseUrl=${config.coaAppConfig.dockstoreBaseUrl}",
 

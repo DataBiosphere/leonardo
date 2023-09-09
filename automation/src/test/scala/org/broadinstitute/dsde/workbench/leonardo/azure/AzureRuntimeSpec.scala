@@ -13,14 +13,17 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBillingBeforeAndAfter, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
+import org.http4s.headers.Authorization
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{ParallelTestExecution, Retries}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
+
+@DoNotDiscover
 class AzureRuntimeSpec
-    extends AzureBillingBeforeAndAfter
+    extends AzureBilling
     with LeonardoTestUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks
@@ -28,6 +31,7 @@ class AzureRuntimeSpec
     with CleanUp {
 
   implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+  implicit val authorization: IO[Authorization] = Hermione.authorization()
 
   "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
@@ -86,15 +90,24 @@ class AzureRuntimeSpec
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
         _ <- loggerIO.info(
-          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} create monitor result: $monitorCreateResult"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} create monitor result: $monitorCreateResult"
         )
         _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
         _ <- loggerIO.info(
-          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete starting"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
         )
         // Delete the runtime
         _ <- IO(runtimeClient.deleteAzureRuntime(workspaceId, runtimeName.asString, true))
+
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: about to test proxyUrl"
+        )
+
+        _ <- GeneratedLeonardoClient.client.use { c =>
+          implicit val client = c
+          GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)
+        }
 
         _ <- loggerIO.info(
           s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"

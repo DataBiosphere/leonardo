@@ -75,7 +75,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val appDAO = setUpMockAppDAO
   val wdsDAO = setUpMockWdsDAO
   val cbasDAO = setUpMockCbasDAO
-  val cbasUiDAO = setUpMockCbasUiDAO
   val cromwellDAO = setUpMockCromwellDAO
   val samDAO = setUpMockSamDAO
   val jupyterDAO = setUpMockJupyterDAO
@@ -96,7 +95,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     appDAO,
     wdsDAO,
     cbasDAO,
-    cbasUiDAO,
     cromwellDAO,
     hailBatchDAO,
     relayListenerDAO,
@@ -232,9 +230,9 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       leoMetricsMonitor
         .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
         .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 7 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, cromwell-runner, galaxy
-    test.size shouldBe 14
-    List("cromwell", "cbas", "cbas-ui").foreach { s =>
+    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
+    test.size shouldBe 12
+    List("cromwell", "cbas").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
@@ -351,7 +349,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       appDAO,
       wdsDAO,
       cbasDAO,
-      cbasUiDAO,
       cromwellDAO,
       hailBatchDAO,
       relayListenerDAO,
@@ -363,9 +360,9 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       azureDisabledMetricsMonitor
         .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
         .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 7 services: 2 cbases, cbas-ui, cromwell, cromwell-reader, cromwell-runner, galaxy
-    test.size shouldBe 14
-    List("cromwell", "cbas", "cbas-ui").foreach { s =>
+    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
+    test.size shouldBe 12
+    List("cromwell", "cbas").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
@@ -532,7 +529,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       labels = if (isAou) Map(Config.uiConfig.allOfUsLabel -> "true") else Map(Config.uiConfig.terraLabel -> "true")
     )
     val services =
-      if (isCromwell) List("cbas", "cbas-ui", "cromwell")
+      if (isCromwell) List("cbas", "cromwell")
       else if (isCromwellRunnerApp) List("cromwell-runner")
       else if (isWorkflowsApp) List("cbas", "cromwell-reader")
       else List(appType.toString.toLowerCase)
@@ -651,14 +648,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       cbas.getStatus(any, any)(any)
     } thenReturn IO.pure(false)
     cbas
-  }
-
-  private def setUpMockCbasUiDAO: CbasUiDAO[IO] = {
-    val cbasUi = mock[CbasUiDAO[IO]]
-    when {
-      cbasUi.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    cbasUi
   }
 
   private def setUpMockWdsDAO: WdsDAO[IO] = {

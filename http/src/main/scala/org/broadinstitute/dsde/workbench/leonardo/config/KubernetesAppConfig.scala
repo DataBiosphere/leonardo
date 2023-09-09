@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppService.{Cbas, Cromwell}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
@@ -112,7 +112,6 @@ final case class CoaAppConfig(chartName: ChartName,
     .map(_.name)
     .collect {
       case ServiceName("cbas")     => Cbas
-      case ServiceName("cbas-ui")  => CbasUI
       case ServiceName("cromwell") => Cromwell
     }
     .toSet
@@ -215,5 +214,4 @@ sealed trait WorkflowsAppService
 object WorkflowsAppService {
   final case object Cbas extends WorkflowsAppService
   final case object Cromwell extends WorkflowsAppService
-  final case object CbasUI extends WorkflowsAppService
 }

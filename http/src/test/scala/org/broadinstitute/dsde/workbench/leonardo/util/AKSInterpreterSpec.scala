@@ -78,7 +78,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockSamDAO = setUpMockSamDAO
   val mockCromwellDAO = setUpMockCromwellDAO
   val mockCbasDAO = setUpMockCbasDAO
-  val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockWdsDAO = setUpMockWdsDAO
   val mockWsmDAO = new MockWsmDAO
   val mockHailBatchDAO = setUpMockHailBatchDAO
@@ -99,7 +98,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockSamDAO,
     mockCromwellDAO,
     mockCbasDAO,
-    mockCbasUiDAO,
     mockWdsDAO,
     mockHailBatchDAO,
     mockWsmDAO,
@@ -196,7 +194,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
-      "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=coa-rel-1," +
@@ -250,7 +247,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
-      "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=coa-rel-1," +
@@ -311,7 +307,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
-      "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=coa-rel-1," +
@@ -685,7 +680,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockSamDAO,
         mockCromwellDAO,
         mockCbasDAO,
-        mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
         mockWsmDAO,
@@ -779,7 +773,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         mockSamDAO,
         mockCromwellDAO,
         mockCbasDAO,
-        mockCbasUiDAO,
         mockWdsDAO,
         mockHailBatchDAO,
         mockWsmDAO,
@@ -896,7 +889,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockSamDAO,
       mockCromwellDAO,
       mockCbasDAO,
-      mockCbasUiDAO,
       mockWdsDAO,
       mockHailBatchDAO,
       mockWsmDAO,
@@ -1186,14 +1178,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       cbas.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     cbas
-  }
-
-  private def setUpMockCbasUiDAO: CbasUiDAO[IO] = {
-    val cbasUi = mock[CbasUiDAO[IO]]
-    when {
-      cbasUi.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    cbasUi
   }
 
   private def setUpMockWdsDAO: WdsDAO[IO] = {
