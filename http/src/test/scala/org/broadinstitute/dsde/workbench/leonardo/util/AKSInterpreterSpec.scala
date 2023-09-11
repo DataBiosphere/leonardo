@@ -21,8 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsp.Values
 import org.broadinstitute.dsp.mocks.MockHelm
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Values}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.ArgumentMatchers.any
@@ -158,11 +158,54 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     }
 
   // update and poll each app type
-  // TODO
   for (
     appType <- List(AppType.Wds, AppType.Cromwell, AppType.HailBatch, AppType.WorkflowsApp, AppType.CromwellRunnerApp)
   )
-    it should s"update and poll ${appType} app" in {}
+    it should s"update and poll ${appType} app" in isolatedDbTest {
+      val res = for {
+        cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+        nodepool <- IO(makeNodepool(1, cluster.id).save())
+        app = makeApp(1, nodepool.id).copy(
+          appType = AppType.Cromwell,
+          status = AppStatus.Updating,
+          chart = Chart(ChartName("myapp"), ChartVersion("0.0.1")),
+          appResources = AppResources(
+            namespace = Namespace(
+              NamespaceId(-1),
+              NamespaceName("ns-1")
+            ),
+            disk = None,
+            services = List.empty,
+            kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+          )
+        )
+        saveApp <- IO(app.save())
+
+        appName = saveApp.appName
+        appId = saveApp.id
+
+        namespaceId = UUID.randomUUID()
+        _ <- appControlledResourceQuery
+          .insert(appId.id,
+                  WsmControlledResourceId(namespaceId),
+                  WsmResourceType.AzureKubernetesNamespace,
+                  AppControlledResourceStatus.Created
+          )
+          .transaction
+
+        _ <- aksInterp.updateAndPollApp(
+          UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceId), cloudContext)
+        )
+        app <- KubernetesServiceDbQueries
+          .getActiveFullAppByName(CloudContext.Azure(cloudContext), appName)
+          .transaction
+      } yield {
+        app shouldBe defined
+        app.get.app.status shouldBe AppStatus.Running
+        app.get.app.chart shouldBe Chart(ChartName("myapp"), ChartVersion("0.0.2"))
+      }
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
 
   // delete each app type
   for (
@@ -448,6 +491,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       )(any())
     } thenReturn IO.pure(primaryKey)
     when {
+      mockAzureRelayService.getRelayHybridConnectionKey(any[String].asInstanceOf[RelayNamespace],
+                                                        any[String].asInstanceOf[RelayHybridConnectionName],
+                                                        any[String].asInstanceOf[AzureCloudContext]
+      )(any)
+    } thenReturn IO.pure(primaryKey)
+    when {
       mockAzureRelayService.deleteRelayHybridConnection(any[String].asInstanceOf[RelayNamespace],
                                                         any[String].asInstanceOf[RelayHybridConnectionName],
                                                         any[String].asInstanceOf[AzureCloudContext]
@@ -579,6 +628,23 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
         .jobReport(
           new JobReport().status(JobReport.StatusEnum.SUCCEEDED)
+        )
+    }
+    // Get Kubernetes Namespace
+    when {
+      api.getAzureKubernetesNamespace(any, any)
+    } thenAnswer { invocation =>
+      val resourceId = invocation.getArgument[UUID](1)
+      new AzureKubernetesNamespaceResource()
+        .metadata(
+          new ResourceMetadata().resourceId(resourceId).name("namespace")
+        )
+        .attributes(
+          new AzureKubernetesNamespaceAttributes()
+            .kubernetesNamespace("ns")
+            .databases(List(UUID.randomUUID()).asJava)
+            .managedIdentity(UUID.randomUUID())
+            .kubernetesServiceAccount("ksa-1")
         )
     }
     // Delete Kubernetes Namespace
