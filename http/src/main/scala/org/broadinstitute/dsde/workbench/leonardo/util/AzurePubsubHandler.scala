@@ -75,6 +75,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         ),
         WsmJobControl(createVmJobId)
       )
+      // TODO poll WSM disk creation as well
       _ <- monitorCreateRuntime(
         PollRuntimeParams(msg.workspaceId,
                           runtime,
@@ -443,6 +444,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
       isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
+      // TODO use WSM client
+      // WSM has no timeout on a jobstatus, impose our own
       taskToRun = for {
         _ <- F.sleep(
           config.createVmPollConfig.initialDelay
@@ -464,7 +467,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case WsmJobStatus.Running =>
-            F.raiseError[Unit](
+          F.raiseError[Unit](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
@@ -472,8 +475,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 params.useExistingDisk
               )
             )
+          // TODO get more info from jobResponse
+          // TODO send WSM delete message if still running after polled
+
           case WsmJobStatus.Succeeded =>
             val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
+            // TODO verify WSM VM status here, vm is only returned if job succeeds
+            //val vm = resp.vm.traverse()
             for {
               now <- nowInstant
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
@@ -630,6 +638,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             _ <- resp.jobReport.status match {
               case WsmJobStatus.Succeeded =>
                 for {
+                  // TODO check WSM VM status
                   _ <- logger.info(ctx.loggingCtx)(
                     s"runtime ${msg.runtimeId} is deleted successfully, moving to disk deletion"
                   )
@@ -655,6 +664,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                     s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
                   )
                 )
+                // TODO get more from WSM jobReport
             }
           } yield ()
 
@@ -848,6 +858,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .getWsmRecordFromResourceId(diskResourceId, WsmResourceType.AzureDisk)
             .transaction
       }
+
+      // TODO check for WSM disk status
       diskResource <- F.fromOption(
         diskResourceOpt,
         AzureDiskResourceDeletionError(id,
@@ -857,6 +869,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
       jobId = getWsmJobId("delete-disk", diskResource.resourceId)
 
+      // TODO poll WSM disk creation as well
       _ <- diskResourceOpt.traverse { disk =>
         for {
           _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${disk.resourceId.value}")
@@ -898,6 +911,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           s"No associated WsmResourceId found for Azure disk"
         )
       )
+
+      // check WSM disk status here (or done in the frontend?)
 
       _ <- deleteDiskResource(Right(wsmResourceId), msg.workspaceId, auth)
 

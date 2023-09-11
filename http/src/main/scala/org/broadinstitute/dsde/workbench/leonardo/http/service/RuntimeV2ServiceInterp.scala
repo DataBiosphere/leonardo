@@ -399,6 +399,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .map(_.toList)
         .transaction
 
+      // TODO: check status in WSM here
       nonDeletableRuntimes = runtimes.filterNot(r => r.status.isDeletable)
 
       _ <-

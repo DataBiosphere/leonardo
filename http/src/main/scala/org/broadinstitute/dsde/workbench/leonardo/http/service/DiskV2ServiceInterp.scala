@@ -100,6 +100,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .whenA(!hasReadPermission)
 
       // check if disk is deletable
+      // TODO check WSM status here: BROKEN, CREATING, DELETING, READY, UPDATING
       _ <- F
         .raiseUnless(disk.status.isDeletable)(
           DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)

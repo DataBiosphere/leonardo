@@ -427,7 +427,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- metrics.incrementCounter("stopApp", 1, tags)
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
-      // throw 404 if no StopStartApp permission
+      // throw 404 if no read permission
       hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
       _ <-
         if (hasReadPermission) F.unit
@@ -795,6 +795,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](
           AppCannotBeDeletedByWorkspaceIdException(workspaceId, app.appName, app.status, ctx.traceId)
         )
+
+    // TODO check WSM status of sub-resources here
 
     // Get the disk to delete if specified
     diskOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None

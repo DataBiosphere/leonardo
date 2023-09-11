@@ -111,6 +111,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
+      // TODO use WSM endpoints to create namespace
       // Create kubernetes client
       kubeClient <- kubeAlg.createAzureClient(params.cloudContext, params.landingZoneResources.clusterName)
 
@@ -1455,7 +1456,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"WSM create database response: ${createDatabaseResponse}")
 
       // Poll for DB creation
-      // We don't actually care about the JobReport - just that it succeeded.
       op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName))
       result <- streamFUntilDone(
         op,
@@ -1465,6 +1465,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create database job result: ${result}")
 
+      // TODO add errored status to AppControlledResourceStatus
       _ <-
         if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
           F.raiseError(
@@ -1499,7 +1500,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
 
       wsmResources <- appControlledResourceQuery
-        .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created, AppControlledResourceStatus.Creating)
+        .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created, AppControlledResourceStatus.Creating, AppControlledResourceStatus.)
         .transaction
 
       _ <- wsmResources.traverse { wsmResource =>
