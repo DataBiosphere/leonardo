@@ -23,7 +23,6 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
                                samDao: SamDAO[F],
                                cromwellDao: CromwellDAO[F],
                                cbasDao: CbasDAO[F],
-                               cbasUIDao: CbasUiDAO[F],
                                azureBatchService: AzureBatchService[F],
                                azureApplicationInsightsService: AzureApplicationInsightsService[F]
 )(implicit
@@ -112,7 +111,6 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
 
       // Enabled services configs
       raw"cbas.enabled=true",
-      raw"cbasUI.enabled=true",
       raw"cromwell.enabled=true",
       raw"dockstore.baseUrl=${config.dockstoreBaseUrl}",
 
@@ -138,8 +136,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     List(
       cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false),
-      cbasDao.getStatus(baseUri, authHeader).handleError(_ => false),
-      cbasUIDao.getStatus(baseUri, authHeader).handleError(_ => false)
+      cbasDao.getStatus(baseUri, authHeader).handleError(_ => false)
     ).sequence.map(_.forall(identity))
 
   private def toCromwellAppDatabaseNames(dbNames: List[String]): Option[CromwellAppDatabaseNames] =

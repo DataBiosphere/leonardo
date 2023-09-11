@@ -38,7 +38,6 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
   val mockSamDAO = setUpMockSamDAO
   val mockCromwellDAO = setUpMockCromwellDAO
   val mockCbasDAO = setUpMockCbasDAO
-  val mockCbasUiDAO = setUpMockCbasUiDAO
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
 
@@ -118,14 +117,6 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
       cbas.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     cbas
-  }
-
-  private def setUpMockCbasUiDAO: CbasUiDAO[IO] = {
-    val cbasUi = mock[CbasUiDAO[IO]]
-    when {
-      cbasUi.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    cbasUi
   }
 
   private def setUpMockAzureApplicationInsightsService: AzureApplicationInsightsService[IO] = {

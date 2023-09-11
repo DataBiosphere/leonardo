@@ -17,7 +17,6 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
     mockSamDAO,
     mockCromwellDAO,
     mockCbasDAO,
-    mockCbasUiDAO,
     mockAzureBatchService,
     mockAzureApplicationInsightsService
   )
@@ -52,7 +51,6 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
-      "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=coa-rel-1," +
@@ -108,7 +106,6 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       "cbas.enabled=true," +
-      "cbasUI.enabled=true," +
       "cromwell.enabled=true," +
       "dockstore.baseUrl=https://staging.dockstore.org/," +
       "fullnameOverride=coa-rel-1," +
