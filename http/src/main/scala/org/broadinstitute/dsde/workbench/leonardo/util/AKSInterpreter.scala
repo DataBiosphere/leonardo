@@ -3,7 +3,7 @@ package leonardo
 package util
 
 import akka.http.scaladsl.model.StatusCodes
-import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
+import bio.terra.workspace.api.ControlledAzureResourceApi
 import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model._
 import cats.effect.Async
@@ -42,7 +42,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            samDao: SamDAO[F],
                            wsmDao: WsmDao[F],
                            kubeAlg: KubernetesAlgebra[F],
-                           wsmClientProvider: WsmApiClientProvider
+                           wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   appTypeToAppInstall: AppType => AppInstall[F],
   executionContext: ExecutionContext,
@@ -105,12 +105,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Create WSM databases
-      wsmDatabases <- createWsmDatabaseResources(app,
-                                                 app.appType,
-                                                 params.workspaceId,
-                                                 namespacePrefix,
-                                                 wsmManagedIdentityOpt.map(_.getResourceId),
-                                                 params.landingZoneResources
+      wsmDatabases <- createWsmDatabaseResources(
+        app,
+        app.appType,
+        params.workspaceId,
+        namespacePrefix,
+        wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName),
+        params.landingZoneResources
       )
 
       // Create WSM kubernetes namespace
@@ -118,8 +119,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app,
         params.workspaceId,
         namespacePrefix,
-        wsmDatabases.map(_.getAzureDatabase.getMetadata.getResourceId),
-        wsmManagedIdentityOpt.map(_.getResourceId)
+        wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
+        wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
       )
 
       // The k8s namespace name and service account name are in the WSM response
@@ -655,7 +656,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                appInstall: AppInstall[F],
                                                workspaceId: WorkspaceId,
                                                namespacePrefix: String,
-                                               owner: Option[UUID],
+                                               owner: Option[String],
                                                landingZoneResources: LandingZoneResources
   )(implicit ev: Ask[F, AppContext]): F[List[CreatedControlledAzureDatabaseResult]] =
     if (landingZoneResources.postgresServer.isDefined) {
@@ -676,7 +677,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                               workspaceId: WorkspaceId,
                                               database: CreateDatabase,
                                               namespacePrefix: String,
-                                              owner: Option[UUID],
+                                              owner: Option[String],
                                               wsmApi: ControlledAzureResourceApi
   )(implicit
     ev: Ask[F, AppContext]
@@ -762,8 +763,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def createWsmKubernetesNamespaceResource(app: App,
                                                          workspaceId: WorkspaceId,
                                                          namespacePrefix: String,
-                                                         databases: List[UUID],
-                                                         identity: Option[UUID]
+                                                         databases: List[String],
+                                                         identity: Option[String]
   )(implicit ev: Ask[F, AppContext]): F[CreatedControlledAzureKubernetesNamespaceResult] =
     for {
       ctx <- ev.ask
@@ -773,7 +774,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Build WSM clients
       wsmApi <- buildWsmControlledResourceApiClient
-      wsmResourceApi <- buildWsmResourceApiClient
 
       // Name of the WSM resource. Must be unique per workspace.
       // For shared apps, name it by the appType so it's semantically meaningful.
@@ -784,20 +784,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _                         => namespacePrefix
       }
 
-      // Obtain external database IDs by querying WSM and filtering by name
-      // TODO once https://broadworkbench.atlassian.net/browse/WOR-1250 is in, we
-      // can just pass the databases by name to the CreateKubernetesNamespace request.
-      wsmDatabases <- F.delay(
-        wsmResourceApi
-          .enumerateResources(workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
-          .getResources
-          .asScala
-      )
-      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
-      externalDatabaseIds = wsmDatabases
-        .filter(wsmDb => appExternalDatabaseNames.contains(wsmDb.getMetadata.getName))
-        .map(_.getMetadata.getResourceId)
-
       // Build common fields
       namespaceCommonFields =
         getWsmCommonFields(wsmResourceName,
@@ -806,9 +792,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
 
       // Build createNamespace fields
+      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }
       createNamespaceParams = new AzureKubernetesNamespaceCreationParameters()
         .namespacePrefix(namespacePrefix)
-        .databases((databases ++ externalDatabaseIds).asJava)
+        .databases((databases ++ appExternalDatabaseNames).asJava)
       _ = identity.foreach(createNamespaceParams.setManagedIdentity)
 
       // Build request
@@ -1000,24 +987,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
     }
 
-  private def buildWsmControlledResourceApiClient: F[ControlledAzureResourceApi] =
+  private def buildWsmControlledResourceApiClient(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi] =
     for {
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
-      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
-    } yield wsmApi
-
-  private def buildWsmResourceApiClient: F[ResourceApi] =
-    for {
-      auth <- samDao.getLeoAuthToken
-      token <- auth.credentials match {
-        case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
-      }
-      wsmApi = wsmClientProvider.getResourceApi(token)
+      wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
     } yield wsmApi
 }
 
