@@ -12,7 +12,6 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Instance, MachineType, Operation}
 import com.google.cloud.dataproc.v1.ClusterOperationMetadata
 import com.google.protobuf.Empty
-import kotlin.NotImplementedError
 import org.broadinstitute.dsde.workbench.google.GoogleDirectoryDAO
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._

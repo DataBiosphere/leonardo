@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   WorkflowsAppConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
-import org.broadinstitute.dsp.{ChartName, ChartVersion, Namespace, Release, Values}
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
@@ -54,7 +54,6 @@ final case class AzureConfig(
   workflowsAppConfig: WorkflowsAppConfig,
   wdsAppConfig: WdsAppConfig,
   hailBatchAppConfig: HailBatchAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
   listenerChartConfig: ListenerChartConfig
@@ -65,13 +64,6 @@ final case class OidcAuthConfig(
   clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId,
   clientSecret: Option[org.broadinstitute.dsde.workbench.oauth2.ClientSecret],
   legacyGoogleClientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
-)
-
-final case class AadPodIdentityConfig(namespace: Namespace,
-                                      release: Release,
-                                      chartName: ChartName,
-                                      chartVersion: ChartVersion,
-                                      values: Values
 )
 
 final case class DrsConfig(url: String)
