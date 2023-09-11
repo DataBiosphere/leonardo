@@ -785,7 +785,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Obtain external database IDs by querying WSM and filtering by name
-      // TODO this will get simpler once WSM createNamespace supports passing databases by name instead of UUID
+      // TODO once https://broadworkbench.atlassian.net/browse/WOR-1250 is in, we
+      // can just pass the databases by name to the CreateKubernetesNamespace request.
       wsmDatabases <- F.delay(
         wsmResourceApi
           .enumerateResources(workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
