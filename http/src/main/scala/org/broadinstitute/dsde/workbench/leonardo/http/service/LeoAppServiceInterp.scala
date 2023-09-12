@@ -633,8 +633,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       // debugging
-      myRegion = landingZoneResourcesOpt.map(_.region).getOrElse("").toString
-      _ <- log.info(ctx.loggingCtx)(s"DEBUGGING: azure region: ${myRegion}")
+      regionOpt = landingZoneResourcesOpt.map(_.region)
+      regionName = regionOpt.map(_.name).getOrElse("")
+      _ <- log.info(ctx.loggingCtx)(s"DEBUGGING: azure region: ${regionName}")
 
       saveCluster <- F.fromEither(
         getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, landingZoneResourcesOpt.map(_.clusterName),
@@ -860,6 +861,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
+    val regionName = azureRegionOpt.map(_.name).getOrElse("")
     for {
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
@@ -869,7 +871,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       clusterName = clusterName,
       location = config.leoKubernetesConfig.clusterConfig.location,
       region =
-        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName(azureRegionOpt.getOrElse("").toString)
+        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName(regionName)
         else config.leoKubernetesConfig.clusterConfig.region,
       status =
         if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
