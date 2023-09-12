@@ -1,10 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import bio.terra.workspace.api.ControlledAzureResourceApi
 import bio.terra.workspace.model.State
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, WorkspaceId, WsmControlledResourceId}
-import org.broadinstitute.dsde.workbench.leonardo.db.{controlledResourceQuery, WsmResourceType}
+import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 
 trait WsmApiClientDAO[F[_]] {
 
@@ -14,7 +13,7 @@ trait WsmApiClientDAO[F[_]] {
                            workspaceId: WorkspaceId
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[State]]
+  ): F[State]
 
   // Checks if the runtime status is deletable + sub-resources (disk, if necessary) in WSM
   def isRuntimeDeletable(runtimeId: Long,
@@ -30,22 +29,39 @@ trait WsmApiClientDAO[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Boolean]
 
-  // Sends a delete call to WSM for the specified resource
+  def isDiskDeletable(wsmResourceId: WsmControlledResourceId, workspaceId: WorkspaceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean]
+
+  // Sends a delete call to WSM for the specified resource and polls the job if possible
   def deleteWsmResource(wsmResourceId: WsmControlledResourceId,
                         resourceType: WsmResourceType,
                         workspaceId: WorkspaceId
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit]
+  ): F[GetDeleteJobResult]
 
-  // Deletes and polls the sub-resources (disk, storageContainer), then the VM if that succeeds
-  def deleteWsmVm(runtimeId: Long, wsmResourceId: WsmControlledResourceId, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+  // Deletes the runtime sub-resources (disk, storageContainer), then the VM if that succeeds
+  def deleteWsmVm(runtimeId: Long,
+                  wsmResourceId: WsmControlledResourceId,
+                  workspaceId: WorkspaceId,
+                  deleteDisk: Boolean
+  )(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit]
+  ): F[GetDeleteJobResult]
 
-  // Deletes and polls the app sub-resources (managedIdentity, database)
+  // Deletes the app sub-resources (managedIdentity, database)
   def deleteWsmAppResources(appId: AppId, wsmResourceId: WsmControlledResourceId, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit]
+  ): F[GetDeleteJobResult]
+
+  // TODO: define CreateWsmResourceRequest and GetCreateJobResult
+  // Sends a create call to WSM for the specified resource and polls the job if possible
+  def createWsmResource(createRequest: CreateWsmResourceRequest,
+                        workspaceId: WorkspaceId,
+                        jobControl: Option[WsmJobControl]
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[GetCreateJobResult]
 
 }

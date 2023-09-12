@@ -467,7 +467,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case WsmJobStatus.Running =>
-          F.raiseError[Unit](
+            F.raiseError[Unit](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
@@ -481,7 +481,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           case WsmJobStatus.Succeeded =>
             val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
             // TODO verify WSM VM status here, vm is only returned if job succeeds
-            //val vm = resp.vm.traverse()
+            // val vm = resp.vm.traverse()
             for {
               now <- nowInstant
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
@@ -664,7 +664,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                     s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
                   )
                 )
-                // TODO get more from WSM jobReport
+              // TODO get more from WSM jobReport
             }
           } yield ()
 

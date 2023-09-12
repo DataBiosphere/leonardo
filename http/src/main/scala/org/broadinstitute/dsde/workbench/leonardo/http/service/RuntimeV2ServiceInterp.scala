@@ -32,7 +32,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
-import bio.terra.workspace.model.State
 
 import java.time.Instant
 import java.util.UUID
@@ -327,7 +326,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // (state can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
       deletableStatus = List("BROKEN", "READY")
 
-      vmState <- F.delay(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value)).map(_.getMetadata.getState)
+      vmState <- F
+        .delay(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value))
+        .map(_.getMetadata.getState)
       wsmVMResourceSamId <- deletableStatus.contains(vmState) match {
         case true =>
           log
@@ -338,7 +339,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case _ =>
           log
             .info(ctx.loggingCtx)(
-              s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm, ${e.getMessage}"
+              s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm"
             )
             .as(None)
       }
