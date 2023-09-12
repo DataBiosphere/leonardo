@@ -15,7 +15,7 @@ object Dependencies {
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
-  val pact4sV = "0.9.0"
+  val pact4sV = "0.10.1-java8"
 
   private val workbenchLibsHash = "aa2afae"
   val serviceTestV = s"4.1-ce68967"
