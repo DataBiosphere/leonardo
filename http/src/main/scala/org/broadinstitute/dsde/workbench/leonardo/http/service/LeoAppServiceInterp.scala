@@ -428,7 +428,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no read permission
-      hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
+      hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
       _ <-
         if (hasReadPermission) F.unit
         else F.raiseError[Unit](AppNotFoundException(cloudContext, appName, ctx.traceId, "no read permission"))

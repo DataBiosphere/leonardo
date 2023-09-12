@@ -34,6 +34,7 @@ trait WsmApiClientDAO[F[_]] {
   ): F[Boolean]
 
   // Sends a delete call to WSM for the specified resource and polls the job if possible
+  // Verifies it doesn't exist after polling
   def deleteWsmResource(wsmResourceId: WsmControlledResourceId,
                         resourceType: WsmResourceType,
                         workspaceId: WorkspaceId
@@ -57,6 +58,7 @@ trait WsmApiClientDAO[F[_]] {
 
   // TODO: define CreateWsmResourceRequest and GetCreateJobResult
   // Sends a create call to WSM for the specified resource and polls the job if possible
+  // Verifies it's created status after polling
   def createWsmResource(createRequest: CreateWsmResourceRequest,
                         workspaceId: WorkspaceId,
                         jobControl: Option[WsmJobControl]

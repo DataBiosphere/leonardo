@@ -445,7 +445,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       // TODO use WSM client
-      // WSM has no timeout on a jobstatus, impose our own
       taskToRun = for {
         _ <- F.sleep(
           config.createVmPollConfig.initialDelay
@@ -475,9 +474,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 params.useExistingDisk
               )
             )
-          // TODO get more info from jobResponse
-          // TODO send WSM delete message if still running after polled
-
           case WsmJobStatus.Succeeded =>
             val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
             // TODO verify WSM VM status here, vm is only returned if job succeeds
@@ -664,7 +660,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                     s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
                   )
                 )
-              // TODO get more from WSM jobReport
             }
           } yield ()
 
@@ -911,8 +906,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           s"No associated WsmResourceId found for Azure disk"
         )
       )
-
-      // check WSM disk status here (or done in the frontend?)
 
       _ <- deleteDiskResource(Right(wsmResourceId), msg.workspaceId, auth)
 
