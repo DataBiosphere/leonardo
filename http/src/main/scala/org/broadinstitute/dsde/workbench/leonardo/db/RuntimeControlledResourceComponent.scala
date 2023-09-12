@@ -81,6 +81,10 @@ object WsmResourceType {
     override def toString: String = "AZURE_DATABASE"
   }
 
+  case object AzureVm extends WsmResourceType {
+    override def toString: String = "AZURE_VM"
+  }
+
   def values: Set[WsmResourceType] = sealerate.values[WsmResourceType]
 
   def stringToObject: Map[String, WsmResourceType] = values.map(v => v.toString -> v).toMap

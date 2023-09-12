@@ -918,7 +918,7 @@ final case class AppDependencies[F[_]](
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
   listenerDAO: ListenerDAO[F],
-  wsmClientProvider: HttpWsmClientProvider,
+  `wsmClientProvider`: HttpWsmClientProvider,
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]
 )
