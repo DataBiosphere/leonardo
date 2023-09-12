@@ -10,6 +10,7 @@ import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
+import io.opencensus.trace.{AttributeValue, Tracing}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
@@ -138,7 +139,9 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
     val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
-    implicit val appContext = Ask.const[F, AppContext](AppContext(traceId, now))
+    val span = Tracing.getTracer.spanBuilder("leoPubsubMessage").startSpan()
+    span.putAttribute("messageType", AttributeValue.stringAttributeValue(event.msg.messageType.asString))
+    implicit val appContext = Ask.const[F, AppContext](AppContext(traceId, now, span = Some(span)))
     val res = for {
       res <- messageResponder(event.msg)
         .timeout(config.timeout)
@@ -186,9 +189,11 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
     } yield ()
 
-    res.handleErrorWith(e =>
-      logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.consumer.ack())
-    )
+    res
+      .handleErrorWith(e =>
+        logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.consumer.ack())
+      )
+      .guarantee(F.delay(span.end()))
   }
 
   val process: Stream[F, Unit] = subscriber.messages
