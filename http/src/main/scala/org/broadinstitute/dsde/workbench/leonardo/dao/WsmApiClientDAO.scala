@@ -7,19 +7,11 @@ import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 
 trait WsmApiClientDAO[F[_]] {
 
-  // Returns the status of this resource in WSM, or None if it doesn't exist
-  def getWsmResourceStatus(wsmResourceId: WsmControlledResourceId,
-                           resourceType: WsmResourceType,
-                           workspaceId: WorkspaceId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[State]
-
   // Checks if the runtime status is deletable + sub-resources (disk, if necessary) in WSM
   def isRuntimeDeletable(runtimeId: Long,
-                         wsmResourceId: WsmControlledResourceId,
+                         wsmRuntimeResourceId: WsmControlledResourceId,
                          workspaceId: WorkspaceId,
-                         deleteDisk: Boolean
+                         wsmDiskResourceId: Option[WsmControlledResourceId]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean]

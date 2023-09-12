@@ -17,22 +17,27 @@ abstract class HttpWsmApiClientDAO[F[_]](wsmApi: ControlledAzureResourceApi)(imp
 
   val deletableWsmStatuses = List(State.READY, State.BROKEN)
 
-  override def getWsmResourceStatus(wsmResourceId: WsmControlledResourceId,
-                                    resourceType: WsmResourceType,
-                                    workspaceId: WorkspaceId
+  override def isRuntimeDeletable(runtimeId: Long,
+                                  wsmRuntimeResourceId: WsmControlledResourceId,
+                                  workspaceId: WorkspaceId,
+                                  wsmDiskResourceId: Option[WsmControlledResourceId]
   )(implicit
     ev: Ask[F, AppContext]
-  ): F[State] =
-    resourceType match {
-      case WsmResourceType.AzureDisk =>
-        F.delay(wsmApi.getAzureDisk(workspaceId.value, wsmResourceId.value)).map(_.getMetadata.getState)
-      case WsmResourceType.AzureDatabase =>
-        F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmResourceId.value)).map(_.getMetadata.getState)
-      case WsmResourceType.AzureManagedIdentity =>
-        F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmResourceId.value)).map(_.getMetadata.getState)
-      case WsmResourceType.AzureVm =>
-        F.delay(wsmApi.getAzureVm(workspaceId.value, wsmResourceId.value)).map(_.getMetadata.getState)
-      // TODO: add check for AzureStorageContainer once added to WsmClient
+  ): F[Boolean] = for {
+    runtimeStatus <- F
+      .delay(wsmApi.getAzureVm(workspaceId.value, wsmRuntimeResourceId.value))
+      .map(_.getMetadata.getState)
+    vmDeletable = deletableWsmStatuses.contains(runtimeStatus)
+    runtimeDeletable = (vmDeletable, wsmDiskResourceId) match {
+      case (true, Some(wsmDiskResourceId)) =>
+        for {
+          diskStatus <- F
+            .delay(wsmApi.getAzureDisk(workspaceId.value, wsmDiskResourceId.value))
+            .map(_.getMetadata.getState)
+        } yield deletableWsmStatuses.contains(diskStatus)
+      case (true, None) => true
+      case _            => false
     }
+  } yield runtimeDeletable
 
 }
