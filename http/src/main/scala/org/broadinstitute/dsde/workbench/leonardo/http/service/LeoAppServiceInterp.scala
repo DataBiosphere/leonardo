@@ -14,7 +14,15 @@ import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.azure.AKSClusterName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  GoogleResourceService,
+  KubernetesName,
+  MachineTypeName,
+  RegionName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -638,8 +646,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- log.info(ctx.loggingCtx)(s"DEBUGGING: azure region: ${regionName}")
 
       saveCluster <- F.fromEither(
-        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, landingZoneResourcesOpt.map(_.clusterName),
-        landingZoneResourcesOpt.map(_.region))
+        getSavableCluster(userInfo.userEmail,
+                          cloudContext,
+                          ctx.now,
+                          landingZoneResourcesOpt.map(_.clusterName),
+                          landingZoneResourcesOpt.map(_.region)
+        )
       )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       _ <-
