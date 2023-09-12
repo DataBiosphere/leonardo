@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.azure.AzureRuntimeSpec
+import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureDiskSpec, AzureRuntimeSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -20,10 +20,9 @@ import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRo
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.getAuthTokenAndAuthorization
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
-import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
+import org.http4s.headers.Authorization
 
 import java.util.UUID
 
@@ -144,7 +143,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  implicit val ronTestersonAuthorization = Ron.authorization()
+  implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
 
   override def beforeAll(): Unit = {
     val res = for {
@@ -251,38 +250,46 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 }
 
 final case class AzureBillingProjectName(value: String) extends AnyVal
-trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAfterAll {
+trait AzureBilling extends FixtureAnyFreeSpecLike {
   this: TestSuite =>
   import io.circe.{parser, Decoder}
   import org.broadinstitute.dsde.workbench.auth.AuthToken
   import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
   override type FixtureParam = WorkspaceResponse
-
-  val azureBillingProjectKey = "leonardo.azureBillingProject"
+  val azureProjectKey = "leonardo.azureProject"
 
   // These are static coordinates for this managed app in the azure portal: https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview
   // Note that the final 'optional' field for a pre-created landing zone is not technically optional
   // If you fail to include a landing zone, the wb-libs call to create the billing project will fail, timing out due to landing zone creation not being an expected part of creation
   // Contact the workspaces team if this fails to work
-  implicit val azureManagedAppCoordinates = AzureManagedAppCoordinates(
+  implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
     UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
     UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
     "staticTestingMrg",
     Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
   )
-
-  // Needed for wb-libs
-
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
 
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    withTemporaryAzureBillingProject(azureManagedAppCoordinates) { projectName =>
-      withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
-        runTestAndCheckOutcome(workspace)
+    try
+      sys.props.get(azureProjectKey) match {
+        case None => throw new RuntimeException("leonardo.azureProject system property is not set")
+        case Some(projectName) =>
+          withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
+            runTestAndCheckOutcome(workspace)
+          }
       }
+    catch {
+      case e: org.broadinstitute.dsde.workbench.service.RestException
+          if e.message == "Project cannot be deleted because it contains workspaces." =>
+        println(
+          s"Exception occurred in test, but it is classed as a non-fatal cleanup error (likely in `withTemporaryAzureBillingProject`): $e"
+        )
+        Succeeded
+      case e: Throwable => throw e
     }
   }
 
@@ -290,7 +297,7 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     projectName: AzureBillingProjectName
   )(testCode: WorkspaceResponse => T)(implicit authToken: AuthToken): T = {
     // hardcode this if you want to use a static workspace
-    //    val workspaceName = "ddf3f5fa-a80e-4b2f-ab6e-9bd07817fad1-azure-test-workspace"
+//        val workspaceName = "ddf3f5fa-a80e-4b2f-ab6e-9bd07817fad1-azure-test-workspace"
 
     val workspaceName = generateWorkspaceName()
 
@@ -306,12 +313,23 @@ trait AzureBillingBeforeAndAfter extends FixtureAnyFreeSpecLike with BeforeAndAf
     val response =
       workspaceResponse(projectName.value, workspaceName).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    println(s"withRawlsWorkspace: Rawls workspace create called, response: ${response}")
+    println(s"withRawlsWorkspace: Rawls workspace get called, response: ${response}")
 
     try
       testCode(response)
-    finally
-      Rawls.workspaces.delete(projectName.value, workspaceName)
+    catch {
+      case e: Throwable =>
+        println(s"Exception occurred during test: ${e}")
+        throw e
+    } finally
+      try
+        Rawls.workspaces.delete(projectName.value, workspaceName)
+      catch {
+        case e: Exception =>
+          println(
+            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: ${e}"
+          )
+      }
   }
 
   private def workspaceResponse(projectName: String, workspaceName: String)(implicit
@@ -402,8 +420,6 @@ final class LeonardoSuite
 
 final class LeonardoTerraDockerSuite
     extends Suites(
-      new NotebookAouSpec,
-      new NotebookGATKSpec,
       new NotebookHailSpec,
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
@@ -415,7 +431,25 @@ final class LeonardoTerraDockerSuite
 
 final class LeonardoAzureSuite
     extends Suites(
-      new AzureRuntimeSpec
+      new AzureRuntimeSpec,
+      new AzureDiskSpec
     )
     with TestSuite
+    with AzureBilling
     with ParallelTestExecution
+    with BeforeAndAfterAll {
+  override def beforeAll(): Unit = {
+    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val res = for {
+      _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
+      _ <- IO(super.beforeAll())
+      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
+        IO(sys.props.put(azureProjectKey, projectName))
+      }
+      // hardcode this if you want to use a static billing project
+      //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
+    } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+}

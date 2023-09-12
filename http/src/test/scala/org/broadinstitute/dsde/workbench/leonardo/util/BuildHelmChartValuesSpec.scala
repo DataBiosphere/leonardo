@@ -1,20 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import org.broadinstitute.dsde.workbench.azure.{PrimaryKey, RelayHybridConnectionName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makePersistentDisk, userEmail, userEmail2}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeCustomAppService, makeKubeCluster}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues._
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.buildCromwellAppChartOverrideValuesString
-import org.broadinstitute.dsde.workbench.leonardo.{FormattedBy, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
+  buildCromwellAppChartOverrideValuesString,
+  _
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.Release
 import org.scalatest.flatspec.AnyFlatSpecLike
+
+import java.net.URL
+import java.util.UUID
 
 class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
@@ -280,8 +286,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val savedCluster1 = makeKubeCluster(1)
     val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
     val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
-    val res = buildRStudioAppChartOverrideValuesString(
+    val res = buildAllowedAppChartOverrideValuesString(
       Config.gkeInterpConfig,
+      AllowedChartName.RStudio,
       appName = AppName("app1"),
       cluster = savedCluster1,
       nodepoolName = NodepoolName("pool1"),
@@ -294,19 +301,20 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     )
 
     res.mkString(",") shouldBe
+      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
+      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
+      """fullnameOverride=app1,""" +
       """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
       """ingress.enabled=true,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
-      """ingress.rstudio.path=/proxy/google/v1/apps/dsp-leo-test1/app1/rstudio-service(/|$)(.*),""" +
-      """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
       """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
@@ -317,8 +325,101 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[2].value=app1,""" +
       """welder.extraEnv[3].name=OWNER_EMAIL,""" +
       """welder.extraEnv[3].value=user2@example.com,""" +
+      """welder.extraEnv[4].name=WORKSPACE_ID,""" +
+      """welder.extraEnv[4].value=dummy,""" +
+      """welder.extraEnv[5].name=WSM_URL,""" +
+      """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name"""
+  }
 
+  it should "build SAS override values string" in {
+    val savedCluster1 = makeKubeCluster(1)
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
+    val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
+    val res = buildAllowedAppChartOverrideValuesString(
+      Config.gkeInterpConfig,
+      AllowedChartName.Sas,
+      appName = AppName("app1"),
+      cluster = savedCluster1,
+      nodepoolName = NodepoolName("pool1"),
+      namespaceName = NamespaceName("ns"),
+      disk = savedDisk1,
+      ksaName = ServiceAccountName("app1-rstudio-ksa"),
+      userEmail = userEmail2,
+      stagingBucket = GcsBucketName("test-staging-bucket"),
+      envVariables
+    )
+
+    res.mkString(",") shouldBe
+      """ingress.path.sas=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
+      """ingress.path.welder=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.proxyPath=/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+      """ingress.referer=https://replace_me,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://1455694897.jupyter.firecloud.org,""" +
+      """imageCredentials.username=sasUserName,""" +
+      """imageCredentials.password=sasPassword,""" +
+      """fullnameOverride=app1,""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
+      """persistence.size=250G,""" +
+      """persistence.gcePersistentDisk=disk1,""" +
+      """serviceAccount.name=app1-rstudio-ksa,""" +
+      """ingress.enabled=true,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None",""" +
+      """ingress.host=1455694897.jupyter.firecloud.org,""" +
+      """ingress.tls[0].secretName=tls-secret,""" +
+      """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
+      """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
+      """welder.extraEnv[0].value=dsp-leo-test1,""" +
+      """welder.extraEnv[1].name=STAGING_BUCKET,""" +
+      """welder.extraEnv[1].value=test-staging-bucket,""" +
+      """welder.extraEnv[2].name=CLUSTER_NAME,""" +
+      """welder.extraEnv[2].value=app1,""" +
+      """welder.extraEnv[3].name=OWNER_EMAIL,""" +
+      """welder.extraEnv[3].value=user2@example.com,""" +
+      """welder.extraEnv[4].name=WORKSPACE_ID,""" +
+      """welder.extraEnv[4].value=dummy,""" +
+      """welder.extraEnv[5].name=WSM_URL,""" +
+      """welder.extraEnv[5].value=dummy,""" +
+      """extraEnv[0].name=WORKSPACE_NAME,""" +
+      """extraEnv[0].value=test-workspace-name"""
+  }
+
+  it should "build relay listener override values string" in {
+    val workspaceId = WorkspaceId(UUID.randomUUID)
+    val res = buildListenerChartOverrideValuesString(
+      Release("rl-rls"),
+      AppSamResourceId("sam-id", Some(AppAccessScope.WorkspaceShared)),
+      RelayNamespace("relay-ns"),
+      RelayHybridConnectionName("hc-name"),
+      PrimaryKey("hc-name"),
+      AppType.Wds,
+      workspaceId,
+      AppName("app1"),
+      Set("example.com", "foo.com", "bar.org"),
+      Config.samConfig,
+      "acr/listener:1",
+      new URL("https://leo.com")
+    )
+    res.asString shouldBe
+      "connection.removeEntityPathFromHttpUrl=\"true\"," +
+      "connection.connectionString=Endpoint=sb://relay-ns.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=hc-name;EntityPath=hc-name," +
+      "connection.connectionName=hc-name," +
+      "connection.endpoint=https://relay-ns.servicebus.windows.net," +
+      "connection.targetHost=http://wds-rl-rls-wds-svc:8080," +
+      "sam.url=https://sam.test.org:443," +
+      "sam.resourceId=sam-id," +
+      "sam.resourceType=kubernetes-app-shared," +
+      "sam.action=connect," +
+      "leonardo.url=https://leo.com," +
+      s"general.workspaceId=${workspaceId.value.toString}," +
+      "general.appName=app1," +
+      "listener.image=acr/listener:1," +
+      "connection.validHosts[0]=example.com," +
+      "connection.validHosts[1]=foo.com," +
+      "connection.validHosts[2]=bar.org"
   }
 }

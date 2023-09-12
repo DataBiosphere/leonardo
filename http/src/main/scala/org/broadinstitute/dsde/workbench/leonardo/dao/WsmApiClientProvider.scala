@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.client.ApiClient
 import org.http4s.Uri
 
@@ -13,6 +13,7 @@ import org.http4s.Uri
  */
 trait WsmApiClientProvider {
   def getControlledAzureResourceApi(token: String): ControlledAzureResourceApi
+  def getResourceApi(token: String): ResourceApi
 }
 
 class HttpWsmClientProvider(baseWorkspaceManagerUrl: Uri) extends WsmApiClientProvider {
@@ -26,5 +27,11 @@ class HttpWsmClientProvider(baseWorkspaceManagerUrl: Uri) extends WsmApiClientPr
     val apiClient = getApiClient
     apiClient.setAccessToken(token)
     new ControlledAzureResourceApi(apiClient)
+  }
+
+  def getResourceApi(token: String): ResourceApi = {
+    val apiClient = getApiClient
+    apiClient.setAccessToken(token)
+    new ResourceApi(apiClient)
   }
 }

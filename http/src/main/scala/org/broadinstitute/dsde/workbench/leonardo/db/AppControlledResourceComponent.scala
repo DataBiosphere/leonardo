@@ -15,6 +15,9 @@ object AppControlledResourceStatus {
   case object Created extends AppControlledResourceStatus {
     override def toString: String = "CREATED"
   }
+  case object Deleting extends AppControlledResourceStatus {
+    override def toString: String = "DELETING"
+  }
   case object Deleted extends AppControlledResourceStatus {
     override def toString: String = "DELETED"
   }
@@ -68,7 +71,7 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
       .map(_.status)
       .update(AppControlledResourceStatus.Deleted)
 
-  def getAllForApp(appId: Long, statuses: AppControlledResourceStatus*)(implicit
+  def getAllForAppByStatus(appId: Long, statuses: AppControlledResourceStatus*)(implicit
     ec: ExecutionContext
   ): DBIO[List[AppControlledResourceRecord]] =
     appControlledResourceQuery
@@ -77,10 +80,12 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
       .result
       .map(_.toList)
 
-  def getWsmRecordForApp(appId: Long, resourceType: WsmResourceType): DBIO[Option[AppControlledResourceRecord]] =
+  def getAllForAppByType(appId: Long, resourceType: WsmResourceType)(implicit
+    ec: ExecutionContext
+  ): DBIO[List[AppControlledResourceRecord]] =
     appControlledResourceQuery
       .filter(_.appId === appId)
       .filter(_.resourceType === resourceType)
       .result
-      .headOption
+      .map(_.toList)
 }

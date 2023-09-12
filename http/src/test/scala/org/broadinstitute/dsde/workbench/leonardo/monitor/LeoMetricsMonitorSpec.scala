@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesServiceKindName,
   LeonardoTestSuite,
   NetworkFields,
+  RuntimeContainerServiceType,
   RuntimeImage,
   RuntimeImageType,
   RuntimeMetrics,
@@ -54,6 +55,7 @@ import org.scalatestplus.mockito.MockitoSugar
 
 import java.time.Instant
 import java.util.UUID
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -73,29 +75,29 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val appDAO = setUpMockAppDAO
   val wdsDAO = setUpMockWdsDAO
   val cbasDAO = setUpMockCbasDAO
-  val cbasUiDAO = setUpMockCbasUiDAO
   val cromwellDAO = setUpMockCromwellDAO
   val samDAO = setUpMockSamDAO
   val jupyterDAO = setUpMockJupyterDAO
   val rstudioDAO = setUpMockRStudioDAO
   val welderDAO = setUpMockWelderDAO
   val hailBatchDAO = setUpMockHailBatchDAO
+  val relayListenerDAO = setUpMockRelayListenerDAO
   val kube = setUpMockKubeDAO
   val containerService = setUpMockAzureContainerService
 
   // Test object
-  implicit val clusterToolToToolDao =
+  implicit val clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] =
     ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, rstudioDAO)
-  implicit val ec = cats.effect.unsafe.IORuntime.global.compute
+  implicit val ec: ExecutionContext = cats.effect.unsafe.IORuntime.global.compute
   val config = LeoMetricsMonitorConfig(true, 1 minute, true)
   val leoMetricsMonitor = new LeoMetricsMonitor[IO](
     config,
     appDAO,
     wdsDAO,
     cbasDAO,
-    cbasUiDAO,
     cromwellDAO,
     hailBatchDAO,
+    relayListenerDAO,
     samDAO,
     kube,
     containerService
@@ -103,8 +105,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   "LeoMetricsMonitor" should "count apps by status" in {
     val test = leoMetricsMonitor.countAppsByDbStatus(allApps)
-    // 8 apps
-    test.size shouldBe 8
+    // 10 apps
+    test.size shouldBe 10
     // Cromwell on Azure
     test.get(
       AppStatusMetric(CloudProvider.Azure,
@@ -133,7 +135,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) shouldBe Some(1)
     // RStudio on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.RStudio, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart)
     ) shouldBe Some(1)
     // Hail Batch on Azure
     test.get(
@@ -153,6 +155,26 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       RuntimeUI.Terra,
                       Some(azureContext2),
                       wdsChart
+      )
+    ) shouldBe Some(1)
+    // Workflows App on Azure
+    test.get(
+      AppStatusMetric(CloudProvider.Azure,
+                      AppType.WorkflowsApp,
+                      AppStatus.Running,
+                      RuntimeUI.Terra,
+                      Some(azureContext2),
+                      workflowsAppChart
+      )
+    ) shouldBe Some(1)
+    // Cromwell Runner App on Azure
+    test.get(
+      AppStatusMetric(CloudProvider.Azure,
+                      AppType.CromwellRunnerApp,
+                      AppStatus.Running,
+                      RuntimeUI.Terra,
+                      Some(azureContext2),
+                      cromwellRunnerAppChart
       )
     ) shouldBe Some(1)
   }
@@ -205,10 +227,12 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   it should "health check apps" in {
     val test =
-      leoMetricsMonitor.countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp)).unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
-    test.size shouldBe 8
-    List("cromwell", "cbas", "cbas-ui").foreach { s =>
+      leoMetricsMonitor
+        .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
+        .unsafeRunSync()(IORuntime.global)
+    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
+    test.size shouldBe 12
+    List("cromwell", "cbas").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
@@ -250,6 +274,48 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       galaxyChart
       )
     ) shouldBe Some(0)
+    List("cromwell-reader", "cbas").foreach { s =>
+      test.get(
+        AppHealthMetric(CloudProvider.Azure,
+                        AppType.WorkflowsApp,
+                        ServiceName(s),
+                        RuntimeUI.Terra,
+                        Some(azureContext2),
+                        s != "cbas",
+                        workflowsAppChart
+        )
+      ) shouldBe Some(1)
+      test.get(
+        AppHealthMetric(CloudProvider.Azure,
+                        AppType.WorkflowsApp,
+                        ServiceName(s),
+                        RuntimeUI.Terra,
+                        Some(azureContext2),
+                        s == "cbas",
+                        workflowsAppChart
+        )
+      ) shouldBe Some(0)
+    }
+    test.get(
+      AppHealthMetric(CloudProvider.Azure,
+                      AppType.CromwellRunnerApp,
+                      ServiceName("cromwell-runner"),
+                      RuntimeUI.Terra,
+                      Some(azureContext2),
+                      true,
+                      cromwellRunnerAppChart
+      )
+    ) shouldBe Some(1)
+    test.get(
+      AppHealthMetric(CloudProvider.Azure,
+                      AppType.CromwellRunnerApp,
+                      ServiceName("cromwell-runner"),
+                      RuntimeUI.Terra,
+                      Some(azureContext2),
+                      false,
+                      cromwellRunnerAppChart
+      )
+    ) shouldBe Some(0)
   }
 
   it should "health check runtimes" in {
@@ -283,20 +349,20 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       appDAO,
       wdsDAO,
       cbasDAO,
-      cbasUiDAO,
       cromwellDAO,
       hailBatchDAO,
+      relayListenerDAO,
       samDAO,
       kube,
       containerService
     )
     val test =
       azureDisabledMetricsMonitor
-        .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp))
+        .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
         .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 5 services: wds, cbas, cbas-ui, cromwell galaxy
-    test.size shouldBe 8
-    List("cromwell", "cbas", "cbas-ui").foreach { s =>
+    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
+    test.size shouldBe 12
+    List("cromwell", "cbas").foreach { s =>
       test.get(
         AppHealthMetric(CloudProvider.Azure,
                         AppType.Cromwell,
@@ -336,6 +402,48 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       None,
                       false,
                       galaxyChart
+      )
+    ) shouldBe Some(0)
+    List("cromwell-reader", "cbas").foreach { s =>
+      test.get(
+        AppHealthMetric(CloudProvider.Azure,
+                        AppType.WorkflowsApp,
+                        ServiceName(s),
+                        RuntimeUI.Terra,
+                        None,
+                        s != "cbas",
+                        workflowsAppChart
+        )
+      ) shouldBe Some(1)
+      test.get(
+        AppHealthMetric(CloudProvider.Azure,
+                        AppType.WorkflowsApp,
+                        ServiceName(s),
+                        RuntimeUI.Terra,
+                        None,
+                        s == "cbas",
+                        workflowsAppChart
+        )
+      ) shouldBe Some(0)
+    }
+    test.get(
+      AppHealthMetric(CloudProvider.Azure,
+                      AppType.CromwellRunnerApp,
+                      ServiceName("cromwell-runner"),
+                      RuntimeUI.Terra,
+                      None,
+                      true,
+                      cromwellRunnerAppChart
+      )
+    ) shouldBe Some(1)
+    test.get(
+      AppHealthMetric(CloudProvider.Azure,
+                      AppType.CromwellRunnerApp,
+                      ServiceName("cromwell-runner"),
+                      RuntimeUI.Terra,
+                      None,
+                      false,
+                      cromwellRunnerAppChart
       )
     ) shouldBe Some(0)
   }
@@ -400,7 +508,9 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                      appType: AppType,
                      chart: Chart,
                      isAou: Boolean,
-                     isCromwell: Boolean
+                     isCromwell: Boolean,
+                     isWorkflowsApp: Boolean,
+                     isCromwellRunnerApp: Boolean = false
   ): KubernetesCluster = {
     val cluster = if (isAzure) makeAzureCluster(1) else makeKubeCluster(1)
     val clusterWithAsyncFields = cluster.copy(asyncFields =
@@ -419,7 +529,9 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       labels = if (isAou) Map(Config.uiConfig.allOfUsLabel -> "true") else Map(Config.uiConfig.terraLabel -> "true")
     )
     val services =
-      if (isCromwell) List("cbas", "cbas-ui", "cromwell")
+      if (isCromwell) List("cbas", "cromwell")
+      else if (isCromwellRunnerApp) List("cromwell-runner")
+      else if (isWorkflowsApp) List("cbas", "cromwell-reader")
       else List(appType.toString.toLowerCase)
     val appWithServices = app.copy(appResources = app.appResources.copy(services = services.map(genService)))
     clusterWithAsyncFields.copy(nodepools = List(nodepool.copy(apps = List(appWithServices))))
@@ -429,23 +541,29 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     KubernetesService(ServiceId(-1), ServiceConfig(ServiceName(name), KubernetesServiceKindName("ClusterIP")))
 
   private def cromwellAppAzure: KubernetesCluster =
-    genApp(true, AppType.Cromwell, cromwellOnAzureChart, false, true)
+    genApp(true, AppType.Cromwell, cromwellOnAzureChart, false, true, false)
       .copy(cloudContext = CloudContext.Azure(azureContext))
   private def cromwellAppGcp: KubernetesCluster =
-    genApp(false, AppType.Cromwell, cromwellChart, false, true)
+    genApp(false, AppType.Cromwell, cromwellChart, false, true, false)
   private def galaxyAppGcp: KubernetesCluster =
-    genApp(false, AppType.Galaxy, galaxyChart, false, false)
+    genApp(false, AppType.Galaxy, galaxyChart, false, false, false)
   private def customAppGcp: KubernetesCluster =
-    genApp(false, AppType.Custom, customChart, false, false)
+    genApp(false, AppType.Custom, customChart, false, false, false)
   private def cromwellAppGcpAou: KubernetesCluster =
-    genApp(false, AppType.Cromwell, cromwellChart, true, true)
+    genApp(false, AppType.Cromwell, cromwellChart, true, true, false)
   private def rstudioAppGcpAou: KubernetesCluster =
-    genApp(false, AppType.RStudio, rstudioChart, true, false)
+    genApp(false, AppType.Allowed, rstudioChart, true, false, false)
   private def hailBatchAppAzure: KubernetesCluster =
-    genApp(true, AppType.HailBatch, hailBatchChart, false, false)
+    genApp(true, AppType.HailBatch, hailBatchChart, false, false, false)
       .copy(cloudContext = CloudContext.Azure(azureContext))
   private def wdsAppAzure: KubernetesCluster =
-    genApp(true, AppType.Wds, wdsChart, false, false)
+    genApp(true, AppType.Wds, wdsChart, false, false, false)
+      .copy(cloudContext = CloudContext.Azure(azureContext2))
+  private def workflowsApp: KubernetesCluster =
+    genApp(true, AppType.WorkflowsApp, workflowsAppChart, false, false, true)
+      .copy(cloudContext = CloudContext.Azure(azureContext2))
+  private def cromwellRunnerApp: KubernetesCluster =
+    genApp(true, AppType.CromwellRunnerApp, cromwellRunnerAppChart, false, false, false, true)
       .copy(cloudContext = CloudContext.Azure(azureContext2))
 
   private def cromwellChart = Chart.fromString("cromwell-0.0.1").get
@@ -455,16 +573,21 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def rstudioChart = Chart.fromString("rstudio-0.0.1").get
   private def hailBatchChart = Chart.fromString("hail-batch-0.1.0").get
   private def wdsChart = Chart.fromString("wds-0.0.1").get
+  private def workflowsAppChart = Chart.fromString("workflows-app-0.0.1").get
+  private def cromwellRunnerAppChart = Chart.fromString("cromwell-runner-app-0.0.1").get
 
   private def allApps =
-    List(cromwellAppAzure,
-         cromwellAppGcp,
-         galaxyAppGcp,
-         customAppGcp,
-         cromwellAppGcpAou,
-         rstudioAppGcpAou,
-         hailBatchAppAzure,
-         wdsAppAzure
+    List(
+      cromwellAppAzure,
+      cromwellAppGcp,
+      galaxyAppGcp,
+      customAppGcp,
+      cromwellAppGcpAou,
+      rstudioAppGcpAou,
+      hailBatchAppAzure,
+      wdsAppAzure,
+      workflowsApp,
+      cromwellRunnerApp
     )
 
   private def genRuntime(isJupyter: Boolean, isAou: Boolean, isGcp: Boolean): RuntimeMetrics =
@@ -527,14 +650,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     cbas
   }
 
-  private def setUpMockCbasUiDAO: CbasUiDAO[IO] = {
-    val cbasUi = mock[CbasUiDAO[IO]]
-    when {
-      cbasUi.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    cbasUi
-  }
-
   private def setUpMockWdsDAO: WdsDAO[IO] = {
     val wds = mock[WdsDAO[IO]]
     when {
@@ -585,6 +700,14 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       batch.getDriverStatus(any, any)(any)
     } thenReturn IO.pure(true)
     batch
+  }
+
+  private def setUpMockRelayListenerDAO: ListenerDAO[IO] = {
+    val listener = mock[ListenerDAO[IO]]
+    when {
+      listener.getStatus(any)(any)
+    } thenReturn IO.pure(true)
+    listener
   }
 
   private def setUpMockKubeDAO: KubernetesAlgebra[IO] = {

@@ -1,15 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import org.broadinstitute.dsde.workbench.azure.{PrimaryKey, RelayHybridConnectionName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
 import org.broadinstitute.dsde.workbench.leonardo.http.kubernetesProxyHost
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
-import org.broadinstitute.dsp.Release
+import org.broadinstitute.dsp.{Release, Values}
+
+import java.net.URL
 private[leonardo] object BuildHelmChartValues {
   def buildGalaxyChartOverrideValuesString(config: GKEInterpreterConfig,
                                            appName: AppName,
@@ -234,7 +239,59 @@ private[leonardo] object BuildHelmChartValues {
     ) ++ command ++ args ++ configs ++ ingress).mkString(",")
   }
 
-  def buildRStudioAppChartOverrideValuesString(config: GKEInterpreterConfig,
+  def buildListenerChartOverrideValuesString(release: Release,
+                                             samResourceId: AppSamResourceId,
+                                             relayNamespace: RelayNamespace,
+                                             relayHcName: RelayHybridConnectionName,
+                                             relayPrimaryKey: PrimaryKey,
+                                             appType: AppType,
+                                             workspaceId: WorkspaceId,
+                                             appName: AppName,
+                                             validHosts: Set[String],
+                                             samConfig: SamConfig,
+                                             listenerImage: String,
+                                             leoUrlBase: URL
+  ): Values = {
+    val relayTargetHost = appType match {
+      case AppType.Cromwell          => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.CromwellRunnerApp => s"http://cra-${release.asString}-reverse-proxy-service:8000/"
+      case AppType.Wds               => s"http://wds-${release.asString}-wds-svc:8080"
+      case AppType.HailBatch         => "http://batch:8080"
+      case AppType.WorkflowsApp      => s"http://wfa-${release.asString}-reverse-proxy-service:8000/"
+      case _                         => "unknown"
+    }
+
+    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
+    // so requires that we don't strip the entity path. For other app types we do
+    // strip the entity path.
+    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
+
+    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
+    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
+      raw"connection.validHosts[$idx]=$elem"
+    }
+
+    Values(
+      List(
+        raw"""connection.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
+        raw"connection.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
+        raw"connection.connectionName=${relayHcName.value}",
+        raw"connection.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
+        raw"connection.targetHost=$relayTargetHost",
+        raw"sam.url=${samConfig.server}",
+        raw"sam.resourceId=${samResourceId.resourceId}",
+        raw"sam.resourceType=${samResourceId.resourceType.asString}",
+        raw"sam.action=connect",
+        raw"leonardo.url=${leoUrlBase}",
+        raw"general.workspaceId=${workspaceId.value.toString}",
+        raw"general.appName=${appName.value}",
+        raw"listener.image=${listenerImage}"
+      ).concat(validHostValues).mkString(",")
+    )
+  }
+
+  def buildAllowedAppChartOverrideValuesString(config: GKEInterpreterConfig,
+                                               allowedChartName: AllowedChartName,
                                                appName: AppName,
                                                cluster: KubernetesCluster,
                                                nodepoolName: NodepoolName,
@@ -245,12 +302,64 @@ private[leonardo] object BuildHelmChartValues {
                                                stagingBucket: GcsBucketName,
                                                customEnvironmentVariables: Map[String, String]
   ): List[String] = {
-    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain)
+    val common = buildAllowedAppCommonChartValuesString(
+      config,
+      appName,
+      cluster,
+      nodepoolName,
+      namespaceName,
+      disk,
+      ksaName,
+      userEmail,
+      stagingBucket,
+      customEnvironmentVariables,
+      ingressPath,
+      k8sProxyHost
+    )
+
+    allowedChartName match {
+      case AllowedChartName.RStudio =>
+        List(
+          raw"""ingress.rstudio.path=${ingressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost
+              .address()}"""
+        ) ++ common
+      case AllowedChartName.Sas =>
+        List(
+          raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.proxyPath=${ingressPath}""",
+          raw"""ingress.referer=${config.leoUrlBase}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost
+              .address()}""",
+          raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
+          raw"""imageCredentials.password=${config.allowedAppConfig.sasContainerRegistryCredentials.password.asString}"""
+        ) ++ common
+    }
+  }
+
+  private[util] def buildAllowedAppCommonChartValuesString(config: GKEInterpreterConfig,
+                                                           appName: AppName,
+                                                           cluster: KubernetesCluster,
+                                                           nodepoolName: NodepoolName,
+                                                           namespaceName: NamespaceName,
+                                                           disk: PersistentDisk,
+                                                           ksaName: ServiceAccountName,
+                                                           userEmail: WorkbenchEmail,
+                                                           stagingBucket: GcsBucketName,
+                                                           customEnvironmentVariables: Map[String, String],
+                                                           ingressPath: String,
+                                                           k8sProxyHost: akka.http.scaladsl.model.Uri.Host
+  ): List[String] = {
+    val k8sProxyHostString = k8sProxyHost.address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
 
     // Custom EV configs
+    // todo: This may not apply to SAS apps
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
       List(
         raw"""extraEnv[$i].name=$k""",
@@ -262,15 +371,12 @@ private[leonardo] object BuildHelmChartValues {
     val ingress = List(
       raw"""ingress.enabled=true""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${rstudioIngressPath}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None"""",
-      raw"""ingress.host=${k8sProxyHost}""",
-      raw"""ingress.rstudio.path=${rstudioIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.host=${k8sProxyHostString}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHostString}"""
     )
 
     val welder = List(
@@ -281,10 +387,15 @@ private[leonardo] object BuildHelmChartValues {
       raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
       raw"""welder.extraEnv[2].value=${appName.value}""",
       raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
-      raw"""welder.extraEnv[3].value=${userEmail.value}"""
+      raw"""welder.extraEnv[3].value=${userEmail.value}""",
+      raw"""welder.extraEnv[4].name=WORKSPACE_ID""",
+      raw"""welder.extraEnv[4].value=dummy""", // TODO: welder requires this env, but it's not needed for welders in GCP
+      raw"""welder.extraEnv[5].name=WSM_URL""",
+      raw"""welder.extraEnv[5].value=dummy""" // TODO: welder requires this env, but it's not needed for welders in GCP
     )
 
     List(
+      raw"""fullnameOverride=${appName.value}""",
       // Node selector
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence

@@ -13,10 +13,10 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   labelQuery,
   LabelResourceType,
   RuntimeServiceDbQueries,
-  SlickPlainQueryTest,
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.scalatest.concurrent.ScalaFutures
 

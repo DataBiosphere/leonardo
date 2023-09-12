@@ -24,7 +24,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.0.19")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.1.0")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -68,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:9c988ec",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:39641f8",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -76,13 +76,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.291"),
+          ChartVersion("0.2.341"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
           List(
             ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
-            ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,
@@ -90,6 +89,21 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List(
+            ChartVersion("0.2.341"),
+            ChartVersion("0.2.338"),
+            ChartVersion("0.2.334"),
+            ChartVersion("0.2.332"),
+            ChartVersion("0.2.328"),
+            ChartVersion("0.2.291"),
+            ChartVersion("0.2.277"),
+            ChartVersion("0.2.276"),
+            ChartVersion("0.2.268"),
+            ChartVersion("0.2.265"),
+            ChartVersion("0.2.263"),
+            ChartVersion("0.2.251"),
+            ChartVersion("0.2.242"),
+            ChartVersion("0.2.239"),
+            ChartVersion("0.2.237"),
             ChartVersion("0.2.232"),
             ChartVersion("0.2.231"),
             ChartVersion("0.2.229"),
@@ -122,9 +136,43 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ChartVersion("0.2.39")
           )
         ),
+        CromwellRunnerAppConfig(
+          ChartName("/leonardo/cromwell-runner-app"),
+          ChartVersion("0.16.0"),
+          ReleaseNameSuffix("cra-rls"),
+          NamespaceNameSuffix("cra-ns"),
+          KsaName("cra-ksa"),
+          List(
+            ServiceConfig(ServiceName("cromwell-runner"),
+                          KubernetesServiceKindName("ClusterIP"),
+                          Some(ServicePath("/cromwell"))
+            )
+          ),
+          instrumentationEnabled = false,
+          enabled = false,
+          chartVersionsToExcludeFromUpdates = List.empty
+        ),
+        WorkflowsAppConfig(
+          ChartName("/leonardo/workflows-app"),
+          ChartVersion("0.32.0"),
+          ReleaseNameSuffix("wfa-rls"),
+          NamespaceNameSuffix("wfa-ns"),
+          KsaName("wfa-ksa"),
+          List(
+            ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
+            ServiceConfig(ServiceName("cromwell-reader"),
+                          KubernetesServiceKindName("ClusterIP"),
+                          Some(ServicePath("/cromwell"))
+            )
+          ),
+          instrumentationEnabled = false,
+          enabled = false,
+          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
+          chartVersionsToExcludeFromUpdates = List.empty
+        ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.31.0"),
+          ChartVersion("0.43.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -146,7 +194,14 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ChartVersion("0.22.0"),
             ChartVersion("0.24.0"),
             ChartVersion("0.26.0"),
-            ChartVersion("0.27.0")
+            ChartVersion("0.27.0"),
+            ChartVersion("0.28.0"),
+            ChartVersion("0.31.0"),
+            ChartVersion("0.38.0"),
+            ChartVersion("0.39.0"),
+            ChartVersion("0.41.0"),
+            ChartVersion("0.42.0"),
+            ChartVersion("0.43.0")
           )
         ),
         HailBatchAppConfig(
@@ -161,15 +216,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           false,
           chartVersionsToExcludeFromUpdates = List()
         ),
-        AadPodIdentityConfig(
-          Namespace("aad-pod-identity"),
-          Release("aad-pod-identity"),
-          ChartName("aad-pod-identity/aad-pod-identity"),
-          ChartVersion("4.1.14"),
-          Values("operationMode=managed")
-        ),
-        List("WDS"),
-        TdrConfig("https://jade.datarepo-dev.broadinstitute.org")
+        List(AppType.Wds, AppType.WorkflowsApp),
+        TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
+        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

@@ -3,6 +3,7 @@ package apps
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
@@ -23,7 +24,7 @@ class AppLifecycleSpec
     with BillingProjectUtils
     with TableDrivenPropertyChecks
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
-  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
@@ -33,7 +34,8 @@ class AppLifecycleSpec
 
   def createAppRequest(appType: AppType,
                        workspaceName: String,
-                       descriptorPath: Option[org.http4s.Uri]
+                       descriptorPath: Option[org.http4s.Uri],
+                       allowedChartName: Option[AllowedChartName] = None
   ): CreateAppRequest = defaultCreateAppRequest.copy(
     diskConfig = Some(
       PersistentDiskRequest(
@@ -43,6 +45,7 @@ class AppLifecycleSpec
         Map.empty
       )
     ),
+    allowedChartName = allowedChartName,
     appType = appType,
     customEnvironmentVariables = Map("WORKSPACE_NAME" -> workspaceName),
     descriptorPath = descriptorPath,
@@ -60,7 +63,11 @@ class AppLifecycleSpec
 
   "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
-      test(googleProject, createAppRequest(AppType.RStudio, "rstudio-test-workspace", None), false, true)
+      test(googleProject,
+           createAppRequest(AppType.Allowed, "rstudio-test-workspace", None, Some(AllowedChartName.RStudio)),
+           false,
+           true
+      )
   }
 
   "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>

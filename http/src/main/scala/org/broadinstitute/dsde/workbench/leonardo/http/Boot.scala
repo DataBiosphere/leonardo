@@ -13,6 +13,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
+import fs2.io.file.Files
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
@@ -45,6 +46,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.app.{
+  AppInstall,
+  CromwellAppInstall,
+  CromwellRunnerAppInstall,
+  HailBatchAppInstall,
+  WdsAppInstall,
+  WorkflowsAppInstall
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
@@ -282,7 +291,7 @@ object Boot extends IOApp {
 
           // LeoMetricsMonitor collects metrics from both runtimes and apps.
           // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
-          // - appDAO, wdsDAO, cbasDAO, cbasUiDAO, cromwellDAO are for status checking apps.
+          // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,
@@ -293,9 +302,9 @@ object Boot extends IOApp {
             appDependencies.appDAO,
             appDependencies.wdsDAO,
             appDependencies.cbasDAO,
-            appDependencies.cbasUiDAO,
             appDependencies.cromwellDAO,
             appDependencies.hailBatchDAO,
+            appDependencies.listenerDAO,
             appDependencies.samDAO,
             appDependencies.kubeAlg,
             appDependencies.azureContainerService
@@ -344,7 +353,8 @@ object Boot extends IOApp {
     logger: StructuredLogger[F],
     ec: ExecutionContext,
     as: ActorSystem,
-    F: Async[F]
+    F: Async[F],
+    files: Files[F]
   ): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
@@ -399,14 +409,14 @@ object Boot extends IOApp {
       cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
         new HttpCbasDAO[F](client)
       )
-      cbasUiDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_ui_client"), false).map(
-        client => new HttpCbasUiDAO[F](client)
-      )
       wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
         new HttpWdsDAO[F](client)
       )
       hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
         .map(client => new HttpHailBatchDAO[F](client))
+      listenerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_listener_client"), false).map(
+        client => new HttpListenerDAO[F](client)
+      )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -425,9 +435,8 @@ object Boot extends IOApp {
       appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
-      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
-        new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
-      )
+      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true)
+        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
@@ -651,6 +660,49 @@ object Boot extends IOApp {
         googleDependencies.credentials
       )
 
+      val cromwellAppInstall = new CromwellAppInstall[F](
+        ConfigReader.appConfig.azure.coaAppConfig,
+        ConfigReader.appConfig.drs,
+        samDao,
+        cromwellDao,
+        cbasDao,
+        azureBatchService,
+        azureApplicationInsightsService
+      )
+      val cromwellRunnerAppInstall =
+        new CromwellRunnerAppInstall[F](ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
+                                        ConfigReader.appConfig.drs,
+                                        samDao,
+                                        cromwellDao,
+                                        azureBatchService,
+                                        azureApplicationInsightsService
+        )
+      val hailBatchAppInstall =
+        new HailBatchAppInstall[F](ConfigReader.appConfig.azure.hailBatchAppConfig, hailBatchDao)
+      val wdsAppInstall = new WdsAppInstall[F](ConfigReader.appConfig.azure.wdsAppConfig,
+                                               ConfigReader.appConfig.azure.tdr,
+                                               samDao,
+                                               wdsDao,
+                                               azureApplicationInsightsService
+      )
+      val workflowsAppInstall =
+        new WorkflowsAppInstall[F](
+          ConfigReader.appConfig.azure.workflowsAppConfig,
+          ConfigReader.appConfig.drs,
+          samDao,
+          cromwellDao,
+          cbasDao,
+          azureBatchService,
+          azureApplicationInsightsService
+        )
+
+      implicit val appTypeToAppInstall = AppInstall.appTypeToAppInstall(wdsAppInstall,
+                                                                        cromwellAppInstall,
+                                                                        workflowsAppInstall,
+                                                                        hailBatchAppInstall,
+                                                                        cromwellRunnerAppInstall
+      )
+
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
         bucketHelper,
@@ -670,31 +722,17 @@ object Boot extends IOApp {
 
       val aksAlg = new AKSInterpreter[F](
         AKSInterpreterConfig(
-          ConfigReader.appConfig.terraAppSetupChart,
-          ConfigReader.appConfig.azure.coaAppConfig,
-          ConfigReader.appConfig.azure.wdsAppConfig,
-          ConfigReader.appConfig.azure.hailBatchAppConfig,
-          ConfigReader.appConfig.azure.aadPodIdentityConfig,
-          ConfigReader.appConfig.azure.appRegistration,
           samConfig,
           appMonitorConfig,
           ConfigReader.appConfig.azure.wsm,
-          ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.azure.tdr
+          ConfigReader.appConfig.azure.listenerChartConfig
         ),
         helmClient,
-        azureBatchService,
         azureContainerService,
-        azureApplicationInsightsService,
         azureRelay,
         samDao,
-        cromwellDao,
-        cbasDao,
-        cbasUiDao,
-        wdsDao,
-        hailBatchDao,
         wsmDao,
         kubeAlg,
         wsmClientProvider
@@ -782,9 +820,9 @@ object Boot extends IOApp {
         appDAO,
         wdsDao,
         cbasDao,
-        cbasUiDao,
         cromwellDao,
         hailBatchDao,
+        listenerDao,
         wsmClientProvider,
         kubeAlg,
         azureContainerService
@@ -906,9 +944,9 @@ final case class AppDependencies[F[_]](
   appDAO: AppDAO[F],
   wdsDAO: WdsDAO[F],
   cbasDAO: CbasDAO[F],
-  cbasUiDAO: CbasUiDAO[F],
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
+  listenerDAO: ListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider,
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]
