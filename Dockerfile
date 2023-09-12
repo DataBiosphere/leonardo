@@ -29,14 +29,14 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 2.5.2
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.335
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.335
+ENV CROMWELL_CHART_VERSION 0.2.341
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.341
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
-ENV CROMWELL_RUNNER_APP_VERSION 0.16.0
+ENV CROMWELL_RUNNER_APP_VERSION 0.22.0
 # WORKFLOWS APP comment to prevent merge conflicts
-ENV WORKFLOWS_APP_VERSION 0.24.0
+ENV WORKFLOWS_APP_VERSION 0.32.0
 # WDS CHART comment to prevent merge conflicts
-ENV WDS_CHART_VERSION 0.41.0
+ENV WDS_CHART_VERSION 0.44.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.2.0
 ENV SAS_CHART_VERSION 0.1.0
@@ -58,7 +58,6 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
-    helm repo add aad-pod-identity https://raw.githubusercontent.com/Azure/aad-pod-identity/master/charts && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
     helm repo add aou-rstudio-chart https://storage.googleapis.com/terra-app-helm/aou-rstudio-chart && \
     helm repo add aou-sas-chart https://storage.googleapis.com/terra-app-helm/aou-sas-chart && \

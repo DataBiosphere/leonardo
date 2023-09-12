@@ -31,7 +31,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               appDAO: AppDAO[F],
                               wdsDAO: WdsDAO[F],
                               cbasDAO: CbasDAO[F],
-                              cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
                               hailBatchDAO: HailBatchDAO[F],
                               listenerDAO: ListenerDAO[F],
@@ -161,7 +160,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           // For Azure impersonate the user and call the app's status endpoint via Azure Relay.
           isUp <- cloudContext match {
             case CloudContext.Gcp(project) =>
-              appDAO.isProxyAvailable(project, app.appName, serviceName)
+              appDAO.isProxyAvailable(project, app.appName, serviceName).handleError(_ => false)
             case CloudContext.Azure(_) =>
               for {
                 tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
@@ -173,11 +172,11 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 relayPath = Uri
                   .unsafeFromString(baseUri.asString) / s"${app.appName.value}-${app.workspaceId.map(_.value.toString).getOrElse("")}"
                 isUp <- serviceName match {
-                  case ServiceName("cbas")     => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cbas-ui")  => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cromwell") => cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("wds")      => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("batch")    => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cbas") => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cromwell") | ServiceName("cromwell-reader") | ServiceName("cromwell-runner") =>
+                    cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("wds")   => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("batch") => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case s if s == ConfigReader.appConfig.azure.listenerChartConfig.service.config.name =>
                     listenerDAO.getStatus(relayPath).handleError(_ => false)
                   case s =>
@@ -191,7 +190,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           _ <-
             if (isUp) F.unit
             else
-              logger.error(ctx.loggingCtx)(
+              logger.debug(ctx.loggingCtx)(
                 s"App is DOWN with " +
                   s"name={${app.appName.value}}, " +
                   s"type={${app.appType.toString}}, " +
@@ -245,7 +244,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           _ <-
             if (isUp) F.unit
             else
-              logger.error(ctx.loggingCtx)(
+              logger.debug(ctx.loggingCtx)(
                 s"Runtime is DOWN with " +
                   s"name={${runtime.runtimeName.asString}}, " +
                   s"type={${container.imageType.toString}}, " +
