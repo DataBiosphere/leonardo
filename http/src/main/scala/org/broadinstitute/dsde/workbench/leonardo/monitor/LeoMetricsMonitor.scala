@@ -160,7 +160,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           // For Azure impersonate the user and call the app's status endpoint via Azure Relay.
           isUp <- cloudContext match {
             case CloudContext.Gcp(project) =>
-              appDAO.isProxyAvailable(project, app.appName, serviceName)
+              appDAO.isProxyAvailable(project, app.appName, serviceName).handleError(_ => false)
             case CloudContext.Azure(_) =>
               for {
                 tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
@@ -190,7 +190,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           _ <-
             if (isUp) F.unit
             else
-              logger.error(ctx.loggingCtx)(
+              logger.debug(ctx.loggingCtx)(
                 s"App is DOWN with " +
                   s"name={${app.appName.value}}, " +
                   s"type={${app.appType.toString}}, " +
@@ -244,7 +244,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           _ <-
             if (isUp) F.unit
             else
-              logger.error(ctx.loggingCtx)(
+              logger.debug(ctx.loggingCtx)(
                 s"Runtime is DOWN with " +
                   s"name={${runtime.runtimeName.asString}}, " +
                   s"type={${container.imageType.toString}}, " +
