@@ -8,6 +8,7 @@ import cats.syntax.all._
 import io.circe.Encoder
 import io.opencensus.scala.http.ServiceData
 import _root_.io.opencensus.trace.{AttributeValue, Span, Tracing}
+import _root_.io.opencensus.trace.samplers.Samplers
 import fs2._
 import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
@@ -111,7 +112,13 @@ package object http {
     for {
       ctx <- Resource.eval(ev.ask)
       newSpan <- Resource.make[F, Span](
-        Sync[F].delay(Tracing.getTracer.spanBuilderWithExplicitParent(name, ctx.span.orNull).startSpan())
+        Sync[F].delay(
+          Tracing.getTracer
+            .spanBuilderWithExplicitParent(name, ctx.span.orNull)
+            // TODO: remove alwaysSample before merge
+            .setSampler(Samplers.alwaysSample())
+            .startSpan()
+        )
       )(span => Sync[F].delay(span.end()))
       newCtx = ctx.copy(span = Some(newSpan))
     } yield Ask.const[F, AppContext](newCtx)
