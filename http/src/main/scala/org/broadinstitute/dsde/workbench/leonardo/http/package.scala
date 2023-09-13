@@ -115,7 +115,6 @@ package object http {
         Sync[F].delay(
           Tracing.getTracer
             .spanBuilderWithExplicitParent(name, ctx.span.orNull)
-            // TODO: remove alwaysSample before merge
             .setSampler(Samplers.alwaysSample())
             .startSpan()
         )
