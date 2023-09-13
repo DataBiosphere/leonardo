@@ -174,13 +174,11 @@ sudo groupadd docker
 sudo usermod -aG docker $VM_JUP_USER
 newgrp docker
 
-# Update rbase
+#Update conda packages
 
-echo "Y"|sudo apt update -qq
-echo "Y"|sudo apt install --no-install-recommends software-properties-common dirmngr
-echo "Y"|wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
-echo "Y"|sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
-echo "Y"|sudo apt install --no-install-recommends r-base
+echo "y"| conda update --all
+
+#conda install -c conda-forge r-base=4.3.1
 
 #Update kernel list
 
@@ -192,7 +190,7 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
 
-#echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
+echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
 
 echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel pydevd
 
