@@ -93,6 +93,20 @@ package object http {
       Sync[F].delay(span.end())
     )
 
+  /**
+   * Creates a child Span from the parent span in the AppContext. If no parent span exists, a root
+   * Span is created. Returns a Resource which closes the Span.
+   *
+   * Usage:
+   *
+   * def myMethod(implicit ev: Ask[F, AppContext]) = {
+   *   // The provided AppContext has a parent Span
+   *   childSpan("myChildMethod").use { implicit ev: Ask[F, AppContext] =>
+   *     // The AppContext in this scope includes a child Span named "myChildMethod"
+   *     myChildMethod()
+   *   }
+   * }
+   */
   def childSpan[F[_]: Sync](name: String)(implicit ev: Ask[F, AppContext]): Resource[F, Ask[F, AppContext]] =
     for {
       ctx <- Resource.eval(ev.ask)
