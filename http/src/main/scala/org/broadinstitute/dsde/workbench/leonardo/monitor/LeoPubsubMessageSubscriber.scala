@@ -10,6 +10,7 @@ import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
+import io.opencensus.trace.samplers.Samplers
 import io.opencensus.trace.{AttributeValue, Tracing}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -139,7 +140,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
     val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
-    val span = Tracing.getTracer.spanBuilder("leoPubsubMessage").startSpan()
+    val span = Tracing.getTracer.spanBuilder("leoPubsubMessage").setSampler(Samplers.alwaysSample()).startSpan()
     span.putAttribute("messageType", AttributeValue.stringAttributeValue(event.msg.messageType.asString))
     implicit val appContext = Ask.const[F, AppContext](AppContext(traceId, now, span = Some(span)))
     val res = for {
