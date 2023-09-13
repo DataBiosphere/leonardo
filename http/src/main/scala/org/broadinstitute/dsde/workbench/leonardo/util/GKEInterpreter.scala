@@ -430,8 +430,6 @@ class GKEInterpreter[F[_]](
                 traceId = Some(ctx.traceId)
               )
             )
-            // TESTING ADDING DELAY BEFORE GALAXY CREATION AS CLUSTER MIGHT NOT BE READY
-            _ <- F.sleep(60 seconds)
             _ <- installGalaxy(
               helmAuthContext,
               app.appName,
@@ -1418,6 +1416,8 @@ class GKEInterpreter[F[_]](
       )
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
+      // TESTING ADDING DELAY BEFORE POLLING GALAXY AS CERTS MIGHT NOT BE READY YET?
+      _ <- F.sleep(60 seconds)
       isDone <- streamFUntilDone(
         appDao.isProxyAvailable(googleProject, appName, ServiceName("galaxy")),
         config.monitorConfig.createApp.maxAttempts,
