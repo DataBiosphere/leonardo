@@ -194,10 +194,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
     } yield ()
 
-    res
-      .handleErrorWith(e =>
-        logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.consumer.ack())
-      )
+    res.handleErrorWith(e =>
+      logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.consumer.ack())
+    )
   }
 
   val process: Stream[F, Unit] = subscriber.messages
