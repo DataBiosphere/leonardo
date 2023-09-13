@@ -174,12 +174,6 @@ sudo groupadd docker
 sudo usermod -aG docker $VM_JUP_USER
 newgrp docker
 
-#Update conda packages
-
-echo "y"| conda update --all
-
-#conda install -c conda-forge r-base=4.3.1
-
 #Update kernel list
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
