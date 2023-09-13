@@ -7,9 +7,13 @@ import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 
 trait WsmApiClientDAO[F[_]] {
 
-  // Checks if the runtime status is deletable + sub-resources (disk, if necessary) in WSM
-  def isRuntimeDeletable(runtimeId: Long,
-                         wsmRuntimeResourceId: WsmControlledResourceId,
+  // Checks if the resource status in WSM, returns None if no resource found
+  def getWsmStatus(wsmResourceId: WsmControlledResourceId, workspaceId: WorkspaceId, resourceType: WsmResourceType)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[State]]
+
+  // Checks if the runtime status is deletable + sub-resources (disk, if necessary) in WSM, returns None if no resource found
+  def isRuntimeDeletable(wsmRuntimeResourceId: WsmControlledResourceId,
                          workspaceId: WorkspaceId,
                          wsmDiskResourceId: Option[WsmControlledResourceId]
   )(implicit
@@ -21,9 +25,10 @@ trait WsmApiClientDAO[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Boolean]
 
+  // Checks if the disk status is deletable in WSM, returns None if no resource found
   def isDiskDeletable(wsmResourceId: WsmControlledResourceId, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
-  ): F[Boolean]
+  ): F[Option[Boolean]]
 
   // Sends a delete call to WSM for the specified resource and polls the job if possible
   // Verifies it doesn't exist after polling
@@ -51,11 +56,12 @@ trait WsmApiClientDAO[F[_]] {
   // TODO: define CreateWsmResourceRequest and GetCreateJobResult
   // Sends a create call to WSM for the specified resource and polls the job if possible
   // Verifies it's created status after polling
-  def createWsmResource(createRequest: CreateWsmResourceRequest,
-                        workspaceId: WorkspaceId,
-                        jobControl: Option[WsmJobControl]
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[GetCreateJobResult]
-
+//  def createWsmResource(createRequest: CreateWsmResourceRequest,
+//                        workspaceId: WorkspaceId,
+//                        jobControl: Option[WsmJobControl]
+//  )(implicit
+//    ev: Ask[F, AppContext]
+//  ): F[GetCreateJobResult]
+//
+//
 }

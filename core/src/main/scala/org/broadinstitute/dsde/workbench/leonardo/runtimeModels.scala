@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import bio.terra.workspace.model.State
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
@@ -7,7 +8,7 @@ import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject, parseGcsPath}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
 import org.http4s.Uri
 
@@ -167,6 +168,9 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   // Can a user delete this runtime? Contains everything except Creating, Deleting, Deleted.
   val deletableStatuses: Set[RuntimeStatus] =
     Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting)
+
+  // Can a user delete this runtime in WSM? Doesn't include CREATING, DELETING, UPDATING
+  val deletableWsmStatuses = List(State.READY, State.BROKEN)
 
   // Non-terminal statuses. Requires monitoring via ClusterMonitorActor.
   val monitoredStatuses: Set[RuntimeStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)

@@ -854,7 +854,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .transaction
       }
 
-      // TODO check for WSM disk status
       diskResource <- F.fromOption(
         diskResourceOpt,
         AzureDiskResourceDeletionError(id,

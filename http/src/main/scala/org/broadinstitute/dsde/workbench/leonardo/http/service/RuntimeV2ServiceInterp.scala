@@ -2,7 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import bio.terra.workspace.model.State
 import akka.http.scaladsl.model.StatusCodes
+import bio.terra.workspace.api.ControlledAzureResourceApi
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
@@ -11,6 +13,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.deletableWsmStatuses
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   RuntimeSamResourceId,
@@ -302,46 +305,46 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
-      // TODO get rid of this in favor of WSM check
-      _ <- F
-        .raiseUnless(runtime.status.isDeletable)(
-          RuntimeCannotBeDeletedException(runtime.cloudContext, runtime.runtimeName, runtime.status)
-        )
-
-      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
-      diskId <- diskIdOpt match {
-        case Some(value) => F.pure(value)
-        case _ =>
-          F.raiseError[DiskId](
-            AzureRuntimeHasInvalidRuntimeConfig(runtime.cloudContext, runtime.runtimeName, ctx.traceId)
-          )
+      diskIds <- deleteDisk match {
+        case true =>
+          for {
+            // getting the leo diskId
+            diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
+            diskId <- F.fromOption(
+              diskIdOpt,
+              AzureRuntimeHasInvalidRuntimeConfig(runtime.cloudContext, runtime.runtimeName, ctx.traceId)
+            )
+            // getting the wsmResourceId
+            controlledResourceOpt <- controlledResourceQuery
+              .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
+              .transaction
+            resource <- F.fromOption(
+              controlledResourceOpt,
+              RuntimeControlledResourceNotFoundException(runtime.id, WsmResourceType.AzureDisk, ctx.traceId)
+            )
+          } yield (Some(diskId), Some(resource.resourceId))
+        case _ => F.pure(none[DiskId], none[WsmControlledResourceId])
       }
 
       // get wsm api
       wsmAzureResourceApi = wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
       wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
 
-      // if the vm is found in WSM and has a deletable state,
-      // then the resourceId is passed to back leo to make the delete call to WSM
-      // (state can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
-      deletableStatus = List("BROKEN", "READY")
-
-      vmState <- F
-        .delay(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value))
-        .map(_.getMetadata.getState)
-      wsmVMResourceSamId <- deletableStatus.contains(vmState) match {
-        case true =>
+      // WSM state must be BROKEN or READY to be deleted, can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL
+      // if vm is in a deletable status + disk is in deletable statuses (or NULL) the runtime's WsmResourceId is passed to back leo
+      // if NULL don't send WsmRecord to back leo
+      // if in any other status, error out
+      deletableOpt <- isRuntimeDeletable(wsmAzureResourceApi, wsmResourceId, workspaceId, diskIds._2)
+      wsmResourceIdOpt <- deletableOpt match {
+        case Some(true) =>
           log
             .info(ctx.loggingCtx)(
-              s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
+              s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} is deletable in WSM"
             )
             .as(Some(wsmResourceId))
-        case _ =>
-          log
-            .info(ctx.loggingCtx)(
-              s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm"
-            )
-            .as(None)
+        case Some(false) =>
+          F.raiseError(RuntimeControlledResourceNotFoundException(runtime.id, WsmResourceType.AzureVm, ctx.traceId))
+        case None => F.pure(none[WsmControlledResourceId])
       }
 
       hasPermission <-
@@ -367,22 +370,109 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Update DB record to Deleting status
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
-      // pass the disk to delete to publisher if specified
-      diskIdToDelete <-
-        if (deleteDisk)
-          persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction.as(diskIdOpt)
-        else F.pure(none[DiskId])
+      // TODO mark disk as deleting too
+      // persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction
 
       _ <- publisherQueue.offer(
         DeleteAzureRuntimeMessage(runtime.id,
-                                  diskIdToDelete,
+                                  diskIds._1,
                                   workspaceId,
-                                  wsmVMResourceSamId,
+                                  wsmResourceIdOpt,
                                   landingZoneResources,
                                   Some(ctx.traceId)
         )
       )
     } yield ()
+
+  def isRuntimeDeletable(wsmApi: ControlledAzureResourceApi,
+                         wsmRuntimeResourceId: WsmControlledResourceId,
+                         workspaceId: WorkspaceId,
+                         wsmDiskResourceId: Option[WsmControlledResourceId]
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Option[Boolean]] = for {
+    ctx <- as.ask
+    runtimeStatus <- getWsmStatus(wsmApi, wsmRuntimeResourceId, workspaceId, WsmResourceType.AzureDisk)
+    vmDeletable <- runtimeStatus match {
+      case Some(status) => F.pure(Some(deletableWsmStatuses.contains(status)))
+      case _ =>
+        log
+          .info(ctx.loggingCtx)(
+            s"No-op for wsmDao.deleteVM"
+          )
+          .as(None)
+    }
+    // if vm exists and is deletable, and disk exists and is deletable --> send delete
+    // if vm exists and is deletable, and disk doesn't exist --> send delete
+    // if vm exists and isn't deletable --> error
+    // if disk exists and isn't deletable --> error
+    // if vm doesn't exist --> don't error, don't send delete
+    runtimeDeletable <- (vmDeletable, wsmDiskResourceId) match {
+      case (Some(true), Some(id)) =>
+        for {
+          diskDeletable <- isDiskDeletable(wsmApi, id, workspaceId)
+          diskDeletableOrNone = diskDeletable.getOrElse(true)
+        } yield Some(diskDeletableOrNone)
+      case (Some(true), None) => F.pure(Some(true))
+      case (None, _)          => F.pure(none[Boolean])
+      case _                  => F.pure(Some(false))
+    }
+  } yield runtimeDeletable
+
+  // if disk doesn't exist in WSM, return None
+  // if disk has a deletable status, return true (and vice versa)
+  def isDiskDeletable(wsmApi: ControlledAzureResourceApi,
+                      wsmResourceId: WsmControlledResourceId,
+                      workspaceId: WorkspaceId
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Option[Boolean]] = for {
+    ctx <- as.ask
+    diskStatus <- getWsmStatus(wsmApi, wsmResourceId, workspaceId, WsmResourceType.AzureDisk)
+    deletable <- diskStatus match {
+      case Some(status) => F.pure(Some(deletableWsmStatuses.contains(status)))
+      case _ =>
+        log
+          .info(ctx.loggingCtx)(
+            s"No-op for wsmDao.deleteDisk"
+          )
+          .as(None)
+    }
+  } yield deletable
+
+  def getWsmStatus(wsmApi: ControlledAzureResourceApi,
+                   wsmResourceId: WsmControlledResourceId,
+                   workspaceId: WorkspaceId,
+                   resourceType: WsmResourceType
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Option[State]] = for {
+    ctx <- as.ask
+    getWsmResource <- resourceType match {
+      case WsmResourceType.AzureDisk => F.delay(wsmApi.getAzureDisk(workspaceId.value, wsmResourceId.value)).attempt
+      case WsmResourceType.AzureDatabase =>
+        F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmResourceId.value)).attempt
+      case WsmResourceType.AzureManagedIdentity =>
+        F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmResourceId.value)).attempt
+      case WsmResourceType.AzureVm => F.delay(wsmApi.getAzureVm(workspaceId.value, wsmResourceId.value)).attempt
+      // TODO: add check for AzureStorageContainer once added to WsmClient
+    }
+    state <- getWsmResource match {
+      case Right(resource) =>
+        val state = resource.getMetadata.getState
+        log
+          .info(ctx.loggingCtx)(
+            s"$resourceType with wsmResourceId ${wsmResourceId.value} has a state of $state in WSM"
+          )
+          .as(Some(state))
+      case Left(e) =>
+        log
+          .info(ctx.loggingCtx)(
+            s"No wsm record found for $resourceType with wsmResourceId ${wsmResourceId.value}, ${e.getMessage}"
+          )
+          .as(None)
+    }
+  } yield state
 
   override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
@@ -772,11 +862,11 @@ final case class CloudContextNotFoundException(workspaceId: WorkspaceId, traceId
       traceId = Some(traceId)
     )
 
-final case class AzureRuntimeControlledResourceNotFoundException(cloudContext: CloudContext,
-                                                                 runtimeName: RuntimeName,
-                                                                 traceId: TraceId
+final case class RuntimeControlledResourceNotFoundException(runtimeId: Long,
+                                                            wsmResourceType: WsmResourceType,
+                                                            traceId: TraceId
 ) extends LeoException(
-      s"Controlled resource record not found for runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString}",
+      s"{${wsmResourceType.toString}} controlled resource record not found for runtime with $runtimeId}",
       StatusCodes.NotFound,
       traceId = Some(traceId)
     )
