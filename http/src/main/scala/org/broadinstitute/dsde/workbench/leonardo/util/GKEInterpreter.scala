@@ -430,6 +430,8 @@ class GKEInterpreter[F[_]](
                 traceId = Some(ctx.traceId)
               )
             )
+            // TESTING ADDING DELAY BEFORE GALAXY CREATION AS CLUSTER MIGHT NOT BE READY
+            _ <- F.delay(60 seconds)
             _ <- installGalaxy(
               helmAuthContext,
               app.appName,
