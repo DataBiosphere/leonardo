@@ -431,7 +431,7 @@ class GKEInterpreter[F[_]](
               )
             )
             // TESTING ADDING DELAY BEFORE GALAXY CREATION AS CLUSTER MIGHT NOT BE READY
-            _ <- F.delay(60 seconds)
+            _ <- F.sleep(60 seconds)
             _ <- installGalaxy(
               helmAuthContext,
               app.appName,
