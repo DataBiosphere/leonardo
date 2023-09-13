@@ -134,7 +134,7 @@ jobs:
   notify-slack-on-failure:
     runs-on: ubuntu-latest
     needs: [ init-github-context, leo-build-tag-publish-job, create-bee-workflow, leo-automation-test-job, destroy-bee-workflow ] # Want to notify regardless of which step fails
-    if: ${{ github.event_name == 'schedule' && failure() }}
+    if: failure() # github.event_name == 'schedule'
     steps:
       - name: Notify slack
         uses: slackapi/slack-github-action@v1.23.0
