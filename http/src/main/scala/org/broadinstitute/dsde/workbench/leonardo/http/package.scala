@@ -100,11 +100,11 @@ package object http {
    *
    * Usage:
    *
-   * def myMethod(implicit ev: Ask[F, AppContext]) = {
+   * def myMethod(implicit ev: Ask[F, AppContext]): F[Unit] = {
    *   // The provided AppContext has a parent Span
    *   childSpan("myChildMethod").use { implicit ev: Ask[F, AppContext] =>
    *     // The AppContext in this scope includes a child Span named "myChildMethod"
-   *     myChildMethod()
+   *     myChildMethod() // Returns F[Unit]
    *   }
    * }
    */
