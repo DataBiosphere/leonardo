@@ -7,7 +7,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.Encoder
 import io.opencensus.scala.http.ServiceData
-import io.opencensus.trace.{AttributeValue, Span}
+import _root_.io.opencensus.trace.{AttributeValue, Span, Tracing}
 import fs2._
 import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
@@ -92,6 +92,15 @@ package object http {
     Resource.make[F, Unit](Sync[F].delay(span.putAttribute("api", AttributeValue.stringAttributeValue(apiName))))(_ =>
       Sync[F].delay(span.end())
     )
+
+  def childSpan[F[_]: Sync](name: String)(implicit ev: Ask[F, AppContext]): Resource[F, Ask[F, AppContext]] =
+    for {
+      ctx <- Resource.eval(ev.ask)
+      newSpan <- Resource.make[F, Span](
+        Sync[F].delay(Tracing.getTracer.spanBuilderWithExplicitParent(name, ctx.span.orNull).startSpan())
+      )(span => Sync[F].delay(span.end()))
+      newCtx = ctx.copy(span = Some(newSpan))
+    } yield Ask.const[F, AppContext](newCtx)
 
   val genericDataprocRuntimeConfig = Generic[RuntimeConfig.DataprocConfig]
   val genericDataprocRuntimeConfigInCreateRuntimeMessage = Generic[RuntimeConfigInCreateRuntimeMessage.DataprocConfig]

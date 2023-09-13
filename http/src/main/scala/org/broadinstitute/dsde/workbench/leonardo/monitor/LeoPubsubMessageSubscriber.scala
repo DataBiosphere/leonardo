@@ -10,8 +10,6 @@ import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
-import io.opencensus.trace.samplers.Samplers
-import io.opencensus.trace.{AttributeValue, Tracing}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
@@ -32,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AppNotFoundException,
   AppTypeNotSupportedOnCloudException
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
@@ -140,15 +138,21 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
     val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
-    val span = Tracing.getTracer.spanBuilder("leoPubsubMessage").setSampler(Samplers.alwaysSample()).startSpan()
-    span.putAttribute("messageType", AttributeValue.stringAttributeValue(event.msg.messageType.asString))
-    implicit val appContext = Ask.const[F, AppContext](AppContext(traceId, now, span = Some(span)))
+    implicit val ev = Ask.const[F, AppContext](AppContext(traceId, now, span = None))
+    childSpan(event.msg.messageType.asString).use { implicit ev =>
+      messageHandlerWithContext(event)
+    }
+
+  }
+  private[monitor] def messageHandlerWithContext(
+    event: Event[LeoPubsubMessage]
+  )(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val res = for {
       res <- messageResponder(event.msg)
         .timeout(config.timeout)
         .attempt // set timeout to 55 seconds because subscriber's ack deadline is 1 minute
 
-      ctx <- appContext.ask
+      ctx <- ev.ask
 
       _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
 
@@ -165,7 +169,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                       ee
                     )
                   case ee: AzureRuntimeCreationError =>
-                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, now)
+                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
                   case ee: AzureRuntimeDeletionError =>
                     azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
                   case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
@@ -194,7 +198,6 @@ class LeoPubsubMessageSubscriber[F[_]](
       .handleErrorWith(e =>
         logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.consumer.ack())
       )
-      .guarantee(F.delay(span.end()))
   }
 
   val process: Stream[F, Unit] = subscriber.messages
