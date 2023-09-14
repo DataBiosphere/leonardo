@@ -167,13 +167,6 @@ echo "VALID_HOSTS = ${VALID_HOSTS}"
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn
 
-# Pull NVIDIA Parabricks Docker image
-
-docker pull nvcr.io/nvidia/clara/clara-parabricks:4.0.0-1
-sudo groupadd docker
-sudo usermod -aG docker $VM_JUP_USER
-newgrp docker
-
 #Update kernel list
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
