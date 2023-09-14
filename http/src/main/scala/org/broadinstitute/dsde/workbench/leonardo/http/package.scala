@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import _root_.io.opencensus.trace.{AttributeValue, Span, Tracing}
 import akka.http.scaladsl.model.Uri.Host
 import cats.Applicative
 import cats.effect.{Resource, Sync}
@@ -7,8 +8,6 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.Encoder
 import io.opencensus.scala.http.ServiceData
-import _root_.io.opencensus.trace.{AttributeValue, Span, Tracing}
-import _root_.io.opencensus.trace.samplers.Samplers
 import fs2._
 import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
@@ -115,7 +114,6 @@ package object http {
         Sync[F].delay(
           Tracing.getTracer
             .spanBuilderWithExplicitParent(name, ctx.span.orNull)
-            .setSampler(Samplers.alwaysSample())
             .startSpan()
         )
       )(span => Sync[F].delay(span.end()))
