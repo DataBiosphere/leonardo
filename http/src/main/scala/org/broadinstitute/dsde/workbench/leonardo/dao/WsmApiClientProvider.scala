@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
+import bio.terra.common.tracing.JerseyTracingFilter
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.client.ApiClient
 import cats.effect.Async
@@ -31,8 +32,8 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
         override def performAdditionalClientConfiguration(clientConfig: ClientConfig): Unit = {
           super.performAdditionalClientConfiguration(clientConfig)
           ctx.span.foreach { span =>
-            clientConfig.register(Tracing.getTracer.withSpan(span))
             clientConfig.register(new WithSpanFilter(span))
+            clientConfig.register(new JerseyTracingFilter(Tracing.getTracer))
           }
         }
       }
