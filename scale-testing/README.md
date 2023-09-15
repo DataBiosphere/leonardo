@@ -5,7 +5,7 @@ Export environment variables:
 export AZURE_TOKEN=abcd-123
 #export BEE_NAME=my-bee
 export ENV=prod
-export BILLING_PROJECT_NAME=BroadE-0923-definition
+export SOURCE_BILLING_PROJECT_NAME=BroadE-0923-definition
 export DEST_BILLING_PROJECT_NAME=BroadE-0923
 export WORKSPACE_NAME=Terra-on-Azure_Quickstart
 ```
