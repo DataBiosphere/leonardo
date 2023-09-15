@@ -42,7 +42,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            samDao: SamDAO[F],
                            wsmDao: WsmDao[F],
                            kubeAlg: KubernetesAlgebra[F],
-                           wsmClientProvider: WsmApiClientProvider
+                           wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   appTypeToAppInstall: AppType => AppInstall[F],
   executionContext: ExecutionContext,
@@ -100,27 +100,34 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Create WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
         case SamResourceType.SharedApp =>
-          createWsmIdentityResource(app, namespacePrefix, params.workspaceId).map(_.some)
+          childSpan("createWsmIdentityResource").use { implicit ev =>
+            createWsmIdentityResource(app, namespacePrefix, params.workspaceId).map(_.some)
+          }
         case _ => F.pure(None)
       }
 
       // Create WSM databases
-      wsmDatabases <- createWsmDatabaseResources(app,
-                                                 app.appType,
-                                                 params.workspaceId,
-                                                 namespacePrefix,
-                                                 wsmManagedIdentityOpt.map(_.getResourceId),
-                                                 params.landingZoneResources
-      )
+      wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
+        createWsmDatabaseResources(
+          app,
+          app.appType,
+          params.workspaceId,
+          namespacePrefix,
+          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getResourceId.toString),
+          params.landingZoneResources
+        )
+      }
 
       // Create WSM kubernetes namespace
-      wsmNamespace <- createWsmKubernetesNamespaceResource(
-        app,
-        params.workspaceId,
-        namespacePrefix,
-        wsmDatabases.map(_.getAzureDatabase.getMetadata.getResourceId),
-        wsmManagedIdentityOpt.map(_.getResourceId)
-      )
+      wsmNamespace <- childSpan("createWsmKubernetesNamespaceResource").use { implicit ev =>
+        createWsmKubernetesNamespaceResource(
+          app,
+          params.workspaceId,
+          namespacePrefix,
+          wsmDatabases.map(_.getAzureDatabase.getMetadata.getResourceId.toString),
+          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getResourceId.toString)
+        )
+      }
 
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
@@ -138,10 +145,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
-      relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                                       hcName,
-                                                                       params.cloudContext
-      )
+      relayPrimaryKey <- childSpan("createRelayHybridConnection").use { implicit ev =>
+        azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                      hcName,
+                                                      params.cloudContext
+        )
+      }
       relayDomain = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
@@ -170,15 +179,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Install listener helm chart
-      _ <- helmClient
-        .installChart(
-          getListenerReleaseName(app.release),
-          config.listenerChartConfig.chartName,
-          config.listenerChartConfig.chartVersion,
-          values,
-          false
-        )
-        .run(authContext)
+      _ <- childSpan("helmInstallRelayListener").use { _ =>
+        helmClient
+          .installChart(
+            getListenerReleaseName(app.release),
+            config.listenerChartConfig.chartName,
+            config.listenerChartConfig.chartVersion,
+            values,
+            false
+          )
+          .run(authContext)
+      }
 
       // Build app helm values
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
@@ -196,17 +207,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
 
       // Install app chart
-      _ <- helmClient
-        .installChart(
-          app.release,
-          app.chart.name,
-          app.chart.version,
-          values,
-          createNamespace = false
-        )
-        .run(authContext)
+      _ <- childSpan("helmInstallApp").use { _ =>
+        helmClient
+          .installChart(
+            app.release,
+            app.chart.name,
+            app.chart.version,
+            values,
+            createNamespace = false
+          )
+          .run(authContext)
+      }
 
-      appOk <- pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
+      appOk <- childSpan("pollAppCreation").use { implicit ev =>
+        pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
+      }
       _ <-
         if (appOk)
           F.unit
@@ -338,15 +353,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
 
       // Update the relay listener deployment
-      _ <- updateListener(authContext,
-                          app,
-                          landingZoneResources,
-                          workspaceId,
-                          hcName,
-                          relayPrimaryKey,
-                          relayDomain,
-                          config.listenerChartConfig
-      )
+      _ <- childSpan("helmUpdateListener").use { implicit ev =>
+        updateListener(authContext,
+                       app,
+                       landingZoneResources,
+                       workspaceId,
+                       hcName,
+                       relayPrimaryKey,
+                       relayDomain,
+                       config.listenerChartConfig
+        )
+      }
 
       // Build app helm values
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
@@ -364,17 +381,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
 
       // Upgrade app chart version and explicitly pass the values
-      _ <- helmClient
-        .upgradeChart(
-          app.release,
-          app.chart.name,
-          params.appChartVersion,
-          values
-        )
-        .run(authContext)
+      _ <- childSpan("helmUpdateApp").use { _ =>
+        helmClient
+          .upgradeChart(
+            app.release,
+            app.chart.name,
+            params.appChartVersion,
+            values
+          )
+          .run(authContext)
+      }
 
       // Poll until all pods in the app namespace are running
-      appOk <- pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
+      appOk <- childSpan("pollAppUpdate").use { implicit ev =>
+        pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
+      }
       _ <-
         if (appOk)
           F.unit
@@ -420,26 +441,32 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmDatabases <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
         .transaction
-      _ <- wsmDatabases.traverse { database =>
-        deleteWsmResource(workspaceId, app, database)
+      _ <- childSpan("deleteWsmDatabases").use { implicit ev =>
+        wsmDatabases.traverse { database =>
+          deleteWsmResource(workspaceId, app, database)
+        }
       }
 
       // Then delete namespace resources
       wsmNamespaces <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
         .transaction
-      deletedNamespace <- wsmNamespaces
-        .traverse { namespace =>
-          deleteWsmNamespaceResource(workspaceId, app, namespace)
-        }
-        .map(_.nonEmpty)
+      deletedNamespace <- childSpan("deleteWsmNamespace").use { implicit ev =>
+        wsmNamespaces
+          .traverse { namespace =>
+            deleteWsmNamespaceResource(workspaceId, app, namespace)
+          }
+          .map(_.nonEmpty)
+      }
 
       // Then delete identity resources
       wsmIdentities <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
         .transaction
-      _ <- wsmIdentities.traverse { identity =>
-        deleteWsmResource(workspaceId, app, identity)
+      _ <- childSpan("deleteWsmIdentity").use { implicit ev =>
+        wsmIdentities.traverse { identity =>
+          deleteWsmResource(workspaceId, app, identity)
+        }
       }
 
       // If this app did not have a WSM-tracked kubernetes namespace, delete it explicitly
@@ -470,30 +497,34 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // TODO: make relay hybrid connection a WSM resource
       name = app.customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", app.appName.value)
 
-      _ <- azureRelayService
-        .deleteRelayHybridConnection(
-          landingZoneResources.relayNamespace,
-          RelayHybridConnectionName(name),
-          cloudContext
-        )
-        .handleErrorWith {
-          case e: ManagementException if e.getResponse.getStatusCode == StatusCodes.NotFound.intValue =>
-            logger.info(s"${name} does not exist to delete in ${cloudContext}")
-          case e => F.raiseError[Unit](e)
-        }
+      _ <- childSpan("deleteRelayHybridConnection").use { implicit ev =>
+        azureRelayService
+          .deleteRelayHybridConnection(
+            landingZoneResources.relayNamespace,
+            RelayHybridConnectionName(name),
+            cloudContext
+          )
+          .handleErrorWith {
+            case e: ManagementException if e.getResponse.getStatusCode == StatusCodes.NotFound.intValue =>
+              logger.info(s"${name} does not exist to delete in ${cloudContext}")
+            case e => F.raiseError[Unit](e)
+          }
+      }
 
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-      _ <- tokenOpt match {
-        case Some(token) =>
-          samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                        Authorization(Credentials.Token(AuthScheme.Bearer, token))
-          )
-        case None =>
-          logger.warn(
-            s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
-          )
+      _ <- childSpan("deleteSamResource").use { implicit ev =>
+        tokenOpt match {
+          case Some(token) =>
+            samDao.deleteResourceInternal(dbApp.app.samResourceId,
+                                          Authorization(Credentials.Token(AuthScheme.Bearer, token))
+            )
+          case None =>
+            logger.warn(
+              s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
+            )
+        }
       }
 
       _ <- logger.info(
@@ -655,7 +686,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                appInstall: AppInstall[F],
                                                workspaceId: WorkspaceId,
                                                namespacePrefix: String,
-                                               owner: Option[UUID],
+                                               owner: Option[String],
                                                landingZoneResources: LandingZoneResources
   )(implicit ev: Ask[F, AppContext]): F[List[CreatedControlledAzureDatabaseResult]] =
     if (landingZoneResources.postgresServer.isDefined) {
@@ -676,7 +707,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                               workspaceId: WorkspaceId,
                                               database: CreateDatabase,
                                               namespacePrefix: String,
-                                              owner: Option[UUID],
+                                              owner: Option[String],
                                               wsmApi: ControlledAzureResourceApi
   )(implicit
     ev: Ask[F, AppContext]
@@ -762,8 +793,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def createWsmKubernetesNamespaceResource(app: App,
                                                          workspaceId: WorkspaceId,
                                                          namespacePrefix: String,
-                                                         databases: List[UUID],
-                                                         identity: Option[UUID]
+                                                         databases: List[String],
+                                                         identity: Option[String]
   )(implicit ev: Ask[F, AppContext]): F[CreatedControlledAzureKubernetesNamespaceResult] =
     for {
       ctx <- ev.ask
@@ -796,7 +827,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       externalDatabaseIds = wsmDatabases
         .filter(wsmDb => appExternalDatabaseNames.contains(wsmDb.getMetadata.getName))
-        .map(_.getMetadata.getResourceId)
+        .map(_.getMetadata.getResourceId.toString)
 
       // Build common fields
       namespaceCommonFields =
@@ -1000,24 +1031,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
     }
 
-  private def buildWsmControlledResourceApiClient: F[ControlledAzureResourceApi] =
+  private def buildWsmControlledResourceApiClient(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi] =
     for {
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
-      wsmApi = wsmClientProvider.getControlledAzureResourceApi(token)
+      wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
     } yield wsmApi
 
-  private def buildWsmResourceApiClient: F[ResourceApi] =
+  private def buildWsmResourceApiClient(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
     for {
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
-      wsmApi = wsmClientProvider.getResourceApi(token)
+      wsmApi <- wsmClientProvider.getResourceApi(token)
     } yield wsmApi
 }
 
