@@ -1418,7 +1418,7 @@ class GKEInterpreter[F[_]](
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
       // Wait a bit before starting polling for the app status check as the certificates might not be quite ready yet
       // This seems to only impact galaxy, See https://broadworkbench.atlassian.net/browse/IA-4551
-      _ <- F.sleep(5 seconds)
+      _ <- F.sleep(10 seconds)
       isDone <- streamFUntilDone(
         appDao.isProxyAvailable(googleProject, appName, ServiceName("galaxy")),
         config.monitorConfig.createApp.maxAttempts,
