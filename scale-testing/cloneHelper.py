@@ -81,5 +81,5 @@ def check_wds_data(wds_url, workspaceId, recordName, azure_token):
 
     print("verifying data was cloned")
     response = schema_client.describe_record_type(workspaceId, version, recordName);
-    assert response.name == 'student', "Name does not match"
+    assert response.name == recordName, "Name does not match"
     assert response.count == 86, "Count does not match"

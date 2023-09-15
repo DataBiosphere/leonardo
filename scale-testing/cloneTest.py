@@ -54,6 +54,6 @@ print("Sleeping...")
 time.sleep(300)
 for ws in cloned_workspaces:
     wds_url = get_app_url(ws, "wds", azure_token)
-    check_wds_data(wds_url, ws, "test", azure_token)
+    check_wds_data(wds_url, ws, "student", azure_token)
 
 print("LOAD TEST COMPLETE.")
