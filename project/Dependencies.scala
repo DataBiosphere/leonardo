@@ -8,7 +8,7 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
-  val scalaTestV = "3.2.17"
+  val scalaTestV = "3.2.16"
   val http4sVersion = "1.0.0-M38" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
   val slickV = "3.4.1"
   val guavaV = "32.1.2-jre"
