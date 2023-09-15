@@ -60,7 +60,7 @@ def clone_workspace(source_billing_project_name, dest_billing_project_name, work
     api_call2 = f"{rawls_url}/api/workspaces/{source_billing_project_name}/{workspace_name}/clone";
     request_body = {
         "namespace": dest_billing_project_name,  # Billing project name
-        "name": f"{workspace_name} clone-{''.join(random.choices(string.ascii_lowercase, k=3))}",  # workspace name
+        "name": f"{workspace_name} clone-{''.join(random.choices(string.ascii_lowercase, k=5))}",  # workspace name
         "attributes": {}};
 
     print(f"cloning workspace {workspace_name}")
