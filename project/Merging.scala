@@ -34,6 +34,7 @@ object Merging {
     // case PathList("META-INF", "kotlin-stdlib-common.kotlin_module")    => MergeStrategy.preferProject
     case x if x.contains("activation") => MergeStrategy.first
     case x if x.contains("annotation") => MergeStrategy.first
+    case "logback.xml"                 => MergeStrategy.first
     case x                             => oldStrategy(x)
   }
 }
