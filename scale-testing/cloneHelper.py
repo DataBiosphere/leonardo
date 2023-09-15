@@ -9,14 +9,14 @@ workspace_manager_url = ""
 rawls_url = ""
 leo_url = ""
 
-def setup(bee_name):
+def setup(env):
 # define major service endpoints based on bee name
     global workspace_manager_url
-    workspace_manager_url = f"https://workspace.{bee_name}.bee.envs-terra.bio"
+    workspace_manager_url = f"https://workspace.dsde-{env}.broadinstitute.org"
     global rawls_url
-    rawls_url = f"https://rawls.{bee_name}.bee.envs-terra.bio"
+    rawls_url = f"https://rawls.dsde-{env}.broadinstitute.org"
     global leo_url
-    leo_url = f"https://leonardo.{bee_name}.bee.envs-terra.bio"
+    leo_url = f"https://leonardo.dsde-{env}.broadinstitute.org"
     return workspace_manager_url, rawls_url, leo_url
 
 # GET WDS OR CROMWELL ENDPOINT URL FROM LEO
@@ -56,10 +56,10 @@ def get_app_url(workspaceId, app, azure_token):
 
     return app_url
 
-def clone_workspace(billing_project_name, workspace_name, header):
-    api_call2 = f"{rawls_url}/api/workspaces/{billing_project_name}/{workspace_name}/clone";
+def clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header):
+    api_call2 = f"{rawls_url}/api/workspaces/{source_billing_project_name}/{workspace_name}/clone";
     request_body = {
-        "namespace": billing_project_name,  # Billing project name
+        "namespace": dest_billing_project_name,  # Billing project name
         "name": f"{workspace_name} clone-{''.join(random.choices(string.ascii_lowercase, k=3))}",  # workspace name
         "attributes": {}};
 
