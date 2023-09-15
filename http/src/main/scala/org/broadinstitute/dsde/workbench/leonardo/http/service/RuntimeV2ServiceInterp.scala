@@ -42,7 +42,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              samDAO: SamDAO[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
                                              dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage],
-                                             wsmClientProvider: WsmApiClientProvider
+                                             wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -317,7 +317,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
 
       // get wsm api
-      wsmAzureResourceApi = wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
+      wsmAzureResourceApi <- wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
       wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
 
       // if the vm is found in WSM and has a deletable state,
