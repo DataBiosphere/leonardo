@@ -76,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.341"),
+          ChartVersion("0.2.345"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -89,7 +89,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List(
-            ChartVersion("0.2.341"),
+            ChartVersion("0.2.345"),
             ChartVersion("0.2.338"),
             ChartVersion("0.2.334"),
             ChartVersion("0.2.332"),
