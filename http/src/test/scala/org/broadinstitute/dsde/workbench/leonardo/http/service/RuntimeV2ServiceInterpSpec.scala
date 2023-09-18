@@ -73,7 +73,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                  allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
                  wsmDao: WsmDao[IO] = wsmDao,
                  dateAccessedQueue: Queue[IO, UpdateDateAccessMessage] = QueueFactory.makeDateAccessedQueue(),
-                 wsmClientProvider: WsmApiClientProvider = wsmClientProvider
+                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    allowlistAuthProvider,
