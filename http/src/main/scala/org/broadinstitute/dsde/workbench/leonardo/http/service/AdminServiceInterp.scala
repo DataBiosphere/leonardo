@@ -21,8 +21,7 @@ import org.typelevel.log4cats.StructuredLogger
 import scala.concurrent.ExecutionContext
 
 final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
-                                               publisherQueue: Queue[F, LeoPubsubMessage],
-                                               adminAppConfig: AdminAppConfig
+                                               publisherQueue: Queue[F, LeoPubsubMessage]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -42,10 +41,10 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
       _ <- F.raiseWhen(!hasPermission)(NotAnAdminError(userInfo.userEmail, Option(ctx.traceId)))
 
       // Find the config relevant to this cloud and app type
-      appConfig: KubernetesAppConfig <- adminAppConfig.configForTypeAndCloud(req.appType, req.cloudProvider) match {
-        case Some(conf) => F.pure(conf)
-        case None       => F.raiseError(NoMatchingAppError(req.appType, req.cloudProvider, Option(ctx.traceId)))
-      }
+      appConfig: KubernetesAppConfig <- F.fromOption(
+        KubernetesAppConfig.configForTypeAndCloud(req.appType, req.cloudProvider),
+        NoMatchingAppError(req.appType, req.cloudProvider, Option(ctx.traceId))
+      )
 
       // Query the database for the collection of updateable apps matching filters
       excludedVersions = (appConfig.chartVersionsToExcludeFromUpdates ++ req.appVersionsExclude).distinct
