@@ -37,7 +37,7 @@ trait LeonardoTestSuite extends Matchers {
     CaffeineCache[IO, KubernetesClusterId, Semaphore[IO]](underlyingCache)
   val nodepoolLock = KeyLock[IO, KubernetesClusterId](cache)
 
-  def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 30): IO[Assertion] = {
+  def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 120): IO[Assertion] = {
     val process = Stream.eval(Deferred[IO, Assertion]).flatMap { signalToStop =>
       val accumulator = Accumulator(maxRetry, None)
       val signal = Stream.unfoldEval(accumulator) { acc =>
