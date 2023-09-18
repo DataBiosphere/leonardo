@@ -6,7 +6,11 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{AzureDiskConfig, ClusterStatus, CreateAzureRuntimeRequest}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{
+  AzureDiskConfig,
+  ClusterStatus,
+  CreateAzureRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}

@@ -132,23 +132,23 @@ jobs:
           inputs: '{ "bee-name": "${{ env.BEE_NAME }}" }'
 
 
-  report-workflow:
-    uses: broadinstitute/sherlock/.github/workflows/client-report-workflow.yaml@main
-    with:
-      notify-slack-channels-upon-workflow-failure: "#ia-notification-test"
-    permissions:
-      id-token: write
+#  report-workflow:
+#    uses: broadinstitute/sherlock/.github/workflows/client-report-workflow.yaml@main
+#    with:
+#      notify-slack-channels-upon-workflow-failure: "#ia-notification-test"
+#    permissions:
+#      id-token: write
 
-#  notify-slack-on-failure:
-#    runs-on: ubuntu-latest
-#    needs: [ init-github-context, leo-build-tag-publish-job, create-bee-workflow, leo-automation-test-job, destroy-bee-workflow ] # Want to notify regardless of which step fails
-#    if: failure() # github.event_name == 'schedule'
-#    steps:
-#      - name: Notify slack
-#        uses: slackapi/slack-github-action@v1.23.0
-#        with:
-#          # Channel is for #ia-notification-test
-#          channel-id: 'C03ATF4QXEV'
-#          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-#        env:
-#          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
+  notify-slack-on-failure:
+    runs-on: ubuntu-latest
+    needs: [ init-github-context, leo-build-tag-publish-job, create-bee-workflow, leo-automation-test-job, destroy-bee-workflow ] # Want to notify regardless of which step fails
+    if: failure() # github.event_name == 'schedule'
+    steps:
+      - name: Notify slack
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          # Channel is for #ia-notification-test
+          channel-id: 'C03ATF4QXEV'
+          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
