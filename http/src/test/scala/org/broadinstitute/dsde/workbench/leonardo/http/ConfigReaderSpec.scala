@@ -89,7 +89,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List(
-            ChartVersion("0.2.346"),
+            ChartVersion("0.2.341"),
             ChartVersion("0.2.338"),
             ChartVersion("0.2.334"),
             ChartVersion("0.2.332"),
