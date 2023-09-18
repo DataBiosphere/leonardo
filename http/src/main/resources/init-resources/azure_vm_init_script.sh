@@ -167,6 +167,21 @@ echo "VALID_HOSTS = ${VALID_HOSTS}"
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn
 
+# Pull NVIDIA Parabricks Docker image
+docker pull nvcr.io/nvidia/clara/clara-parabricks:4.0.0-1
+
+#Docker use
+sudo groupadd docker
+sudo usermod -aG docker $VM_JUP_USER
+newgrp docker
+
+#Update rbase
+
+echo "Y"|sudo apt update -qq
+echo "Y"|sudo apt install --no-install-recommends software-properties-common dirmngr
+echo "Y"|wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
+echo "Y"|sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+
 #Update kernel list
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
