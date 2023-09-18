@@ -2833,6 +2833,7 @@ components:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
+            autopauseThreshold: 15
     UpdateAppsRequest:
       content:
         application/json:
@@ -3447,7 +3448,7 @@ components:
           description: an optional set of key value pairs for environment variables to be injected into the VM
         disk:
           $ref: "#/components/schemas/AzureDiskConfig"
-        autoPauseThreshold:
+        autopauseThreshold:
           type: int
           description: an optional number to determine when a runtime should autopause
 
