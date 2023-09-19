@@ -156,7 +156,7 @@ jobs:
           echo "pact-b64=${NON_BREAKING_B64}" >> $GITHUB_OUTPUT
 
   # Prevent untrusted sources from using PRs to publish contracts
-  # since access to secrets is not allowed. Add run-name support.
+  # since access to secrets is not allowed.
   publish-contracts:
     runs-on: ubuntu-latest
     if: ${{ needs.init-github-context.outputs.fork == 'false' }}
@@ -180,8 +180,9 @@ jobs:
       - name: Dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
+          run-name: "can-i-deploy-${{ env.RUN_NAME_SUFFIX }}"
           workflow: .github/workflows/can-i-deploy.yaml
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: refs/heads/QA-2123
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
-          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.leo-build-tag-publish-job.outputs.release-tag }}" }'
+          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.leo-build-tag-publish-job.outputs.release-tag }}", "run-name": "can-i-deploy-${{ env.RUN_NAME_SUFFIX }}" }'
