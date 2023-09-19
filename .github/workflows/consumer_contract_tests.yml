@@ -46,7 +46,9 @@ on:
       - develop
 
 env:
-  RUN_NAME_SUFFIX: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  LEO_BUILD_RUN_NAME: 'leonardo-build-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  PUBLISH_CONTRACTS_RUN_NAME: 'publish-contract-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  CAN_I_DEPLOY_RUN_NAME: 'can-i-deploy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
 jobs:
   init-github-context:
@@ -116,12 +118,12 @@ jobs:
       - name: dispatch build to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
-          run-name: "leonardo-build-${{ env.RUN_NAME_SUFFIX }}"
+          run-name: "${{ env.LEO_BUILD_RUN_NAME }}"
           workflow: leonardo-build
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/QA-2123
           token: ${{ secrets.BROADBOT_TOKEN }}
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.repo-branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}", "run-name": "leonardo-build-${{ env.RUN_NAME_SUFFIX }}" }'
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.repo-branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}", "run-name": "${{ env.LEO_BUILD_RUN_NAME }}" }'
 
   leo-consumer-contract-tests:
     runs-on: ubuntu-latest
@@ -166,12 +168,12 @@ jobs:
       - name: Dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
-          run-name: "publish-contracts-${{ env.RUN_NAME_SUFFIX }}"
+          run-name: "${{ env.PUBLISH_CONTRACTS_RUN_NAME }}"
           workflow: .github/workflows/publish-contracts.yaml
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/QA-2123
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
-          inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}", "release-tag": "${{ needs.leo-build-tag-publish-job.outputs.release-tag }}", "run-name": "publish-contracts-${{ env.RUN_NAME_SUFFIX }}" }'
+          inputs: '{ "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}", "repo-owner": "${{ github.repository_owner }}", "repo-name": "${{ github.event.repository.name }}", "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}", "release-tag": "${{ needs.leo-build-tag-publish-job.outputs.release-tag }}", "run-name": "${{ env.PUBLISH_CONTRACTS_RUN_NAME }}" }'
 
   can-i-deploy:
     runs-on: ubuntu-latest
@@ -181,9 +183,9 @@ jobs:
       - name: Dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
-          run-name: "can-i-deploy-${{ env.RUN_NAME_SUFFIX }}"
+          run-name: "${{ env.CAN_I_DEPLOY_RUN_NAME }}"
           workflow: .github/workflows/can-i-deploy.yaml
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/QA-2123
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
-          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.leo-build-tag-publish-job.outputs.release-tag }}", "run-name": "can-i-deploy-${{ env.RUN_NAME_SUFFIX }}" }'
+          inputs: '{ "pacticipant": "leo-consumer", "version": "${{ needs.leo-build-tag-publish-job.outputs.release-tag }}", "run-name": "${{ env.CAN_I_DEPLOY_RUN_NAME }}" }'
