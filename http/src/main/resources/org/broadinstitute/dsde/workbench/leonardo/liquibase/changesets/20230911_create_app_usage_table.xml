@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="qi" id="qi_create_app_usage_table">
+        <createTable tableName="APP_USAGE">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="appId" type="BIGINT(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="startTime" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stopTime" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="appId" baseTableName="APP_USAGE" constraintName="FK_APP_USAGE_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
+        <addUniqueConstraint columnNames="appId, startTime" constraintName="IDX_APP_USAGE_STARTTIME_UNIQUE" tableName="APP_USAGE"/>
+        <addUniqueConstraint columnNames="appId, startTime, stopTime" constraintName="IDX_APP_USAGE_STOPTIME_UNIQUE" tableName="APP_USAGE"/>
+    </changeSet>
+</databaseChangeLog>

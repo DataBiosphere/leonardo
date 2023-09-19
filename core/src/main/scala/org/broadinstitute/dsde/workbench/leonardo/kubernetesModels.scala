@@ -315,13 +315,16 @@ object ErrorSource {
 
 sealed abstract class AllowedChartName extends Product with Serializable {
   def asString: String
+  def trackUsage: Boolean
 }
 object AllowedChartName {
   final case object RStudio extends AllowedChartName {
     def asString: String = "aou-rstudio-chart"
+    def trackUsage: Boolean = false
   }
   final case object Sas extends AllowedChartName {
     def asString: String = "aou-sas-chart"
+    def trackUsage: Boolean = true
   }
   def stringToObject: Map[String, AllowedChartName] = sealerate.values[AllowedChartName].map(v => v.asString -> v).toMap
 
