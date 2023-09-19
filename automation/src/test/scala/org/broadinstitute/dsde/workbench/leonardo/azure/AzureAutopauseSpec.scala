@@ -92,11 +92,39 @@ class AzureAutopauseSpec
           s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} waiting to autopause"
         )
 
-        _ <- IO.sleep(20 minutes) // sleep for 20 minutes before checking if the runtime paused
+        _ <- IO.sleep(10 minutes) // sleep for 10 minutes before checking if the runtime is pausing
 
-        pausedGetRuntimeResponse <- callGetRuntimeStopping
-        _ <- loggerIO.info(s"paused get runtime response $pausedGetRuntimeResponse")
-        _ = List(ClusterStatus.STOPPED, ClusterStatus.STOPPING) should contain(pausedGetRuntimeResponse.getStatus)
+        // poll for another 10 minutes
+        monitorAutoPauseResult <- streamUntilDoneOrTimeout(
+          callGetRuntimeStopping,
+          60,
+          10 seconds,
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopping after 20 minutes"
+        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPING))
+
+        _ <- loggerIO.info(
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} auto-pause monitor result: $monitorAutoPauseResult"
+        )
+        _ = monitorAutoPauseResult.getStatus() shouldBe ClusterStatus.STOPPING
+
+        _ <- loggerIO.info(
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} waiting for runtime to stop"
+        )
+
+        // new IO for new stream
+        callGetRuntimeStopped = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
+
+        monitorStoppingResult <- streamUntilDoneOrTimeout(
+          callGetRuntimeStopped,
+          60,
+          10 seconds,
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not transition to stopped after 10 minutes"
+        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
+
+        _ <- loggerIO.info(
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} stopped monitor result: $monitorStoppingResult"
+        )
+        _ = monitorStoppingResult.getStatus() shouldBe ClusterStatus.STOPPED
 
         _ <- IO.sleep(1 minute) // sleep for a minute before cleaning up workspace
       } yield ()
