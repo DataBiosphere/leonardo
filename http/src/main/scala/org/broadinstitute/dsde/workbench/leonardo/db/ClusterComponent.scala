@@ -321,23 +321,24 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   private[leonardo] def fullClusterQuery(
     baseClusterQuery: Query[ClusterTable, ClusterRecord, Seq]
-  ): Query[(ClusterTable,
-            Rep[Option[ClusterErrorTable]],
-            Rep[Option[LabelTable]],
-            Rep[Option[ExtensionTable]],
-            Rep[Option[ClusterImageTable]],
-            Rep[Option[ScopeTable]],
-            Rep[Option[PatchTable]]
-           ),
-           (ClusterRecord,
-            Option[ClusterErrorRecord],
-            Option[LabelRecord],
-            Option[ExtensionRecord],
-            Option[ClusterImageRecord],
-            Option[ScopeRecord],
-            Option[PatchRecord]
-           ),
-           Seq
+  ): Query[
+    (ClusterTable,
+     Rep[Option[ClusterErrorTable]],
+     Rep[Option[LabelTable]],
+     Rep[Option[ExtensionTable]],
+     Rep[Option[ClusterImageTable]],
+     Rep[Option[ScopeTable]],
+     Rep[Option[PatchTable]]
+    ),
+    (ClusterRecord,
+     Option[ClusterErrorRecord],
+     Option[LabelRecord],
+     Option[ExtensionRecord],
+     Option[ClusterImageRecord],
+     Option[ScopeRecord],
+     Option[PatchRecord]
+    ),
+    Seq
   ] =
     for {
       ((((((cluster, error), label), extension), image), scopes), patch) <- baseClusterQuery joinLeft
@@ -817,14 +818,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     // to a grouped (cluster -> (instances, labels)) structure.
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
-    val clusterRecordMap: Map[ClusterRecord,
-                              (Chain[ClusterErrorRecord],
-                               Map[String, Chain[String]],
-                               Chain[ExtensionRecord],
-                               Chain[ClusterImageRecord],
-                               Chain[ScopeRecord],
-                               Chain[PatchRecord]
-                              )
+    val clusterRecordMap: Map[
+      ClusterRecord,
+      (Chain[ClusterErrorRecord],
+       Map[String, Chain[String]],
+       Chain[ExtensionRecord],
+       Chain[ClusterImageRecord],
+       Chain[ScopeRecord],
+       Chain[PatchRecord]
+      )
     ] = clusterRecords.toList.foldMap {
       case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap

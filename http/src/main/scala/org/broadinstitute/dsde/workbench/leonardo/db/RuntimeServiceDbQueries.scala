@@ -160,14 +160,15 @@ object RuntimeServiceDbQueries {
     // to a grouped (cluster -> (instances, labels)) structure.
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
-    val clusterRecordMap: Map[ClusterRecord,
-                              (Chain[ClusterErrorRecord],
-                               Map[String, Chain[String]],
-                               Chain[ExtensionRecord],
-                               Chain[ClusterImageRecord],
-                               Chain[ScopeRecord],
-                               Chain[PatchRecord]
-                              )
+    val clusterRecordMap: Map[
+      ClusterRecord,
+      (Chain[ClusterErrorRecord],
+       Map[String, Chain[String]],
+       Chain[ExtensionRecord],
+       Chain[ClusterImageRecord],
+       Chain[ScopeRecord],
+       Chain[PatchRecord]
+      )
     ] = clusterRecords.toList.foldMap {
       case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
