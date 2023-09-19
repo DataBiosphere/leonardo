@@ -114,7 +114,7 @@ jobs:
           WITH_V: true
 
       - name: dispatch build to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4
+        uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           workflow: leonardo-build
           repo: broadinstitute/terra-github-workflows
@@ -163,7 +163,7 @@ jobs:
     needs: [ init-github-context, leo-build-tag-publish-job, leo-consumer-contract-tests ]
     steps:
       - name: Dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4
+        uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           workflow: .github/workflows/publish-contracts.yaml
           repo: broadinstitute/terra-github-workflows
@@ -178,7 +178,7 @@ jobs:
     needs: [ leo-build-tag-publish-job, publish-contracts ]
     steps:
       - name: Dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4
+        uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           workflow: .github/workflows/can-i-deploy.yaml
           repo: broadinstitute/terra-github-workflows
