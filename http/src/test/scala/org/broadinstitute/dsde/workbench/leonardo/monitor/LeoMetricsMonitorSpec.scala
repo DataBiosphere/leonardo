@@ -115,7 +115,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       RuntimeUI.Terra,
                       Some(azureContext),
                       cromwellOnAzureChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     // Cromwell on GCP on Terra
@@ -126,24 +126,24 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       RuntimeUI.Terra,
                       None,
                       cromwellChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     // Galaxy on GCP
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Galaxy, AppStatus.Running, RuntimeUI.Terra, None, galaxyChart, false)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Galaxy, AppStatus.Running, RuntimeUI.Terra, None, galaxyChart, true)
     ) shouldBe Some(1)
     // Custom app on GCP
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Custom, AppStatus.Running, RuntimeUI.Terra, None, customChart, false)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Custom, AppStatus.Running, RuntimeUI.Terra, None, customChart, true)
     ) shouldBe Some(1)
     // Cromwell on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.AoU, None, cromwellChart, false)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.AoU, None, cromwellChart, true)
     ) shouldBe Some(1)
     // RStudio on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart, false)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart, true)
     ) shouldBe Some(1)
     // Hail Batch on Azure
     test.get(
@@ -153,7 +153,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       RuntimeUI.Terra,
                       Some(azureContext),
                       hailBatchChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     // WDS on Azure
@@ -164,7 +164,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       RuntimeUI.Terra,
                       Some(azureContext2),
                       wdsChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     // Workflows App on Azure
@@ -175,7 +175,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       RuntimeUI.Terra,
                       Some(azureContext2),
                       workflowsAppChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     // Cromwell Runner App on Azure
@@ -186,7 +186,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       RuntimeUI.Terra,
                       Some(azureContext2),
                       cromwellRunnerAppChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
   }
@@ -253,7 +253,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         Some(azureContext),
                         s != "cbas",
                         cromwellOnAzureChart,
-                        false
+                        true
         )
       ) shouldBe Some(1)
       test.get(
@@ -264,7 +264,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         Some(azureContext),
                         s == "cbas",
                         cromwellOnAzureChart,
-                        false
+                        true
         )
       ) shouldBe Some(0)
     }
@@ -276,7 +276,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       None,
                       true,
                       galaxyChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     test.get(
@@ -287,7 +287,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       None,
                       false,
                       galaxyChart,
-                      false
+                      true
       )
     ) shouldBe Some(0)
     List("cromwell-reader", "cbas").foreach { s =>
@@ -299,7 +299,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         Some(azureContext2),
                         s != "cbas",
                         workflowsAppChart,
-                        false
+                        true
         )
       ) shouldBe Some(1)
       test.get(
@@ -310,7 +310,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         Some(azureContext2),
                         s == "cbas",
                         workflowsAppChart,
-                        false
+                        true
         )
       ) shouldBe Some(0)
     }
@@ -322,7 +322,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       Some(azureContext2),
                       true,
                       cromwellRunnerAppChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     test.get(
@@ -333,7 +333,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       Some(azureContext2),
                       false,
                       cromwellRunnerAppChart,
-                      false
+                      true
       )
     ) shouldBe Some(0)
   }
@@ -391,7 +391,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         None,
                         s != "cbas",
                         cromwellOnAzureChart,
-                        false
+                        true
         )
       ) shouldBe Some(1)
       test.get(
@@ -402,7 +402,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         None,
                         s == "cbas",
                         cromwellOnAzureChart,
-                        false
+                        true
         )
       ) shouldBe Some(0)
     }
@@ -414,7 +414,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       None,
                       true,
                       galaxyChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     test.get(
@@ -425,7 +425,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       None,
                       false,
                       galaxyChart,
-                      false
+                      true
       )
     ) shouldBe Some(0)
     List("cromwell-reader", "cbas").foreach { s =>
@@ -437,7 +437,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         None,
                         s != "cbas",
                         workflowsAppChart,
-                        false
+                        true
         )
       ) shouldBe Some(1)
       test.get(
@@ -448,7 +448,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                         None,
                         s == "cbas",
                         workflowsAppChart,
-                        false
+                        true
         )
       ) shouldBe Some(0)
     }
@@ -460,7 +460,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       None,
                       true,
                       cromwellRunnerAppChart,
-                      false
+                      true
       )
     ) shouldBe Some(1)
     test.get(
@@ -471,7 +471,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       None,
                       false,
                       cromwellRunnerAppChart,
-                      false
+                      true
       )
     ) shouldBe Some(0)
   }

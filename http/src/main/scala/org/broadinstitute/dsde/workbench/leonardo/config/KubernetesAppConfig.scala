@@ -47,8 +47,7 @@ object KubernetesAppConfig {
       case (CromwellRunnerApp, CloudProvider.Azure) => Some(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
       case (Wds, CloudProvider.Azure)               => Some(ConfigReader.appConfig.azure.wdsAppConfig)
       case (HailBatch, CloudProvider.Azure)         => Some(ConfigReader.appConfig.azure.hailBatchAppConfig)
-      case _ =>
-        None
+      case _                                        => None
     }
 }
 

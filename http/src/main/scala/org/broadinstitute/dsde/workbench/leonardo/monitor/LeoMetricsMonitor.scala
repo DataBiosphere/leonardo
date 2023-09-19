@@ -45,7 +45,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
   clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   ec: ExecutionContext
 ) {
-  private val parallelism = 50
+  private val parallelism = 40
 
   /** Entry point of this class; starts the async process */
   val process: Stream[F, Unit] =
@@ -112,7 +112,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
         getRuntimeUI(a.labels),
         getAzureCloudContext(c.cloudContext),
         a.chart,
-        getUpgradeExcluded(a.appType, c.cloudContext.cloudProvider, a.chart)
+        isUpgradeable(a.appType, c.cloudContext.cloudProvider, a.chart)
       ) -> 1d
     )
 
@@ -211,7 +211,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
             getAzureCloudContext(cloudContext),
             isUp,
             app.chart,
-            getUpgradeExcluded(app.appType, cloudContext.cloudProvider, app.chart)
+            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart)
           ) -> 1d,
           AppHealthMetric(
             cloudContext.cloudProvider,
@@ -221,7 +221,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
             getAzureCloudContext(cloudContext),
             !isUp,
             app.chart,
-            getUpgradeExcluded(app.appType, cloudContext.cloudProvider, app.chart)
+            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart)
           ) -> 0d
         )
       }
@@ -450,9 +450,9 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       })
       .getOrElse(List.empty)
 
-  private def getUpgradeExcluded(appType: AppType, cloudProvider: CloudProvider, chart: Chart): Boolean =
+  private def isUpgradeable(appType: AppType, cloudProvider: CloudProvider, chart: Chart): Boolean =
     KubernetesAppConfig.configForTypeAndCloud(appType, cloudProvider).exists { config =>
-      config.chartVersionsToExcludeFromUpdates.contains(chart.version)
+      !config.chartVersionsToExcludeFromUpdates.contains(chart.version)
     }
 }
 
@@ -469,7 +469,7 @@ object LeoMetric {
                                    runtimeUI: RuntimeUI,
                                    azureCloudContext: Option[AzureCloudContext],
                                    chart: Chart,
-                                   upgradeExcluded: Boolean
+                                   upgradeable: Boolean
   ) extends LeoMetric {
     override def name: String = "leoAppStatus"
     override def tags: Map[String, String] =
@@ -480,7 +480,7 @@ object LeoMetric {
         "uiClient" -> runtimeUI.asString,
         "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
         "chart" -> chart.toString,
-        "upgradeExcluded" -> upgradeExcluded.toString
+        "upgradeable" -> upgradeable.toString
       )
   }
 
@@ -491,7 +491,7 @@ object LeoMetric {
                                    azureCloudContext: Option[AzureCloudContext],
                                    isUp: Boolean,
                                    chart: Chart,
-                                   upgradeExcluded: Boolean
+                                   upgradeable: Boolean
   ) extends LeoMetric {
     override def name: String = "leoAppHealth"
     override def tags: Map[String, String] = Map(
@@ -502,7 +502,7 @@ object LeoMetric {
       "isUp" -> isUp.toString,
       "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
       "chart" -> chart.toString,
-      "upgradeExcluded" -> upgradeExcluded.toString
+      "upgradeable" -> upgradeable.toString
     )
   }
 
