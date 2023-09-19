@@ -120,7 +120,7 @@ jobs:
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN }}
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.repo-branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
 
   leo-consumer-contract-tests:
     runs-on: ubuntu-latest
