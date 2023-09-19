@@ -3,7 +3,7 @@ package leonardo
 package util
 
 import akka.http.scaladsl.model.StatusCodes
-import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
+import bio.terra.workspace.api.ControlledAzureResourceApi
 import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model._
 import cats.effect.Async
@@ -113,7 +113,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           app.appType,
           params.workspaceId,
           namespacePrefix,
-          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getResourceId.toString),
+          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName),
           params.landingZoneResources
         )
       }
@@ -124,8 +124,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           app,
           params.workspaceId,
           namespacePrefix,
-          wsmDatabases.map(_.getAzureDatabase.getMetadata.getResourceId.toString),
-          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getResourceId.toString)
+          wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
+          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
         )
       }
 
@@ -802,9 +802,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
       )
 
-      // Build WSM clients
+      // Build WSM client
       wsmApi <- buildWsmControlledResourceApiClient
-      wsmResourceApi <- buildWsmResourceApiClient
 
       // Name of the WSM resource. Must be unique per workspace.
       // For shared apps, name it by the appType so it's semantically meaningful.
@@ -815,20 +814,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _                         => namespacePrefix
       }
 
-      // Obtain external database IDs by querying WSM and filtering by name
-      // TODO once https://broadworkbench.atlassian.net/browse/WOR-1250 is in, we
-      // can just pass the databases by name to the CreateKubernetesNamespace request.
-      wsmDatabases <- F.delay(
-        wsmResourceApi
-          .enumerateResources(workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
-          .getResources
-          .asScala
-      )
-      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
-      externalDatabaseIds = wsmDatabases
-        .filter(wsmDb => appExternalDatabaseNames.contains(wsmDb.getMetadata.getName))
-        .map(_.getMetadata.getResourceId.toString)
-
       // Build common fields
       namespaceCommonFields =
         getWsmCommonFields(wsmResourceName,
@@ -837,9 +822,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
 
       // Build createNamespace fields
+      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       createNamespaceParams = new AzureKubernetesNamespaceCreationParameters()
         .namespacePrefix(namespacePrefix)
-        .databases((databases ++ externalDatabaseIds).asJava)
+        .databases((databases ++ appExternalDatabaseNames).asJava)
       _ = identity.foreach(createNamespaceParams.setManagedIdentity)
 
       // Build request
@@ -1039,16 +1025,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
       wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
-    } yield wsmApi
-
-  private def buildWsmResourceApiClient(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
-    for {
-      auth <- samDao.getLeoAuthToken
-      token <- auth.credentials match {
-        case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
-      }
-      wsmApi <- wsmClientProvider.getResourceApi(token)
     } yield wsmApi
 }
 

@@ -662,16 +662,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       new DeleteControlledAzureResourceResult().jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
-    // Enumerate resources
-    when {
-      resourceApi.enumerateResources(any, any, any, any, any)
-    } thenReturn new ResourceList()
     when {
       wsm.getControlledAzureResourceApi(any)(any)
     } thenReturn IO.pure(api)
-    when {
-      wsm.getResourceApi(any)(any)
-    } thenReturn IO.pure(resourceApi)
     (wsm, api)
   }
 
