@@ -156,7 +156,7 @@ jobs:
           echo "pact-b64=${NON_BREAKING_B64}" >> $GITHUB_OUTPUT
 
   # Prevent untrusted sources from using PRs to publish contracts
-  # since access to secrets is not allowed.
+  # since access to secrets is not allowed. Add run-name support.
   publish-contracts:
     runs-on: ubuntu-latest
     if: ${{ needs.init-github-context.outputs.fork == 'false' }}
