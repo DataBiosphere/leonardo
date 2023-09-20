@@ -119,8 +119,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         // convention is that the database user is the same as the service account name
         raw"postgres.user=${params.ksaName.value}",
         raw"postgres.dbnames.cromwell=${dbNames.cromwell}",
-        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellmetadata}",
-        raw"postgres.dbnames.tes=${dbNames.tes}"
+        raw"postgres.dbnames.tes=${dbNames.tes}",
+        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellmetadata}"
       )
     } yield Values(values.mkString(","))
 
@@ -128,8 +128,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
     cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false)
 
   private def toCromwellRunnerAppDatabaseNames(dbNames: List[String]): Option[CromwellRunnerAppDatabaseNames] =
-    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("cromwellmetadata")), dbNames.find(_.startsWith("tes")))
+    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("tes")),  dbNames.find(_.startsWith("cromwellmetadata")))
       .mapN(CromwellRunnerAppDatabaseNames)
 }
 
-final case class CromwellRunnerAppDatabaseNames(cromwell: String, cromwellmetadata: String, tes: String)
+final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellmetadata: String)
