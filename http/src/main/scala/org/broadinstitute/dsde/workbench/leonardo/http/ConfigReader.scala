@@ -2,47 +2,21 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  AllowedAppConfig,
-  CoaAppConfig,
-  Config,
-  CromwellAppConfig,
-  CromwellRunnerAppConfig,
-  CustomAppConfig,
-  GalaxyAppConfig,
-  HailBatchAppConfig,
-  HttpWsmDaoConfig,
-  KubernetesAppConfig,
-  PersistentDiskConfig,
-  WdsAppConfig,
-  WorkflowsAppConfig
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 
 object ConfigReader {
   lazy val appConfig =
     ConfigSource
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
-
-  // Encapsulates config for all apps Leo administers
-  lazy val adminAppConfig =
-    AdminAppConfig(
-      appConfig.azure.coaAppConfig,
-      Config.gkeCromwellAppConfig,
-      Config.gkeCustomAppConfig,
-      Config.gkeGalaxyAppConfig,
-      appConfig.azure.hailBatchAppConfig,
-      Config.gkeAllowedAppConfig,
-      appConfig.azure.wdsAppConfig
-    )
 }
 
 final case class AzureConfig(
@@ -87,26 +61,3 @@ final case class AppConfig(
   drs: DrsConfig,
   metrics: LeoMetricsMonitorConfig
 )
-
-final case class AdminAppConfig(coaAppConfig: CoaAppConfig,
-                                cromwellAppConfig: CromwellAppConfig,
-                                customAppConfig: CustomAppConfig,
-                                galaxyAppConfig: GalaxyAppConfig,
-                                hailBatchAppConfig: HailBatchAppConfig,
-                                allowedAppConfig: AllowedAppConfig,
-                                wdsAppConfig: WdsAppConfig
-) {
-
-  def configForTypeAndCloud(appType: AppType, cloudProvider: CloudProvider): Option[KubernetesAppConfig] =
-    asList.find(c => c.appType == appType && c.cloudProvider == cloudProvider)
-
-  private lazy val asList: List[KubernetesAppConfig] = List(
-    coaAppConfig,
-    cromwellAppConfig,
-    customAppConfig,
-    galaxyAppConfig,
-    hailBatchAppConfig,
-    allowedAppConfig,
-    wdsAppConfig
-  )
-}
