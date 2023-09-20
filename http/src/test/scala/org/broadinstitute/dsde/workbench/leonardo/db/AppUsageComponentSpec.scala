@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -16,24 +17,38 @@ class AppUsageComponentSpec extends AnyFlatSpecLike with TestComponent {
     val app = makeApp(1, savedNodepool1.id)
     val savedApp = app.save()
 
-    dbFailure(
-      appUsageQuery.recordStop(savedApp.id, Instant.now())
-    ).getMessage shouldBe s"Cannot record stopTime because there's no existing startTime for ${savedApp.id.id}"
+    val test = for {
+      recordStopRes <- appUsageQuery.recordStop(savedApp.id, Instant.now()).attempt
+      _ = recordStopRes shouldBe (Left(
+        new RuntimeException(
+          s"Cannot record stopTime because there's no existing unresolved startTime for ${savedApp.id.id}"
+        )
+      ))
+      startTime <- IO.realTimeInstant
+      appUsageId <- appUsageQuery.recordStart(savedApp.id, startTime)
+      appAfterRecordingStart <- testDbRef
+        .inTransaction(appUsageQuery.get(appUsageId))
+      _ = appAfterRecordingStart shouldBe (Some(AppUsageRecord(appUsageId, savedApp.id, startTime, dummyDate)))
 
-    val startTime = Instant.now()
-    val appUsageId = dbFutureValue(appUsageQuery.recordStart(savedApp.id, startTime))
-    dbFutureValue(appUsageQuery.get(appUsageId)) shouldBe (Some(
-      AppUsageRecord(appUsageId, savedApp.id, startTime, dummyDate)
-    ))
+      recordStartRes <- appUsageQuery.recordStart(savedApp.id, startTime)
+      _ = recordStartRes shouldBe (Left(
+        new SQLDataException(s"app(${appUsageId.id}) usage startTime was recorded previously with no endTime recorded")
+      ))
 
-    dbFailure(appUsageQuery.recordStart(savedApp.id, startTime)).isInstanceOf[SQLDataException] shouldBe true
+      stopTime <- IO.realTimeInstant
+      _ <- appUsageQuery.recordStop(savedApp.id, stopTime)
+      appAfterRecordingStop <- testDbRef
+        .inTransaction(appUsageQuery.get(appUsageId))
+      _ = appAfterRecordingStop shouldBe (Some(AppUsageRecord(appUsageId, savedApp.id, startTime, stopTime)))
 
-    val stopTime = Instant.now()
-    dbFutureValue(appUsageQuery.recordStop(savedApp.id, stopTime))
-
-    val updatedAppUsageRecord = dbFutureValue(appUsageQuery.get(appUsageId))
-    updatedAppUsageRecord shouldBe (Some(
-      AppUsageRecord(appUsageId, savedApp.id, startTime, stopTime)
-    ))
+      stopTime2 <- IO.realTimeInstant
+      secondStopTimeRecordingAttempt <- appUsageQuery.recordStop(savedApp.id, stopTime2).attempt
+      _ = secondStopTimeRecordingAttempt shouldBe (Left(
+        new RuntimeException(
+          s"Cannot record stopTime because there's no existing unresolved startTime for ${savedApp.id.id}"
+        )
+      ))
+    } yield succeed
+    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
