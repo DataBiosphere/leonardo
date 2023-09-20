@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   Nodepool,
   WorkspaceId
 }
+import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
@@ -52,6 +53,7 @@ final case class GetAppResponse(appName: AppName,
 
 final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  cloudContext: CloudContext,
+                                 region: RegionName,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
                                  status: AppStatus, // TODO: do we need some sort of aggregate status?
@@ -74,6 +76,7 @@ object ListAppResponse {
         ListAppResponse(
           a.workspaceId,
           c.cloudContext,
+          c.region,
           KubernetesRuntimeConfig(
             n.numNodes,
             n.machineType,
