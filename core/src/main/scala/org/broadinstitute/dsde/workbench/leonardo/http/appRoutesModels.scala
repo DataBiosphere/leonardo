@@ -103,6 +103,7 @@ object GetAppResponse {
     GetAppResponse(
       appResult.app.appName,
       appResult.cluster.cloudContext,
+      appResult.cluster.region,
       KubernetesRuntimeConfig(
         appResult.nodepool.numNodes,
         appResult.nodepool.machineType,
