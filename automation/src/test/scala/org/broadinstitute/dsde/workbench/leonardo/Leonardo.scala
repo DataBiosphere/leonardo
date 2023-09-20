@@ -119,19 +119,20 @@ object AutomationTestJsonCodec {
     Decoder.decodeString.map(s => ClusterStatus.withNameIgnoreCase(s))
 
   implicit val clusterDecoder: Decoder[ClusterCopy] =
-    Decoder.forProduct12[ClusterCopy,
-                         RuntimeName,
-                         GoogleProject,
-                         WorkbenchEmail,
-                         RuntimeConfig,
-                         ClusterStatus,
-                         WorkbenchEmail,
-                         LabelMap,
-                         Option[GcsBucketName],
-                         Option[List[RuntimeError]],
-                         Instant,
-                         Int,
-                         Boolean
+    Decoder.forProduct12[
+      ClusterCopy,
+      RuntimeName,
+      GoogleProject,
+      WorkbenchEmail,
+      RuntimeConfig,
+      ClusterStatus,
+      WorkbenchEmail,
+      LabelMap,
+      Option[GcsBucketName],
+      Option[List[RuntimeError]],
+      Instant,
+      Int,
+      Boolean
     ](
       "clusterName",
       "googleProject",

@@ -13,7 +13,6 @@ import com.google.api.services.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.{
@@ -39,6 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.google.iam.IamMemberTypes
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.InstanceName
@@ -620,10 +620,10 @@ class DataprocInterpreter[F[_]: Parallel](
       _ <- retry(
         F.fromFuture(
           F.delay(
-            googleIamDAO.addIamRoles(imageProject,
-                                     config.groupsConfig.dataprocImageProjectGroupEmail,
-                                     MemberType.Group,
-                                     Set("roles/compute.imageUser")
+            googleIamDAO.addRoles(imageProject,
+                                  config.groupsConfig.dataprocImageProjectGroupEmail,
+                                  IamMemberTypes.Group,
+                                  Set("roles/compute.imageUser")
             )
           )
         ),
@@ -807,10 +807,10 @@ class DataprocInterpreter[F[_]: Parallel](
     def retryIam(project: GoogleProject, email: WorkbenchEmail, roles: Set[String]): F[Unit] = {
       val action = if (createCluster) {
 
-        F.fromFuture(F.delay(googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void))
+        F.fromFuture(F.delay(googleIamDAO.addRoles(project, email, IamMemberTypes.ServiceAccount, roles).void))
       } else {
 
-        F.fromFuture(F.delay(googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void))
+        F.fromFuture(F.delay(googleIamDAO.removeRoles(project, email, IamMemberTypes.ServiceAccount, roles).void))
       }
       retry(action, when409)
     }
