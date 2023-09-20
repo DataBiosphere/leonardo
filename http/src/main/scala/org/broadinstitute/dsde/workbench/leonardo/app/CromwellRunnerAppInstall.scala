@@ -120,7 +120,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"postgres.user=${params.ksaName.value}",
         raw"postgres.dbnames.cromwell=${dbNames.cromwell}",
         raw"postgres.dbnames.tes=${dbNames.tes}",
-        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellmetadata}"
+        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}"
       )
     } yield Values(values.mkString(","))
 
@@ -132,4 +132,4 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
       .mapN(CromwellRunnerAppDatabaseNames)
 }
 
-final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellmetadata: String)
+final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellMetadata: String)
