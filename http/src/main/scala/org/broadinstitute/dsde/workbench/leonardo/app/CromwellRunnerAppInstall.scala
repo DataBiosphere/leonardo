@@ -132,4 +132,4 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
       .mapN(CromwellRunnerAppDatabaseNames)
 }
 
-final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String)
+final case class CromwellRunnerAppDatabaseNames(cromwell: String, cromwellmetadata: String, tes: String)
