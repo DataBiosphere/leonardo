@@ -74,6 +74,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private def getListenerReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-listener-rls")
 
+  // what is `implicit`?
+  // what is private[util]?
+  // other name candidates: getDbNameForNamespace, getDbName, getDbWithSuffix, getDbWithPrefix...
+  private def getNamespaceDbName(database: CreateDatabase, namespacePrefix: String): String =
+    s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
+
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -364,6 +370,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                        config.listenerChartConfig
         )
       }
+
+      // get list of reference db names
+      // call method to generate suffix
+      // add it to wsmDbNames below
 
       // Build app helm values
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
@@ -715,7 +725,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // Build create DB request
 
     // Name of the database. Must be unique per landing zone.
-    val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
+    // TODO: abstract out this naming logic, and use it to generate the list of referenced apps above.
+    val dbName = getNamespaceDbName(database, namespacePrefix)
 
     // Name of the WSM resource. Must be unique per workspace.
     // For shared apps, name it by the databasePrefix so it's semantically meaningful.
