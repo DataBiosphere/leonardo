@@ -43,6 +43,7 @@ object AppRoutesTestJsonCodec {
     Decoder.forProduct12(
       "appName",
       "cloudContext",
+      "region",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -57,6 +58,7 @@ object AppRoutesTestJsonCodec {
     )(
       (appName,
        cloudContext,
+       region,
        kubernetesRuntimeConfig,
        errors,
        status,
@@ -72,6 +74,7 @@ object AppRoutesTestJsonCodec {
         GetAppResponse(
           appName,
           cloudContext,
+          region,
           kubernetesRuntimeConfig,
           errors,
           status,
@@ -91,6 +94,7 @@ object AppRoutesTestJsonCodec {
     Decoder.forProduct12(
       "workspaceId",
       "cloudContext",
+      "region",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -105,6 +109,7 @@ object AppRoutesTestJsonCodec {
     )(
       (workspaceId,
        cloudContext,
+       region,
        kubernetesRuntimeConfig,
        errors,
        status,
@@ -120,6 +125,7 @@ object AppRoutesTestJsonCodec {
         ListAppResponse(
           workspaceId,
           cloudContext,
+          region,
           kubernetesRuntimeConfig,
           errors,
           status,
