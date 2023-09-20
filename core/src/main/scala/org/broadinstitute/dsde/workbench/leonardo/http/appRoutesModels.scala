@@ -38,6 +38,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
 
 final case class GetAppResponse(appName: AppName,
                                 cloudContext: CloudContext,
+                                region: RegionName,
                                 kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[AppError],
                                 status: AppStatus, // TODO: do we need some sort of aggregate status?
