@@ -58,7 +58,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
       // Databases required for Cromwell App
       dbNames <- F.fromOption(toCromwellRunnerAppDatabaseNames(params.databaseNames),
-                              AppCreationException("Database names required for Cromwell Runner app", Some(ctx.traceId))
+                              AppCreationException(s"Database names required for Cromwell Runner app: $params", Some(ctx.traceId))
       )
 
       // Postgres server required for Cromwell App
