@@ -128,7 +128,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
     cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false)
 
   private def toCromwellRunnerAppDatabaseNames(dbNames: List[String]): Option[CromwellRunnerAppDatabaseNames] =
-    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("tes")))
+    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("cromwellmetadata")), dbNames.find(_.startsWith("tes")))
       .mapN(CromwellRunnerAppDatabaseNames)
 }
 
