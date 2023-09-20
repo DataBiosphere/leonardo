@@ -119,6 +119,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         // convention is that the database user is the same as the service account name
         raw"postgres.user=${params.ksaName.value}",
         raw"postgres.dbnames.cromwell=${dbNames.cromwell}",
+        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellmetadata}",
         raw"postgres.dbnames.tes=${dbNames.tes}"
       )
     } yield Values(values.mkString(","))
