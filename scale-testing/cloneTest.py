@@ -20,6 +20,7 @@ number_of_clones=10 #number of clones to make
 #if false, will wait for each api clone call to complete before starting the next
 #if true, will start all api calls at once on different threads
 parallel=True
+cbas_submit_workflow=True
 
 workspace_manager_url, rawls_url, leo_url = setup(env)
 header = {"Authorization": "Bearer " + azure_token};
@@ -46,14 +47,21 @@ if parallel:
         t.join()
 else:
     while number_of_clones != 0:
-        clone_id = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header)
+        clone_id = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header, True)
         cloned_workspaces.append(clone_id)
         number_of_clones-=1
 
 print("Sleeping...")
-time.sleep(300)
+time.sleep(60)
 for ws in cloned_workspaces:
-    wds_url = get_app_url(ws, "wds", azure_token)
+    wds_url = poll_for_app_url(ws, "wds", azure_token)
     check_wds_data(wds_url, ws, "student", azure_token)
+
+    if cbas_submit_workflow:
+        # next trigger a workflow in each of the workspaces, at this time this doesnt monitor if this was succesful or not
+        # upload file needed for workflow to run
+        upload_wds_data(wds_url, ws, "resources/sraloadtest.tsv", "sraloadtest", 2, azure_token)
+        submit_workflow_assemble_refbased(ws, "resources/assemble_refbased.json", azure_token)
+
 
 print("LOAD TEST COMPLETE.")
