@@ -210,6 +210,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName),
         config
       )
+      
+      // what is "_ <-"" doing in this context?
+      _ <- logger.info(ctx.loggingCtx)(
+        s"[MSPECTOR-DEBUG] helmOverrideValueParams: ${helmOverrideValueParams}"
+      )
+
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
 
       // Install app chart
