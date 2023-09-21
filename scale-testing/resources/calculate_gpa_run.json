@@ -1,0 +1,155 @@
+{
+  "run_set_name": "alt-2-calculate-avg-gpa_student_2023-09-21T14:23:37",
+  "run_set_description": "",
+  "method_version_id": "e30ecce4-0a55-4d49-87b4-19cec89e1bfe",
+  "workflow_input_definitions": [
+    {
+      "input_name": "CalculateStudentGPA.language_score",
+      "input_type": {
+        "type": "primitive",
+        "primitive_type": "Float"
+      },
+      "source": {
+        "type": "record_lookup",
+        "record_attribute": "GPA_language-arts"
+      }
+    },
+    {
+      "input_name": "CalculateStudentGPA.math_score",
+      "input_type": {
+        "type": "primitive",
+        "primitive_type": "Float"
+      },
+      "source": {
+        "type": "record_lookup",
+        "record_attribute": "GPA_math"
+      }
+    },
+    {
+      "input_name": "CalculateStudentGPA.num_scores",
+      "input_type": {
+        "type": "primitive",
+        "primitive_type": "Int"
+      },
+      "source": {
+        "type": "literal",
+        "parameter_value": 3
+      }
+    },
+    {
+      "input_name": "CalculateStudentGPA.science_score",
+      "input_type": {
+        "type": "primitive",
+        "primitive_type": "Float"
+      },
+      "source": {
+        "type": "record_lookup",
+        "record_attribute": "GPA_science"
+      }
+    }
+  ],
+  "workflow_output_definitions": [
+    {
+      "output_name": "CalculateStudentGPA.gpa",
+      "output_type": {
+        "type": "primitive",
+        "primitive_type": "Float"
+      },
+      "destination": {
+        "type": "record_update",
+        "record_attribute": "gpa"
+      }
+    }
+  ],
+  "wds_records": {
+    "record_type": "student",
+    "record_ids": [
+      "AN536",
+      "AV612",
+      "BM445",
+      "BN746",
+      "BY969",
+      "BZ460",
+      "CF319",
+      "CG028",
+      "CN102",
+      "CN109",
+      "CR427",
+      "CR554",
+      "DF190",
+      "DN210",
+      "EG131",
+      "EJ721",
+      "EN763",
+      "ET469",
+      "EW292",
+      "FA687",
+      "FE545",
+      "FG085",
+      "FU413",
+      "FX314",
+      "GD902",
+      "GI719",
+      "GS988",
+      "GT291",
+      "HC007",
+      "HV516",
+      "IA826",
+      "IB041",
+      "IC429",
+      "IG903",
+      "IL759",
+      "IY093",
+      "JE497",
+      "JQ908",
+      "JU463",
+      "KJ844",
+      "KK179",
+      "LK430",
+      "ME931",
+      "MR226",
+      "MS667",
+      "MU932",
+      "MX126",
+      "MY107",
+      "NA133",
+      "NC304",
+      "ND169",
+      "NK587",
+      "OA372",
+      "OD086",
+      "OI678",
+      "PA581",
+      "PR012",
+      "QN991",
+      "QX640",
+      "RE571",
+      "RS563",
+      "RW222",
+      "TI329",
+      "TJ920",
+      "TL158",
+      "UB771",
+      "UO241",
+      "VQ056",
+      "VR432",
+      "VV093",
+      "WI509",
+      "WN597",
+      "XB729",
+      "XC233",
+      "XE439",
+      "XG816",
+      "XH059",
+      "XV134",
+      "XX432",
+      "XX900",
+      "XZ198",
+      "YG680",
+      "YL608",
+      "YX508",
+      "ZC846",
+      "ZY176"
+    ]
+  }
+}

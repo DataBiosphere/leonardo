@@ -16,11 +16,11 @@ dest_billing_project_name = os.environ.get("DEST_BILLING_PROJECT_NAME")
 workspace_name = os.environ.get("WORKSPACE_NAME")
 
 # Update these values as desired
-number_of_clones=10 #number of clones to make
+number_of_clones=1 #number of clones to make
 #if false, will wait for each api clone call to complete before starting the next
 #if true, will start all api calls at once on different threads
 parallel=True
-cbas_submit_workflow=True
+run_workflow=True
 
 workspace_manager_url, rawls_url, leo_url = setup(env)
 header = {"Authorization": "Bearer " + azure_token};
@@ -30,8 +30,8 @@ if parallel:
     results_lock = threading.Lock()
 
     # Create a thread function that performs the task and appends the result to the list
-    def clone_and_append_result(source_billing_project_name, dest_billing_project_name, workspace_name, header):
-        result = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header)
+    def clone_and_append_result(source_billing_project_name, dest_billing_project_name, workspace_name, header, start_cbas):
+        result = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header, start_cbas)
 
         # Use the lock to safely append the result to the list
         with results_lock:
@@ -39,7 +39,7 @@ if parallel:
 
     proc = []
     for i in range(number_of_clones):
-        t = threading.Thread(target=clone_and_append_result, args=(source_billing_project_name, dest_billing_project_name, workspace_name, header))
+        t = threading.Thread(target=clone_and_append_result, args=(source_billing_project_name, dest_billing_project_name, workspace_name, header, run_workflow))
         proc.append(t)
         time.sleep(0.1)
         t.start()
@@ -47,7 +47,7 @@ if parallel:
         t.join()
 else:
     while number_of_clones != 0:
-        clone_id = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header, True)
+        clone_id = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header, run_workflow)
         cloned_workspaces.append(clone_id)
         number_of_clones-=1
 
@@ -57,11 +57,10 @@ for ws in cloned_workspaces:
     wds_url = poll_for_app_url(ws, "wds", azure_token)
     check_wds_data(wds_url, ws, "student", azure_token)
 
-    if cbas_submit_workflow:
+    if run_workflow:
         # next trigger a workflow in each of the workspaces, at this time this doesnt monitor if this was succesful or not
-        # upload file needed for workflow to run
-        upload_wds_data(wds_url, ws, "resources/sraloadtest.tsv", "sraloadtest", 2, azure_token)
-        submit_workflow_assemble_refbased(ws, "resources/assemble_refbased.json", azure_token)
+        add_workflow_method(ws, azure_token)
+        submit_workflow_assemble_refbased(ws, "resources/calculate_gpa_run.json", azure_token)
 
 
 print("LOAD TEST COMPLETE.")

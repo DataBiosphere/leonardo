@@ -36,7 +36,6 @@ def poll_for_app_url(workspaceId, app, azure_token):
     app_type = "CROMWELL" if app != 'wds' else app.upper();
     print(f"App type: {app_type}")
 
-    #TODO: can this get into an infinite loop?
     while True:
         response = requests.get(leo_get_app_api, headers=headers)
         assert response.status_code == 200, f"Error fetching apps from leo: ${response.text}"
@@ -44,7 +43,10 @@ def poll_for_app_url(workspaceId, app, azure_token):
         response = json.loads(response.text)
         print(response)
 
-        #TODO have i covered all cases?
+        # Don't run in an infinite loop if you forgot to start the app/it was never created
+        if app_type not in [item['appType'] for item in response]:
+            print(f"{app_type} not found in apps, has it been started?")
+            return ""
         for entries in response:
             if entries['appType'] == app_type:
                 if entries['status'] == "PROVISIONING":
@@ -134,6 +136,26 @@ def submit_workflow_assemble_refbased(workspaceId, dataFile, azure_token):
     data = response.json()
     errors = [run["errors"] for run in data["runs"]]
     assert all(error == "null" for error in errors), f"Error in submitting workflow: {errors}"
+
+def add_workflow_method(workspaceId, azure_token):
+    cbas_url = poll_for_app_url(workspaceId, "cbas", azure_token)
+    print(cbas_url)
+
+    request_body = {
+        "method_name": "alt-2_calculate_avg_gpa",
+        "method_source": "GitHub",
+        "method_version": "quickstart_wdls",
+        "method_url": "https://github.com/broadinstitute/DSP_User_Ed/blob/quickstart_wdls/pipelines/unified_quickstart/alt-2_calculate_avg_gpa.wdl"
+    }
+
+    cbas_add_workflow_api = f"{cbas_url}/api/batch/v1/methods"
+
+    headers = {"Authorization": "Bearer " + azure_token,
+               "accept": "application/json",
+               "Content-Type": "application/json"}
+
+    response = requests.post(cbas_add_workflow_api, json=request_body, headers=headers)
+    assert response.status_code == 200, f"Add workflow request failed: {response.text}"
 
 def upload_wds_data(wds_url, current_workspaceId, tsv_file_name, recordName, record_count, azure_token):
     version="v0.2"
