@@ -301,7 +301,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       saveApp <- IO(app.save())
 
       appId = saveApp.id
-      owner = UUID.randomUUID()
+      owner = "id"
 
       createdDatabase <- aksInterp.createWsmDatabaseResource(saveApp,
                                                              workspaceId,
@@ -348,8 +348,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       saveApp <- IO(app.save())
 
       appId = saveApp.id
-      databases = List(UUID.randomUUID(), UUID.randomUUID())
-      identity = UUID.randomUUID()
+      databases = List("db1", "db2")
+      identity = "id"
 
       createdNamespace <- aksInterp.createWsmKubernetesNamespaceResource(saveApp,
                                                                          workspaceId,
@@ -540,8 +540,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     sam
   }
 
-  private def setUpMockWsmApiClientProvider: (WsmApiClientProvider, ControlledAzureResourceApi) = {
-    val wsm = mock[WsmApiClientProvider]
+  private def setUpMockWsmApiClientProvider: (WsmApiClientProvider[IO], ControlledAzureResourceApi) = {
+    val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
     val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
@@ -642,8 +642,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .attributes(
           new AzureKubernetesNamespaceAttributes()
             .kubernetesNamespace("ns")
-            .databases(List(UUID.randomUUID()).asJava)
-            .managedIdentity(UUID.randomUUID())
+            .databases(List("db1").asJava)
+            .managedIdentity("id1")
             .kubernetesServiceAccount("ksa-1")
         )
     }
@@ -662,16 +662,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       new DeleteControlledAzureResourceResult().jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
-    // Enumerate resources
     when {
-      resourceApi.enumerateResources(any, any, any, any, any)
-    } thenReturn new ResourceList()
-    when {
-      wsm.getControlledAzureResourceApi(any)
-    } thenReturn api
-    when {
-      wsm.getResourceApi(any)
-    } thenReturn resourceApi
+      wsm.getControlledAzureResourceApi(any)(any)
+    } thenReturn IO.pure(api)
     (wsm, api)
   }
 

@@ -8,21 +8,19 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
-  val scalaTestV = "3.2.16"
+  val scalaTestV = "3.2.17"
   val http4sVersion = "1.0.0-M38" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
   val slickV = "3.4.1"
   val guavaV = "32.1.2-jre"
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
-  val pact4sV = "0.9.0"
+  val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "aa2afae"
-  val serviceTestV = s"4.1-ce68967"
+  private val workbenchLibsHash = "7362eef"
+  val serviceTestV = s"4.1-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
-
-  // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
-  val workbenchGoogleV = s"0.23-4b46aac"
+  val workbenchGoogleV = s"0.29-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.33-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.7-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
@@ -74,7 +72,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.57.2" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.58.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -129,7 +127,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.2" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.3" % Test // brought in for FakeStorageInterpreter
 
   // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
@@ -144,14 +142,25 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
-  val workSpaceManagerV = "0.254.903-SNAPSHOT"
+  val workSpaceManagerV = "0.254.916-SNAPSHOT"
+  val terraCommonLibV = "0.0.94-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
   def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi, excludeJakartaXmlBindApi)
+  def excludeSpringBoot = ExclusionRule("org.springframework.boot")
+  def excludeSpringAop = ExclusionRule("org.springframework.spring-aop")
+  def excludeSpringData = ExclusionRule("org.springframework.data")
+  def excludeSpringFramework = ExclusionRule("org.springframework")
+  def excludeOpenCensus = ExclusionRule("io.opencensus")
+  def excludeGoogleFindBugs = ExclusionRule("com.google.code.findbugs")
+  def excludeBroadWorkbench = ExclusionRule("org.broadinstitute.dsde.workbench")
+  def excludePostgresql = ExclusionRule("org.postgresql", "postgresql")
+  def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j)
 
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
-
+  val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
 
   val coreDependencies = List(
     jose4j,
@@ -181,7 +190,8 @@ object Dependencies {
     workbenchAzure,
     workbenchAzureTest,
     logbackClassic,
-    workspaceManager
+    workspaceManager,
+    terraCommonLib
   )
 
   val httpDependencies = Seq(
@@ -212,7 +222,7 @@ object Dependencies {
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
-  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-563edbd-SNAP"//"1.3.6-9d5d754"
+  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-7579402"
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.2" % "test",

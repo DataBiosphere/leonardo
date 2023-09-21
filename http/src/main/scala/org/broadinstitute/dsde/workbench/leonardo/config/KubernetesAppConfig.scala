@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
+import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 import java.net.URL
@@ -31,6 +33,22 @@ sealed trait KubernetesAppConfig extends Product with Serializable {
   // corresponds to a specific app type and cloud provider.
   def cloudProvider: CloudProvider
   def appType: AppType
+}
+
+object KubernetesAppConfig {
+  def configForTypeAndCloud(appType: AppType, cloudProvider: CloudProvider): Option[KubernetesAppConfig] =
+    (appType, cloudProvider) match {
+      case (Galaxy, CloudProvider.Gcp)              => Some(Config.gkeGalaxyAppConfig)
+      case (Custom, CloudProvider.Gcp)              => Some(Config.gkeCustomAppConfig)
+      case (Cromwell, CloudProvider.Gcp)            => Some(Config.gkeCromwellAppConfig)
+      case (AppType.Allowed, CloudProvider.Gcp)     => Some(Config.gkeAllowedAppConfig)
+      case (Cromwell, CloudProvider.Azure)          => Some(ConfigReader.appConfig.azure.coaAppConfig)
+      case (WorkflowsApp, CloudProvider.Azure)      => Some(ConfigReader.appConfig.azure.workflowsAppConfig)
+      case (CromwellRunnerApp, CloudProvider.Azure) => Some(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
+      case (Wds, CloudProvider.Azure)               => Some(ConfigReader.appConfig.azure.wdsAppConfig)
+      case (HailBatch, CloudProvider.Azure)         => Some(ConfigReader.appConfig.azure.hailBatchAppConfig)
+      case _                                        => None
+    }
 }
 
 final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
