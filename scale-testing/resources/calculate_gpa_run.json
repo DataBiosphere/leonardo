@@ -1,7 +1,6 @@
 {
   "run_set_name": "alt-2-calculate-avg-gpa_student_2023-09-21T14:23:37",
   "run_set_description": "",
-  "method_version_id": "e30ecce4-0a55-4d49-87b4-19cec89e1bfe",
   "workflow_input_definitions": [
     {
       "input_name": "CalculateStudentGPA.language_score",

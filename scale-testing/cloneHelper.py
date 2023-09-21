@@ -100,13 +100,15 @@ def check_wds_data(wds_url, workspaceId, recordName, azure_token):
     assert response.name == recordName, "Name does not match"
     # assert response.count == 86, "Count does not match"
 
-def submit_workflow_assemble_refbased(workspaceId, dataFile, azure_token):
+def submit_workflow(workspaceId, dataFile, azure_token, method_id):
     cbas_url = poll_for_app_url(workspaceId, "cbas", azure_token)
     print(cbas_url)
     #open text file in read mode
-    text_file = open(dataFile, "r")
-    request_body = text_file.read();
-    text_file.close()
+    with open(dataFile, 'r') as file:
+        data = json.load(file)
+
+    # Add method_id
+    data['method_version_id'] = method_id
 
     cbas_run_sets_api = f"{cbas_url}/api/batch/v1/run_sets"
 
@@ -114,7 +116,8 @@ def submit_workflow_assemble_refbased(workspaceId, dataFile, azure_token):
                "accept": "application/json",
                "Content-Type": "application/json"}
 
-    response = requests.post(cbas_run_sets_api, data=request_body, headers=headers)
+    print(f"Submitting workflow to cbas with request body {data}")
+    response = requests.post(cbas_run_sets_api, json=data, headers=headers)
     # example of what it returns:
     # {
     #   "run_set_id": "cdcdc570-f6f3-4425-9404-4d70cd74ce2a",
@@ -134,6 +137,7 @@ def submit_workflow_assemble_refbased(workspaceId, dataFile, azure_token):
     # }
     assert response.status_code == 200, f"Run workflow request failed: {response.text}"
     data = response.json()
+    print(data)
     errors = [run["errors"] for run in data["runs"]]
     assert all(error == "null" for error in errors), f"Error in submitting workflow: {errors}"
 
@@ -154,8 +158,12 @@ def add_workflow_method(workspaceId, azure_token):
                "accept": "application/json",
                "Content-Type": "application/json"}
 
+    print("Adding workflow method to cbas")
     response = requests.post(cbas_add_workflow_api, json=request_body, headers=headers)
     assert response.status_code == 200, f"Add workflow request failed: {response.text}"
+    method_id = response.json()["method_id"]
+    print(method_id)
+    return method_id
 
 def upload_wds_data(wds_url, current_workspaceId, tsv_file_name, recordName, record_count, azure_token):
     version="v0.2"

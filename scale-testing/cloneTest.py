@@ -59,8 +59,8 @@ for ws in cloned_workspaces:
 
     if run_workflow:
         # next trigger a workflow in each of the workspaces, at this time this doesnt monitor if this was succesful or not
-        add_workflow_method(ws, azure_token)
-        submit_workflow_assemble_refbased(ws, "resources/calculate_gpa_run.json", azure_token)
+        method_id = add_workflow_method(ws, azure_token)
+        submit_workflow(ws, "resources/calculate_gpa_run.json", azure_token, method_id)
 
 
 print("LOAD TEST COMPLETE.")
