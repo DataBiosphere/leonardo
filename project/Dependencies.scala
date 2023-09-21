@@ -18,11 +18,9 @@ object Dependencies {
   val pact4sV = "0.10.0"
 
   private val workbenchLibsHash = "7362eef"
-  val serviceTestV = s"4.1-ce68967"
+  val serviceTestV = s"4.1-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
-
-  // TODO update to 0.26 - DataprocInterpreter relies on deprecated class MemberType
-  val workbenchGoogleV = s"0.23-4b46aac"
+  val workbenchGoogleV = s"0.29-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.33-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.7-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
@@ -129,7 +127,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.2" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.3" % Test // brought in for FakeStorageInterpreter
 
   // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
@@ -224,7 +222,7 @@ object Dependencies {
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
-  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-563edbd-SNAP"//"1.3.6-9d5d754"
+  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-7579402"
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.2" % "test",

@@ -214,8 +214,7 @@ object Boot extends IOApp {
 
       val adminService = new AdminServiceInterp[IO](
         appDependencies.authProvider,
-        appDependencies.publisherQueue,
-        ConfigReader.adminAppConfig
+        appDependencies.publisherQueue
       )
 
       val httpRoutes = new HttpRoutes(
