@@ -1219,7 +1219,7 @@ class GKEInterpreter[F[_]](
         } else {
           for {
             startTime <- F.realTimeInstant
-            // The app is Running at this point and Galaxy can be used
+            // The app is Running at this point and can be used
             _ <- appQuery.updateStatus(dbApp.app.id, AppStatus.Running).transaction
             trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
             _ <- appUsageQuery.recordStart(dbApp.app.id, startTime).whenA(trackUsage)
