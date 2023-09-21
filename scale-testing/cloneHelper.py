@@ -103,13 +103,15 @@ def check_wds_data(wds_url, workspaceId, recordName, azure_token):
 def submit_workflow(workspaceId, dataFile, azure_token, method_id):
     cbas_url = poll_for_app_url(workspaceId, "cbas", azure_token)
     print(cbas_url)
+
+    method_version_id = get_method_version_id(cbas_url, azure_token, method_id)
     #open text file in read mode
     with open(dataFile, 'r') as file:
         data = json.load(file)
 
     # Add method_id
-    data['method_version_id'] = method_id
-
+    # data['method_id'] = method_id
+    data['method_version_id'] = method_version_id
     cbas_run_sets_api = f"{cbas_url}/api/batch/v1/run_sets"
 
     headers = {"Authorization": "Bearer " + azure_token,
@@ -140,6 +142,16 @@ def submit_workflow(workspaceId, dataFile, azure_token, method_id):
     print(data)
     errors = [run["errors"] for run in data["runs"]]
     assert all(error == "null" for error in errors), f"Error in submitting workflow: {errors}"
+
+def get_method_version_id(cbas_url, azure_token, method_id):
+    cbas_get_method_api = f"{cbas_url}/api/batch/v1/methods?method_id={method_id}"
+    header = {"Authorization": "Bearer " + azure_token}
+    print(f"Getting version id for method {method_id}")
+    response = requests.get(cbas_get_method_api, headers=header)
+    print(response)
+    response_json = response.json()
+    print(response_json)
+    return response_json["methods"][0]["method_versions"][0]["method_version_id"]
 
 def add_workflow_method(workspaceId, azure_token):
     cbas_url = poll_for_app_url(workspaceId, "cbas", azure_token)
