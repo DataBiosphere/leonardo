@@ -13,10 +13,11 @@ Edit variables in `cloneTest.py`:
 - `number_of_clones` number of clones to make
 - `parallel` if false, will wait for each api clone call to complete before starting the next. 
 if true, will start all api calls at once on different threads
+- `run_workflow` whether or not to start up cbas and submit a worflow
 
 You may also want to update the amount of time for sleeping:
 on line 42, this prevents errors from the API calls happening too quickly together.
-On line 53, this gives the cloned WDSs time to start up before checking them for success.
+On line 55, this gives the cloned WDSs time to start up before checking them for success.
 
 ```bash
 pip install -r requirements.txt
