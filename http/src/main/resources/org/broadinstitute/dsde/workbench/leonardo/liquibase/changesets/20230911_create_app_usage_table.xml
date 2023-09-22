@@ -17,6 +17,5 @@
         </createTable>
         <addForeignKeyConstraint baseColumnNames="appId" baseTableName="APP_USAGE" constraintName="FK_APP_USAGE_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
         <addUniqueConstraint columnNames="appId, startTime" constraintName="IDX_APP_USAGE_STARTTIME_UNIQUE" tableName="APP_USAGE"/>
-        <addUniqueConstraint columnNames="appId, startTime, stopTime" constraintName="IDX_APP_USAGE_STOPTIME_UNIQUE" tableName="APP_USAGE"/>
     </changeSet>
 </databaseChangeLog>
