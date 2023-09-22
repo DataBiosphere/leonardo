@@ -339,7 +339,7 @@ class GceInterpreter[F[_]](
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       ctx <- ev.ask
-      runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName
+      runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName.asString
       zoneParam <- F.fromOption(
         LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException(

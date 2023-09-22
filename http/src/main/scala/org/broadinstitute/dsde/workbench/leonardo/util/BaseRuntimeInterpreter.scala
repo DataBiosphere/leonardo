@@ -50,7 +50,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
   )(implicit ev: Ask[F, AppContext]): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       ctx <- ev.ask
-      runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName
+      runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName.asString
       // Flush the welder cache to disk
       _ <- logger.info(
         s"StopRuntimeMessage timing: Flushing the welder cache, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
