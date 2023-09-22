@@ -351,11 +351,11 @@ class GceInterpreter[F[_]](
         new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
       )
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Getting shutdown script, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+        s"StopRuntimeMessage timing: Getting shutdown script, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
       )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Adding instance metadata, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+        s"StopRuntimeMessage timing: Adding instance metadata, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
       )
       _ <- googleComputeService.addInstanceMetadata(
         googleProject,
@@ -364,7 +364,7 @@ class GceInterpreter[F[_]](
         metadata
       )
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Sending stop message to google, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+        s"StopRuntimeMessage timing: Sending stop message to google, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
       )
       opFuture <- googleComputeService.stopInstance(
         googleProject,

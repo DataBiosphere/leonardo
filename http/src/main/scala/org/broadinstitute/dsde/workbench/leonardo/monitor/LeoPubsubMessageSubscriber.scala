@@ -357,14 +357,14 @@ class LeoPubsubMessageSubscriber[F[_]](
     for {
       ctx <- ev.ask
       _ <- logger.info(
-        s"StopRuntimeMessage timing: About to get the cluster by id, [runtimeId = ${msg.runtimeId}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+        s"StopRuntimeMessage timing: About to get the cluster by id, [runtimeId = ${msg.runtimeId}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
       )
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(F.pure)
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Got the cluster, [runtime = ${runtime.runtimeName} traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+        s"StopRuntimeMessage timing: Got the cluster, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
       )
 
       _ <-
@@ -374,11 +374,11 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
         else F.unit
       _ <- logger.info(
-        s"StopRuntimeMessage timing: About to get the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+        s"StopRuntimeMessage timing: About to get the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
       )
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Got the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+        s"StopRuntimeMessage timing: Got the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
       )
       _ <- runtime.cloudContext match {
         case CloudContext.Gcp(_) =>
@@ -401,7 +401,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
             }
             _ <- logger.info(
-              s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+              s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
             )
             _ <- asyncTasks.offer(
               Task(
