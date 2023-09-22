@@ -486,7 +486,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "record app k8s metrics" in {
-    val chart = Chart.fromString("/leonardo/wds-0.45.0").get
+    val chart = Chart.fromString("wds-0.0.1").get
     val test = leoMetricsMonitor.getAppK8sResources(List(wdsAppAzure)).unsafeRunSync()(IORuntime.global)
     test.size shouldBe 4
     test.get(
