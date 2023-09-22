@@ -157,7 +157,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
     pactProvider,
     state = "Sam is ok",
     stateParams = subsystems.map(s => s.toString() -> "ok").toMap,
-    uponReceiving = "Request to get Sam ok status",
+    uponReceiving = "Request to get Sam ok status using semvar",
     method = "GET",
     path = "/status",
     requestHeaders = Seq("Accept" -> "application/json"),
