@@ -438,13 +438,15 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     resources
       .map(_.map { case (resource, quantity) =>
         Map(
-          AppResourcesMetric(cloudContext.cloudProvider,
-                             app.appType,
-                             ServiceName(service),
-                             getRuntimeUI(app.labels),
-                             getAzureCloudContext(cloudContext),
-                             requestOrLimit,
-                             resource
+          AppResourcesMetric(
+            cloudContext.cloudProvider,
+            app.appType,
+            ServiceName(service),
+            getRuntimeUI(app.labels),
+            getAzureCloudContext(cloudContext),
+            requestOrLimit,
+            resource,
+            app.chart
           ) -> quantity.getNumber.doubleValue() // TODO are units consistent?
         )
       })
