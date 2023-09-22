@@ -52,8 +52,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       ctx <- ev.ask
       runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName.asString
       // Flush the welder cache to disk
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Flushing the welder cache, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Flushing the welder cache, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       _ <-
         welderDao
@@ -68,13 +69,14 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
           .whenA(params.runtimeAndRuntimeConfig.runtime.welderEnabled)
 
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Updating the hostIp, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Updating the hostIp, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       _ <- clusterQuery.updateClusterHostIp(params.runtimeAndRuntimeConfig.runtime.id, None, ctx.now).transaction
 
       // Stop the cluster in Google
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Calling stopGoogleRuntime, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Calling stopGoogleRuntime, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       r <- stopGoogleRuntime(
         StopGoogleRuntime(params.runtimeAndRuntimeConfig, params.isDataprocFullStop)

@@ -356,15 +356,17 @@ class LeoPubsubMessageSubscriber[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: About to get the cluster by id, [runtimeId = ${msg.runtimeId}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: About to get the cluster by id, [runtimeId = ${msg.runtimeId}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(F.pure)
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Got the cluster, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Got the cluster, [runtime = ${runtime.runtimeName.asString}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
 
       _ <-
@@ -373,12 +375,14 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: About to get the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: About to get the runtimeConfig, [runtime = ${runtime.runtimeName.asString}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Got the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Got the runtimeConfig, [runtime = ${runtime.runtimeName.asString}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       _ <- runtime.cloudContext match {
         case CloudContext.Gcp(_) =>
@@ -400,8 +404,9 @@ class LeoPubsubMessageSubscriber[F[_]](
               case None =>
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
             }
+            now <- F.realTimeInstant
             _ <- logger.info(
-              s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+              s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
             )
             _ <- asyncTasks.offer(
               Task(

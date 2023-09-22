@@ -350,12 +350,14 @@ class GceInterpreter[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
       )
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Getting shutdown script, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Getting shutdown script, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Adding instance metadata, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Adding instance metadata, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       _ <- googleComputeService.addInstanceMetadata(
         googleProject,
@@ -363,8 +365,9 @@ class GceInterpreter[F[_]](
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadata
       )
+      now <- F.realTimeInstant
       _ <- logger.info(
-        s"StopRuntimeMessage timing: Sending stop message to google, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString}, time = ${ctx.now.toString}]"
+        s"StopRuntimeMessage timing: Sending stop message to google, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       opFuture <- googleComputeService.stopInstance(
         googleProject,
