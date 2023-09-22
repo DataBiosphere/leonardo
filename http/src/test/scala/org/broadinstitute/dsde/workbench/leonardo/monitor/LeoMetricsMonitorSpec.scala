@@ -486,6 +486,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "record app k8s metrics" in {
+    val chart = Chart.fromString("/leonardo/wds-0.45.0").get
     val test = leoMetricsMonitor.getAppK8sResources(List(wdsAppAzure)).unsafeRunSync()(IORuntime.global)
     test.size shouldBe 4
     test.get(
@@ -495,7 +496,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                          RuntimeUI.Terra,
                          Some(azureContext2),
                          "request",
-                         "cpu"
+                         "cpu",
+                         chart
       )
     ) shouldBe Some(1)
     test.get(
@@ -505,7 +507,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                          RuntimeUI.Terra,
                          Some(azureContext2),
                          "request",
-                         "memory"
+                         "memory",
+                         chart
       )
     ) shouldBe Some(1073741824d)
     test.get(
@@ -515,7 +518,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                          RuntimeUI.Terra,
                          Some(azureContext2),
                          "limit",
-                         "cpu"
+                         "cpu",
+                         chart
       )
     ) shouldBe Some(2)
     test.get(
@@ -525,7 +529,8 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                          RuntimeUI.Terra,
                          Some(azureContext2),
                          "limit",
-                         "memory"
+                         "memory",
+                         chart
       )
     ) shouldBe Some(2147483648d)
   }
