@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
+  ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
@@ -523,11 +524,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- authProvider.checkUserEnabled(userInfo)
 
       // Authorize: get resource IDs the user can see
-      readerRuntimeIds <- authProvider.getAuthorizedIds(RuntimeSamResourceId, None, userInfo)
-      readerWorkspaceIds <- authProvider.getAuthorizedIds(WorkspaceResourceSamResourceId, None, userInfo)
-      ownerWorkspaceIds <- authProvider.getAuthorizedIds(WorkspaceResourceSamResourceId, SamPolicyName.Owner, userInfo)
-      readerProjectIds <- authProvider.getAuthorizedIds(ProjectSamResourceId, None, userInfo)
-      ownerProjectIds <- authProvider.getAuthorizedIds(ProjectSamResourceId, SamPolicyName.Owner, userInfo)
+      readerRuntimeIds <- authProvider.getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
+      readerWorkspaceIds <- authProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
+      ownerWorkspaceIds <- authProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
+      readerProjectIds <- authProvider.getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
+      ownerProjectIds <- authProvider.getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
 
       // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
@@ -547,8 +548,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           ownerWorkspaceIds,
           readerProjectIds,
           ownerProjectIds
-        ).map(_.toList)
-         .transaction
+        )
+        .map(_.toList)
+        .transaction
 
     } yield runtimes.toVector
 

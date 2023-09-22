@@ -128,32 +128,29 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   }
 
   override def getAuthorizedIds[R](
-    resourceType: SamResourceType,
     isOwner: Boolean,
     userInfo: UserInfo
   )(implicit
+    samResource: SamResource[R],
+    decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
 
-    // TODO find another way to add the correct SamResource context to this method
-    val dummyResourceId = samResourceType.match {
-      case SamResourceType.Runtime => RuntimeSamResourceId("")
-      case SamResourceType.PersistentDisk => PersistentDiskSamResourceId("")
-      case SamResourceType.Project => ProjectSamResourceId("")
-      case SamResourceType.App => AppSamResourceId("")
-      case SamResourceType.SharedApp => AppSamResourceId("")
-      case SamResourceType.Workspace => WorkspaceResourceSamResourceId("")
-      case SamResourceType.WsmResource => WsmResourceSamResourceId("")
-    }
-
     for {
-      policies <- samDao.getResourcePolicies[R](authHeader, samResourceType)
-      authorizedIds = if (isOwner) {
-        policies.collect {
-          case (resourceId, samResource.ownerRoleName) => resourceId
+      ownerPolicy <- SamPolicyName.stringToSamPolicyName(samResource.ownerRoleName.asString)
+      resourcesAndPolicies <- samDao.getResourcePolicies[R](authHeader, samResource.resourceType)
+      isOwnerInPolicies <- resourcesAndPolicies.exists { case (_, policy) if policy == ownerPolicy => true }
+
+      authorizedPolicies =
+        if (isOwner && !isOwnerInPolicies) {
+          List.empty
+        } else if (isOwner && isOwnerInPolicies) {
+          resourcesAndPolicies filter { case (_, policy) if policy == ownerPolicy => true }
+        } else {
+          resourcesAndPolicies
         }
-      } else policies.map((resourceId, _) => resourceId)
+      authorizedIds = authorizedPolicies.map { case (resourceId: R, _) => resourceId }
     } yield authorizedIds
   }
 

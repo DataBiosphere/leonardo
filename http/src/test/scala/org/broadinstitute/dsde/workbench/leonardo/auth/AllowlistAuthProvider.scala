@@ -55,7 +55,7 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     }
 
   def getAuthorizedIds[R](
-    resourceType: SamResourceType,
+    samResource: SamResource[R],
     isOwner: Boolean,
     userInfo: UserInfo
   )(implicit

@@ -5,7 +5,11 @@ import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.Runtime
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  ProjectSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.GetResultInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -274,10 +278,12 @@ object RuntimeServiceDbQueries {
     workspaceId: Option[WorkspaceId],
     cloudProvider: Option[CloudProvider],
     readerRuntimeIds: List[RuntimeSamResourceId],
-    readerWorkspaceIds: List[WorkspaceId],
-    ownerWorkspaceIds: List[WorkspaceId],
-    readerGoogleProjectIds: List[GoogleProjectId],
-    ownerGoogleProjectIds: List[GoogleProjectId],
+
+    // TODO, do I need to convert between these objects' sam IDs and their leo IDs?
+    readerWorkspaceIds: List[WorkspaceResourceSamResourceId],
+    ownerWorkspaceIds: List[WorkspaceResourceSamResourceId],
+    readerGoogleProjectIds: List[ProjectSamResourceId],
+    ownerGoogleProjectIds: List[ProjectSamResourceId]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val cp = cloudProvider.map(cp => Right(cp))
     listAuthorizedRuntimesHelper(
@@ -301,12 +307,13 @@ object RuntimeServiceDbQueries {
     labelMap: LabelMap,
     excludeStatuses: List[RuntimeStatus],
     creatorOnly: Option[WorkbenchEmail],
+    workspaceId: Option[WorkspaceId],
     cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]],
     readerRuntimeIds: List[RuntimeSamResourceId],
-    readerWorkspaceIds: List[WorkspaceId],
-    ownerWorkspaceIds: List[WorkspaceId],
-    readerGoogleProjectIds: List[GoogleProjectId],
-    ownerGoogleProjectIds: List[GoogleProjectId]
+    readerWorkspaceIds: List[WorkspaceResourceSamResourceId],
+    ownerWorkspaceIds: List[WorkspaceResourceSamResourceId],
+    readerGoogleProjectIds: List[ProjectSamResourceId],
+    ownerGoogleProjectIds: List[ProjectSamResourceId]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
 
     // Authorize: show only resources the user is permitted to see
@@ -335,10 +342,12 @@ object RuntimeServiceDbQueries {
     }
 
     val filterCloud = cloudContextOrCloudProvider match {
-      case Some(Left(CloudContext.Gcp(gp)))     => List(s"C.`cloudProvider` = ${CloudProvider.Gcp} AND C.`cloudContext` = '${gp.value}'")
-      case Some(Left(CloudContext.Azure(actx))) => List(s"C.`cloudProvider` = ${CloudProvider.Azure} AND C.`cloudContext` = '${actx.asString}'")
-      case Some(Right(cloudProvider))           => List(s"C.`cloudProvider` = '${cloudProvider.asString}'")
-      case None                                 => List.empty
+      case Some(Left(CloudContext.Gcp(gp))) =>
+        List(s"C.`cloudProvider` = ${CloudProvider.Gcp} AND C.`cloudContext` = '${gp.value}'")
+      case Some(Left(CloudContext.Azure(actx))) =>
+        List(s"C.`cloudProvider` = ${CloudProvider.Azure} AND C.`cloudContext` = '${actx.asString}'")
+      case Some(Right(cloudProvider)) => List(s"C.`cloudProvider` = '${cloudProvider.asString}'")
+      case None                       => List.empty
     }
 
     val filterNotDeleted = excludeStatuses.map(s => s"C.`status` != '${s.toString}'")
@@ -349,14 +358,13 @@ object RuntimeServiceDbQueries {
     }
 
     val filterClusters = (
-      filterIds
-      filterWorkspaceId ++
-      filterCloud ++
-      filterNotDeleted ++
-      filterCreator
+      filterVisibleIds ++
+        filterWorkspaceId ++
+        filterCloud ++
+        filterNotDeleted ++ filterCreator
     ).mkString(" AND ")
 
-    val whereFilterClusters = if (clusterFilters.isEmpty) "" else s"where ${clusterFilters}"
+    val whereFilterClusters = if (filterClusters.isEmpty) "" else s"where ${filterClusters}"
 
     val whereFilterLabels =
       if (labelMap.isEmpty)
