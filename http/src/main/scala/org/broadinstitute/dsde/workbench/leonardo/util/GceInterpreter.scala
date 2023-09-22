@@ -338,6 +338,8 @@ class GceInterpreter[F[_]](
     ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
+      ctx <- ev.ask
+      runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName
       zoneParam <- F.fromOption(
         LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException(
@@ -348,12 +350,21 @@ class GceInterpreter[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
       )
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Getting shutdown script, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Adding instance metadata, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       _ <- googleComputeService.addInstanceMetadata(
         googleProject,
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadata
+      )
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Sending stop message to google, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
       )
       opFuture <- googleComputeService.stopInstance(
         googleProject,

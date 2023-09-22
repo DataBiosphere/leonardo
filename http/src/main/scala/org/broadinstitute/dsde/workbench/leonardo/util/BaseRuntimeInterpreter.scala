@@ -50,7 +50,11 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
   )(implicit ev: Ask[F, AppContext]): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       ctx <- ev.ask
+      runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName
       // Flush the welder cache to disk
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Flushing the welder cache, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       _ <-
         welderDao
           .flushCache(params.runtimeAndRuntimeConfig.runtime.cloudContext,
@@ -63,9 +67,15 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
           )
           .whenA(params.runtimeAndRuntimeConfig.runtime.welderEnabled)
 
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Updating the hostIp, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       _ <- clusterQuery.updateClusterHostIp(params.runtimeAndRuntimeConfig.runtime.id, None, ctx.now).transaction
 
       // Stop the cluster in Google
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Calling stopGoogleRuntime, [runtime = ${runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       r <- stopGoogleRuntime(
         StopGoogleRuntime(params.runtimeAndRuntimeConfig, params.isDataprocFullStop)
       )

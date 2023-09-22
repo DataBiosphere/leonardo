@@ -356,17 +356,30 @@ class LeoPubsubMessageSubscriber[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: About to get the cluster by id, [runtimeId = ${msg.runtimeId}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(F.pure)
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Got the cluster, [runtime = ${runtime.runtimeName} traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
+
       _ <-
         if (!Set(RuntimeStatus.Stopping, RuntimeStatus.PreStopping).contains(runtime.status))
           F.raiseError[Unit](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: About to get the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Got the runtimeConfig, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+      )
       _ <- runtime.cloudContext match {
         case CloudContext.Gcp(_) =>
           for {
@@ -387,14 +400,18 @@ class LeoPubsubMessageSubscriber[F[_]](
               case None =>
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
             }
+            _ <- logger.info(
+              s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId}, time = ${nowInstant.toString}]"
+            )
             _ <- asyncTasks.offer(
               Task(
                 ctx.traceId,
                 poll,
                 Some(
-                  handleRuntimeMessageError(msg.runtimeId,
-                                            ctx.now,
-                                            s"stopping runtime ${runtime.projectNameString} failed"
+                  handleRuntimeMessageError(
+                    msg.runtimeId,
+                    ctx.now,
+                    s"stopping runtime ${runtime.projectNameString}/${runtime.runtimeName.toString} failed"
                   )
                 ),
                 ctx.now,
