@@ -627,8 +627,8 @@ object HttpSamDAO {
   implicit val samPolicyNameKeyEncoder: KeyEncoder[SamPolicyName] = new KeyEncoder[SamPolicyName] {
     override def apply(p: SamPolicyName): String = p.toString
   }
-  implicit val samResourceTypeEncooder: Encoder[SamResourceType] = Encoder.encodeString.contramap(_.asString)
-  implicit val samResourceIdEncooder: Encoder[SamResourceId] = Encoder.encodeString.contramap(_.resourceId)
+  implicit val samResourceTypeEncoder: Encoder[SamResourceType] = Encoder.encodeString.contramap(_.asString)
+  implicit val samResourceIdEncoder: Encoder[SamResourceId] = Encoder.encodeString.contramap(_.resourceId)
 
   implicit val samResourceEncoder: Encoder[SerializableSamResource] =
     Encoder.forProduct2("resourceTypeName", "resourceId")(x => (x.resourceTypeName, x.resourceId))

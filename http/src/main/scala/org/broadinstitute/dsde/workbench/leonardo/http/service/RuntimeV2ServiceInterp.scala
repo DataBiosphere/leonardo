@@ -518,99 +518,39 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
+
+      // Authorize: user has an active account and has accepted terms of service
+      _ <- authProvider.checkUserEnabled(userInfo)
+
+      // Authorize: get resource IDs the user can see
+      readerRuntimeIds <- authProvider.getAuthorizedIds(RuntimeSamResourceId, None, userInfo)
+      readerWorkspaceIds <- authProvider.getAuthorizedIds(WorkspaceResourceSamResourceId, None, userInfo)
+      ownerWorkspaceIds <- authProvider.getAuthorizedIds(WorkspaceResourceSamResourceId, SamPolicyName.Owner, userInfo)
+      readerProjectIds <- authProvider.getAuthorizedIds(ProjectSamResourceId, None, userInfo)
+      ownerProjectIds <- authProvider.getAuthorizedIds(ProjectSamResourceId, SamPolicyName.Owner, userInfo)
+
+      // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
+
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(labelMap, excludeStatuses, creatorOnly, workspaceId, cloudProvider)
-        .map(_.toList)
-        .transaction
-      filteredRuntimes <-
-        if (creatorOnly.isDefined) {
-          F.pure(runtimes)
-        } else {
+        .listAuthorizedRuntimes(
+          labelMap, // arbitrary key-value labels to filter by
+          excludeStatuses, // whether to filter out Deleted runtimes
+          creatorOnly, // whether to filter out runtimes user did not create
+          workspaceId, // whether to find only runtimes in a single workspace
+          cloudProvider, // Google | Azure
+          // Authorization scopes
+          readerRuntimeIds,
+          readerWorkspaceIds,
+          ownerWorkspaceIds,
+          readerProjectIds,
+          ownerProjectIds
+        ).map(_.toList)
+         .transaction
 
-          // Here, we optimize the SAM lookups based on whether we will need to use the google project fallback
-          // IF (workspaceId) EXISTS we need WSM resource ID sam lookup + workspaceId Fallback
-          // ELSE we need googleProject fallback
-          val (runtimesUserWithWorkspaceId, runtimesUserWithoutWorkspaceId) =
-            runtimes
-              .partition(_.workspaceId.isDefined)
-
-          // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
-          // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
-
-          // -----------   Filter runtimes that's in runtimesUserWithWorkspaceId   -----------
-          val runtimesUserWithWorkspaceSamIds = NonEmptyList
-            .fromList(
-              runtimesUserWithWorkspaceId.flatMap(runtime =>
-                runtime.workspaceId match {
-                  case Some(id) => List((runtime, WorkspaceResourceSamResourceId(id)))
-                  case None     => List.empty
-                }
-              )
-            )
-          for {
-            // We check if the user has access to the workspace
-            runtimesUserWithWorkspaceIdAndSamResourceId <- runtimesUserWithWorkspaceSamIds
-              .traverse(workspaces =>
-                authProvider.filterWorkspaceReader(
-                  workspaces.map(_._2),
-                  userInfo
-                )
-              )
-              .map(_.getOrElse(Set.empty))
-
-            samVisibleRuntimesUserWithWorkspaceId =
-              runtimesUserWithWorkspaceId.mapFilter { runtime =>
-                if (
-                  runtimesUserWithWorkspaceIdAndSamResourceId
-                    .exists(workspaceSamId => workspaceSamId.workspaceId == runtime.workspaceId.get)
-                ) {
-                  Some(runtime)
-                } else None
-              }
-
-            // -----------   Filter runtimes that's in runtimesUserWithoutWorkspaceId   -----------
-            // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
-            runtimesAndProjects = runtimesUserWithoutWorkspaceId
-              .mapFilter { case rt =>
-                rt.cloudContext match {
-                  case CloudContext.Gcp(googleProject) =>
-                    Some((rt, googleProject, rt.samResource))
-                  case CloudContext.Azure(_) =>
-                    None // This should never happen cuz all Azure runtimes has a workspaceId
-                }
-              }
-
-            samProjectVisibleSamIds <- NonEmptyList.fromList(runtimesAndProjects.map(x => (x._2, x._3))).traverse {
-              rs =>
-                authProvider
-                  .filterResourceProjectVisible(
-                    rs,
-                    userInfo
-                  )
-            }
-
-            samVisibleRuntimesWithoutWorkspaceId = samProjectVisibleSamIds match {
-              case Some(projectsAndSamIds) =>
-                runtimesAndProjects.mapFilter { case (rt, _, runtimeSamId) =>
-                  if (projectsAndSamIds.map(_._2).contains(runtimeSamId))
-                    Some(rt)
-                  else None
-                }
-              case None => List.empty
-            }
-
-          } yield
-          // samVisibleRuntimesUserWithWorkspaceId: User has access to both the runtime and the parent workspace (need to check in case the user lost workspace access after runtime creation for instance)
-          // samVisibleRuntimesWithoutWorkspaceId: Legacy runtimes created on GCP that have o associated workspace ID and we fallback on google project-level permissions
-          samVisibleRuntimesUserWithWorkspaceId ++ samVisibleRuntimesWithoutWorkspaceId
-        }
-      // We authenticate actions on resources. If there are no visible runtimes,
-      // we need to check if user should be able to see the empty list.
-      _ <- if (filteredRuntimes.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
-    } yield filteredRuntimes.toVector
+    } yield runtimes.toVector
 
   private[service] def convertToDisk(userInfo: UserInfo,
                                      cloudContext: CloudContext,

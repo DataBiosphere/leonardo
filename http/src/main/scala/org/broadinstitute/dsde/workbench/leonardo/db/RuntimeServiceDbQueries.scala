@@ -264,6 +264,215 @@ object RuntimeServiceDbQueries {
     listRuntimesHelper(labelMap, excludeStatuses, creatorOnly, workspaceId, cp)
   }
 
+  /**
+   * List runtimes filtered by the given terms. Only return authorized resources (those in reader*Ids and/or owner*Ids).
+   */
+  def listAuthorizedRuntimes(
+    labelMap: LabelMap,
+    excludeStatuses: List[RuntimeStatus],
+    creatorOnly: Option[WorkbenchEmail],
+    workspaceId: Option[WorkspaceId],
+    cloudProvider: Option[CloudProvider],
+    readerRuntimeIds: List[RuntimeSamResourceId],
+    readerWorkspaceIds: List[WorkspaceId],
+    ownerWorkspaceIds: List[WorkspaceId],
+    readerGoogleProjectIds: List[GoogleProjectId],
+    ownerGoogleProjectIds: List[GoogleProjectId],
+  ): DBIO[Vector[ListRuntimeResponse2]] = {
+    val cp = cloudProvider.map(cp => Right(cp))
+    listAuthorizedRuntimesHelper(
+      labelMap,
+      excludeStatuses,
+      creatorOnly,
+      workspaceId,
+      cp,
+      readerRuntimeIds,
+      readerWorkspaceIds,
+      ownerWorkspaceIds,
+      readerGoogleProjectIds,
+      ownerGoogleProjectIds
+    )
+  }
+
+  /**
+   * Query the runtimes (CLUSTER) table with the given filters. Only return authorized resources (those in reader*Ids and/or owner*Ids).
+   */
+  private def listAuthorizedRuntimesHelper(
+    labelMap: LabelMap,
+    excludeStatuses: List[RuntimeStatus],
+    creatorOnly: Option[WorkbenchEmail],
+    cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]],
+    readerRuntimeIds: List[RuntimeSamResourceId],
+    readerWorkspaceIds: List[WorkspaceId],
+    ownerWorkspaceIds: List[WorkspaceId],
+    readerGoogleProjectIds: List[GoogleProjectId],
+    ownerGoogleProjectIds: List[GoogleProjectId]
+  ): DBIO[Vector[ListRuntimeResponse2]] = {
+
+    // Authorize: show only resources the user is permitted to see
+    val filterVisibleIds = s"""
+      (
+        C.`id` IN(${readerRuntimeIds}) AND
+        (
+          C.`workspaceId` IN(${readerWorkspaceIds}) OR
+          (
+            C.`cloudProvider` = ${CloudProvider.Gcp} AND
+            C.`cloudContext` IN(${readerGoogleProjectIds})
+          )
+        )
+      ) OR
+      C.`workspaceId` IN(${ownerWorkspaceIds}) OR
+      (
+        C.`cloudProvider` = ${CloudProvider.Gcp} AND
+        C.`cloudContext` IN(${ownerGoogleProjectIds})
+      )
+    """
+
+    val filterWorkspaceId = workspaceId match {
+      case Some(wid) =>
+        List(s"C.`workspaceId` = '${wid.value.toString}'")
+      case None => List.empty
+    }
+
+    val filterCloud = cloudContextOrCloudProvider match {
+      case Some(Left(CloudContext.Gcp(gp)))     => List(s"C.`cloudProvider` = ${CloudProvider.Gcp} AND C.`cloudContext` = '${gp.value}'")
+      case Some(Left(CloudContext.Azure(actx))) => List(s"C.`cloudProvider` = ${CloudProvider.Azure} AND C.`cloudContext` = '${actx.asString}'")
+      case Some(Right(cloudProvider))           => List(s"C.`cloudProvider` = '${cloudProvider.asString}'")
+      case None                                 => List.empty
+    }
+
+    val filterNotDeleted = excludeStatuses.map(s => s"C.`status` != '${s.toString}'")
+
+    val filterCreator = creatorOnly match {
+      case Some(creator) => List(s"C.`creator` = '${creator.value}'")
+      case None          => List.empty
+    }
+
+    val filterClusters = (
+      filterIds
+      filterWorkspaceId ++
+      filterCloud ++
+      filterNotDeleted ++
+      filterCreator
+    ).mkString(" AND ")
+
+    val whereFilterClusters = if (clusterFilters.isEmpty) "" else s"where ${clusterFilters}"
+
+    val whereFilterLabels =
+      if (labelMap.isEmpty)
+        ""
+      else {
+        val query = labelMap
+          .map { case (k, v) =>
+            s"(LABEL.key = '${k}' and LABEL.value = '${v}')"
+          }
+          .mkString(" or ")
+
+        s"""where (
+           |   select
+           |     count(1)
+           |   from
+           |     `LABEL`
+           |   where
+           |     (`resourceId` = FILTERED_CLUSTER.id)
+           |     AND (`resourceType` = 'runtime')
+           |     AND (${query})
+           |    ) = ${labelMap.size}""".stripMargin
+      }
+
+    val sqlStatement =
+      sql"""
+         select
+          LABEL_FILTERED.`id`,
+          LABEL_FILTERED.`workspaceId`,
+          LABEL_FILTERED.`runtimeName`,
+          LABEL_FILTERED.`cloudProvider`,
+          LABEL_FILTERED.`cloudContext`,
+          LABEL_FILTERED.`hostIp`,
+          LABEL_FILTERED.`creator`,
+          LABEL_FILTERED.`createdDate`,
+          LABEL_FILTERED.`destroyedDate`,
+          LABEL_FILTERED.`dateAccessed`,
+          LABEL_FILTERED.`status`,
+          LABEL_FILTERED.`internalId`,
+          RG.`cloudService`,
+          RG.`numberOfWorkers`,
+          RG.`machineType`,
+          RG.`diskSize`,
+          RG.`bootDiskSize`,
+          RG.`workerMachineType`,
+          RG.`workerDiskSize`,
+          RG.`numberOfWorkerLocalSSDs`,
+          RG.`numberOfPreemptibleWorkers`,
+          RG.`dataprocProperties`,
+          RG.`persistentDiskId`,
+          RG.`zone`,
+          RG.`region`,
+          RG.`gpuType`,
+          RG.`numOfGpus`,
+          RG.`componentGatewayEnabled`,
+          RG.`workerPrivateAccess`,
+          GROUP_CONCAT(labelKey) labelKeys,
+          GROUP_CONCAT(labelValue) labelValues,
+          CP.`inProgress`
+        from
+          (
+            select
+              `id`,
+              `status`,
+              `cloudContext`,
+              `serviceAccount`,
+              `dateAccessed`,
+              `createdDate`,
+              `deletedFrom`,
+              `destroyedDate`,
+              `autopauseThreshold`,
+              `hostIp`,
+              `internalId`,
+              `workspaceId`,
+              `cloudProvider`,
+              `runtimeName`,
+              `kernelFoundBusyDate`,
+              `creator`,
+              `proxyHostName`,
+              `runtimeConfigId`,
+              L.`key` as labelKey,
+              L.`value` as labelValue
+            from
+              (
+                select
+                  C.`status`,
+                  C.`cloudContext`,
+                  C.`serviceAccount`,
+                  C.`dateAccessed`,
+                  C.`createdDate`,
+                  C.`deletedFrom`,
+                  C.`destroyedDate`,
+                  C.`autopauseThreshold`,
+                  C.`hostIp`,
+                  C.`internalId`,
+                  C.`workspaceId`,
+                  C.`cloudProvider`,
+                  C.`id`,
+                  C.`runtimeName`,
+                  C.`kernelFoundBusyDate`,
+                  C.`creator`,
+                  C.`proxyHostName`,
+                  C.`runtimeConfigId`
+                from
+                  `CLUSTER` AS C
+                #${whereFilterClusters}
+              ) AS FILTERED_CLUSTER
+              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) and (L.`resourceType` = 'runtime')
+              #${whereFilterLabels}
+          ) AS LABEL_FILTERED
+          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.runtimeConfigId = RG.`id`
+          left join `CLUSTER_PATCH` CP on LABEL_FILTERED.id = CP.`clusterId`
+          GROUP BY LABEL_FILTERED.id""".stripMargin
+
+    sqlStatement.as[ListRuntimeResponse2]
+  }
+
   private def listRuntimesHelper(labelMap: LabelMap,
                                  excludeStatuses: List[RuntimeStatus],
                                  creatorOnly: Option[WorkbenchEmail],

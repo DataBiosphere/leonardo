@@ -172,6 +172,14 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[(List[A], List[ProjectAction])]
 
+  def getAuthorizedIds(
+    resourceType: SamResourceType,
+    isOwner: Boolean,
+    userInfo: UserInfo
+  )(implicit
+    ev: Ask[F, TraceId]
+  ): F[List[R]]
+
   def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
     sr: SamResource[R],
     decoder: Decoder[R],
