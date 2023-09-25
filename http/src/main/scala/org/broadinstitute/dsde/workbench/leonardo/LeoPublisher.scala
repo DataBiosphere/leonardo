@@ -51,7 +51,11 @@ final class LeoPublisher[F[_]](
             .handleErrorWith { t =>
               val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
               Stream
-                .eval(logger.error(loggingCtx, t)(s"Failed to publish message of type ${event.messageType.asString}"))
+                .eval(
+                  logger.error(loggingCtx, t)(
+                    s"Failed to publish message of type ${event.messageType.asString}, message: $event"
+                  )
+                )
             }
       }
     Stream(publishingStream, recordMetrics).covary[F].parJoin(2)
