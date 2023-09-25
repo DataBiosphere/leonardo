@@ -366,7 +366,7 @@ object RuntimeServiceDbQueries {
       case None                       => List.empty
     }
 
-    val filterNotDeleted = excludeStatuses.map(s => s"C.`status` != '${s.toString}'")
+    val filterNotExcludedStatus = excludeStatuses.map(s => s"C.`status` != '${s.toString}'")
 
     val filterCreator = creatorOnly match {
       case Some(creator) => List(s"C.`creator` = '${creator.value}'")
@@ -377,7 +377,7 @@ object RuntimeServiceDbQueries {
       filterVisibleIds ++
         filterWorkspaceId ++
         filterCloud ++
-        filterNotDeleted ++ filterCreator
+        filterNotExcludedStatus ++ filterCreator
     ).filterNot(_.isEmpty).mkString(" AND ")
 
     val whereFilterClusters = if (filterClusters.isEmpty) "" else s"where ${filterClusters}"
