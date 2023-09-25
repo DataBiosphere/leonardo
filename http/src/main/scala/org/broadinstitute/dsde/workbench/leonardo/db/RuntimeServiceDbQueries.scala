@@ -272,18 +272,19 @@ object RuntimeServiceDbQueries {
    * List runtimes filtered by the given terms. Only return authorized resources (those in reader*Ids and/or owner*Ids).
    */
   def listAuthorizedRuntimes(
+    // Filters
     labelMap: LabelMap,
     excludeStatuses: List[RuntimeStatus],
     creatorOnly: Option[WorkbenchEmail],
     workspaceId: Option[WorkspaceId],
     cloudProvider: Option[CloudProvider],
-    readerRuntimeIds: List[RuntimeSamResourceId],
 
-    // TODO, do I need to convert between these objects' sam IDs and their leo IDs?
-    readerWorkspaceIds: List[WorkspaceResourceSamResourceId],
-    ownerWorkspaceIds: List[WorkspaceResourceSamResourceId],
-    readerGoogleProjectIds: List[ProjectSamResourceId],
-    ownerGoogleProjectIds: List[ProjectSamResourceId]
+    // Authorizations
+    readerRuntimeIds: List[String],
+    readerWorkspaceIds: List[String],
+    ownerWorkspaceIds: List[String],
+    readerGoogleProjectIds: List[String],
+    ownerGoogleProjectIds: List[String]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val cp = cloudProvider.map(cp => Right(cp))
     listAuthorizedRuntimesHelper(
@@ -304,20 +305,23 @@ object RuntimeServiceDbQueries {
    * Query the runtimes (CLUSTER) table with the given filters. Only return authorized resources (those in reader*Ids and/or owner*Ids).
    */
   private def listAuthorizedRuntimesHelper(
+    // Filters
     labelMap: LabelMap,
     excludeStatuses: List[RuntimeStatus],
     creatorOnly: Option[WorkbenchEmail],
     workspaceId: Option[WorkspaceId],
     cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]],
-    readerRuntimeIds: List[RuntimeSamResourceId],
-    readerWorkspaceIds: List[WorkspaceResourceSamResourceId],
-    ownerWorkspaceIds: List[WorkspaceResourceSamResourceId],
-    readerGoogleProjectIds: List[ProjectSamResourceId],
-    ownerGoogleProjectIds: List[ProjectSamResourceId]
+
+    // Authorizations
+    readerRuntimeIds: List[String],
+    readerWorkspaceIds: List[String],
+    ownerWorkspaceIds: List[String],
+    readerGoogleProjectIds: List[String],
+    ownerGoogleProjectIds: List[String]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
 
     // Authorize: show only resources the user is permitted to see
-    val filterVisibleIds = s"""
+    val filterVisibleIds = List(s"""
       (
         C.`id` IN(${readerRuntimeIds}) AND
         (
@@ -333,8 +337,9 @@ object RuntimeServiceDbQueries {
         C.`cloudProvider` = ${CloudProvider.Gcp} AND
         C.`cloudContext` IN(${ownerGoogleProjectIds})
       )
-    """
+    """)
 
+    // Filter: show only user selections
     val filterWorkspaceId = workspaceId match {
       case Some(wid) =>
         List(s"C.`workspaceId` = '${wid.value.toString}'")
@@ -362,7 +367,7 @@ object RuntimeServiceDbQueries {
         filterWorkspaceId ++
         filterCloud ++
         filterNotDeleted ++ filterCreator
-    ).mkString(" AND ")
+    ).filterNot(_.isEmpty).mkString(" AND ")
 
     val whereFilterClusters = if (filterClusters.isEmpty) "" else s"where ${filterClusters}"
 
@@ -388,6 +393,7 @@ object RuntimeServiceDbQueries {
            |    ) = ${labelMap.size}""".stripMargin
       }
 
+    // Create full query
     val sqlStatement =
       sql"""
          select

@@ -127,6 +127,21 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield (callerActions, projectCallerActions)
   }
 
+  /**
+   * Get all Sam resource IDs of the given type on which the user is granted permissions. Returns explicitly granted
+   * policies only; users with workspace owner access, for example, can see all runtimes in the workspace, but
+   * getAuthorizedIds[SamRuntimeResourceId] is not guaranteed to return all runtimes in that workspace. Works for any
+   * Sam resource type except SharedApp and similar alternative app types; these require a specific Sam resource object
+   * to determine permissions, as these are stored on the individual records.
+   * @param isOwner whether to return only resources that the user is granted Owner permission on (or the equivalent for
+   *                the resource type, defined as `ownerRoleName` and `policyNames` on the SamResource)
+   * @param userInfo the current user
+   * @param samResource the resource archetype (App, Runtime, etc)
+   * @param decoder converts Json -> SamResourceId, needed by SamDao
+   * @param ev the request context
+   * @tparam R SamResourceId
+   * @return List[SamResourceId] of all resources of type R which are visible to the user at the given access level
+   */
   override def getAuthorizedIds[R](
     isOwner: Boolean,
     userInfo: UserInfo
@@ -136,21 +151,28 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     ev: Ask[F, TraceId]
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-
+    val ownerRole: SamRole = samResource.ownerRoleName
+    val isOwnerInPolicies: Boolean = samResource.policyNames.exists { policyName: SamPolicyName =>
+      ownerRole.asString == policyName.toString
+    }
     for {
-      ownerPolicy <- SamPolicyName.stringToSamPolicyName(samResource.ownerRoleName.asString)
-      resourcesAndPolicies <- samDao.getResourcePolicies[R](authHeader, samResource.resourceType)
-      isOwnerInPolicies <- resourcesAndPolicies.exists { case (_, policy) if policy == ownerPolicy => true }
+      resourcesAndPolicies: List[(R, SamPolicyName)] <- samDao
+        .getResourcePolicies[R](authHeader, samResource.resourceType)
 
       authorizedPolicies =
         if (isOwner && !isOwnerInPolicies) {
+          // The resource might be improperly configured; the resource owner role is not included in the SamResource's policyNames. Show nothing
           List.empty
         } else if (isOwner && isOwnerInPolicies) {
-          resourcesAndPolicies filter { case (_, policy) if policy == ownerPolicy => true }
+          // Show only resources the user owns
+          resourcesAndPolicies filter { case (_, policy) =>
+            ownerRole.asString == policy.toString
+          }
         } else {
+          // Show all resources the user is granted any role on (reader)
           resourcesAndPolicies
         }
-      authorizedIds = authorizedPolicies.map { case (resourceId: R, _) => resourceId }
+      authorizedIds: List[R] = authorizedPolicies.map { case (samResourceId, _) => samResourceId }
     } yield authorizedIds
   }
 

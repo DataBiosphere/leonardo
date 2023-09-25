@@ -524,11 +524,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- authProvider.checkUserEnabled(userInfo)
 
       // Authorize: get resource IDs the user can see
-      readerRuntimeIds <- authProvider.getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
-      readerWorkspaceIds <- authProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
-      ownerWorkspaceIds <- authProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
-      readerProjectIds <- authProvider.getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
-      ownerProjectIds <- authProvider.getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
+      readerSamRuntimeIds <- authProvider.getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
+      readerRuntimeIds = readerSamRuntimeIds.map(samId => samId.resourceId)
+      readerSamWorkspaceIds <- authProvider
+        .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
+      readerWorkspaceIds = readerSamWorkspaceIds.map(samId => samId.resourceId)
+      ownerSamWorkspaceIds <- authProvider
+        .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
+      ownerWorkspaceIds = ownerSamWorkspaceIds.map(samId => samId.resourceId)
+      readerSamProjectIds <- authProvider
+        .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
+      readerProjectIds = readerSamProjectIds.map(samId => samId.resourceId)
+      ownerSamProjectIds <- authProvider.getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
+      ownerProjectIds = ownerSamProjectIds.map(samId => samId.resourceId)
 
       // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))

@@ -55,14 +55,15 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     }
 
   def getAuthorizedIds[R](
-    samResource: SamResource[R],
     isOwner: Boolean,
     userInfo: UserInfo
   )(implicit
-    ev: Ask[F, TraceId]
-  ): F[List[R]] =
+    samResource: SamResource[R],
+    decoder: Decoder[R],
+    ev: Ask[IO, TraceId]
+  ): IO[List[R]] =
     checkAllowlist(userInfo).map {
-      case true => List(SamResourceId("authorizedResource1"))
+      case true  => List.empty
       case false => List.empty
     }
 
