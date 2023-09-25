@@ -16,7 +16,7 @@ dest_billing_project_name = os.environ.get("DEST_BILLING_PROJECT_NAME")
 workspace_name = os.environ.get("WORKSPACE_NAME")
 
 # Update these values as desired
-number_of_clones=1 #number of clones to make
+number_of_clones=5 #number of clones to make
 #if false, will wait for each api clone call to complete before starting the next
 #if true, will start all api calls at once on different threads
 parallel=True
@@ -30,8 +30,8 @@ if parallel:
     results_lock = threading.Lock()
 
     # Create a thread function that performs the task and appends the result to the list
-    def clone_and_append_result(source_billing_project_name, dest_billing_project_name, workspace_name, header, start_cbas):
-        result = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header, start_cbas)
+    def clone_and_append_result(source_billing_project_name, dest_billing_project_name, workspace_name, header):
+        result = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header)
 
         # Use the lock to safely append the result to the list
         with results_lock:
@@ -54,11 +54,13 @@ else:
 print("Sleeping...")
 time.sleep(60)
 for ws in cloned_workspaces:
+    # check WDS data was cloned
     wds_url = poll_for_app_url(ws, "wds", azure_token)
     check_wds_data(wds_url, ws, "student", azure_token)
 
     if run_workflow:
         # next trigger a workflow in each of the workspaces, at this time this doesnt monitor if this was succesful or not
+        start_cbas(ws, header)
         method_id = add_workflow_method(ws, azure_token)
         submit_workflow(ws, "resources/calculate_gpa_run.json", azure_token, method_id)
 

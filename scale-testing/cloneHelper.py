@@ -61,7 +61,7 @@ def poll_for_app_url(workspaceId, app, azure_token):
                 else:
                     return entries['proxyUrls'][app]
 
-def clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header, start_cbas=False):
+def clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header):
     api_call2 = f"{rawls_url}/api/workspaces/{source_billing_project_name}/{workspace_name}/clone";
     request_body = {
         "namespace": dest_billing_project_name,  # Billing project name
@@ -74,19 +74,18 @@ def clone_workspace(source_billing_project_name, dest_billing_project_name, work
     # example json that is returned by request: 'attributes': {}, 'authorizationDomain': [], 'bucketName': '', 'createdBy': 'yulialovesterra@gmail.com', 'createdDate': '2023-08-03T20:10:59.116Z', 'googleProject': '', 'isLocked': False, 'lastModified': '2023-08-03T20:10:59.116Z', 'name': 'api-workspace-1', 'namespace': 'yuliadub-test2', 'workspaceId': 'ac466322-2325-4f57-895d-fdd6c3f8c7ad', 'workspaceType': 'mc', 'workspaceVersion': 'v2'}
     json2 = response.json()
     print(json2)
-
-    if start_cbas is True:
-        print(f"Enabling CBAS for workspace {json2['workspaceId']}")
-        start_cbas_api = f"{leo_url}/api/apps/v2/{json2['workspaceId']}/terra-app-{str(uuid.uuid4())}";
-        request_body2 = {
-            "appType": "CROMWELL"
-        }
-
-        cbas_response = requests.post(url=start_cbas_api, json=request_body2, headers=header)
-        # will return 202 or error
-        print(cbas_response)
     return json2["workspaceId"]
 
+def start_cbas(workspaceId, header):
+    print(f"Enabling CBAS for workspace {workspaceId}")
+    start_cbas_api = f"{leo_url}/api/apps/v2/{workspaceId}/terra-app-{str(uuid.uuid4())}";
+    request_body2 = {
+        "appType": "CROMWELL"
+     }
+
+    cbas_response = requests.post(url=start_cbas_api, json=request_body2, headers=header)
+    # will return 202 or error
+    print(cbas_response)
 
 def check_wds_data(wds_url, workspaceId, recordName, azure_token):
     version = "v0.2"
