@@ -94,7 +94,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       namespacePrefix = app.appResources.namespace.name.value
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
+        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString} [mspector-debug]"
       )
 
       // Create WSM managed identity if shared app
@@ -175,7 +175,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Relay listener values for app ${params.appName.value} are ${values.asString}"
+        s"Relay listener values for app ${params.appName.value} are ${values.asString} [mspector-debug]"
       )
 
       // Install listener helm chart
@@ -205,6 +205,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Helm Override values for app ${params.appName.value} are ${values.asString} [mspector-debug]"
+      )
 
       // Install app chart
       _ <- childSpan("helmInstallApp").use { _ =>
