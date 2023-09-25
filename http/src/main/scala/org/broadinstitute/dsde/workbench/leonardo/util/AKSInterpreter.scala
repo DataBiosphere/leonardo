@@ -121,6 +121,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"wsmDatabases ${wsmDatabases} [mspector-debug]"
+      )
+
       // Create WSM kubernetes namespace
       wsmNamespace <- childSpan("createWsmKubernetesNamespaceResource").use { implicit ev =>
         createWsmKubernetesNamespaceResource(
@@ -131,6 +135,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
         )
       }
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"_.getAzureDatabase.getMetadata.getName ${_.getAzureDatabase.getMetadata.getName} [mspector-debug]"
+      )
 
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
