@@ -868,8 +868,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
-    // regionName should never be empty, throw exception if it is
-    val regionName = azureRegionOpt.map(_.name).get
+    // regoinName can be empty in some test configurations
+    val regionName = if (azureRegionOpt.isEmpty) "" else azureRegionOpt.map(_.name).getOrElse("")
     for {
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
