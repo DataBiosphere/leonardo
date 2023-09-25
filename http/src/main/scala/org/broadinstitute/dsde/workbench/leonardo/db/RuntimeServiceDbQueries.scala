@@ -269,7 +269,18 @@ object RuntimeServiceDbQueries {
   }
 
   /**
-   * List runtimes filtered by the given terms. Only return authorized resources (those in reader*Ids and/or owner*Ids).
+   * List runtimes filtered by the given terms. Only return authorized resources (per reader*Ids and/or owner*Ids).
+   * @param labelMap
+   * @param excludeStatuses
+   * @param creatorOnly
+   * @param workspaceId
+   * @param cloudProvider
+   * @param readerRuntimeIds
+   * @param readerWorkspaceIds
+   * @param ownerWorkspaceIds
+   * @param readerGoogleProjectIds
+   * @param ownerGoogleProjectIds
+   * @return
    */
   def listAuthorizedRuntimes(
     // Filters
@@ -302,7 +313,18 @@ object RuntimeServiceDbQueries {
   }
 
   /**
-   * Query the runtimes (CLUSTER) table with the given filters. Only return authorized resources (those in reader*Ids and/or owner*Ids).
+   * Query the runtimes (CLUSTER) table with the given filters. Only return authorized resources (per reader*Ids and/or owner*Ids).
+   * @param labelMap
+   * @param excludeStatuses
+   * @param creatorOnly
+   * @param workspaceId
+   * @param cloudContextOrCloudProvider
+   * @param readerRuntimeIds
+   * @param readerWorkspaceIds
+   * @param ownerWorkspaceIds
+   * @param readerGoogleProjectIds
+   * @param ownerGoogleProjectIds
+   * @return
    */
   private def listAuthorizedRuntimesHelper(
     // Filters
