@@ -640,11 +640,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
 
       // Save or retrieve a KubernetesCluster record for the app
-      // debugging
-      regionOpt = landingZoneResourcesOpt.map(_.region)
-      regionName = regionOpt.map(_.name).getOrElse("")
-      _ <- log.info(ctx.loggingCtx)(s"DEBUGGING: azure region: ${regionName}")
-
       saveCluster <- F.fromEither(
         getSavableCluster(userInfo.userEmail,
                           cloudContext,
@@ -873,7 +868,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
-    val regionName = azureRegionOpt.map(_.name).getOrElse("")
+    // regionName should never be empty, throw exception if it is
+    val regionName = azureRegionOpt.map(_.name).get()
     for {
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
