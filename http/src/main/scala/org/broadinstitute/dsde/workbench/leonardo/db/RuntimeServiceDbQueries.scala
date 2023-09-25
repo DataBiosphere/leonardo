@@ -321,23 +321,12 @@ object RuntimeServiceDbQueries {
   ): DBIO[Vector[ListRuntimeResponse2]] = {
 
     // Authorize: show only resources the user is permitted to see
-    val filterVisibleIds = List(s"""
-      (
-        C.`id` IN(${readerRuntimeIds}) AND
-        (
-          C.`workspaceId` IN(${readerWorkspaceIds}) OR
-          (
-            C.`cloudProvider` = ${CloudProvider.Gcp} AND
-            C.`cloudContext` IN(${readerGoogleProjectIds})
-          )
-        )
-      ) OR
-      C.`workspaceId` IN(${ownerWorkspaceIds}) OR
-      (
-        C.`cloudProvider` = ${CloudProvider.Gcp} AND
-        C.`cloudContext` IN(${ownerGoogleProjectIds})
-      )
-    """)
+    val filterVisibleIds = getFilterVisibleIds(readerRuntimeIds,
+                                               readerWorkspaceIds,
+                                               ownerWorkspaceIds,
+                                               readerGoogleProjectIds,
+                                               ownerGoogleProjectIds
+    )
 
     // Filter: show only user selections
     val filterWorkspaceId = workspaceId match {
@@ -632,4 +621,50 @@ object RuntimeServiceDbQueries {
 
     sqlStatement.as[ListRuntimeResponse2]
   }
+
+  /**
+   * Build the filter expression which shows only runtimes the user has permission to read. If any of the parameter
+   * lists is blank, the user is assumed to have no permissions (can see nothing).
+   * @param readerRuntimeIds List[String] runtime IDs the user has any Sam role for
+   * @param readerWorkspaceIds List[String] workspace IDs the user has any Sam role for
+   * @param ownerWorkspaceIds List[String] Google project IDs the user has an owner role for
+   * @param readerGoogleProjectIds List[String] Google project IDs the user has any Sam role for
+   * @param ownerGoogleProjectIds List[String] Google project IDs the user has an owner role for
+   * @return List[String] a one-element list with the SQL filter expression
+   */
+  private def getFilterVisibleIds(readerRuntimeIds: List[String],
+                                  readerWorkspaceIds: List[String],
+                                  ownerWorkspaceIds: List[String],
+                                  readerGoogleProjectIds: List[String],
+                                  ownerGoogleProjectIds: List[String]
+  ): List[String] = {
+    // is the record a readable runtime?
+    val filterRuntimeIds = getInListExpression("C.`id`", readerRuntimeIds)
+    // is the record in a readable workspace?
+    val filterReaderWorkspaceIds = getInListExpression("C.`workspaceId`", readerWorkspaceIds)
+    // is the record in a readable Google project?
+    val filterReaderGoogleProjectIds = getInGoogleProjectIdsExpression(readerGoogleProjectIds)
+    // is the record in an owned workspace?
+    val filterOwnerWorkspaceIds = getInListExpression("C.`workspaceId`", ownerWorkspaceIds)
+    // is the record in an owned Google project?
+    val filterOwnerGoogleProjectIds = getInGoogleProjectIdsExpression(ownerGoogleProjectIds)
+
+    // is the runtime readable and in a readable workspace/project?
+    val filterReader = s"${filterRuntimeIds} AND ( ${filterReaderWorkspaceIds} OR ${filterReaderGoogleProjectIds} )"
+    // is the runtime in an owned workspace/project?
+    val filterOwner = s"${filterOwnerWorkspaceIds} OR ${filterOwnerGoogleProjectIds}"
+
+    // is the runtime visible via direct read permissions or inference from container ownership?
+    val filterVisibleIds = s"${filterReader} OR ${filterOwner}"
+    List(filterVisibleIds)
+  }
+
+  private def getInGoogleProjectIdsExpression(projectIds: List[String]): String =
+    if (projectIds.isEmpty)
+      "0 = 1"
+    else
+      s"C.`cloudProvider` = ${CloudProvider.Gcp} AND ${getInListExpression("C.`cloudContext`", projectIds)}"
+
+  private def getInListExpression(field: String, terms: List[String]): String =
+    if (terms.isEmpty) "0 = 1" else s"${field} IN(${terms.mkString(",")})"
 }
