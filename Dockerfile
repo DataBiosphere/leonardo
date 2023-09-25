@@ -40,7 +40,7 @@ ENV WDS_CHART_VERSION 0.45.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.2.0
 ENV SAS_CHART_VERSION 0.1.0
-ENV LISTENER_CHART_VERSION 0.4.0
+ENV LISTENER_CHART_VERSION 0.5.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -63,8 +63,8 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add aou-sas-chart https://storage.googleapis.com/terra-app-helm/aou-sas-chart && \
     helm repo update
 
-COPY ./listener-0.4.0.tgz /leonardo
-RUN tar -xzf /leonardo/listener-0.4.0.tgz -C /leonardo
+COPY ./listener-0.5.0.tgz /leonardo
+RUN tar -xzf /leonardo/listener-0.5.0.tgz -C /leonardo
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
