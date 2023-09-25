@@ -868,7 +868,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
-    // regoinName can be empty in some test configurations
+    // regionName can be empty in some test configurations
     val regionName = if (azureRegionOpt.isEmpty) "" else azureRegionOpt.map(_.name).getOrElse("")
     for {
       nodepool <- defaultNodepool
