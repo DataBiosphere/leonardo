@@ -100,6 +100,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString} [mspector-debug]"
       )
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"app.appResources ${app.appResources} [mspector-debug]"
+      )
+
       // Create WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
         case SamResourceType.SharedApp =>
@@ -135,10 +139,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
         )
       }
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"_.getAzureDatabase.getMetadata.getName ${_.getAzureDatabase.getMetadata.getName} [mspector-debug]"
-      )
 
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
