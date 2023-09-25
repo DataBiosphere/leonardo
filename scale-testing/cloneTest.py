@@ -16,7 +16,7 @@ dest_billing_project_name = os.environ.get("DEST_BILLING_PROJECT_NAME")
 workspace_name = os.environ.get("WORKSPACE_NAME")
 
 # Update these values as desired
-number_of_clones=5 #number of clones to make
+number_of_clones=1 #number of clones to make
 #if false, will wait for each api clone call to complete before starting the next
 #if true, will start all api calls at once on different threads
 parallel=True
@@ -39,7 +39,7 @@ if parallel:
 
     proc = []
     for i in range(number_of_clones):
-        t = threading.Thread(target=clone_and_append_result, args=(source_billing_project_name, dest_billing_project_name, workspace_name, header, run_workflow))
+        t = threading.Thread(target=clone_and_append_result, args=(source_billing_project_name, dest_billing_project_name, workspace_name, header))
         proc.append(t)
         time.sleep(0.1)
         t.start()
@@ -47,7 +47,7 @@ if parallel:
         t.join()
 else:
     while number_of_clones != 0:
-        clone_id = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header, run_workflow)
+        clone_id = clone_workspace(source_billing_project_name, dest_billing_project_name, workspace_name, header)
         cloned_workspaces.append(clone_id)
         number_of_clones-=1
 
