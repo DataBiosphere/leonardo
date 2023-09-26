@@ -843,6 +843,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .databases((databases ++ appExternalDatabaseNames).asJava)
       _ = identity.foreach(createNamespaceParams.setManagedIdentity)
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"appExternalDatabaseNames for app ${app.appName.value}: $appExternalDatabaseNames [mspector-debug]"
+      )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"createNamespaceParams for app ${app.appName.value}: $createNamespaceParams [mspector-debug]"
+      )
+
       // Build request
       createNamespaceJobControl = new JobControl().id(namespacePrefix)
       createNamespaceRequest = new CreateControlledAzureKubernetesNamespaceRequestBody()
