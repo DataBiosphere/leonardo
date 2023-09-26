@@ -10,6 +10,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
+import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.azure.AKSClusterName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -19,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleResourceService,
   KubernetesName,
   MachineTypeName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
@@ -149,7 +151,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
 
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None)
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None)
       )
 
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
@@ -639,7 +641,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, landingZoneResourcesOpt.map(_.clusterName))
+        getSavableCluster(userInfo.userEmail,
+                          cloudContext,
+                          ctx.now,
+                          landingZoneResourcesOpt.map(_.clusterName),
+                          landingZoneResourcesOpt.map(_.region)
+        )
       )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       _ <-
@@ -841,7 +848,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
     now: Instant,
-    aksClusterName: Option[AKSClusterName]
+    aksClusterName: Option[AKSClusterName],
+    azureRegionOpt: Option[Region]
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -860,6 +868,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
+    // regionName can be empty in some test configurations
+    val regionName = if (azureRegionOpt.isEmpty) "" else azureRegionOpt.map(_.name).getOrElse("")
     for {
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
@@ -868,7 +878,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       cloudContext = cloudContext,
       clusterName = clusterName,
       location = config.leoKubernetesConfig.clusterConfig.location,
-      region = config.leoKubernetesConfig.clusterConfig.region,
+      region =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName(regionName)
+        else config.leoKubernetesConfig.clusterConfig.region,
       status =
         if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
         else KubernetesClusterStatus.Precreating,

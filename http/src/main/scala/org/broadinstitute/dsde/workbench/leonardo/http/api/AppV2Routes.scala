@@ -208,9 +208,10 @@ object AppV2Routes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct12(
+    Encoder.forProduct13(
       "workspaceId",
       "cloudContext",
+      "region",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -225,6 +226,7 @@ object AppV2Routes {
     )(x =>
       (x.workspaceId,
        x.cloudContext,
+       x.region,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,
@@ -240,9 +242,10 @@ object AppV2Routes {
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct12(
+    Encoder.forProduct13(
       "appName",
       "cloudContext",
+      "region",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -257,6 +260,7 @@ object AppV2Routes {
     )(x =>
       (x.appName,
        x.cloudContext,
+       x.region,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,
