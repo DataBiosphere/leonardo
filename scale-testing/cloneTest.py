@@ -64,7 +64,8 @@ for ws in cloned_workspaces:
     wds_url = poll_for_app_url(ws, "wds", azure_token)
     check_wds_data(wds_url, ws, "student", azure_token)
 
-    if run_workflow:
+if run_workflow:
+    for ws in cloned_workspaces:
         # next trigger a workflow in each of the workspaces, at this time this doesnt monitor if this was succesful or not
         method_id = add_workflow_method(ws, azure_token)
         submit_workflow(ws, "resources/calculate_gpa_run.json", azure_token, method_id)
