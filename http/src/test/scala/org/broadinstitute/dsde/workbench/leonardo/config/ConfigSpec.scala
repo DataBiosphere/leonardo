@@ -22,7 +22,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read LeoPubsubMessageSubscriberConfig properly" in {
     val expectedResult = LeoPubsubMessageSubscriberConfig(
       100,
-      295 seconds,
+      595 seconds,
       PersistentDiskMonitorConfig(
         CreateDiskTimeout(5, 20),
         PollMonitorConfig(2 seconds, 5, 3 seconds),

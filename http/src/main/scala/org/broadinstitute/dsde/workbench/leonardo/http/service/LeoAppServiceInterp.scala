@@ -1141,20 +1141,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       ).toMap ++ req.labels
     for {
       // Validate app type
-      gkeAppConfig <- (req.appType, cloudContext.cloudProvider) match {
-        case (Galaxy, CloudProvider.Gcp)              => Right(config.leoKubernetesConfig.galaxyAppConfig)
-        case (Custom, CloudProvider.Gcp)              => Right(config.leoKubernetesConfig.customAppConfig)
-        case (Cromwell, CloudProvider.Gcp)            => Right(config.leoKubernetesConfig.cromwellAppConfig)
-        case (AppType.Allowed, CloudProvider.Gcp)     => Right(config.leoKubernetesConfig.allowedAppConfig)
-        case (Cromwell, CloudProvider.Azure)          => Right(ConfigReader.appConfig.azure.coaAppConfig)
-        case (WorkflowsApp, CloudProvider.Azure)      => Right(ConfigReader.appConfig.azure.workflowsAppConfig)
-        case (CromwellRunnerApp, CloudProvider.Azure) => Right(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
-        case (Wds, CloudProvider.Azure)               => Right(ConfigReader.appConfig.azure.wdsAppConfig)
-        case (HailBatch, CloudProvider.Azure)         => Right(ConfigReader.appConfig.azure.hailBatchAppConfig)
-        case _ =>
-          AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId)
-            .asLeft[KubernetesAppConfig]
-      }
+      gkeAppConfig <- KubernetesAppConfig
+        .configForTypeAndCloud(req.appType, cloudContext.cloudProvider)
+        .toRight(AppTypeNotSupportedOnCloudException(cloudContext.cloudProvider, req.appType, ctx.traceId))
 
       // Check if app type is enabled
       _ <- Either.cond(gkeAppConfig.enabled, (), AppTypeNotEnabledException(req.appType, ctx.traceId))

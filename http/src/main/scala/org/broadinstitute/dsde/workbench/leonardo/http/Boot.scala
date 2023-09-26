@@ -46,6 +46,14 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.app.{
+  AppInstall,
+  CromwellAppInstall,
+  CromwellRunnerAppInstall,
+  HailBatchAppInstall,
+  WdsAppInstall,
+  WorkflowsAppInstall
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
@@ -206,8 +214,7 @@ object Boot extends IOApp {
 
       val adminService = new AdminServiceInterp[IO](
         appDependencies.authProvider,
-        appDependencies.publisherQueue,
-        ConfigReader.adminAppConfig
+        appDependencies.publisherQueue
       )
 
       val httpRoutes = new HttpRoutes(
@@ -652,6 +659,49 @@ object Boot extends IOApp {
         googleDependencies.credentials
       )
 
+      val cromwellAppInstall = new CromwellAppInstall[F](
+        ConfigReader.appConfig.azure.coaAppConfig,
+        ConfigReader.appConfig.drs,
+        samDao,
+        cromwellDao,
+        cbasDao,
+        azureBatchService,
+        azureApplicationInsightsService
+      )
+      val cromwellRunnerAppInstall =
+        new CromwellRunnerAppInstall[F](ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
+                                        ConfigReader.appConfig.drs,
+                                        samDao,
+                                        cromwellDao,
+                                        azureBatchService,
+                                        azureApplicationInsightsService
+        )
+      val hailBatchAppInstall =
+        new HailBatchAppInstall[F](ConfigReader.appConfig.azure.hailBatchAppConfig, hailBatchDao)
+      val wdsAppInstall = new WdsAppInstall[F](ConfigReader.appConfig.azure.wdsAppConfig,
+                                               ConfigReader.appConfig.azure.tdr,
+                                               samDao,
+                                               wdsDao,
+                                               azureApplicationInsightsService
+      )
+      val workflowsAppInstall =
+        new WorkflowsAppInstall[F](
+          ConfigReader.appConfig.azure.workflowsAppConfig,
+          ConfigReader.appConfig.drs,
+          samDao,
+          cromwellDao,
+          cbasDao,
+          azureBatchService,
+          azureApplicationInsightsService
+        )
+
+      implicit val appTypeToAppInstall = AppInstall.appTypeToAppInstall(wdsAppInstall,
+                                                                        cromwellAppInstall,
+                                                                        workflowsAppInstall,
+                                                                        hailBatchAppInstall,
+                                                                        cromwellRunnerAppInstall
+      )
+
       val gkeAlg = new GKEInterpreter[F](
         gkeInterpConfig,
         bucketHelper,
@@ -671,32 +721,17 @@ object Boot extends IOApp {
 
       val aksAlg = new AKSInterpreter[F](
         AKSInterpreterConfig(
-          ConfigReader.appConfig.azure.coaAppConfig,
-          ConfigReader.appConfig.azure.workflowsAppConfig,
-          ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
-          ConfigReader.appConfig.azure.wdsAppConfig,
-          ConfigReader.appConfig.azure.hailBatchAppConfig,
-          ConfigReader.appConfig.azure.aadPodIdentityConfig,
-          ConfigReader.appConfig.azure.appRegistration,
           samConfig,
           appMonitorConfig,
           ConfigReader.appConfig.azure.wsm,
-          ConfigReader.appConfig.drs,
           applicationConfig.leoUrlBase,
           ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.azure.tdr,
           ConfigReader.appConfig.azure.listenerChartConfig
         ),
         helmClient,
-        azureBatchService,
         azureContainerService,
-        azureApplicationInsightsService,
         azureRelay,
         samDao,
-        cromwellDao,
-        cbasDao,
-        wdsDao,
-        hailBatchDao,
         wsmDao,
         kubeAlg,
         wsmClientProvider
@@ -911,7 +946,7 @@ final case class AppDependencies[F[_]](
   cromwellDAO: CromwellDAO[F],
   hailBatchDAO: HailBatchDAO[F],
   listenerDAO: ListenerDAO[F],
-  wsmClientProvider: HttpWsmClientProvider,
+  wsmClientProvider: HttpWsmClientProvider[F],
   kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F]
 )

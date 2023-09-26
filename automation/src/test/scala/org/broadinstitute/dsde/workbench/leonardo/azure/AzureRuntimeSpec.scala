@@ -11,8 +11,8 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   DiskStatus
 }
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.http4s.headers.Authorization

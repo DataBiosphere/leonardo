@@ -15,6 +15,9 @@ object AppControlledResourceStatus {
   case object Created extends AppControlledResourceStatus {
     override def toString: String = "CREATED"
   }
+  case object Deleting extends AppControlledResourceStatus {
+    override def toString: String = "DELETING"
+  }
   case object Deleted extends AppControlledResourceStatus {
     override def toString: String = "DELETED"
   }

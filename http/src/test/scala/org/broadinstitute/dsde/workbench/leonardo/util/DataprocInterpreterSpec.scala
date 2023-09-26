@@ -12,9 +12,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Instance, MachineType, Operation}
 import com.google.cloud.dataproc.v1.ClusterOperationMetadata
 import com.google.protobuf.Empty
-import kotlin.NotImplementedError
 import org.broadinstitute.dsde.workbench.google.GoogleDirectoryDAO
-import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.google2.{
@@ -35,6 +33,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent, UpdateAsyncClusterCreationFields}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.iam.Expr
+import org.broadinstitute.dsde.workbench.model.google.iam.IamMemberTypes.IamMemberType
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.BeforeAndAfterAll
@@ -359,11 +359,13 @@ class DataprocInterpreterSpec
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
     var invocationCount = 0
-    override def addIamRoles(googleProject: GoogleProject,
-                             userEmail: WorkbenchEmail,
-                             memberType: MemberType,
-                             rolesToAdd: Set[String],
-                             retryIfGroupDoesNotExist: Boolean
+
+    override def addRoles(googleProject: GoogleProject,
+                          userEmail: WorkbenchEmail,
+                          memberType: IamMemberType,
+                          rolesToAdd: Set[String],
+                          retryIfGroupDoesNotExist: Boolean,
+                          condition: Option[Expr]
     ): Future[Boolean] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
