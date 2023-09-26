@@ -135,7 +135,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmResourceApi <- buildWsmResourceApiClient
       wsmDatabasesFromResourcesApi <- F.delay(
         wsmResourceApi
-          .enumerateResources(workspaceId.value, 0, 100, WsmResourceType.AzureDatabase, "CONTROLLED") // formerly StewardshipType.CONTROLLED; where does that come from?
+          .enumerateResources(params.workspaceId.value, 0, 100, WsmResourceType.AzureDatabase, "CONTROLLED") // formerly StewardshipType.CONTROLLED; where does that come from?
           .getResources
           .asScala
       )
