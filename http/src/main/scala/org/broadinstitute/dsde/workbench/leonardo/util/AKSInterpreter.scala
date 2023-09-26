@@ -101,7 +101,31 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"app.appResources ${app.appResources} [mspector-debug]"
+        s"app.appResources.services ${app.appResources.services} [mspector-debug]"
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"params.appId ${params.appId} [mspector-debug]"
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"params.appName ${params.appName} [mspector-debug]"
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"params.workspaceId ${params.workspaceId} [mspector-debug]"
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"params.cloudContext ${params.cloudContext} [mspector-debug]"
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"params.landingZoneResources ${params.landingZoneResources} [mspector-debug]"
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"params.storageContainer ${params.storageContainer} [mspector-debug]"
       )
 
       // Create WSM managed identity if shared app
@@ -140,9 +164,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
-      appExternalDatabases = app.appType.databases
       _ <- logger.info(ctx.loggingCtx)(
-        s"appExternalDatabases ${appExternalDatabases} [mspector-debug]"
+        s"app.appType.databases ${app.appType.databases} [mspector-debug]"
       )
 
       // The k8s namespace name and service account name are in the WSM response
