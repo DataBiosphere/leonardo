@@ -202,7 +202,7 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[(List[A], List[ProjectAction])]
 
-  def getAuthorizedIds[R](
+  def getAuthorizedIds[R <: SamResourceId](
     isOwner: Boolean,
     userInfo: UserInfo
   )(implicit

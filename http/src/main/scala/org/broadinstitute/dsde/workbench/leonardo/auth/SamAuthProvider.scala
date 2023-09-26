@@ -128,13 +128,13 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   }
 
   /**
-   * Get all Sam resource IDs of the given type on which the user is granted permissions. Returns explicitly granted
-   * policies only; users with workspace owner access, for example, can see all runtimes in the workspace, but
+   * Get all Sam resource IDs of the given type on which the user is granted supported permissions. Returns explicitly
+   * granted policies only; users with workspace owner access, for example, can see all runtimes in the workspace, but
    * getAuthorizedIds[SamRuntimeResourceId] is not guaranteed to return all runtimes in that workspace. Works for any
    * Sam resource type except SharedApp and similar alternative app types; these require a specific Sam resource object
    * to determine permissions, as these are stored on the individual records.
-   * @param isOwner whether to return only resources that the user is granted Owner permission on (or the equivalent for
-   *                the resource type, defined as `ownerRoleName` and `policyNames` on the SamResource)
+   * @param isOwner whether to return only resources that the user is granted ownership on (has `ownerRoleName`,
+   * and `ownerRoleName` is an element in `policyNames` on the SamResource)
    * @param userInfo the current user
    * @param samResource the resource archetype (App, Runtime, etc)
    * @param decoder converts Json -> SamResourceId, needed by SamDao
@@ -142,7 +142,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
    * @tparam R SamResourceId
    * @return List[SamResourceId] of all resources of type R which are visible to the user at the given access level
    */
-  override def getAuthorizedIds[R](
+  override def getAuthorizedIds[R <: SamResourceId](
     isOwner: Boolean,
     userInfo: UserInfo
   )(implicit

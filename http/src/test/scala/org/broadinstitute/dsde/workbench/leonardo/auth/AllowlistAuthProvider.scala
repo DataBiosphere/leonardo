@@ -11,7 +11,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.AuthProviderException
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, SamResourceId, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -54,7 +54,7 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       case false => (List.empty, List.empty)
     }
 
-  def getAuthorizedIds[R](
+  def getAuthorizedIds[R <: SamResourceId](
     isOwner: Boolean,
     userInfo: UserInfo
   )(implicit
