@@ -138,6 +138,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .enumerateResources(params.workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
           .getResources
           .asScala
+          .toList
       )
 
       _ <- logger.info(ctx.loggingCtx)(
@@ -148,6 +149,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       _ <- logger.info(ctx.loggingCtx)(
         s"appExternalDatabaseNames ${appExternalDatabaseNames} [mspector-debug]"
+      )
+
+      // wsmDatabasesFromResourcesApi is a collection/list/"Buffer" of objects.
+      // Get the objects from this list whose `metadata.name` property matches any of the names in the set appExternalDatabaseNames
+      // Of those resulting objects, get their `resourceAttributes.azureDatabase.databaseName`
+      appExternalDatabaseNamesWithNamespace = wsmDatabasesFromResourcesApi
+        .filter(r => appExternalDatabaseNames.contains(r.metadata.name))
+        .map(r => r.resourceAttributes.azureDatabase.databaseName)
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"appExternalDatabaseNamesWithNamespace ${appExternalDatabaseNamesWithNamespace} [mspector-debug]"
       )
 
       // Create WSM managed identity if shared app
