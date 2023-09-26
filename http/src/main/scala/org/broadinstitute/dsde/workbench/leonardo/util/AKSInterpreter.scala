@@ -95,7 +95,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespacePrefix = app.appResources.namespace.name.value
-      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet 
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      _ <- logger.info(ctx.loggingCtx)(
         s"referenceDatabaseNames ${referenceDatabaseNames} [mspector-debug]"
       )
 
