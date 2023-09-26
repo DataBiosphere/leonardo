@@ -21,7 +21,16 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+  projectSamResourceAction,
+  runtimeSamResourceAction,
+  workspaceSamResourceAction
+}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
+  ProjectSamResource,
+  RuntimeSamResource,
+  WorkspaceResource
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{

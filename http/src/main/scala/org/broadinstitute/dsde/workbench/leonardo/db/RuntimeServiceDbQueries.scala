@@ -688,5 +688,5 @@ object RuntimeServiceDbQueries {
       s"C.`cloudProvider` = ${CloudProvider.Gcp} AND ${getInListExpression("C.`cloudContext`", projectIds)}"
 
   private def getInListExpression(field: String, terms: List[String]): String =
-    if (terms.isEmpty) "0 = 1" else s"${field} IN(${terms.mkString(",")})"
+    if (terms.isEmpty) "0 = 1" else s"${field} IN('${terms.mkString("','")}')"
 }

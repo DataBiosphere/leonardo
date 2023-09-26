@@ -9,10 +9,31 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  projectSamResourceDecoder,
+  runtimeSamResourceDecoder,
+  workspaceSamResourceIdDecoder
+}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  ProjectSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId,
+  WsmResourceSamResourceId
+}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+  projectSamResourceAction,
+  runtimeSamResourceAction,
+  workspaceSamResourceAction
+}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
+  ProjectSamResource,
+  RuntimeSamResource,
+  WorkspaceResource
+}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
@@ -25,7 +46,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   WsmDao
 }
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
+  ProjectSamResource,
+  RuntimeSamResource,
+  WorkspaceResource
+}
+import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -34,15 +60,18 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.stubbing.Answer
 
 class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val serviceConfig = RuntimeServiceConfig(
@@ -1505,22 +1534,71 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allowlisted
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0)
+
+    val runtimeId1 = UUID.randomUUID.toString
+    val runtimeId2 = UUID.randomUUID.toString
+    val projectIdGcp = cloudContextGcp.asString
+    val workspaceIdAzure = UUID.randomUUID.toString
+
+    val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
+    when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
+    when(
+      mockAuthProvider.getAuthorizedIds[RuntimeSamResourceId](isEq(false), isEq(userInfo))(
+        any(runtimeSamResourceAction.getClass),
+        any(Decoder[RuntimeSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(List(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2))))
+    when(
+      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
+        any(workspaceSamResourceAction.getClass),
+        any(Decoder[WorkspaceResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure))))))
+    when(
+      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(List(ProjectSamResourceId(GoogleProject(projectIdGcp)))))
+    when(
+      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(true), isEq(userInfo))(
+        any(workspaceSamResourceAction.getClass),
+        any(Decoder[WorkspaceResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(List.empty))
+    when(
+      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(List.empty))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val testService = makeInterp(publisherQueue, mockAuthProvider)
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource1 <- IO(RuntimeSamResourceId(runtimeId1))
+      samResource2 <- IO(RuntimeSamResourceId(runtimeId2))
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(
         makeCluster(2)
-          .copy(samResource = samResource2, cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .copy(
+            samResource = samResource2,
+            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext),
+            workspaceId = Some(WorkspaceId(UUID.fromString(workspaceIdAzure)))
+          )
           .save()
       )
-      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map.empty)
+      listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
     } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
