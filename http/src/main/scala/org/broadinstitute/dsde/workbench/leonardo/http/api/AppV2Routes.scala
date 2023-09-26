@@ -218,6 +218,7 @@ object AppV2Routes {
       "proxyUrls",
       "appName",
       "appType",
+//      "chartName",
       "diskName",
       "auditInfo",
       "accessScope",
@@ -232,7 +233,7 @@ object AppV2Routes {
        x.proxyUrls,
        x.appName,
        x.appType,
-//       x.chartName, TODO: revert this once CBAS are upgraded
+//       x.chartName,
        x.diskName,
        x.auditInfo,
        x.accessScope,
@@ -253,7 +254,7 @@ object AppV2Routes {
       "customEnvironmentVariables",
       "auditInfo",
       "appType",
-//      "chartName", TODO: revert this once CBAS are upgraded
+//      "chartName",
       "accessScope",
       "labels"
     )(x =>
@@ -273,5 +274,4 @@ object AppV2Routes {
        x.labels
       )
     )
-//    )(x => GetAppResponse.unapply(x).get)
 }
