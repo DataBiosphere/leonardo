@@ -95,41 +95,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespacePrefix = app.appResources.namespace.name.value
-
-      // 1. find the app of type WORKFLOWS_APP in this workspace, find the namespace prefix
-      // 2. name of the db is cromwellmetadata_<prefix>
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString} [mspector-debug]"
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"app.appResources.services ${app.appResources.services} [mspector-debug]"
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"params.appId ${params.appId} [mspector-debug]"
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"params.appName ${params.appName} [mspector-debug]"
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"params.workspaceId ${params.workspaceId} [mspector-debug]"
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"params.cloudContext ${params.cloudContext} [mspector-debug]"
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"params.landingZoneResources ${params.landingZoneResources} [mspector-debug]"
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"params.storageContainer ${params.storageContainer} [mspector-debug]"
-      )
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet 
 
       // build WSM resource client
       wsmResourceApi <- buildWsmResourceApiClient
@@ -140,26 +106,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .asScala
           .toList
       )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"wsmDatabasesFromResourcesApi ${wsmDatabasesFromResourcesApi} [mspector-debug]"
-      )
-
-      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet 
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"appExternalDatabaseNames ${appExternalDatabaseNames} [mspector-debug]"
-      )
-
-      // wsmDatabasesFromResourcesApi is a collection/list/"Buffer" of objects.
-      // Get the objects from this list whose `metadata.name` property matches any of the names in the set appExternalDatabaseNames
-      // Of those resulting objects, get their `resourceAttributes.azureDatabase.databaseName`
-      appExternalDatabaseNamesWithNamespace = wsmDatabasesFromResourcesApi
-        .filter(r => appExternalDatabaseNames.contains(r.getMetadata().getName()))
+      referenceDatabaseNamesWithNamespace = wsmDatabasesFromResourcesApi
+        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
         .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"appExternalDatabaseNamesWithNamespace ${appExternalDatabaseNamesWithNamespace} [mspector-debug]"
+        s"referenceDatabaseNamesWithNamespace ${referenceDatabaseNamesWithNamespace} [mspector-debug]"
       )
 
       // Create WSM managed identity if shared app
@@ -172,7 +124,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Create WSM databases
-      wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
+      wsmCreatedDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
         createWsmDatabaseResources(
           app,
           app.appType,
@@ -184,7 +136,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"wsmDatabases ${wsmDatabases} [mspector-debug]"
+        s"wsmCreatedDatabases ${wsmCreatedDatabases} [mspector-debug]"
       )
 
       // Create WSM kubernetes namespace
@@ -193,7 +145,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           app,
           params.workspaceId,
           namespacePrefix,
-          wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
+          wsmCreatedDatabases.map(_.getAzureDatabase.getMetadata.getName),
           wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
         )
       }
@@ -264,6 +216,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .run(authContext)
       }
 
+      wsmCreatedDatabaseNames = wsmCreatedDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName)
+      _ <- logger.info(ctx.loggingCtx)(
+        s"wsmCreatedDatabaseNames ${wsmCreatedDatabaseNames} [mspector-debug]"
+      )
+
       // Build app helm values
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
@@ -274,7 +231,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName),
+        wsmCreatedDatabaseNames,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
