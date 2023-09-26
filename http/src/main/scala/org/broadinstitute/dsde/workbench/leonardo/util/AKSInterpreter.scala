@@ -155,8 +155,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Get the objects from this list whose `metadata.name` property matches any of the names in the set appExternalDatabaseNames
       // Of those resulting objects, get their `resourceAttributes.azureDatabase.databaseName`
       appExternalDatabaseNamesWithNamespace = wsmDatabasesFromResourcesApi
-        .filter(r => appExternalDatabaseNames.contains(r.metadata.name))
-        .map(r => r.resourceAttributes.azureDatabase.databaseName)
+        .filter(r => appExternalDatabaseNames.contains(r.getMetadata().getName()))
+        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
 
       _ <- logger.info(ctx.loggingCtx)(
         s"appExternalDatabaseNamesWithNamespace ${appExternalDatabaseNamesWithNamespace} [mspector-debug]"
