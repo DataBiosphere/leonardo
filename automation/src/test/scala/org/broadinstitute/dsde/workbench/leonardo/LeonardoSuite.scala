@@ -431,9 +431,8 @@ final class LeonardoTerraDockerSuite
 
 final class LeonardoAzureSuite
     extends Suites(
-      // will remove after testing
-      // new AzureRuntimeSpec,
-      // new AzureDiskSpec
+      new AzureRuntimeSpec,
+      new AzureDiskSpec,
       new AzureAutopauseSpec
     )
     with TestSuite
