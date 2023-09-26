@@ -29,14 +29,18 @@ jobs:
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.extract-inputs.outputs.branch }}
-      delete-bee: ${{ steps.extract-inputs.outputs.delete-bee }}
+      branch: ${{ steps.prepare-outputs.outputs.branch }}
+      delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
+      log-results: ${{ steps.prepare-outputs.outputs.log-results }}
+      test-context: ${{ steps.prepare-outputs.outputs.test-context }}
     steps:
-      - name: Get inputs or use defaults
-        id: extract-inputs
+      - name: Get inputs and/or set defaults
+        id: prepare-outputs
         run: |
           echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
+          echo "log-results=true" >> $GITHUB_OUTPUT
+          echo "test-context=azure-e2e" >> $GITHUB_OUTPUT
 
 
   leo-build-tag-publish-job:
@@ -66,7 +70,7 @@ jobs:
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}",, "log-results": "${{ needs.prepare-configs.outputs.log-results }}", "test-context": "${{ needs.prepare-configs.outputs.test-context }}", "caller_run_id": "${{ github.run_id }}" }'
 
       - name: Render Leo version
         id: render-leo-version
