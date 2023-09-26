@@ -10,7 +10,7 @@ import io.kubernetes.client.custom.Quantity
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, AzureContainerService}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.LeoLenses.cloudContextToManagedResourceGroup
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.config.{Config, KubernetesAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ToolDAO, _}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, _}
@@ -31,7 +31,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               appDAO: AppDAO[F],
                               wdsDAO: WdsDAO[F],
                               cbasDAO: CbasDAO[F],
-                              cbasUiDAO: CbasUiDAO[F],
                               cromwellDAO: CromwellDAO[F],
                               hailBatchDAO: HailBatchDAO[F],
                               listenerDAO: ListenerDAO[F],
@@ -46,7 +45,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
   clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   ec: ExecutionContext
 ) {
-  private val parallelism = 25
+  private val parallelism = 40
 
   /** Entry point of this class; starts the async process */
   val process: Stream[F, Unit] =
@@ -68,6 +67,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
 
   /** Queries the DB for all active apps and collects metrics */
   private[monitor] def retrieveAppMetrics(implicit ev: Ask[F, AppContext]): F[Unit] = for {
+    _ <- logger.info(s"Retrieving app metrics...")
     clusters <- KubernetesServiceDbQueries.listAppsForMetrics.transaction
     appDbStatus = countAppsByDbStatus(clusters)
     _ <- recordMetric(appDbStatus)
@@ -85,6 +85,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
 
   /** Queries the DB for all active runtimes and collects metrics */
   private[monitor] def retrieveRuntimeMetrics(implicit ev: Ask[F, AppContext]): F[Unit] = for {
+    _ <- logger.info(s"Retrieving runtime metrics...")
     runtimeSeq <- clusterQuery.listActiveForMetrics.transaction
     runtimes = runtimeSeq.toList
     runtimeDbStatus = countRuntimesByDbStatus(runtimes)
@@ -104,12 +105,14 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       n <- c.nodepools
       a <- n.apps
     } yield Map(
-      AppStatusMetric(c.cloudContext.cloudProvider,
-                      a.appType,
-                      a.status,
-                      getRuntimeUI(a.labels),
-                      getAzureCloudContext(c.cloudContext),
-                      a.chart
+      AppStatusMetric(
+        c.cloudContext.cloudProvider,
+        a.appType,
+        a.status,
+        getRuntimeUI(a.labels),
+        getAzureCloudContext(c.cloudContext),
+        a.chart,
+        isUpgradeable(a.appType, c.cloudContext.cloudProvider, a.chart)
       ) -> 1d
     )
 
@@ -161,7 +164,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           // For Azure impersonate the user and call the app's status endpoint via Azure Relay.
           isUp <- cloudContext match {
             case CloudContext.Gcp(project) =>
-              appDAO.isProxyAvailable(project, app.appName, serviceName)
+              appDAO.isProxyAvailable(project, app.appName, serviceName).handleError(_ => false)
             case CloudContext.Azure(_) =>
               for {
                 tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
@@ -173,9 +176,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 relayPath = Uri
                   .unsafeFromString(baseUri.asString) / s"${app.appName.value}-${app.workspaceId.map(_.value.toString).getOrElse("")}"
                 isUp <- serviceName match {
-                  case ServiceName("cbas")    => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cbas-ui") => cbasUiDAO.getStatus(relayPath, authHeader).handleError(_ => false)
-                  case ServiceName("cromwell") | ServiceName("cromwell-reader") =>
+                  case ServiceName("cbas") => cbasDAO.getStatus(relayPath, authHeader).handleError(_ => false)
+                  case ServiceName("cromwell") | ServiceName("cromwell-reader") | ServiceName("cromwell-runner") =>
                     cromwellDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("wds")   => wdsDAO.getStatus(relayPath, authHeader).handleError(_ => false)
                   case ServiceName("batch") => hailBatchDAO.getStatus(relayPath, authHeader).handleError(_ => false)
@@ -192,7 +194,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           _ <-
             if (isUp) F.unit
             else
-              logger.error(ctx.loggingCtx)(
+              logger.debug(ctx.loggingCtx)(
                 s"App is DOWN with " +
                   s"name={${app.appName.value}}, " +
                   s"type={${app.appType.toString}}, " +
@@ -201,21 +203,25 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                   s"cloudContext={${cloudContext.asStringWithProvider}}"
               )
         } yield Map(
-          AppHealthMetric(cloudContext.cloudProvider,
-                          app.appType,
-                          serviceName,
-                          getRuntimeUI(app.labels),
-                          getAzureCloudContext(cloudContext),
-                          isUp,
-                          app.chart
+          AppHealthMetric(
+            cloudContext.cloudProvider,
+            app.appType,
+            serviceName,
+            getRuntimeUI(app.labels),
+            getAzureCloudContext(cloudContext),
+            isUp,
+            app.chart,
+            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart)
           ) -> 1d,
-          AppHealthMetric(cloudContext.cloudProvider,
-                          app.appType,
-                          serviceName,
-                          getRuntimeUI(app.labels),
-                          getAzureCloudContext(cloudContext),
-                          !isUp,
-                          app.chart
+          AppHealthMetric(
+            cloudContext.cloudProvider,
+            app.appType,
+            serviceName,
+            getRuntimeUI(app.labels),
+            getAzureCloudContext(cloudContext),
+            !isUp,
+            app.chart,
+            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart)
           ) -> 0d
         )
       }
@@ -241,12 +247,12 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       .parTraverseN(parallelism) { case (runtime, image, container) =>
         for {
           ctx <- ev.ask
-          isUp <- container.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
+          isUp <- container.isProxyAvailable(runtime.cloudContext, runtime.runtimeName).handleError(_ => false)
           // In addition to collecting aggregate metrics, log a warning for any runtime that is down.
           _ <-
             if (isUp) F.unit
             else
-              logger.error(ctx.loggingCtx)(
+              logger.debug(ctx.loggingCtx)(
                 s"Runtime is DOWN with " +
                   s"name={${runtime.runtimeName.asString}}, " +
                   s"type={${container.imageType.toString}}, " +
@@ -432,17 +438,24 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     resources
       .map(_.map { case (resource, quantity) =>
         Map(
-          AppResourcesMetric(cloudContext.cloudProvider,
-                             app.appType,
-                             ServiceName(service),
-                             getRuntimeUI(app.labels),
-                             getAzureCloudContext(cloudContext),
-                             requestOrLimit,
-                             resource
+          AppResourcesMetric(
+            cloudContext.cloudProvider,
+            app.appType,
+            ServiceName(service),
+            getRuntimeUI(app.labels),
+            getAzureCloudContext(cloudContext),
+            requestOrLimit,
+            resource,
+            app.chart
           ) -> quantity.getNumber.doubleValue() // TODO are units consistent?
         )
       })
       .getOrElse(List.empty)
+
+  private def isUpgradeable(appType: AppType, cloudProvider: CloudProvider, chart: Chart): Boolean =
+    KubernetesAppConfig.configForTypeAndCloud(appType, cloudProvider).exists { config =>
+      !config.chartVersionsToExcludeFromUpdates.contains(chart.version)
+    }
 }
 
 case class LeoMetricsMonitorConfig(enabled: Boolean, checkInterval: FiniteDuration, includeAzureCloudContext: Boolean)
@@ -457,7 +470,8 @@ object LeoMetric {
                                    status: AppStatus,
                                    runtimeUI: RuntimeUI,
                                    azureCloudContext: Option[AzureCloudContext],
-                                   chart: Chart
+                                   chart: Chart,
+                                   upgradeable: Boolean
   ) extends LeoMetric {
     override def name: String = "leoAppStatus"
     override def tags: Map[String, String] =
@@ -467,7 +481,8 @@ object LeoMetric {
         "status" -> status.toString,
         "uiClient" -> runtimeUI.asString,
         "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
-        "chart" -> chart.toString
+        "chart" -> chart.toString,
+        "upgradeable" -> upgradeable.toString
       )
   }
 
@@ -477,7 +492,8 @@ object LeoMetric {
                                    runtimeUI: RuntimeUI,
                                    azureCloudContext: Option[AzureCloudContext],
                                    isUp: Boolean,
-                                   chart: Chart
+                                   chart: Chart,
+                                   upgradeable: Boolean
   ) extends LeoMetric {
     override def name: String = "leoAppHealth"
     override def tags: Map[String, String] = Map(
@@ -487,7 +503,8 @@ object LeoMetric {
       "uiClient" -> runtimeUI.asString,
       "isUp" -> isUp.toString,
       "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
-      "chart" -> chart.toString
+      "chart" -> chart.toString,
+      "upgradeable" -> upgradeable.toString
     )
   }
 
@@ -497,7 +514,8 @@ object LeoMetric {
                                       runtimeUI: RuntimeUI,
                                       azureCloudContext: Option[AzureCloudContext],
                                       requestOrLimit: String,
-                                      k8sResource: String
+                                      k8sResource: String,
+                                      chart: Chart
   ) extends LeoMetric {
     override def name: String = "leoAppResources"
     override def tags: Map[String, String] = Map(
@@ -507,7 +525,8 @@ object LeoMetric {
       "uiClient" -> runtimeUI.asString,
       "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
       "requestOrLimit" -> requestOrLimit,
-      "k8sResource" -> k8sResource
+      "k8sResource" -> k8sResource,
+      "chart" -> chart.toString
     )
   }
 

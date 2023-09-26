@@ -73,7 +73,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                  allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
                  wsmDao: WsmDao[IO] = wsmDao,
                  dateAccessedQueue: Queue[IO, UpdateDateAccessMessage] = QueueFactory.makeDateAccessedQueue(),
-                 wsmClientProvider: WsmApiClientProvider = wsmClientProvider
+                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    allowlistAuthProvider,
@@ -85,7 +85,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     )
 
   // need to set previous runtime to deleted status before creating next to avoid exception
-  def setRuntimetoDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[(Long)] =
+  def setRuntimetoDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[Long] =
     for {
       now <- IO.realTimeInstant
       runtime <- RuntimeServiceDbQueries

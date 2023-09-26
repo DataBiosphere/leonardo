@@ -512,7 +512,7 @@ object LeonardoApiClient {
         else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
     } yield ()
 
-  private def onError(message: String)(response: Response[IO]): IO[Throwable] =
+  def onError(message: String)(response: Response[IO]): IO[Throwable] =
     for {
       body <- response.bodyText.compile.foldMonoid
     } yield RestError(message, response.status, Some(body))

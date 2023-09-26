@@ -3021,7 +3021,7 @@ components:
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         runtimeConfig:
-          $ref: "#/components/schemas/OneOfRuntimeConfig"
+          $ref: "#/components/schemas/OneOfRuntimeConfigInResponse"
         proxyUrl:
           type: string
           description: The URL to access a tool on the runtime
@@ -3121,7 +3121,7 @@ components:
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
         runtimeConfig:
-          $ref: "#/components/schemas/OneOfRuntimeConfig"
+          $ref: "#/components/schemas/OneOfRuntimeConfigInResponse"
         proxyUrl:
           type: string
           description: The URL to access a tool on the runtime
@@ -3661,7 +3661,7 @@ components:
           enum: [GCE, DATAPROC, AZURE_VM]
         configType:
           type: string
-          enum: [Dataproc, GceConfig, GceWithPdCConfig, AzureVmConfig]
+          enum: [Dataproc, GceConfig, GceWithPdConfig, AzureVmConfig]
     OneOfRuntimeConfig:
       oneOf:
         - $ref: "#/components/schemas/GceConfig"
@@ -3674,6 +3674,17 @@ components:
           gce: "#/components/schemas/GceWithPdConfig"
           dataproc: "#/components/schemas/DataprocConfig"
           azure_vm: "#/components/schemas/AzureConfig"
+    OneOfRuntimeConfigInResponse:
+      oneOf:
+        - $ref: "#/components/schemas/GceWithPdConfigInResponse"
+        - $ref: "#/components/schemas/DataprocConfig"
+        - $ref: "#/components/schemas/AzureConfig"
+      discriminator:
+        propertyName: cloudService
+        mapping:
+          GCE: "#/components/schemas/GceWithPdConfigInResponse"
+          DATAPROC: "#/components/schemas/DataprocConfig"
+          AZURE_VM: "#/components/schemas/AzureConfig"
     RuntimeImage:
       type: object
       required:
@@ -3750,11 +3761,45 @@ components:
                 Defaults to us-central1-a.
             gpuConfig:
               $ref: "#/components/schemas/GpuConfig"
+    GceWithPdConfigInResponse:
+      description: Configuration for Google Compute Engine instances.
+      allOf:
+        - $ref: '#/components/schemas/RuntimeConfig'
+        - type: object
+          required:
+            - machineType
+            - bootDiskSize
+            - zone
+          properties:
+            persistentDiskId:
+              type: integer
+            bootDiskSize:
+              type: integer
+              description: size for boot disk
+            machineType:
+              type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the master node. For example "n1-standard-16"
+
+                or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+                see https://cloud.google.com/compute/docs/machine-types
+            zone:
+              type: string
+              description: >
+                Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
+                Defaults to us-central1-a.
+            gpuConfig:
+              $ref: "#/components/schemas/GpuConfig"
     DataprocConfig:
       description: Configuration for a single Dataproc cluster.
       allOf:
         - $ref: '#/components/schemas/RuntimeConfig'
         - type: object
+          required:
+            - numberOfWorkers
+            - masterMachineType
           properties:
             numberOfWorkers:
               type: integer
@@ -3835,6 +3880,10 @@ components:
       allOf:
         - $ref: '#/components/schemas/RuntimeConfig'
         - type: object
+          required:
+            - machineType
+            - persistentDiskId
+            - region
           properties:
             machineType:
               type: string

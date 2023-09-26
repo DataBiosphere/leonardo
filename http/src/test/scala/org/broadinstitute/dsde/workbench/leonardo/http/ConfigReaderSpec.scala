@@ -76,13 +76,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.336"),
+          ChartVersion("0.2.350"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
           List(
             ServiceConfig(ServiceName("cbas"), KubernetesServiceKindName("ClusterIP")),
-            ServiceConfig(ServiceName("cbas-ui"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/"))),
             ServiceConfig(ServiceName("cromwell"), KubernetesServiceKindName("ClusterIP"))
           ),
           instrumentationEnabled = false,
@@ -90,6 +89,21 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List(
+            ChartVersion("0.2.341"),
+            ChartVersion("0.2.338"),
+            ChartVersion("0.2.334"),
+            ChartVersion("0.2.332"),
+            ChartVersion("0.2.328"),
+            ChartVersion("0.2.291"),
+            ChartVersion("0.2.277"),
+            ChartVersion("0.2.276"),
+            ChartVersion("0.2.268"),
+            ChartVersion("0.2.265"),
+            ChartVersion("0.2.263"),
+            ChartVersion("0.2.251"),
+            ChartVersion("0.2.242"),
+            ChartVersion("0.2.239"),
+            ChartVersion("0.2.237"),
             ChartVersion("0.2.232"),
             ChartVersion("0.2.231"),
             ChartVersion("0.2.229"),
@@ -124,22 +138,23 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("/leonardo/cromwell-runner-app"),
-          ChartVersion("0.16.0"),
-          ReleaseNameSuffix("cromwell-runner-app-rls"),
-          NamespaceNameSuffix("cromwell-runner-app-ns"),
-          KsaName("cromwell-runner-app-ksa"),
+          ChartVersion("0.25.0"),
+          ReleaseNameSuffix("cra-rls"),
+          NamespaceNameSuffix("cra-ns"),
+          KsaName("cra-ksa"),
           List(
-            ServiceConfig(ServiceName("cromwell-writer"), KubernetesServiceKindName("ClusterIP"))
+            ServiceConfig(ServiceName("cromwell-runner"),
+                          KubernetesServiceKindName("ClusterIP"),
+                          Some(ServicePath("/cromwell"))
+            )
           ),
           instrumentationEnabled = false,
           enabled = false,
-          dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          databaseEnabled = false,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.24.0"),
+          ChartVersion("0.38.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -157,7 +172,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.42.0"),
+          ChartVersion("0.45.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -179,7 +194,14 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ChartVersion("0.22.0"),
             ChartVersion("0.24.0"),
             ChartVersion("0.26.0"),
-            ChartVersion("0.27.0")
+            ChartVersion("0.27.0"),
+            ChartVersion("0.28.0"),
+            ChartVersion("0.31.0"),
+            ChartVersion("0.38.0"),
+            ChartVersion("0.39.0"),
+            ChartVersion("0.41.0"),
+            ChartVersion("0.42.0"),
+            ChartVersion("0.43.0")
           )
         ),
         HailBatchAppConfig(
@@ -193,13 +215,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           false,
           chartVersionsToExcludeFromUpdates = List()
-        ),
-        AadPodIdentityConfig(
-          Namespace("aad-pod-identity"),
-          Release("aad-pod-identity"),
-          ChartName("aad-pod-identity/aad-pod-identity"),
-          ChartVersion("4.1.14"),
-          Values("operationMode=managed")
         ),
         List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),

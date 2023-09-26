@@ -390,14 +390,18 @@ object KubernetesServiceDbQueries {
   }
 
   private def unmarshalNodepoolMap(
-    nodepools: Map[NodepoolRecord, Map[AppRecord,
-                                       (Chain[ServiceRecord],
-                                        Chain[NamespaceRecord],
-                                        Map[String, Chain[String]],
-                                        Map[PersistentDiskRecord, Map[String, Chain[String]]],
-                                        Chain[AppErrorRecord]
-                                       )
-    ]]
+    nodepools: Map[
+      NodepoolRecord,
+      Map[
+        AppRecord,
+        (Chain[ServiceRecord],
+         Chain[NamespaceRecord],
+         Map[String, Chain[String]],
+         Map[PersistentDiskRecord, Map[String, Chain[String]]],
+         Chain[AppErrorRecord]
+        )
+      ]
+    ]
   ): List[Nodepool] =
     nodepools
       .map { case (nodepoolRec, appMap) =>
@@ -407,13 +411,14 @@ object KubernetesServiceDbQueries {
       .toList
 
   private def unmarshalAppMap(
-    apps: Map[AppRecord,
-              (Chain[ServiceRecord],
-               Chain[NamespaceRecord],
-               Map[String, Chain[String]],
-               Map[PersistentDiskRecord, Map[String, Chain[String]]],
-               Chain[AppErrorRecord]
-              )
+    apps: Map[
+      AppRecord,
+      (Chain[ServiceRecord],
+       Chain[NamespaceRecord],
+       Map[String, Chain[String]],
+       Map[PersistentDiskRecord, Map[String, Chain[String]]],
+       Chain[AppErrorRecord]
+      )
     ]
   ): List[App] =
     apps

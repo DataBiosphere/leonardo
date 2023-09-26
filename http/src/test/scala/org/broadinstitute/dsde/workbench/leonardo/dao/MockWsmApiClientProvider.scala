@@ -1,11 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import bio.terra.workspace.api._
+import cats.effect.IO
+import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.scalatestplus.mockito.MockitoSugar.mock
 
 class MockWsmClientProvider(controlledAzureResourceApi: ControlledAzureResourceApi = mock[ControlledAzureResourceApi])
-    extends WsmApiClientProvider {
+    extends WsmApiClientProvider[IO] {
 
-  override def getControlledAzureResourceApi(token: String): ControlledAzureResourceApi =
-    controlledAzureResourceApi
+  override def getControlledAzureResourceApi(token: String)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ControlledAzureResourceApi] =
+    IO.pure(controlledAzureResourceApi)
 }
