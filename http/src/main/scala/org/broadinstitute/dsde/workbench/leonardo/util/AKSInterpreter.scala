@@ -96,22 +96,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
       namespacePrefix = app.appResources.namespace.name.value
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet 
+        s"referenceDatabaseNames ${referenceDatabaseNames} [mspector-debug]"
+      )
 
       // build WSM resource client
       wsmResourceApi <- buildWsmResourceApiClient
-      wsmDatabasesFromResourcesApi <- F.delay(
+      wsmResourceDatabases <- F.delay(
         wsmResourceApi
           .enumerateResources(params.workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
           .getResources
           .asScala
           .toList
       )
-      referenceDatabaseNamesWithNamespace = wsmDatabasesFromResourcesApi
+      referenceResourceDatabaseNames = wsmResourceDatabases
         .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
         .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"referenceDatabaseNamesWithNamespace ${referenceDatabaseNamesWithNamespace} [mspector-debug]"
+        s"referenceResourceDatabaseNames ${referenceResourceDatabaseNames} [mspector-debug]"
       )
 
       // Create WSM managed identity if shared app
@@ -216,9 +218,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .run(authContext)
       }
 
-      wsmCreatedDatabaseNames = wsmCreatedDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName)
+      createdDatabaseNames = wsmCreatedDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName)
       _ <- logger.info(ctx.loggingCtx)(
-        s"wsmCreatedDatabaseNames ${wsmCreatedDatabaseNames} [mspector-debug]"
+        s"createdDatabaseNames ${createdDatabaseNames} [mspector-debug]"
       )
 
       // Build app helm values
@@ -231,7 +233,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmCreatedDatabaseNames,
+        createdDatabaseNames,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
