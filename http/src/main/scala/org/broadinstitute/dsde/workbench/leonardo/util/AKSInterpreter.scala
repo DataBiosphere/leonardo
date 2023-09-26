@@ -3,7 +3,7 @@ package leonardo
 package util
 
 import akka.http.scaladsl.model.StatusCodes
-import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model._
 import cats.effect.Async
@@ -131,14 +131,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"params.storageContainer ${params.storageContainer} [mspector-debug]"
       )
 
-      allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(params.workspaceId), Map.empty).transaction
-      apps = allClusters
-        .flatMap(_.nodepools)
-        .flatMap(n => n.apps)
+      // build WSM resource client
+      wsmResourceApi <- buildWsmResourceApiClient
+      wsmDatabasesFromResourcesApi <- F.delay(
+        wsmResourceApi
+          .enumerateResources(workspaceId.value, 0, 100, WsmResourceType.AzureDatabase, "CONTROLLED") // formerly StewardshipType.CONTROLLED; where does that come from?
+          .getResources
+          .asScala
+      )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"apps ${apps} [mspector-debug]"
-      )      
+        s"wsmDatabasesFromResourcesApi ${wsmDatabasesFromResourcesApi} [mspector-debug]"
+      )
+
+      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet 
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"appExternalDatabaseNames ${appExternalDatabaseNames} [mspector-debug]"
+      )
 
       // Create WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
@@ -1087,6 +1097,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
       wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmApi
+
+  // can these two functions be combined somehow? ask a Scala person for the right way to do it
+  private def buildWsmResourceApiClient(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
+    for {
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi <- wsmClientProvider.getResourceApi(token)
     } yield wsmApi
 }
 
