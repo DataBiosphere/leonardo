@@ -140,6 +140,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
+      appExternalDatabases = app.appType.databases
+      _ <- logger.info(ctx.loggingCtx)(
+        s"appExternalDatabases ${appExternalDatabases} [mspector-debug]"
+      )
+
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
       ksaName = ServiceAccountName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesServiceAccount)
