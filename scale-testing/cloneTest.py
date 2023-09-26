@@ -16,7 +16,7 @@ dest_billing_project_name = os.environ.get("DEST_BILLING_PROJECT_NAME")
 workspace_name = os.environ.get("WORKSPACE_NAME")
 
 # Update these values as desired
-number_of_clones=1 #number of clones to make
+number_of_clones=20 #number of clones to make
 #if false, will wait for each api clone call to complete before starting the next
 #if true, will start all api calls at once on different threads
 parallel=True
@@ -53,14 +53,19 @@ else:
 
 print("Sleeping...")
 time.sleep(60)
+print(f"Cloned workspaces: {cloned_workspaces}")
+
 for ws in cloned_workspaces:
+    # start CBAS in each workspace. Needs to be done serially
+    start_cbas(ws, header)
+    poll_for_app_url(ws, "cbas", azure_token)
+
     # check WDS data was cloned
     wds_url = poll_for_app_url(ws, "wds", azure_token)
     check_wds_data(wds_url, ws, "student", azure_token)
 
     if run_workflow:
         # next trigger a workflow in each of the workspaces, at this time this doesnt monitor if this was succesful or not
-        start_cbas(ws, header)
         method_id = add_workflow_method(ws, azure_token)
         submit_workflow(ws, "resources/calculate_gpa_run.json", azure_token, method_id)
 
