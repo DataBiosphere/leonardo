@@ -438,13 +438,15 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
     resources
       .map(_.map { case (resource, quantity) =>
         Map(
-          AppResourcesMetric(cloudContext.cloudProvider,
-                             app.appType,
-                             ServiceName(service),
-                             getRuntimeUI(app.labels),
-                             getAzureCloudContext(cloudContext),
-                             requestOrLimit,
-                             resource
+          AppResourcesMetric(
+            cloudContext.cloudProvider,
+            app.appType,
+            ServiceName(service),
+            getRuntimeUI(app.labels),
+            getAzureCloudContext(cloudContext),
+            requestOrLimit,
+            resource,
+            app.chart
           ) -> quantity.getNumber.doubleValue() // TODO are units consistent?
         )
       })
@@ -512,7 +514,8 @@ object LeoMetric {
                                       runtimeUI: RuntimeUI,
                                       azureCloudContext: Option[AzureCloudContext],
                                       requestOrLimit: String,
-                                      k8sResource: String
+                                      k8sResource: String,
+                                      chart: Chart
   ) extends LeoMetric {
     override def name: String = "leoAppResources"
     override def tags: Map[String, String] = Map(
@@ -522,7 +525,8 @@ object LeoMetric {
       "uiClient" -> runtimeUI.asString,
       "azureCloudContext" -> azureCloudContext.map(_.asString).getOrElse(""),
       "requestOrLimit" -> requestOrLimit,
-      "k8sResource" -> k8sResource
+      "k8sResource" -> k8sResource,
+      "chart" -> chart.toString
     )
   }
 
