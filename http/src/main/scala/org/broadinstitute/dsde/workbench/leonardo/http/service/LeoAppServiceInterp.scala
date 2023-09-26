@@ -757,6 +757,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
     _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
+    // use this as example!!
+    // do app.appType, filter by WORKFLOWS_APP type. Should error out if there != 1 instance.
+    // use app.appResources
     allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
     apps = allClusters
       .flatMap(_.nodepools)

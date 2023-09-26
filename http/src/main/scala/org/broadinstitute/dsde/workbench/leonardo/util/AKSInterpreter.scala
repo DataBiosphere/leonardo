@@ -96,6 +96,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       app = dbApp.app
       namespacePrefix = app.appResources.namespace.name.value
 
+      // 1. find the app of type WORKFLOWS_APP in this workspace, find the namespace prefix
+      // 2. name of the db is cromwellmetadata_<prefix>
+
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString} [mspector-debug]"
       )
@@ -127,6 +130,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(
         s"params.storageContainer ${params.storageContainer} [mspector-debug]"
       )
+
+      allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(params.workspaceId), Map.empty).transaction
+      apps = allClusters
+        .flatMap(_.nodepools)
+        .flatMap(n => n.apps)
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"apps ${apps} [mspector-debug]"
+      )      
 
       // Create WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
