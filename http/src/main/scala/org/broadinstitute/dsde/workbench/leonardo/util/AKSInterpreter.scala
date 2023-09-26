@@ -814,7 +814,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(
-        s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+        s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value} [mspector-debug]"
       )
 
       // Build WSM client
@@ -844,10 +844,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ = identity.foreach(createNamespaceParams.setManagedIdentity)
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"appExternalDatabaseNames for app ${app.appName.value}: $appExternalDatabaseNames [mspector-debug]"
+        s"appExternalDatabaseNames for app ${app.appName.value}: ${appExternalDatabaseNames} [mspector-debug]"
       )
       _ <- logger.info(ctx.loggingCtx)(
-        s"createNamespaceParams for app ${app.appName.value}: $createNamespaceParams [mspector-debug]"
+        s"createNamespaceParams for app ${app.appName.value}: ${createNamespaceParams} [mspector-debug]"
       )
 
       // Build request
