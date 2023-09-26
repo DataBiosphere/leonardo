@@ -70,7 +70,7 @@ jobs:
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}", "log-results": "${{ needs.init-github-context.outputs.log-results }}", "test-context": "${{ needs.init-github-context.outputs.test-context }}", "caller_run_id": "${{ github.run_id }}" }'
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
 
       - name: Render Leo version
         id: render-leo-version
@@ -116,7 +116,7 @@ jobs:
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
-          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17", "ref": "${{ needs.init-github-context.outputs.branch }}" }'
+          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17", "ref": "${{ needs.init-github-context.outputs.branch }}", "log-results": "${{ needs.init-github-context.outputs.log-results }}", "test-context": "${{ needs.init-github-context.outputs.test-context }}", "caller_run_id": "${{ github.run_id }}" }'
 
   destroy-bee-workflow:
     runs-on: ubuntu-latest
