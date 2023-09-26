@@ -2,6 +2,10 @@
 set -e
 # Log output is saved at /var/log/azure_vm_init_script.log
 
+# DEBUGGING - adding timestamps to each command executed
+PS4='TIMING: $LINENO: $(date "+%s")\011 '
+set -x
+
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
 # This is to avoid the error Ref BioC
