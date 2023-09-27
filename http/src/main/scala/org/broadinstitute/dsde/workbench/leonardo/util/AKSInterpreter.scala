@@ -310,8 +310,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Get the optional storage container for the workspace
       storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, leoAuth)
 
-      // Build WSM client
+      // Build WSM clients
       wsmApi <- buildWsmControlledResourceApiClient
+      wsmResourceApi <- buildWsmResourceApiClient
+
+      // get external reference database names from WSM
+      wsmResourceDatabases <- F.delay(
+        wsmResourceApi
+          .enumerateResources(params.workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
+          .getResources
+          .asScala
+          .toList
+      )
+      referenceResourceDatabaseNames = wsmResourceDatabases
+        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
+        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
 
       // Call WSM to get the managed identity for the app.
       // This is optional because a WSM identity is only created for shared apps.
@@ -390,7 +403,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDbNames.map(_.getAttributes.getDatabaseName),
+        wsmDbNames.map(_.getAttributes.getDatabaseName) ++ referenceResourceDatabaseNames,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
