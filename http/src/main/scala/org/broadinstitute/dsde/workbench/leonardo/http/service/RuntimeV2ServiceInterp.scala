@@ -543,7 +543,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
         .flatMap(ids => F.pure(ids.map(_.resourceId)))
       readerProjectIds: List[String] <- authProvider
-        .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
+        .getAuthorizedIds[ProjectSamResourceId](isOwner = false, userInfo)
         .flatMap(ids => F.pure(ids.map(_.resourceId)))
       ownerProjectIds: List[String] <- authProvider
         .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)

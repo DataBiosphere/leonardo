@@ -378,9 +378,9 @@ object RuntimeServiceDbQueries {
         filterWorkspaceId ++
         filterCloud ++
         filterNotExcludedStatus ++ filterCreator
-    ).filterNot(_.isEmpty).mkString(" AND ")
+    ).filterNot(_.isEmpty).mkString(") AND (")
 
-    val whereFilterClusters = if (filterClusters.isEmpty) "" else s"where ${filterClusters}"
+    val whereFilterClusters = if (filterClusters.isEmpty) "" else s"where (${filterClusters})"
 
     val whereFilterLabels =
       if (labelMap.isEmpty)
@@ -661,7 +661,7 @@ object RuntimeServiceDbQueries {
                                   ownerGoogleProjectIds: List[String]
   ): List[String] = {
     // is the record a readable runtime?
-    val filterRuntimeIds = getInListExpression("C.`id`", readerRuntimeIds)
+    val filterRuntimeIds = getInListExpression("C.`internalId`", readerRuntimeIds)
     // is the record in a readable workspace?
     val filterReaderWorkspaceIds = getInListExpression("C.`workspaceId`", readerWorkspaceIds)
     // is the record in a readable Google project?
@@ -685,7 +685,7 @@ object RuntimeServiceDbQueries {
     if (projectIds.isEmpty)
       "0 = 1"
     else
-      s"C.`cloudProvider` = ${CloudProvider.Gcp} AND ${getInListExpression("C.`cloudContext`", projectIds)}"
+      s"C.`cloudProvider` = '${CloudProvider.Gcp}' AND ${getInListExpression("C.`cloudContext`", projectIds)}"
 
   private def getInListExpression(field: String, terms: List[String]): String =
     if (terms.isEmpty) "0 = 1" else s"${field} IN('${terms.mkString("','")}')"

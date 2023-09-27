@@ -1588,8 +1588,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(runtimeId1))
       samResource2 <- IO(RuntimeSamResourceId(runtimeId2))
-      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(
+      // GCP runtime
+      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
+      // Azure runtime
+      runtime2 <- IO(
         makeCluster(2)
           .copy(
             samResource = samResource2,
