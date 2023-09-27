@@ -300,6 +300,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
 
       app = dbApp.app
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
 
       // Grab the LZ and storage container information associated with the workspace
       leoAuth <- samDao.getLeoAuthToken
@@ -317,7 +318,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // get external reference database names from WSM
       wsmResourceDatabases <- F.delay(
         wsmResourceApi
-          .enumerateResources(params.workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
+          .enumerateResources(workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
           .getResources
           .asScala
           .toList
