@@ -92,10 +92,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       app = dbApp.app
       namespacePrefix = app.appResources.namespace.name.value
-      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+
       _ <- logger.info(ctx.loggingCtx)(
-        s"referenceDatabaseNames ${referenceDatabaseNames} [mspector-debug]"
+        s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
+
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
 
       // build WSM resource client
       wsmResourceApi <- buildWsmResourceApiClient
@@ -109,10 +111,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       referenceResourceDatabaseNames = wsmResourceDatabases
         .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
         .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"referenceResourceDatabaseNames ${referenceResourceDatabaseNames} [mspector-debug]"
-      )
 
       // Create WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
@@ -135,10 +133,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
-      _ <- logger.info(ctx.loggingCtx)(
-        s"wsmCreatedDatabases ${wsmCreatedDatabases} [mspector-debug]"
-      )
-
       // Create WSM kubernetes namespace
       wsmNamespace <- childSpan("createWsmKubernetesNamespaceResource").use { implicit ev =>
         createWsmKubernetesNamespaceResource(
@@ -149,10 +143,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
         )
       }
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"app.appType.databases ${app.appType.databases} [mspector-debug]"
-      )
 
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
@@ -200,7 +190,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Relay listener values for app ${params.appName.value} are ${values.asString} [mspector-debug]"
+        s"Relay listener values for app ${params.appName.value} are ${values.asString}"
       )
 
       // Install listener helm chart
@@ -217,9 +207,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       createdDatabaseNames = wsmCreatedDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName)
-      _ <- logger.info(ctx.loggingCtx)(
-        s"createdDatabaseNames ${createdDatabaseNames} [mspector-debug]"
-      )
 
       // Build app helm values
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
@@ -235,10 +222,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Helm Override values for app ${params.appName.value} are ${values.asString} [mspector-debug]"
-      )
 
       // Install app chart
       _ <- childSpan("helmInstallApp").use { _ =>
@@ -833,7 +816,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(
-        s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value} [mspector-debug]"
+        s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
       )
 
       // Build WSM client
@@ -861,13 +844,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .namespacePrefix(namespacePrefix)
         .databases((databases ++ appExternalDatabaseNames).asJava)
       _ = identity.foreach(createNamespaceParams.setManagedIdentity)
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"appExternalDatabaseNames for app ${app.appName.value}: ${appExternalDatabaseNames} [mspector-debug]"
-      )
-      _ <- logger.info(ctx.loggingCtx)(
-        s"createNamespaceParams for app ${app.appName.value}: ${createNamespaceParams} [mspector-debug]"
-      )
 
       // Build request
       createNamespaceJobControl = new JobControl().id(namespacePrefix)
