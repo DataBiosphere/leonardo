@@ -2,6 +2,8 @@
 set -e
 # Log output is saved at /var/log/azure_vm_init_script.log
 
+echo "TIMING: setup TIMING support"
+
 # DEBUGGING - adding timestamps to each command executed
 PS4='TIMING: $LINENO: $(date "+%s")\011 '
 set -x
