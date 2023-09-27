@@ -137,5 +137,4 @@ class AzureRuntimeSpec
       } yield ()
     res.unsafeRunSync()
   }
-
 }
