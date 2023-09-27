@@ -58,7 +58,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
       // Databases required for Cromwell App
       dbNames <- F.fromOption(toCromwellRunnerAppDatabaseNames(params.databaseNames),
-                              AppCreationException("Database names required for Cromwell Runner app", Some(ctx.traceId))
+                              AppCreationException(s"Database names required for Cromwell Runner app: ${params.databaseNames}", Some(ctx.traceId))
       )
 
       // Postgres server required for Cromwell App
@@ -119,7 +119,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         // convention is that the database user is the same as the service account name
         raw"postgres.user=${params.ksaName.value}",
         raw"postgres.dbnames.cromwell=${dbNames.cromwell}",
-        raw"postgres.dbnames.tes=${dbNames.tes}"
+        raw"postgres.dbnames.tes=${dbNames.tes}",
+        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}"
       )
     } yield Values(values.mkString(","))
 
@@ -127,8 +128,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
     cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false)
 
   private def toCromwellRunnerAppDatabaseNames(dbNames: List[String]): Option[CromwellRunnerAppDatabaseNames] =
-    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("tes")))
+    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("tes")),  dbNames.find(_.startsWith("cromwellmetadata")))
       .mapN(CromwellRunnerAppDatabaseNames)
 }
 
-final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String)
+final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellMetadata: String)

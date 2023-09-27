@@ -234,7 +234,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        createdDatabaseNames,
+        createdDatabaseNames + referenceResourceDatabaseNames,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
