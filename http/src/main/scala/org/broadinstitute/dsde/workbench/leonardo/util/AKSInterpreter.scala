@@ -74,9 +74,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private def getListenerReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-listener-rls")
 
-  private def getNamespaceDbName(database: CreateDatabase, namespacePrefix: String): String =
-    s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
-
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -752,7 +749,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     // Build create DB request
 
     // Name of the database. Must be unique per landing zone.
-    val dbName = getNamespaceDbName(database, namespacePrefix)
+    val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
 
     // Name of the WSM resource. Must be unique per workspace.
     // For shared apps, name it by the databasePrefix so it's semantically meaningful.
