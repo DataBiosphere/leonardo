@@ -677,7 +677,7 @@ object RuntimeServiceDbQueries {
     val filterOwner = s"${filterOwnerWorkspaceIds} OR ${filterOwnerGoogleProjectIds}"
 
     // is the runtime visible via direct read permissions or inference from container ownership?
-    val filterVisibleIds = s"${filterReader} OR ${filterOwner}"
+    val filterVisibleIds = s"(${filterReader}) OR (${filterOwner})"
     List(filterVisibleIds)
   }
 
