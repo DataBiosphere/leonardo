@@ -32,11 +32,11 @@ ENV NGINX_VERSION 4.3.0
 ENV CROMWELL_CHART_VERSION 0.2.353
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.353
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
-ENV CROMWELL_RUNNER_APP_VERSION 0.25.0
+ENV CROMWELL_RUNNER_APP_VERSION 0.22.0
 # WORKFLOWS APP comment to prevent merge conflicts
-ENV WORKFLOWS_APP_VERSION 0.38.0
+ENV WORKFLOWS_APP_VERSION 0.37.0
 # WDS CHART comment to prevent merge conflicts
-ENV WDS_CHART_VERSION 0.45.0
+ENV WDS_CHART_VERSION 0.44.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.2.0
 ENV SAS_CHART_VERSION 0.1.0
@@ -68,6 +68,9 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also caching charts so they are not downloaded with every helm-install
+
+COPY ./cromwell-runner-app-0.23.0.tgz /leonardo
+RUN tar -xzf /leonardo/cromwell-runner-app-0.23.0.tgz -C /leonardo
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
@@ -78,7 +81,6 @@ RUN cd /leonardo && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
     helm pull terra-helm/workflows-app --version $WORKFLOWS_APP_VERSION --untar && \
-    helm pull terra-helm/cromwell-runner-app --version $CROMWELL_RUNNER_APP_VERSION --untar && \
     helm pull aou-rstudio-chart/aou-rstudio-chart --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull aou-sas-chart/aou-sas-chart --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
