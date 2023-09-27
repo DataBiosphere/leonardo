@@ -122,7 +122,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Create WSM databases
-      wsmCreatedDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
+      wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
         createWsmDatabaseResources(
           app,
           app.appType,
@@ -139,7 +139,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           app,
           params.workspaceId,
           namespacePrefix,
-          wsmCreatedDatabases.map(_.getAzureDatabase.getMetadata.getName),
+          wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
           wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
         )
       }
@@ -206,8 +206,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .run(authContext)
       }
 
-      createdDatabaseNames = wsmCreatedDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName)
-
       // Build app helm values
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
@@ -218,7 +216,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        createdDatabaseNames ++ referenceResourceDatabaseNames,
+        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName) ++ referenceResourceDatabaseNames,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
