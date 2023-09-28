@@ -18,7 +18,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
   )
 
   it should "build cromwell-runner override values" in {
-    val params = buildHelmOverrideValuesParams(List("cromwell1", "tes1"))
+    val params = buildHelmOverrideValuesParams(List("cromwell1", "tes1", "cromwellmetadata1"))
 
     val overrides = cromwellRunnerAppInstall.buildHelmOverrideValues(params)
 
@@ -51,7 +51,8 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=cromwell1," +
-      s"postgres.dbnames.tes=tes1"
+      s"postgres.dbnames.tes=tes1," +
+      s"postgres.dbnames.cromwellMetadata=cromwellmetadata1"
   }
 
   it should "fail if there is no storage container" in {
