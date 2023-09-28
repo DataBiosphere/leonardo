@@ -412,6 +412,27 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     mockSam.apps.get((sharedAppSamId, projectOwnerAuthHeader)) shouldBe None
   }
 
+  it should "get authorized IDs" in {
+    val petRuntime = RuntimeSamResourceId("pet_runtime")
+    mockSam.createResourceAsGcpPet(petRuntime, userEmail2, project).unsafeRunSync()
+
+    samAuthProvider
+      .getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
+      .unsafeRunSync() shouldBe List(
+      runtimeSamResource
+    )
+
+    samAuthProvider
+      .getAuthorizedIds[RuntimeSamResourceId](isOwner = true, userInfo)
+      .unsafeRunSync() shouldBe List(
+      runtimeSamResource
+    )
+
+    samAuthProvider
+      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
+      .unsafeRunSync() shouldBe List.empty
+  }
+
   it should "filter user visible resources" in {
     // positive tests
     val newRuntime = RuntimeSamResourceId("new_runtime")
