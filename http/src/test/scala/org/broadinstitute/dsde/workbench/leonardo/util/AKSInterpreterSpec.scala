@@ -674,7 +674,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
       resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata"))
-      resourceDesc.resourceAttributes(new ResourceAttributesUnion().azureDatabase(new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
+        )
+      )
       resourceList.add(resourceDesc)
       new ResourceList().resources(resourceList)
     }
