@@ -8,12 +8,13 @@ import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.mock._
-import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesClusterNotFoundException}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GKEModels, KubernetesClusterNotFoundException}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   kubernetesClusterQuery,
   nodepoolQuery,
@@ -22,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -30,10 +31,17 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import java.nio.file.Files
 import java.util.Base64
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
 
 class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {
-  val googleIamDao = new MockGoogleIamDAO
+  val googleIamDao = new MockGoogleIamDAO {
+    override def addIamPolicyBindingOnServiceAccount(serviceAccountProject: GoogleProject,
+                                                     serviceAccountEmail: WorkbenchEmail,
+                                                     memberEmail: WorkbenchEmail,
+                                                     rolesToAdd: Set[String]
+    ): Future[Unit] = Future.unit
+  }
 
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
@@ -202,7 +210,10 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "startAndPollApp properly" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Stopping).save()
+    val chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+    val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Allowed, chart = chart.get)
+      .copy(status = AppStatus.Stopping)
+      .save()
 
     val res = for {
       _ <- gkeInterp.startAndPollApp(
@@ -212,12 +223,16 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .getFullAppById(savedCluster1.cloudContext, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
+      appUsageRows <- getAllAppUsage.transaction
     } yield {
       getApp.app.errors.size shouldBe 0
       getApp.app.status shouldBe AppStatus.Running
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getApp.nodepool.autoscalingEnabled shouldBe true
       getApp.nodepool.numNodes shouldBe NumNodes(2)
+      val appUsage = appUsageRows.headOption.get
+      appUsage.appId shouldBe (getApp.app.id)
+      appUsage.stopTime shouldBe dummyDate
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -307,6 +322,48 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         s"CreateCluster was called with nodepools that are not present in the database for cluster ${savedCluster1.getClusterId.toString}"
       )
     ))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "createAndPollApp properly" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
+    val disk = makePersistentDisk(Some(DiskName("d1"))).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+    val savedApp1 = makeApp(1,
+                            savedNodepool1.id,
+                            appType = AppType.Allowed,
+                            chart = chart.get,
+                            disk = Some(disk),
+                            kubernetesServiceAccountName = Some(ServiceAccountName("ksa"))
+    )
+      .copy(status = AppStatus.Stopping)
+      .save()
+
+    val res = for {
+      _ <- gkeInterp.createAndPollApp(
+        CreateAppParams(savedApp1.id,
+                        savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                        savedApp1.appName,
+                        None
+        )
+      )
+      getAppOpt <- KubernetesServiceDbQueries
+        .getFullAppById(savedCluster1.cloudContext, savedApp1.id)
+        .transaction
+      getApp = getAppOpt.get
+      appUsageRows <- getAllAppUsage.transaction
+    } yield {
+      getApp.app.errors.size shouldBe 0
+      getApp.app.status shouldBe AppStatus.Running
+      getApp.nodepool.status shouldBe NodepoolStatus.Running
+      getApp.nodepool.autoscalingEnabled shouldBe true
+      getApp.nodepool.numNodes shouldBe NumNodes(2)
+      val appUsage = appUsageRows.headOption.get
+      appUsage.appId shouldBe (getApp.app.id)
+      appUsage.stopTime shouldBe dummyDate
+    }
+
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
