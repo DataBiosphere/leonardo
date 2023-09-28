@@ -1946,9 +1946,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       runtime1 <- IO(
         makeCluster(1)
-          .copy(samResource = samResource1, workspaceId = Some(workspaceId1), status = RuntimeStatus.Deleted)
+          .copy(samResource = samResource1, workspaceId = Some(workspaceId1))
           .save()
       )
+      _ <- setRuntimetoDeleted(workspaceId1, runtime1.runtimeName)
+
       _ <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
       listResponse1 <- testService.listRuntimes(userInfo,
