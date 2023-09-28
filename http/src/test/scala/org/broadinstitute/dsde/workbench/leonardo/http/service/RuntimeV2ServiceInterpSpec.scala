@@ -10,48 +10,32 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.azure.{ContainerName, RelayNamespace}
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   projectSamResourceDecoder,
   runtimeSamResourceDecoder,
   workspaceSamResourceIdDecoder
 }
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
 }
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
+import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
   runtimeSamResourceAction,
   workspaceSamResourceAction
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
-  ProjectSamResource,
-  RuntimeSamResource,
-  WorkspaceResource
-}
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
-import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
-import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  MockWsmClientProvider,
-  MockWsmDAO,
-  StorageContainerResponse,
-  WsmApiClientProvider,
-  WsmDao
-}
-import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
-  ProjectSamResource,
-  RuntimeSamResource,
-  WorkspaceResource
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, _}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -60,18 +44,17 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers.any
-import org.mockito.ArgumentMatchers.{eq => isEq}
+import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.stubbing.Answer
 
 class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val serviceConfig = RuntimeServiceConfig(
@@ -98,14 +81,14 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val wsmClientProvider = new MockWsmClientProvider(wsmResourceApi)
 
   // used when we care about queue state
-  def makeInterp(queue: Queue[IO, LeoPubsubMessage],
-                 allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
+  def makeInterp(queue: Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue(),
+                 authProvider: AllowlistAuthProvider = allowListAuthProvider,
                  wsmDao: WsmDao[IO] = wsmDao,
                  dateAccessedQueue: Queue[IO, UpdateDateAccessMessage] = QueueFactory.makeDateAccessedQueue(),
                  wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   allowlistAuthProvider,
+                                   authProvider,
                                    wsmDao,
                                    mockSamDAO,
                                    queue,
@@ -125,6 +108,72 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .completeDeletion(runtime.id, now)
         .transaction
     } yield runtime.id
+
+  /**
+   * Generate a mocked AuthProvider which will permit action on the given resource IDs by the given user.
+   * TODO: cover actions beside `checkUserEnabled` and `getAuthorizedIds`
+   * @param userInfo
+   * @param readerRuntimeSamIds
+   * @param readerWorkspaceSamIds
+   * @param readerProjectSamIds
+   * @param ownerWorkspaceSamIds
+   * @param ownerProjectSamIds
+   * @return
+   */
+  def mockAuthorize(userInfo: UserInfo,
+                    readerRuntimeSamIds: List[RuntimeSamResourceId] = List.empty,
+                    readerWorkspaceSamIds: List[WorkspaceResourceSamResourceId] = List.empty,
+                    readerProjectSamIds: List[ProjectSamResourceId] = List.empty,
+                    ownerWorkspaceSamIds: List[WorkspaceResourceSamResourceId] = List.empty,
+                    ownerProjectSamIds: List[ProjectSamResourceId] = List.empty
+  ): AllowlistAuthProvider = {
+    val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
+
+    when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
+    when(
+      mockAuthProvider.getAuthorizedIds[RuntimeSamResourceId](isEq(false), isEq(userInfo))(
+        any(runtimeSamResourceAction.getClass),
+        any(Decoder[RuntimeSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerRuntimeSamIds))
+    when(
+      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
+        any(workspaceSamResourceAction.getClass),
+        any(Decoder[WorkspaceResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerWorkspaceSamIds))
+    when(
+      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(readerProjectSamIds))
+    when(
+      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(true), isEq(userInfo))(
+        any(workspaceSamResourceAction.getClass),
+        any(Decoder[WorkspaceResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(ownerWorkspaceSamIds))
+    when(
+      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(ownerProjectSamIds))
+
+    mockAuthProvider
+  }
+
+  def mockUserInfo(email: String = userEmail.toString()): UserInfo =
+    UserInfo(OAuth2BearerToken(""), WorkbenchUserId(s"userId-${email}"), WorkbenchEmail(email), 0)
 
   val runtimeV2Service =
     new RuntimeV2ServiceInterp[IO](
@@ -1035,8 +1084,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
+    val azureService = makeInterp()
 
     val res = for {
       _ <- azureService
@@ -1541,55 +1589,20 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val projectIdGcp = cloudContextGcp.asString
     val workspaceIdAzure = UUID.randomUUID.toString
 
-    val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
-    when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
-    when(
-      mockAuthProvider.getAuthorizedIds[RuntimeSamResourceId](isEq(false), isEq(userInfo))(
-        any(runtimeSamResourceAction.getClass),
-        any(Decoder[RuntimeSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(List(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2))))
-    when(
-      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
-        any(workspaceSamResourceAction.getClass),
-        any(Decoder[WorkspaceResourceSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure))))))
-    when(
-      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
-        any(projectSamResourceAction.getClass),
-        any(Decoder[ProjectSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      List(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2)),
+      List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure)))),
+      List(ProjectSamResourceId(GoogleProject(projectIdGcp)))
     )
-      .thenReturn(IO.pure(List(ProjectSamResourceId(GoogleProject(projectIdGcp)))))
-    when(
-      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(true), isEq(userInfo))(
-        any(workspaceSamResourceAction.getClass),
-        any(Decoder[WorkspaceResourceSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    )
-      .thenReturn(IO.pure(List.empty))
-    when(
-      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
-        any(projectSamResourceAction.getClass),
-        any(Decoder[ProjectSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    )
-      .thenReturn(IO.pure(List.empty))
 
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val testService = makeInterp(publisherQueue, mockAuthProvider)
+    val testService = makeInterp(authProvider = mockAuthProvider)
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(runtimeId1))
       samResource2 <- IO(RuntimeSamResourceId(runtimeId2))
       // GCP runtime
-      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
+      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = workspaceIdOpt).save())
       // Azure runtime
       runtime2 <- IO(
         makeCluster(2)
@@ -1601,112 +1614,349 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .save()
       )
       listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
-    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+    } yield {
+      listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+      listResponse.head shouldBe ListRuntimeResponse2(
+        id = runtime1.id,
+        workspaceId = workspaceIdOpt,
+        samResource = runtime1.samResource,
+        clusterName = runtime1.runtimeName,
+        cloudContext = runtime1.cloudContext,
+        auditInfo = runtime1.auditInfo,
+        runtimeConfig = defaultDataprocRuntimeConfig,
+        proxyUrl =
+          Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, runtime1.runtimeName, Set(jupyterImage), None, Map.empty),
+        runtime1.status,
+        runtime1.labels,
+        runtime1.patchInProgress
+      )
+    }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail to list runtimes if user loses access to workspace" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allowlisted
+  it should "list runtimes, omitting runtimes for workspaces and projects user cannot read" taggedAs SlickPlainQueryTest in isolatedDbTest {
+    val runtimeId1 = UUID.randomUUID.toString
+    val runtimeId2 = UUID.randomUUID.toString
+    val runtimeId3 = UUID.randomUUID.toString
+    val runtimeId4 = UUID.randomUUID.toString
+    val projectIdGcp1 = "gcp-context-1"
+    val projectIdGcp2 = "gcp-context-2"
+    val workspaceIdAzure1 = UUID.randomUUID.toString
+    val workspaceIdAzure2 = UUID.randomUUID.toString
+
+    val userInfo = mockUserInfo("jerome@vore.gov")
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      // user can read all runtimes
+      List(RuntimeSamResourceId(runtimeId1),
+           RuntimeSamResourceId(runtimeId2),
+           RuntimeSamResourceId(runtimeId3),
+           RuntimeSamResourceId(runtimeId4)
+      ),
+      // user can only read workspace1
+      List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure1)))),
+      // user can only read project1
+      List(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
+    )
+    val testService = makeInterp(authProvider = mockAuthProvider)
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(
-        makeCluster(2)
-          .copy(samResource = samResource2, cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+      // GCP runtime 1 (in project1): seen
+      samResource1 <- IO(RuntimeSamResourceId(runtimeId1))
+      runtime1 <- IO(
+        makeCluster(1)
+          .copy(samResource = samResource1, cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1)))
           .save()
       )
-      listResponse <- runtimeV2Service2.listRuntimes(userInfo, None, None, Map.empty)
-    } yield listResponse.map(_.samResource).toSet shouldBe Set()
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "list runtimes with a workspace" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allowlisted
-    val workspace = Some(workspaceId)
-
-    val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      _ <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = workspace).save())
-      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      listResponse <- runtimeV2Service.listRuntimes(userInfo, workspace, None, Map.empty)
-    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "list runtimes with a workspace and cloudContext" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allowlisted
-    val workspace = Some(workspaceId)
-
-    val workspace2 = Some(WorkspaceId(UUID.randomUUID()))
-
-    val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource3 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      _ <- IO(
-        makeCluster(1)
-          .copy(samResource = samResource1,
-                workspaceId = workspace,
-                cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
+      // GCP runtime 2 (in project2): hidden
+      samResource2 <- IO(RuntimeSamResourceId(runtimeId2))
+      runtime2 <- IO(
+        makeCluster(2)
+          .copy(samResource = samResource2, cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp2)))
+          .save()
+      )
+      // Azure runtime 2 (in workspace1): seen
+      samResource3 <- IO(RuntimeSamResourceId(runtimeId3))
+      runtime3 <- IO(
+        makeCluster(3)
+          .copy(
+            samResource = samResource3,
+            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext),
+            workspaceId = Some(WorkspaceId(UUID.fromString(workspaceIdAzure1)))
           )
           .save()
       )
+      // Azure runtime 3 (in workspace2): hidden
+      samResource4 <- IO(RuntimeSamResourceId(runtimeId4))
+      runtime4 <- IO(
+        makeCluster(4)
+          .copy(
+            samResource = samResource4,
+            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext),
+            workspaceId = Some(WorkspaceId(UUID.fromString(workspaceIdAzure2)))
+          )
+          .save()
+      )
+      listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource3)
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "list runtimes given different user permissions" taggedAs SlickPlainQueryTest in isolatedDbTest {
+    forAll(
+      Table(
+        ("context", "runtimeAccess", "contextAccess", "isListed"),
+        // Any runtime access; no access to wrapper context => hidden
+        (TestContext.GoogleProject, TestRuntimeAccess.Nothing, TestContextAccess.Nothing, false),
+        (TestContext.GoogleWorkspace, TestRuntimeAccess.Nothing, TestContextAccess.Nothing, false),
+        (TestContext.AzureWorkspace, TestRuntimeAccess.Nothing, TestContextAccess.Nothing, false),
+        (TestContext.GoogleProject, TestRuntimeAccess.Reader, TestContextAccess.Nothing, false),
+        (TestContext.GoogleWorkspace, TestRuntimeAccess.Reader, TestContextAccess.Nothing, false),
+        (TestContext.AzureWorkspace, TestRuntimeAccess.Reader, TestContextAccess.Nothing, false),
+        // No access to runtime; read access to wrapper context => hidden
+        (TestContext.GoogleProject, TestRuntimeAccess.Nothing, TestContextAccess.Reader, false),
+        (TestContext.GoogleWorkspace, TestRuntimeAccess.Nothing, TestContextAccess.Reader, false),
+        (TestContext.AzureWorkspace, TestRuntimeAccess.Nothing, TestContextAccess.Reader, false),
+        // Read access to runtime; read access to wrapper context => shown
+        (TestContext.GoogleProject, TestRuntimeAccess.Reader, TestContextAccess.Reader, true),
+        (TestContext.GoogleWorkspace, TestRuntimeAccess.Reader, TestContextAccess.Reader, true),
+        (TestContext.AzureWorkspace, TestRuntimeAccess.Reader, TestContextAccess.Reader, true),
+        // Any runtime access; owner of wrapper context => shown
+        (TestContext.GoogleProject, TestRuntimeAccess.Nothing, TestContextAccess.Owner, true),
+        (TestContext.GoogleWorkspace, TestRuntimeAccess.Nothing, TestContextAccess.Owner, true),
+        (TestContext.AzureWorkspace, TestRuntimeAccess.Nothing, TestContextAccess.Owner, true),
+        (TestContext.GoogleProject, TestRuntimeAccess.Reader, TestContextAccess.Owner, true),
+        (TestContext.GoogleWorkspace, TestRuntimeAccess.Reader, TestContextAccess.Owner, true),
+        (TestContext.AzureWorkspace, TestRuntimeAccess.Reader, TestContextAccess.Owner, true)
+      )
+    ) {
+      (context: TestContext.Context,
+       runtimeAccess: TestRuntimeAccess.Role,
+       contextAccess: TestContextAccess.Role,
+       isListed: Boolean
+      ) =>
+        val runtimeId = UUID.randomUUID.toString
+        val contextId = UUID.randomUUID.toString
+
+        val userInfo = mockUserInfo("jerome@vore.gov")
+        val mockAuthProvider = mockAuthorize(
+          userInfo,
+          readerRuntimeSamIds = List(RuntimeSamResourceId(runtimeId))
+            .filter(_ => runtimeAccess == TestRuntimeAccess.Reader),
+          readerWorkspaceSamIds = List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(contextId))))
+            .filter(_ => context != TestContext.GoogleProject && contextAccess != TestContextAccess.Nothing),
+          readerProjectSamIds = List(ProjectSamResourceId(GoogleProject(contextId)))
+            .filter(_ => context == TestContext.GoogleProject && contextAccess != TestContextAccess.Nothing),
+          ownerWorkspaceSamIds = List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(contextId))))
+            .filter(_ => context != TestContext.GoogleProject && contextAccess == TestContextAccess.Owner),
+          ownerProjectSamIds = List(ProjectSamResourceId(GoogleProject(contextId)))
+            .filter(_ => context == TestContext.GoogleProject && contextAccess == TestContextAccess.Owner)
+        )
+        val testService = makeInterp(authProvider = mockAuthProvider)
+
+        val res = for {
+          projectRuntime <- IO(
+            makeCluster(1)
+              .copy(
+                samResource = RuntimeSamResourceId(runtimeId),
+                cloudContext = CloudContext.Gcp(GoogleProject(contextId))
+              )
+          )
+          googleWorkspaceRuntime <- IO(
+            makeCluster(2)
+              .copy(
+                samResource = RuntimeSamResourceId(runtimeId),
+                cloudContext = CloudContext.Gcp(GoogleProject(contextId)),
+                workspaceId = Some(WorkspaceId(UUID.fromString(contextId)))
+              )
+          )
+          azureWorkspaceRuntime <- IO(
+            makeCluster(3)
+              .copy(
+                samResource = RuntimeSamResourceId(runtimeId),
+                cloudContext = CloudContext.Azure(
+                  AzureCloudContext(TenantId(contextId), SubscriptionId(contextId), ManagedResourceGroupName(contextId))
+                ),
+                workspaceId = Some(WorkspaceId(UUID.fromString(contextId)))
+              )
+          )
+          runtime = context match {
+            case TestContext.GoogleProject   => projectRuntime
+            case TestContext.GoogleWorkspace => googleWorkspaceRuntime
+            case TestContext.AzureWorkspace  => azureWorkspaceRuntime
+          }
+          _ = runtime.save()
+          expectedResults = if (isListed) Set(runtime.samResource) else Set.empty
+
+          listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
+        } yield listResponse.map(_.samResource).toSet shouldBe expectedResults
+
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "list runtimes with a workspace and/or cloudProvider" taggedAs SlickPlainQueryTest in isolatedDbTest {
+    val runtimeId1 = UUID.randomUUID.toString
+    val runtimeId2 = UUID.randomUUID.toString
+    val runtimeId3 = UUID.randomUUID.toString
+    val runtimeId4 = UUID.randomUUID.toString
+    val runtimeId5 = UUID.randomUUID.toString
+    val projectIdGcp1 = "gcp-context-1"
+    val projectIdGcp2 = "gcp-context-2"
+    val workspaceId1 = UUID.randomUUID.toString
+    val workspaceId2 = UUID.randomUUID.toString
+    val workspaceId3 = UUID.randomUUID.toString
+
+    val userInfo = mockUserInfo("jerome@vore.gov")
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      // user can read runtimes 3, 4, and 5
+      List(RuntimeSamResourceId(runtimeId3), RuntimeSamResourceId(runtimeId4), RuntimeSamResourceId(runtimeId5)),
+      // user can read all workspaces
+      List(
+        WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1))),
+        WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId2))),
+        WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId3)))
+      ),
+      // user can read all projects
+      List(ProjectSamResourceId(GoogleProject(projectIdGcp1)), ProjectSamResourceId(GoogleProject(projectIdGcp2))),
+      // user owns workspace 1
+      List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1)))),
+      // user owns project 1
+      List(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
+    )
+    val testService = makeInterp(authProvider = mockAuthProvider)
+
+    val res = for {
+      samResource1 <- IO(RuntimeSamResourceId(runtimeId1))
+      samResource2 <- IO(RuntimeSamResourceId(runtimeId2))
+      samResource3 <- IO(RuntimeSamResourceId(runtimeId3))
+      samResource4 <- IO(RuntimeSamResourceId(runtimeId4))
+      samResource5 <- IO(RuntimeSamResourceId(runtimeId5))
+      workspace1 <- IO(WorkspaceId(UUID.fromString(workspaceId1)))
+      workspace2 <- IO(WorkspaceId(UUID.fromString(workspaceId2)))
+      workspace3 <- IO(WorkspaceId(UUID.fromString(workspaceId3)))
+
+      // hidden runtime 1, owned workspace 1, Azure
+      _ <- IO(
+        makeCluster(1)
+          .copy(
+            samResource = samResource1,
+            workspaceId = Some(workspace1),
+            cloudContext = CloudContext.Azure(
+              AzureCloudContext(TenantId(workspaceId1),
+                                SubscriptionId(workspaceId1),
+                                ManagedResourceGroupName(workspaceId1)
+              )
+            )
+          )
+          .save()
+      )
+      // hidden runtime 2, read workspace 2, owned project 1, Gcp
       _ <- IO(
         makeCluster(2)
           .copy(samResource = samResource2,
-                workspaceId = workspace2,
-                cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
+                workspaceId = Some(workspace2),
+                cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
           )
           .save()
       )
-      _ <- IO(makeCluster(3).copy(samResource = samResource3, workspaceId = workspace2).save())
-      listResponse1 <- runtimeV2Service.listRuntimes(userInfo, workspace, Some(CloudProvider.Azure), Map.empty)
-      listResponse2 <- runtimeV2Service.listRuntimes(userInfo, workspace2, Some(CloudProvider.Azure), Map.empty)
-      listResponse3 <- runtimeV2Service.listRuntimes(userInfo, workspace2, Some(CloudProvider.Gcp), Map.empty)
-      listResponse4 <- runtimeV2Service.listRuntimes(userInfo, workspace, Some(CloudProvider.Gcp), Map.empty)
+      // read runtime 3, read workspace 2, owned project 1, Gcp
+      _ <- IO(
+        makeCluster(3)
+          .copy(samResource = samResource3,
+                workspaceId = Some(workspace2),
+                cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
+          )
+          .save()
+      )
+      // read runtime 4, read workspace 3, Azure
+      _ <- IO(
+        makeCluster(4)
+          .copy(
+            samResource = samResource4,
+            workspaceId = Some(workspace3),
+            cloudContext = CloudContext.Azure(
+              AzureCloudContext(TenantId(workspaceId3),
+                                SubscriptionId(workspaceId3),
+                                ManagedResourceGroupName(workspaceId3)
+              )
+            )
+          )
+          .save()
+      )
+      // read runtime 5, read project 2, Gcp
+      _ <- IO(
+        makeCluster(5)
+          .copy(samResource = samResource5, cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp2)))
+          .save()
+      )
+
+      // Test the service call and pluck Sam resource IDs to compare with expected results
+      getResultIds = (userInfo: UserInfo,
+                      workspaceId: Option[WorkspaceId],
+                      cloudProvider: Option[CloudProvider],
+                      params: Map[String, String]
+      ) =>
+        testService
+          .listRuntimes(userInfo, workspaceId, cloudProvider, params)
+          .flatMap(result => IO(result.map(_.samResource).toSet))
+
+      responseIdsWorkspace1 <- getResultIds(userInfo, Some(workspace1), None, Map.empty)
+      responseIdsWorkspace2 <- getResultIds(userInfo, Some(workspace2), None, Map.empty)
+      responseIdsWorkspace3 <- getResultIds(userInfo, Some(workspace3), None, Map.empty)
+      responseIdsAzure <- getResultIds(userInfo, None, Some(CloudProvider.Azure), Map.empty)
+      responseIdsGcp <- getResultIds(userInfo, None, Some(CloudProvider.Gcp), Map.empty)
+      responseIdsAzureWorkspace1 <- getResultIds(userInfo, Some(workspace1), Some(CloudProvider.Azure), Map.empty)
+      responseIdsAzureWorkspace2 <- getResultIds(userInfo, Some(workspace2), Some(CloudProvider.Azure), Map.empty)
+      responseIdsGcpWorkspace1 <- getResultIds(userInfo, Some(workspace1), Some(CloudProvider.Gcp), Map.empty)
+      responseIdsGcpWorkspace2 <- getResultIds(userInfo, Some(workspace2), Some(CloudProvider.Gcp), Map.empty)
     } yield {
-      listResponse1.map(_.samResource).toSet shouldBe Set(samResource1)
-      listResponse2.map(_.samResource) shouldBe List(samResource2)
-      listResponse3.map(_.samResource) shouldBe List(samResource3)
-      listResponse4.isEmpty shouldBe true
+      responseIdsWorkspace1 shouldBe Set(samResource1)
+      responseIdsWorkspace2 shouldBe Set(samResource2, samResource3)
+      responseIdsWorkspace3 shouldBe Set(samResource4)
+      responseIdsAzure shouldBe Set(samResource1, samResource4)
+      responseIdsGcp shouldBe Set(samResource2, samResource3, samResource5)
+      responseIdsAzureWorkspace1 shouldBe Set(samResource1)
+      responseIdsAzureWorkspace2 shouldBe Set.empty
+      responseIdsGcpWorkspace1 shouldBe Set.empty
+      responseIdsGcpWorkspace2 shouldBe Set(samResource2, samResource3)
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes with parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allowlisted
-
+    val runtimeId1 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val workspaceId1 = WorkspaceId(UUID.randomUUID)
+    val userInfo = mockUserInfo("karen@styx.hel")
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      // can read all runtimes
+      List(runtimeId1, runtimeId2),
+      // can read all workspaces
+      List(WorkspaceResourceSamResourceId(workspaceId1))
+    )
+    val testService = makeInterp(authProvider = mockAuthProvider)
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource1 <- IO(runtimeId1)
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
+      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = Some(workspaceId1)).save())
+      _ <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
-      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map("foo" -> "bar"))
-    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
+      listResponse1 <- testService.listRuntimes(userInfo, None, None, Map("foo" -> "bar")) // hit
+      listResponse2 <- testService.listRuntimes(userInfo, None, None, Map("FOO" -> "BAR")) // hit, case insensitive
+      listResponse3 <- testService.listRuntimes(userInfo, None, None, Map("foo" -> "not-bar")) // miss value
+      listResponse4 <- testService.listRuntimes(userInfo, None, None, Map("not-foo" -> "bar")) // miss key
+    } yield {
+      listResponse1.map(_.samResource).toSet shouldBe Set(samResource1)
+      listResponse2.map(_.samResource).toSet shouldBe Set(samResource1)
+      listResponse3.map(_.samResource).toSet shouldBe Set.empty
+      listResponse4.map(_.samResource).toSet shouldBe Set.empty
+    }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1714,156 +1964,40 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
   it should "list runtimes belonging to other users" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allowlisted
+    val runtimeId1 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val workspaceId1 = WorkspaceId(UUID.randomUUID)
+    val userInfo = mockUserInfo("karen@styx.hel")
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      // can read all runtimes
+      List(runtimeId1, runtimeId2),
+      // can read workspace
+      List(WorkspaceResourceSamResourceId(workspaceId1)),
+      // owns workspace
+      ownerWorkspaceSamIds = List(WorkspaceResourceSamResourceId(workspaceId1))
+    )
+    val testService = makeInterp(authProvider = mockAuthProvider)
 
     // Make runtimes belonging to different users than the calling user
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      runtime1 = LeoLenses.runtimeToCreator.set(WorkbenchEmail("different_user1@example.com"))(
-        makeCluster(1).copy(samResource = samResource1)
+      samResource1 <- IO(runtimeId1)
+      samResource2 <- IO(runtimeId2)
+      runtime1 = LeoLenses.runtimeToCreator.replace(WorkbenchEmail("different_user1@example.com"))(
+        makeCluster(1).copy(samResource = samResource1, workspaceId = Some(workspaceId1))
       )
-      runtime2 = LeoLenses.runtimeToCreator.set(WorkbenchEmail("different_user2@example.com"))(
-        makeCluster(2).copy(samResource = samResource2)
+      runtime2 = LeoLenses.runtimeToCreator.replace(WorkbenchEmail("different_user2@example.com"))(
+        makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1))
       )
       _ <- IO(runtime1.save())
       _ <- IO(runtime2.save())
-      listResponse <- runtimeV2Service.listRuntimes(userInfo, None, None, Map.empty)
-    } yield
-    // Since the calling user is allowlisted in the auth provider, it should return
-    // the runtimes belonging to other users.
-    listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+      listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with labels" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    // create a couple of clusters
-    val clusterName1 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
-    val wsmJobId1 = WsmJobId("job1")
-    val req = defaultCreateAzureRuntimeReq.copy(
-      labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")
-    )
-    runtimeV2Service
-      .createRuntime(userInfo, clusterName1, workspaceId, false, req)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val setupControlledResource1 = for {
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), clusterName1)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-
-      cluster = clusterOpt.get
-    } yield ()
-    setupControlledResource1.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val runtime1 = runtimeV2Service
-      .getRuntime(userInfo, clusterName1, workspaceId)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val listRuntimeResponse1 = ListRuntimeResponse2(
-      runtime1.id,
-      Some(workspaceId),
-      runtime1.samResource,
-      runtime1.clusterName,
-      runtime1.cloudContext,
-      runtime1.auditInfo,
-      runtime1.runtimeConfig,
-      runtime1.clusterUrl,
-      runtime1.status,
-      runtime1.labels,
-      runtime1.patchInProgress
-    )
-
-    val clusterName2 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
-    val wsmJobId2 = WsmJobId("job2")
-    runtimeV2Service
-      .createRuntime(
-        userInfo2,
-        clusterName2,
-        workspaceId,
-        false,
-        req.copy(labels = Map("a" -> "b", "foo" -> "bar"),
-                 azureDiskConfig = req.azureDiskConfig.copy(name = AzureDiskName("disk2"))
-        )
-      )
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val setupControlledResource2 = for {
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), clusterName2)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-    } yield ()
-    setupControlledResource2.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val runtime2 = runtimeV2Service
-      .getRuntime(userInfo, clusterName2, workspaceId)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val listRuntimeResponse2 = ListRuntimeResponse2(
-      runtime2.id,
-      Some(workspaceId),
-      runtime2.samResource,
-      runtime2.clusterName,
-      runtime2.cloudContext,
-      runtime2.auditInfo,
-      runtime2.runtimeConfig,
-      runtime2.clusterUrl,
-      runtime2.status,
-      runtime2.labels,
-      runtime2.patchInProgress
-    )
-
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar"))
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .toSet shouldBe Set(
-      listRuntimeResponse1,
-      listRuntimeResponse2
-    )
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam=yes"))
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .toSet shouldBe Set(
-      listRuntimeResponse1
-    )
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
-      .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
-      .futureValue
-      .toSet shouldBe Set(listRuntimeResponse1)
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "a=b"))
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .toSet shouldBe Set(
-      listRuntimeResponse2
-    )
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "baz=biz"))
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .toSet shouldBe Set.empty
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "A=B"))
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .toSet shouldBe Set(
-      listRuntimeResponse2
-    ) // labels are not case sensitive because MySQL
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "foo%3Dbar"))
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-      .isInstanceOf[ParseLabelsException] shouldBe true
+  it should "list runtimes, rejecting invalid label parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
     runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar;bam=yes"))
       .attempt
@@ -1984,10 +2118,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val dateAccessedQueue = QueueFactory.makeDateAccessedQueue()
-    val azureService =
-      makeInterp(publisherQueue, allowListAuthProvider, dateAccessedQueue = dateAccessedQueue)
-    val azureService2 = makeInterp(publisherQueue, allowListAuthProvider2, dateAccessedQueue = dateAccessedQueue)
+    val azureService = makeInterp(publisherQueue)
+    val azureService2 = makeInterp(publisherQueue, allowListAuthProvider2)
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
@@ -2008,4 +2140,19 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
+}
+
+object TestContext extends Enumeration {
+  type Context = Value
+  val GoogleProject, GoogleWorkspace, AzureWorkspace = Value
+}
+
+object TestContextAccess extends Enumeration {
+  type Role = Value
+  val Nothing, Reader, Owner = Value
+}
+
+object TestRuntimeAccess extends Enumeration {
+  type Role = Value
+  val Nothing, Reader = Value
 }
