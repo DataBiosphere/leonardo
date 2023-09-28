@@ -1944,18 +1944,44 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val res = for {
       samResource1 <- IO(runtimeId1)
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = Some(workspaceId1)).save())
+      runtime1 <- IO(
+        makeCluster(1)
+          .copy(samResource = samResource1, workspaceId = Some(workspaceId1), status = RuntimeStatus.Deleted)
+          .save()
+      )
       _ <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
-      listResponse1 <- testService.listRuntimes(userInfo, None, None, Map("foo" -> "bar")) // hit
-      listResponse2 <- testService.listRuntimes(userInfo, None, None, Map("FOO" -> "BAR")) // hit, case insensitive
-      listResponse3 <- testService.listRuntimes(userInfo, None, None, Map("foo" -> "not-bar")) // miss value
-      listResponse4 <- testService.listRuntimes(userInfo, None, None, Map("not-foo" -> "bar")) // miss key
+      listResponse1 <- testService.listRuntimes(userInfo,
+                                                None,
+                                                None,
+                                                Map("foo" -> "bar", "includeDeleted" -> "true")
+      ) // hit
+      listResponse2 <- testService.listRuntimes(userInfo,
+                                                None,
+                                                None,
+                                                Map("FOO" -> "BAR", "includeDeleted" -> "true")
+      ) // hit, case insensitive
+      listResponse3 <- testService.listRuntimes(userInfo,
+                                                None,
+                                                None,
+                                                Map("foo" -> "not-bar", "includeDeleted" -> "true")
+      ) // miss value
+      listResponse4 <- testService.listRuntimes(userInfo,
+                                                None,
+                                                None,
+                                                Map("not-foo" -> "bar", "includeDeleted" -> "true")
+      ) // miss key
+      listResponse5 <- testService.listRuntimes(userInfo,
+                                                None,
+                                                None,
+                                                Map("foo" -> "bar")
+      ) // miss because includeDeleted defaults false
     } yield {
       listResponse1.map(_.samResource).toSet shouldBe Set(samResource1)
       listResponse2.map(_.samResource).toSet shouldBe Set(samResource1)
       listResponse3.map(_.samResource).toSet shouldBe Set.empty
       listResponse4.map(_.samResource).toSet shouldBe Set.empty
+      listResponse5.map(_.samResource).toSet shouldBe Set.empty
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
