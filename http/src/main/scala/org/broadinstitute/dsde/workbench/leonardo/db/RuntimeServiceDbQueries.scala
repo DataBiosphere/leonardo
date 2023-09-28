@@ -5,11 +5,7 @@ import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.Runtime
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  ProjectSamResourceId,
-  RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.GetResultInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._

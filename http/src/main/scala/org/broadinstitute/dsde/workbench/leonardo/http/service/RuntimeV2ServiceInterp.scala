@@ -4,41 +4,25 @@ package service
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
-import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  PersistentDiskSamResourceId,
-  ProjectSamResourceId,
-  RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId,
-  WsmResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-  projectSamResourceAction,
-  runtimeSamResourceAction,
-  workspaceSamResourceAction
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
-  ProjectSamResource,
-  RuntimeSamResource,
-  WorkspaceResource
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.workspaceSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
   StartRuntimeMessage,
   StopRuntimeMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
