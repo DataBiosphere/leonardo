@@ -195,7 +195,7 @@ class RuntimePatchSpec
   "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       val newMasterMachineType = MachineTypeName("n1-standard-2")
-      val newDiskSize = DiskSize(150)
+      val newDiskSize = DiskSize(180)
       val updateRuntimeRequest = UpdateRuntimeRequest(Some(
                                                         UpdateRuntimeConfigRequest.DataprocConfig(
                                                           Some(newMasterMachineType),
