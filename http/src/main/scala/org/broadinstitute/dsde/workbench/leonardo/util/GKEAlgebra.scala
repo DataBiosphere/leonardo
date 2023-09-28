@@ -32,25 +32,43 @@ trait GKEAlgebra[F[_]] {
    */
   def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Creates a GKE nodepool and polls it for completion */
+  /**
+   * Creates a GKE nodepool and polls it for completion.
+   */
   def createAndPollNodepool(params: CreateNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Creates an app and polls it for completion */
+  /**
+   * Creates an app and polls it for completion
+   * Update startTime for app usage tracking for certain apps.
+   */
   def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Deletes a cluster and polls for completion */
+  /**
+   * Deletes a cluster and polls for completion
+   */
   def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Deletes a nodepool and polls for completion */
+  /**
+   * Deletes a nodepool and polls for completion
+   */
   def deleteAndPollNodepool(params: DeleteNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Deletes an app and polls for completion */
+  /**
+   * Deletes an app and polls for completion
+   * Update stopTime for app usage tracking for certain apps.
+   */
   def deleteAndPollApp(params: DeleteAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Stops an app and polls for completion */
+  /**
+   * Stops an app and polls for completion
+   * Update stopTime for app usage tracking for certain apps.
+   */
   def stopAndPollApp(params: StopAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Starts an app and polls for completion */
+  /**
+   * Starts an app and polls for completion
+   * Update startTime for app usage tracking for certain apps.
+   */
   def startAndPollApp(params: StartAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
