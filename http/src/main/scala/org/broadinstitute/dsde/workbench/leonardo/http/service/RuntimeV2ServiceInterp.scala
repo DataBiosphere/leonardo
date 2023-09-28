@@ -10,13 +10,21 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  PersistentDiskSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId,
+  WsmResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+// do not remove `projectSamResourceAction`; it is implicit
   projectSamResourceAction,
+// do not remove `runtimeSamResourceAction`; it is implicit
   runtimeSamResourceAction,
+// do not remove `workspaceSamResourceAction`; it is implicit
   workspaceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
