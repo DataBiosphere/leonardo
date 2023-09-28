@@ -216,7 +216,7 @@ class RuntimePatchSpec
           RuntimeConfigRequest.DataprocConfig(
             None,
             Some(MachineTypeName("n1-standard-4")),
-            Some(DiskSize(131)),
+            Some(DiskSize(160)),
             None,
             None,
             None,
