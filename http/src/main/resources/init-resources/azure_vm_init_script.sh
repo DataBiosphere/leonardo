@@ -5,7 +5,8 @@ set -e
 echo "TIMING: setup TIMING support"
 
 # DEBUGGING - adding timestamps to each command executed
-PS4='TIMING: $LINENO: $(date "+%s")\011 '
+# PS4='TIMING: $LINENO: $(date "+%s")\011 '
+trap 'echo TIMING $( date +%s)' DEBUG
 set -x
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
