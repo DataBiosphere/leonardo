@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
+  ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
