@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import java.util.ArrayList
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, _}
 import cats.effect.IO
@@ -53,7 +54,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureRelayService = setUpMockAzureRelayService
   val mockKube = setUpMockKube
-  val (mockWsm, mockControlledResourceApi) = setUpMockWsmApiClientProvider
+  val (mockWsm, mockControlledResourceApi, mockResourceApi) = setUpMockWsmApiClientProvider
 
   implicit val appTypeToAppInstall: AppType => AppInstall[IO] = _ => setUpMockAppInstall
   def newAksInterp(configuration: AKSInterpreterConfig) = new AKSInterpreter[IO](
@@ -540,7 +541,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     sam
   }
 
-  private def setUpMockWsmApiClientProvider: (WsmApiClientProvider[IO], ControlledAzureResourceApi) = {
+  private def setUpMockWsmApiClientProvider: (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi) = {
     val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
@@ -665,7 +666,23 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       wsm.getControlledAzureResourceApi(any)(any)
     } thenReturn IO.pure(api)
-    (wsm, api)
+
+    // enumerate workspace resources
+    when {
+      resourceApi.enumerateResources(any, any, any, any, any)
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata"))
+      resourceDesc.resourceAttributes(new ResourceAttributesUnion().azureDatabase(new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")))
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
+    when {
+      wsm.getResourceApi(any)(any)
+    } thenReturn IO.pure(resourceApi)
+    (wsm, api, resourceApi)
+
   }
 
   private def setUpMockAppInstall: AppInstall[IO] = {
