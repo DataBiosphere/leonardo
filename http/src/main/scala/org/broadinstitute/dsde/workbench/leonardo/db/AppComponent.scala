@@ -239,6 +239,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(a => (a.status, a.destroyedDate, a.diskId))
       .update((AppStatus.Deleted, now, None))
 
+  def updateDateAccessed(appName: AppName, now: Instant): DBIO[Int] =
+    findActiveByNameQuery(appName)
+      .map(a => a.dateAccessed)
+      .update(now)
+
   def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
     appQuery.filter(x => x.diskId.isDefined && x.diskId === diskId).length.result.map(_ > 0)
 

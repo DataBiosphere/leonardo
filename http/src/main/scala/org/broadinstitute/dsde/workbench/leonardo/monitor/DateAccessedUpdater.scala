@@ -8,7 +8,7 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
-import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{AppName, CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 
@@ -45,21 +45,23 @@ class DateAccessedUpdater[F[_]](
       .compile
       .drain
 
-  private def updateDateAccessed(msg: UpdateDateAccessMessage): F[Unit] =
-    metrics.incrementCounter("jupyterAccessCount") >>
-      clusterQuery
-        .clearKernelFoundBusyDateByProjectAndName(msg.cloudContext, msg.runtimeName, msg.dateAccessd)
-        .flatMap(_ =>
-          clusterQuery.updateDateAccessedByProjectAndName(msg.cloudContext, msg.runtimeName, msg.dateAccessd)
-        )
-        .transaction
-        .void
+  private def updateDateAccessed(msg: UpdateDateAccessMessage): F[Unit] = msg.updateTarget match {
+    case UpdateTarget.Runtime(runtimeName) =>
+      metrics.incrementCounter("jupyterAccessCount") >>
+        clusterQuery
+          .clearKernelFoundBusyDateByProjectAndName(msg.cloudContext, runtimeName, msg.dateAccessd)
+          .flatMap(_ => clusterQuery.updateDateAccessedByProjectAndName(msg.cloudContext, runtimeName, msg.dateAccessd))
+          .transaction
+          .void
+    case UpdateTarget.App(appName) =>
+      appQuery.updateDateAccessed(appName, msg.dateAccessd).transaction.void
+  }
 }
 
 object DateAccessedUpdater {
   implicit val updateDateAccessMessageOrder: Ordering[UpdateDateAccessMessage] =
     Ordering.fromLessThan[UpdateDateAccessMessage] { (msg1, msg2) =>
-      if (msg1.cloudContext == msg2.cloudContext && msg1.runtimeName == msg2.runtimeName)
+      if (msg1.cloudContext == msg2.cloudContext && msg1.toString == msg2.toString)
         msg1.dateAccessd.toEpochMilli < msg2.dateAccessd.toEpochMilli
       else
         false // we don't really care about order if they're not the same runtime, but we just need an Order if they're the same
@@ -68,7 +70,7 @@ object DateAccessedUpdater {
   // group all messages by cloudContext and runtimeName, and discard all older messages for the same runtime
   def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] =
     messages
-      .groupBy(m => s"${m.runtimeName.asString}/${m.cloudContext.asStringWithProvider}")
+      .groupBy(m => s"${m.toString}/${m.cloudContext.asStringWithProvider}")
       .toList
       .traverse { case (_, messages) =>
         messages.toChain.toList.sorted.lastOption
@@ -77,7 +79,17 @@ object DateAccessedUpdater {
 }
 
 final case class DateAccessedUpdaterConfig(interval: FiniteDuration, maxUpdate: Int, queueSize: Int)
-final case class UpdateDateAccessMessage(runtimeName: RuntimeName, cloudContext: CloudContext, dateAccessd: Instant) {
+
+sealed abstract class UpdateTarget extends Product with Serializable
+object UpdateTarget {
+  final case class Runtime(runtimeName: RuntimeName) extends UpdateTarget {
+    override def toString: String = s"runtime/${runtimeName.asString}"
+  }
+  final case class App(appName: AppName) extends UpdateTarget {
+    override def toString: String = s"app/${appName.value}"
+  }
+}
+final case class UpdateDateAccessMessage(updateTarget: UpdateTarget, cloudContext: CloudContext, dateAccessd: Instant) {
   override def toString: String =
-    s"Message: ${cloudContext.asStringWithProvider}/${runtimeName.asString}, ${dateAccessd.toEpochMilli}"
+    s"Message: ${cloudContext.asStringWithProvider}/${updateTarget.toString}, ${dateAccessd.toEpochMilli}"
 }
