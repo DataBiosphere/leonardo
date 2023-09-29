@@ -165,11 +165,15 @@ across environments thanks to the `Brewfile.lock.json`
   Otherwise, run the following commands to install the version of java and sbt we are currently supporting
 
 - (see `.sdkmanrc` for version info).
-  ```sh
-  sdk install java
-  sdk install sbt
+
+- ```sh
+  sdk env install
   ```
+  
   At this point, `sdkman` will have set up your `JAVA_HOME` and `SBT_HOME` environment variables accordingly.
+  To always use the correct `JAVA_HOME` and `SBT_HOME` every time you drop into the `leonardo` directory, it is
+  recommended to turn on `sdkman_auto_env`. To do so, please execute `sdk config` and change the configured value of
+  `sdkman_auto_env` from `false` to `true`.
 
 - We need to install one more thing - `gke-gcloud-auth-plugin`.  
   This will also validate that our `gcloud`-cli is installed and running appropriately.
