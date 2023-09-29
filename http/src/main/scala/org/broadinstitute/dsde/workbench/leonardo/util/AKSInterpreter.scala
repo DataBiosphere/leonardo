@@ -74,6 +74,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private def getListenerReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-listener-rls")
 
+  private def retrieveWsmReferenceDatabases(resourceApi: ResourceApi,
+                                            referenceDatabaseNames: Set[String],
+                                            workspaceId: UUID
+  ): F[List[String]] = {
+    val wsmResourceDatabases = F.delay(
+      resourceApi
+        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
+        .getResources
+        .asScala
+        .toList
+    )
+    wsmResourceDatabases.map { dbs =>
+      dbs
+        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
+        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
+    }
+  }
+
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -97,21 +115,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
-
-      // build WSM resource client
-      wsmResourceApi <- buildWsmResourceApiClient
-      wsmResourceDatabases <- F.delay(
-        wsmResourceApi
-          .enumerateResources(params.workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
-          .getResources
-          .asScala
-          .toList
-      )
-      referenceResourceDatabaseNames = wsmResourceDatabases
-        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
-        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
-
       // Create WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
         case SamResourceType.SharedApp =>
@@ -132,6 +135,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           params.landingZoneResources
         )
       }
+
+      // get ReferenceDatabases from WSM
+      wsmResourceApi <- buildWsmResourceApiClient
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      referenceDatabases <-
+        if (referenceDatabaseNames.nonEmpty) {
+          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, params.workspaceId.value)
+        } else F.pure(List.empty)
 
       // Create WSM kubernetes namespace
       wsmNamespace <- childSpan("createWsmKubernetesNamespaceResource").use { implicit ev =>
@@ -216,7 +227,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName) ++ referenceResourceDatabaseNames,
+        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName) ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -311,21 +322,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Get the optional storage container for the workspace
       storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, leoAuth)
 
-      // Build WSM clients
+      // Build WSM client
       wsmApi <- buildWsmControlledResourceApiClient
-      wsmResourceApi <- buildWsmResourceApiClient
-
-      // get external reference database names from WSM
-      wsmResourceDatabases <- F.delay(
-        wsmResourceApi
-          .enumerateResources(workspaceId.value, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
-          .getResources
-          .asScala
-          .toList
-      )
-      referenceResourceDatabaseNames = wsmResourceDatabases
-        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
-        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
 
       // Call WSM to get the managed identity for the app.
       // This is optional because a WSM identity is only created for shared apps.
@@ -343,6 +341,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
         F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
       }
+
+      // call WSM resource API to get list of ReferenceDatabases
+      wsmResourceApi <- buildWsmResourceApiClient
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      referenceDatabases <-
+        if (referenceDatabaseNames.nonEmpty) {
+          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, workspaceId.value)
+        } else F.pure(List.empty)
 
       // Call WSM to get the Kubernetes namespace (required)
       wsmNamespaces <- appControlledResourceQuery
@@ -404,7 +410,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDbNames.map(_.getAttributes.getDatabaseName) ++ referenceResourceDatabaseNames,
+        wsmDbNames.map(_.getAttributes.getDatabaseName) ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
