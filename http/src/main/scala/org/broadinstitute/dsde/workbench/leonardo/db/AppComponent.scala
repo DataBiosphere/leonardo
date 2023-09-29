@@ -239,10 +239,17 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(a => (a.status, a.destroyedDate, a.diskId))
       .update((AppStatus.Deleted, now, None))
 
-  def updateDateAccessed(appName: AppName, now: Instant): DBIO[Int] =
-    findActiveByNameQuery(appName)
-      .map(a => a.dateAccessed)
-      .update(now)
+  def updateDateAccessed(appName: AppName, cloudContext: CloudContext, now: Instant): DBIO[Int] =
+    cloudContext match {
+      case CloudContext.Gcp(value) =>
+        // This query isn't efficient because appName isn't indexed. Future optimization is needed for findActiveByNameQuery method
+        findActiveByNameQuery(appName)
+          .filter(r => r.workspaceId.isEmpty)
+          .map(a => a.dateAccessed)
+          .update(now)
+      case CloudContext.Azure(_) =>
+        DBIO.failed(new RuntimeException("Please don't use this query for Azure apps"))
+    }
 
   def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
     appQuery.filter(x => x.diskId.isDefined && x.diskId === diskId).length.result.map(_ > 0)
