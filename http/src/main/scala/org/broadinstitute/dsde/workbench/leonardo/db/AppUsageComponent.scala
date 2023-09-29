@@ -14,6 +14,7 @@ import org.typelevel.log4cats.Logger
 import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
+import scala.util.control.NoStackTrace
 
 class AppUasageTable(tag: Tag) extends Table[AppUsageRecord](tag, "APP_USAGE") {
   def id = column[AppUsageId]("id", O.PrimaryKey, O.AutoInc)
@@ -79,9 +80,7 @@ object appUsageQuery extends TableQuery(new AppUasageTable(_)) {
           DBIO.successful(())
         else
           DBIO.failed(
-            new RuntimeException(
-              s"Cannot record stopTime because there's no existing unresolved startTime for ${appId.id}"
-            )
+            FailToRecordStoptime(appId)
           )
       }
 
@@ -105,3 +104,7 @@ object appUsageQuery extends TableQuery(new AppUasageTable(_)) {
 
 final case class AppUsageId(id: Long) extends Product with Serializable
 final case class AppUsageRecord(id: AppUsageId, appId: AppId, startTime: Instant, stopTime: Instant)
+final case class FailToRecordStoptime(appId: AppId) extends NoStackTrace {
+  override def toString: String =
+    s"Cannot record stopTime because there's no existing unresolved startTime for ${appId.id}"
+}
