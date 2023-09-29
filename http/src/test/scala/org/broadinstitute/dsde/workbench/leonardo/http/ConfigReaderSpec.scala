@@ -138,7 +138,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("/leonardo/cromwell-runner-app"),
-          ChartVersion("0.25.0"),
+          ChartVersion("0.27.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -154,7 +154,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.38.0"),
+          ChartVersion("0.47.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
