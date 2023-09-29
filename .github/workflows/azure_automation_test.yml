@@ -178,6 +178,11 @@ jobs:
       contents: 'read'
       id-token: 'write'
     steps:
+      - name: Configure the user subjects for the test
+        run: |
+          escapedJSON=$(echo '${{ needs.init-github-context.outputs.student-subjects }}' | sed 's/"/\"/g')
+          echo "USER_SUBJECTS={\"service_account\":\"${{ needs.init-github-context.outputs.service-account }}\", \"owners\": [\"${{ needs.init-github-context.outputs.owner-subject }}\"], \"students\": $escapedJSON}" >> $GITHUB_ENV
+
       - name: dispatch to terra-github-workflows
         env:
           leo_test_command: "testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite"
