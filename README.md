@@ -2,34 +2,43 @@
 
 # Leonardo
 
-Leonardo serves as a way to launch compute within the Terra security boundary. It does so via multiple different cloud hardware virtualization mechanisms, currently leveraging only the Google Cloud Platform.
+`leonardo` serves as a way to launch compute within the Terra security boundary. 
+It does so via multiple different cloud hardware virtualization mechanisms, currently leveraging only the Google Cloud Platform.
 
-Leonardo supports launching the following services for compute:
+`leonardo` supports launching the following services for compute:
 - Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/)
 - Virtual machines through [Google Compute Engine](https://cloud.google.com/compute)
 - Kubernetes 'apps' through [Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine)
 
-Currently, leonardo supports the launching of custom docker images for Jupyter and Rstudio in virtual machines and Dataproc. It also supports launching applications in Kubernetes, with a spotlight on Galaxy.
+Currently, `leonardo` supports the launching of custom docker images for Jupyter and Rstudio in virtual machines and 
+Dataproc. It also supports launching applications in Kubernetes, with a spotlight on Galaxy.
 
 - For more information on APIs, see [swagger](https://notebooks.firecloud.org/)
-- For more information on custom docker images, see the [terra-docker repo](https://github.com/DataBiosphere/terra-docker)
-- For more information on applications we support in Kubernetes, see the [terra-apps repo](https://github.com/DataBiosphere/terra-app)
+- For more information on custom docker images, see the [terra-docker repo](https://github.com/databiosphere/terra-docker)
+- For more information on applications we support in Kubernetes, see the [terra-apps repo](https://github.com/databiosphere/terra-app)
 - For more information on Galaxy, see the [Galaxy Project](https://github.com/galaxyproject)
 
 It is recommended to consume these APIs and functionality via the [Terra UI](https://terra.bio/)
 
-We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
+We use JIRA instead of the issues page on GitHub. If you would like to see what we are working you can visit our
+[active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our
+[backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715)
+on JIRA. You will need to set up an account to access, but it is open to the public.
 
-## Java client library
-for sbt:
+## Setting up a Java Client Library
 
-```libraryDependencies += "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-<git hash>"```
+Add the `leonardo-client` to your build. An example for `sbt` is below:
 
-where ```<git hash>``` is the first 7 characters of the commit hash of the HEAD of develop
-you can find our releases on [artifactory](https://broadinstitute.jfrog.io/ui/native/libs-release-local;build.timestamp=1679578230/org/broadinstitute/dsde/workbench/leonardo-client_2.11/)
+```sbt
+libraryDependencies += "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-<git hash>"
+```
+
+Please be sure to replace the `<git hash>` with the first 7 characters of the commit hash of the HEAD of `develop`.
+You can find a list of available releases and `<git hash>`-es from [artifactory](https://broadinstitute.jfrog.io/ui/native/libs-release-local;build.timestamp=1679578230/org/broadinstitute/dsde/workbench/leonardo-client_2.11/)
 
 Example Scala Usage:
-```
+
+```scala
 import org.broadinstitute.dsde.workbench.client.leonardo.api.RuntimesApi
 import org.broadinstitute.dsde.workbench.client.leonardo.ApiClient
 import org.broadinstitute.dsde.workbench.client.leonardo.model.GetRuntimeResponse
@@ -47,15 +56,144 @@ class LeonardoClient(leonardoBasePath: String) {
     leonardoApi.getAzureRuntime(workspaceId, runtimeName)
   }
 }
-
 ```
 
-## Building and running Leonardo
-Clone the repo.
+## Building and running `leonardo` locally
+
+### Clone the repo and submodules
+
+```sh
+git clone https://github.com/databiosphere/leonardo.git
+cd leonardo
 ```
-$ git clone https://github.com/DataBiosphere/leonardo.git
-$ cd leonardo
+
+And as an aside, this repository uses git submodules. You will need to execute the following commands as well:
+
+```sh
+git submodule update --init --recursive
 ```
+
+### Install `leonardo` dependencies
+
+The following tools are required to run `leonardo`:
+
+- vault
+- docker
+- google-cloud-sdk
+- cloud-sql-proxy
+- [gke-gcloud-auth-plugin](https://cloud.google.com/blog/products/containers-kubernetes/kubectl-auth-changes-in-gke)
+- java
+- sbt
+- go
+
+Please feel free to install each tool individually as you see fit for your environment, or
+you can follow along with this process to get your environment set up.
+Tool setup is facilitated through the use of [`brew`](https://brew.io). This allows us to have a little consistency
+across environments thanks to the `Brewfile.lock.json`
+
+- Install `brew`.
+  ```shell
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+  # be sure to update your .[X]profile or .[X]shrc file with the following
+  # this assumes a default install location for `brew`
+  echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> .zprofile
+  ```
+  After the `brew` install, validate that you have a working `brew` installation be executing `brew help`.
+  Feel free to [turn off Anonymous Analytics](https://docs.brew.sh/Analytics) with the following command:
+  ```sh
+  brew analytics off
+  ```
+
+- Following the `brew`-install, you should be able to install the necessary tools to setup the remaining dependencies.
+  ```shell
+  brew bundle
+  ```
+  This will install the following resources for you:
+
+  - git
+  - vault
+  - docker
+  - google-cloud-sdk
+  - cloud-sql-proxy
+  - sdkman (to support `java` and `sbt` environment management)
+  - go
+
+  **NOTE:** Please note that we lean on `sdkman` to manage our java-based SDKs - specifically `java` and `sbt`.
+  If you are managing your own java-based environments in another manner, please feel free to
+
+- Following the `brew bundle` update, you need to do some environment updating of your dot-files.
+  The default MacOS shell uses `zsh` ([short explanation here](https://discussions.apple.com/thread/250722978)).
+  If you are using another shell, you will need to update your appropriate dot-files
+  for that shell environment.
+
+  ```sh
+  echo '
+  # make sure the google-cloud-sdk cli is on your path
+  export PATH=$(brew --prefix)/share/google-cloud-sdk/bin:$PATH
+
+  # https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2848063491/Dev+Environment+Setup
+  export SBT_OPTS="-Xmx2G -Xms1G -Dmysql.host=localhost -Dmysql.port=3311 -Duser.timezone=GMT"
+
+  # various `leonardo` tool-setup variables
+  export VAULT_ADDR="https://clotho.broadinstitute.org:8200"
+  # NOTE: from local/depends.sh - double check variable name: HELM_BUILD_DIR
+  # or is this even needed
+  export HELM_SCALA_SDK_DIR="/Users/pate/workbench/helm-scala-sdk"
+
+  # cloud-sql-proxy environment variables
+  # feel free to override the defaults
+  #export GOOGLE_PROJECT=broad-dsde-dev
+  #export CLOUDSQL_ZONE=us-central1
+  #
+  # also used by `leonardo`
+  export CLOUDSQL_INSTANCE=[INSERT-YOUR-GOOGLE-CLOUD-CLONE-ID-HERE]
+
+  # `leonardo`-specific environment variables
+  export DB_USER=leonardo
+  export DB_PASSWORD=password
+
+  #THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
+  export SDKMAN_DIR=$(brew --prefix sdkman-cli)/libexec
+  [[ -s "${SDKMAN_DIR}/bin/sdkman-init.sh" ]] && source "${SDKMAN_DIR}/bin/sdkman-init.sh"' >> ~/.zprofile
+  ```
+
+- After adding those values to your environment's dot-file, please ensure they are loaded into your environment
+ by either restarting your terminal or `source`-ing them into your current session.
+
+- If you have JAVA and SBT installed already, you can skip this step.  
+  Otherwise, run the following commands to install the version of java and sbt we are currently supporting
+
+- (see `.sdkmanrc` for version info).
+  ```sh
+  sdk install java
+  sdk install sbt
+  ```
+  At this point, `sdkman` will have set up your `JAVA_HOME` and `SBT_HOME` environment variables accordingly.
+
+- We need to install one more thing - `gke-gcloud-auth-plugin`.  
+  This will also validate that our `gcloud`-cli is installed and running appropriately.
+
+  ```sh
+  gcloud auth login
+  gcloud components install gke-gcloud-auth-plugin
+  ```
+
+  To make sure the `gke-gcloud-auth-plugin` is installed correctly, [please give the following command a try](https://cloud.google.com/blog/products/containers-kubernetes/kubectl-auth-changes-in-gke).
+
+  ```sh
+  gke-gcloud-auth-plugin --version 
+  ```
+
+At this point all the third party dependencies have been installed, and the environment variables necessary to support 
+those tools have been set up. 
+
+Next up, interacting with the `leonardo`-repository! - :nerd_face: 
+
+### Build `leonardo`
+
+- WIP ... TBD
+
 
 ### Running Leo Locally
 
@@ -73,10 +211,6 @@ Note: Ensure that you are running go>=1.20 by running
 go version
 ```
 
-Update the helm-scala-sdk submodule:
-```
-git submodule init && git submodule update
-```
 
 #### VPN
 You must be connected to the VPN if working remotely.
