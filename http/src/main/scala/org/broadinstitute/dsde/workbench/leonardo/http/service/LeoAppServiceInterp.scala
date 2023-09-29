@@ -404,7 +404,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             )
             trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
             _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage).recoverWith {
-              case e: FailToRecordStoptime => log.warn(ctx.loggingCtx)(e.getMessage)
+              case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
             }
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
