@@ -5,7 +5,7 @@ import cats.effect.std.UUIDGen
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
-import org.broadinstitute.dsde.rawls.model.WorkspaceName
+import org.broadinstitute.dsde.rawls.model.{AzureManagedAppCoordinates, WorkspaceName}
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
@@ -16,14 +16,12 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
 import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRole
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
+import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
-import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
-import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
-import org.http4s.headers.Authorization
 
 import java.util.UUID
 
@@ -253,7 +251,7 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 final case class AzureBillingProjectName(value: String) extends AnyVal
 trait AzureBilling extends FixtureAnyFreeSpecLike {
   this: TestSuite =>
-  import io.circe.{parser, Decoder}
+  import io.circe.{Decoder, parser}
   import org.broadinstitute.dsde.workbench.auth.AuthToken
   import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
   override type FixtureParam = WorkspaceResponse
@@ -442,14 +440,8 @@ final class LeonardoAzureSuite
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     val bee = PipelineInjector(PipelineInjector.e2eEnv())
-    var ownerAuthToken = _
-    bee.Owners.getUserCredential("hermione") match {
-      case Some(owner) =>
-        ownerAuthToken = owner.makeAuthToken
-      case _ => ()
-    }
     //implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    implicit val accessToken = ownerAuthToken
+    implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
     val res = for {
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
