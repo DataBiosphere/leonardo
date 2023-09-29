@@ -197,8 +197,16 @@ jobs:
             "sbt-test-command": "${{ env.leo_test_command }}",
             "java-version": "17",
             "ref": "${{ needs.init-github-context.outputs.branch }}",
-            "billing-project": "${{ needs.params-gen.outputs.project-name }}",
-            "e2e-env": "${{ env.E2E_ENV }}",
+            "e2e-infrastructure": {
+              "e2e-env": {
+                "description": "The name of a .env file that contains envvars for E2E tests",
+                "val": "${{ env.E2E_ENV }}"
+              },
+              "billing_project": {
+                "description": "Billing Project",
+                "val": "${{ needs.params-gen.outputs.project-name }}"
+              }
+            },
             "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
           }'
 
