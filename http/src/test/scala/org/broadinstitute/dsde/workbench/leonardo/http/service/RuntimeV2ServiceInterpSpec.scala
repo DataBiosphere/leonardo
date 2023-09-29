@@ -32,7 +32,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   StartRuntimeMessage,
   StopRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.http4s.headers.Authorization
@@ -1855,7 +1855,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ctx <- appContext.ask[AppContext]
       _ <- azureService.updateDateAccessed(userInfo, workspaceId, runtimeName)
       msg <- dateAccessedQueue.tryTake
-    } yield msg shouldBe Some(UpdateDateAccessMessage(runtimeName, cluster.cloudContext, ctx.now))
+    } yield msg shouldBe Some(UpdateDateAccessMessage(UpdateTarget.Runtime(runtimeName), cluster.cloudContext, ctx.now))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

@@ -20,19 +20,19 @@ import scala.concurrent.duration._
 
 class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   it should "sort UpdateDateAccessMessage properly" in {
-    val msg1 = UpdateDateAccessMessage(RuntimeName("r1"),
+    val msg1 = UpdateDateAccessMessage(UpdateTarget.Runtime(RuntimeName("r1")),
                                        CloudContext.Gcp(GoogleProject("p1")),
                                        Instant.ofEpochMilli(1588264615480L)
     )
-    val msg2 = UpdateDateAccessMessage(RuntimeName("r1"),
+    val msg2 = UpdateDateAccessMessage(UpdateTarget.Runtime(RuntimeName("r1")),
                                        CloudContext.Gcp(GoogleProject("p1")),
                                        Instant.ofEpochMilli(1588264615490L)
     )
-    val msg3 = UpdateDateAccessMessage(RuntimeName("r2"),
+    val msg3 = UpdateDateAccessMessage(UpdateTarget.Runtime(RuntimeName("r2")),
                                        CloudContext.Gcp(GoogleProject("p1")),
                                        Instant.ofEpochMilli(1588264615480L)
     )
-    val msg4 = UpdateDateAccessMessage(RuntimeName("r1"),
+    val msg4 = UpdateDateAccessMessage(UpdateTarget.Runtime(RuntimeName("r1")),
                                        CloudContext.Gcp(GoogleProject("p2")),
                                        Instant.ofEpochMilli(1588264615480L)
     )
@@ -58,9 +58,18 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     val runtime2 = makeCluster(2).save()
 
     val messagesToEnqueue = Stream(
-      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.cloudContext, Instant.ofEpochMilli(1588264615480L)),
-      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.cloudContext, Instant.ofEpochMilli(1588264615490L)),
-      UpdateDateAccessMessage(runtime2.runtimeName, runtime2.cloudContext, Instant.ofEpochMilli(1588264615480L))
+      UpdateDateAccessMessage(UpdateTarget.Runtime(runtime1.runtimeName),
+                              runtime1.cloudContext,
+                              Instant.ofEpochMilli(1588264615480L)
+      ),
+      UpdateDateAccessMessage(UpdateTarget.Runtime(runtime1.runtimeName),
+                              runtime1.cloudContext,
+                              Instant.ofEpochMilli(1588264615490L)
+      ),
+      UpdateDateAccessMessage(UpdateTarget.Runtime(runtime2.runtimeName),
+                              runtime2.cloudContext,
+                              Instant.ofEpochMilli(1588264615480L)
+      )
     ).covary[IO]
 
     for {

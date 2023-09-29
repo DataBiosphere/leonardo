@@ -43,7 +43,7 @@ import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 final case class HostContext(status: HostStatus, description: String)
 
-sealed trait SamResourceCacheKey extends Product with Serializable {}
+sealed trait SamResourceCacheKey extends Product with Serializable
 object SamResourceCacheKey {
   final case class RuntimeCacheKey(cloudContext: CloudContext, name: RuntimeName) extends SamResourceCacheKey {}
   final case class AppCacheKey(cloudContext: CloudContext, name: AppName, workspaceId: Option[WorkspaceId])
