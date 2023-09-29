@@ -1061,8 +1061,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
       wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
     } yield wsmApi
-
-  // can these two functions be combined somehow? ask a Scala person for the right way to do it
+  
   private def buildWsmResourceApiClient(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
     for {
       auth <- samDao.getLeoAuthToken
