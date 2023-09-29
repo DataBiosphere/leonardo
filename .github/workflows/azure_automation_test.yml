@@ -186,7 +186,7 @@ jobs:
       - name: Pipeline configuration for the test
         run: |
           E2E_INFRASTRUCTURE='{
-              "e2e-env": {
+              "e2e_env": {
                 "description": "The name of a .env file that contains envvars for E2E tests",
                 "val": "${{ env.E2E_ENV }}"
               },
