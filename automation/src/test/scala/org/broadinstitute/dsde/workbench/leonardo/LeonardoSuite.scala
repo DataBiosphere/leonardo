@@ -22,6 +22,7 @@ import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
+import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
 import org.http4s.headers.Authorization
 
 import java.util.UUID
@@ -440,13 +441,22 @@ final class LeonardoAzureSuite
     with ParallelTestExecution
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
-    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    var ownerAuthToken = _
+    bee.Owners.getUserCredential("hermione") match {
+      case Some(owner) =>
+        ownerAuthToken = owner.makeAuthToken
+      case _ => ()
+    }
+    //implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    implicit val accessToken = ownerAuthToken
     val res = for {
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
-      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
-        IO(sys.props.put(azureProjectKey, projectName))
-      }
+      //_ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
+      //  IO(sys.props.put(azureProjectKey, projectName))
+      _ <- IO(sys.props.put(azureProjectKey, bee.billingProject))
+      //}
       // hardcode this if you want to use a static billing project
       //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
     } yield ()
