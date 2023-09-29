@@ -182,6 +182,7 @@ jobs:
         run: |
           escapedJSON=$(echo '${{ needs.init-github-context.outputs.student-subjects }}' | sed 's/"/\"/g')
           echo "USER_SUBJECTS={\"service_account\":\"${{ needs.init-github-context.outputs.service-account }}\", \"owners\": [\"${{ needs.init-github-context.outputs.owner-subject }}\"], \"students\": $escapedJSON}" >> $GITHUB_ENV
+          echo "E2E_INFRASTRUCTURE={\"e2e-env\": {\"description\": \"The name of a .env file that contains envvars for E2E tests\", \"val\": \"${{ env.E2E_ENV }}\"}, \"billing_project"\": {\"description\": \"Billing Project\", \"val\": \"${{ needs.params-gen.outputs.project-name }}\"}}" >> $GITHUB_ENV
 
       - name: dispatch to terra-github-workflows
         env:
@@ -202,16 +203,7 @@ jobs:
             "sbt-test-command": "${{ env.leo_test_command }}",
             "java-version": "17",
             "ref": "${{ needs.init-github-context.outputs.branch }}",
-            "e2e-infrastructure": {
-              "e2e-env": {
-                "description": "The name of a .env file that contains envvars for E2E tests",
-                "val": "${{ env.E2E_ENV }}"
-              },
-              "billing_project": {
-                "description": "Billing Project",
-                "val": "${{ needs.params-gen.outputs.project-name }}"
-              }
-            },
+            "e2e-infrastructure": ${{ toJson(env.E2E_INFRASTRUCTURE) }},
             "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
           }'
 
