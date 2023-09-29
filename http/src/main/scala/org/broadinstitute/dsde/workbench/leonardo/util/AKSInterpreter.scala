@@ -1061,7 +1061,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
       wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
     } yield wsmApi
-  
+
   private def buildWsmResourceApiClient(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
     for {
       auth <- samDao.getLeoAuthToken
