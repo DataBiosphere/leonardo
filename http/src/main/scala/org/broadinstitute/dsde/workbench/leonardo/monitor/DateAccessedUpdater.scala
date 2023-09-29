@@ -54,7 +54,7 @@ class DateAccessedUpdater[F[_]](
           .transaction
           .void
     case UpdateTarget.App(appName) =>
-      appQuery.updateDateAccessed(appName, msg.dateAccessd).transaction.void
+      appQuery.updateDateAccessed(appName, msg.cloudContext, msg.dateAccessd).transaction.void
   }
 }
 

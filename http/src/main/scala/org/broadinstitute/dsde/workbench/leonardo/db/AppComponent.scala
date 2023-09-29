@@ -241,7 +241,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def updateDateAccessed(appName: AppName, cloudContext: CloudContext, now: Instant): DBIO[Int] =
     cloudContext match {
-      case CloudContext.Gcp(value) =>
+      case CloudContext.Gcp(_) =>
         // This query isn't efficient because appName isn't indexed. Future optimization is needed for findActiveByNameQuery method
         findActiveByNameQuery(appName)
           .filter(r => r.workspaceId.isEmpty)
