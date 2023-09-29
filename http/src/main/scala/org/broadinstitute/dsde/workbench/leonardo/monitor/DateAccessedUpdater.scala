@@ -18,7 +18,7 @@ import scala.concurrent.duration.FiniteDuration
 
 class DateAccessedUpdater[F[_]](
   config: DateAccessedUpdaterConfig,
-  queue: Queue[F, UpdateDateAccessMessage]
+  queue: Queue[F, UpdateDateAccessedMessage]
 )(implicit
   F: Async[F],
   metrics: OpenTelemetryMetrics[F],
@@ -45,7 +45,7 @@ class DateAccessedUpdater[F[_]](
       .compile
       .drain
 
-  private def updateDateAccessed(msg: UpdateDateAccessMessage): F[Unit] = msg.updateTarget match {
+  private def updateDateAccessed(msg: UpdateDateAccessedMessage): F[Unit] = msg.updateTarget match {
     case UpdateTarget.Runtime(runtimeName) =>
       metrics.incrementCounter("jupyterAccessCount") >>
         clusterQuery
@@ -59,18 +59,18 @@ class DateAccessedUpdater[F[_]](
 }
 
 object DateAccessedUpdater {
-  implicit val updateDateAccessMessageOrder: Ordering[UpdateDateAccessMessage] =
-    Ordering.fromLessThan[UpdateDateAccessMessage] { (msg1, msg2) =>
-      if (msg1.cloudContext == msg2.cloudContext && msg1.toString == msg2.toString)
+  implicit val updateDateAccessMessageOrder: Ordering[UpdateDateAccessedMessage] =
+    Ordering.fromLessThan[UpdateDateAccessedMessage] { (msg1, msg2) =>
+      if (msg1.cloudContext == msg2.cloudContext && msg1.updateTarget == msg2.updateTarget)
         msg1.dateAccessd.toEpochMilli < msg2.dateAccessd.toEpochMilli
       else
         false // we don't really care about order if they're not the same runtime, but we just need an Order if they're the same
     }
 
   // group all messages by cloudContext and runtimeName, and discard all older messages for the same runtime
-  def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] =
+  def messagesToUpdate(messages: Chain[UpdateDateAccessedMessage]): List[UpdateDateAccessedMessage] =
     messages
-      .groupBy(m => s"${m.toString}/${m.cloudContext.asStringWithProvider}")
+      .groupBy(m => s"${m.updateTarget.asString}/${m.cloudContext.asStringWithProvider}")
       .toList
       .traverse { case (_, messages) =>
         messages.toChain.toList.sorted.lastOption
@@ -80,16 +80,21 @@ object DateAccessedUpdater {
 
 final case class DateAccessedUpdaterConfig(interval: FiniteDuration, maxUpdate: Int, queueSize: Int)
 
-sealed abstract class UpdateTarget extends Product with Serializable
+sealed abstract class UpdateTarget extends Product with Serializable {
+  def asString: String
+}
 object UpdateTarget {
   final case class Runtime(runtimeName: RuntimeName) extends UpdateTarget {
-    override def toString: String = s"runtime/${runtimeName.asString}"
+    def asString: String = s"runtime/${runtimeName.asString}"
   }
   final case class App(appName: AppName) extends UpdateTarget {
-    override def toString: String = s"app/${appName.value}"
+    def asString: String = s"app/${appName.value}"
   }
 }
-final case class UpdateDateAccessMessage(updateTarget: UpdateTarget, cloudContext: CloudContext, dateAccessd: Instant) {
+final case class UpdateDateAccessedMessage(updateTarget: UpdateTarget,
+                                           cloudContext: CloudContext,
+                                           dateAccessd: Instant
+) {
   override def toString: String =
-    s"Message: ${cloudContext.asStringWithProvider}/${updateTarget.toString}, ${dateAccessd.toEpochMilli}"
+    s"Message: ${cloudContext.asStringWithProvider}/${updateTarget.asString}, ${dateAccessd.toEpochMilli}"
 }

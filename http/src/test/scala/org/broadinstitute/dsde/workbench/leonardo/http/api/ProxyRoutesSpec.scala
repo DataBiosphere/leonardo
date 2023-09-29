@@ -25,10 +25,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheK
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{dataDecoder, Data}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
-import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessedMessage
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.ArgumentMatchers.contains
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
@@ -198,7 +197,7 @@ class ProxyRoutesSpec
   }
 
   it should s"pass through paths in runtime proxy requests" in {
-    val queue = Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val queue = Queue.bounded[IO, UpdateDateAccessedMessage](100).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val proxyService =
       new MockProxyService(
         proxyConfig,
@@ -223,12 +222,12 @@ class ProxyRoutesSpec
       responseAs[Data].path shouldEqual s"/proxy/$googleProject/$clusterName"
       val message = queue.tryTake.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).get
       message.cloudContext.asString shouldBe googleProject
-      message.toString shouldBe s"runtime/${clusterName}"
+      message.updateTarget.asString shouldBe s"runtime/${clusterName}"
     }
   }
 
   it should s"pass through paths in app proxy requests" in {
-    val queue = Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val queue = Queue.bounded[IO, UpdateDateAccessedMessage](100).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val proxyService =
       new MockProxyService(
         proxyConfig,
@@ -251,7 +250,7 @@ class ProxyRoutesSpec
       .addHeader(Referer(Uri(validRefererUri))) ~> proxyRoutes.route ~> check {
       val message = queue.tryTake.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).get
       message.cloudContext.asString shouldBe googleProject
-      message.toString.contains(s"app/${appName}") shouldBe true
+      message.updateTarget.asString.contains(s"app/${appName}") shouldBe true
     }
   }
 

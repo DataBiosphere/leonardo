@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, Proxy
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{UpdateDateAccessMessage, UpdateTarget}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -86,7 +86,7 @@ class ProxyService(
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
-  dateAccessUpdaterQueue: Queue[IO, UpdateDateAccessMessage],
+  dateAccessUpdaterQueue: Queue[IO, UpdateDateAccessedMessage],
   googleOauth2Service: GoogleOAuth2Service[IO],
   proxyResolver: ProxyResolver[IO],
   samDAO: SamDAO[IO],
@@ -303,7 +303,7 @@ class ProxyService(
       _ <- hostStatus match {
         case HostReady(_, _, _) =>
           dateAccessUpdaterQueue.offer(
-            UpdateDateAccessMessage(UpdateTarget.Runtime(runtimeName), cloudContext, ctx.now)
+            UpdateDateAccessedMessage(UpdateTarget.Runtime(runtimeName), cloudContext, ctx.now)
           )
         case _ => IO.unit
       }
@@ -396,7 +396,7 @@ class ProxyService(
       hostStatus <- getAppTargetHost(cloudContext, appName)
       _ <- hostStatus match {
         case HostReady(_, _, _) =>
-          dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(UpdateTarget.App(appName), cloudContext, ctx.now))
+          dateAccessUpdaterQueue.offer(UpdateDateAccessedMessage(UpdateTarget.App(appName), cloudContext, ctx.now))
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${cloudContext.asString}/${appName.value}/${serviceName.value}")
