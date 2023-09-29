@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.pipeline
 
 import com.google.api.client.googleapis.testing.auth.oauth2.MockGoogleCredential
 import io.circe.Decoder
+import io.circe.generic.semiauto._
 
 case class UserMetadata (email: String, `type`: UserType, bearer: String) {
   def makeAuthToken: ProxyAuthToken =
