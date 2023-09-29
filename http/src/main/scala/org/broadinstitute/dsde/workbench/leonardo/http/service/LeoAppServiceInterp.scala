@@ -402,6 +402,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               diskOpt,
               Some(ctx.traceId)
             )
+            trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
+            _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage)
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
         }
@@ -452,6 +454,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         cloudContext.value,
         Some(ctx.traceId)
       )
+      trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
+      _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage)
       _ <- publisherQueue.offer(message)
     } yield ()
 
