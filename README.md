@@ -159,17 +159,17 @@ across environments thanks to the `Brewfile.lock.json`
   ```
 
 - After adding those values to your environment's dot-file, please ensure they are loaded into your environment
- by either restarting your terminal or `source`-ing them into your current session.
+  by either restarting your terminal or `source`-ing them into your current session.
 
-- If you have JAVA and SBT installed already, you can skip this step.  
+  If you have `java` and `sbt` installed already, you can skip this step.
   Otherwise, run the following commands to install the version of java and sbt we are currently supporting
 
-- (see `.sdkmanrc` for version info).
+  (see `.sdkmanrc` for version info).
 
-- ```sh
+  ```sh
   sdk env install
   ```
-  
+
   At this point, `sdkman` will have set up your `JAVA_HOME` and `SBT_HOME` environment variables accordingly.
   To always use the correct `JAVA_HOME` and `SBT_HOME` every time you drop into the `leonardo` directory, it is
   recommended to turn on `sdkman_auto_env`. To do so, please execute `sdk config` and change the configured value of
