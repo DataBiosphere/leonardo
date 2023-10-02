@@ -36,9 +36,15 @@ import java.io.ByteArrayInputStream
 import java.time.Instant
 import scala.concurrent.duration._
 import scala.util.matching.Regex
+import org.scalatestplus.mockito.MockitoSugar
 trait TestLeoRoutes {
-  this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
-  implicit val timeout = RouteTestTimeout(20 seconds)
+  this: ScalatestRouteTest
+    with Matchers
+    with ScalaFutures
+    with LeonardoTestSuite
+    with TestComponent
+    with MockitoSugar =>
+  implicit val timeout: RouteTestTimeout = RouteTestTimeout(20 seconds)
 
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
   // to pull the custom dataproc image
@@ -56,6 +62,7 @@ trait TestLeoRoutes {
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val wsmDao = new MockWsmDAO
+  val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
     petMock.buckets += userScriptBucketName -> Set(
@@ -121,12 +128,14 @@ trait TestLeoRoutes {
   )
 
   val runtimev2Service =
-    new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   allowListAuthProvider,
-                                   new MockWsmDAO,
-                                   new MockSamDAO,
-                                   QueueFactory.makePublisherQueue(),
-                                   QueueFactory.makeDateAccessedQueue()
+    new RuntimeV2ServiceInterp[IO](
+      serviceConfig,
+      allowListAuthProvider,
+      new MockWsmDAO,
+      new MockSamDAO,
+      QueueFactory.makePublisherQueue(),
+      QueueFactory.makeDateAccessedQueue(),
+      wsmClientProvider
     )
 
   val underlyingRuntimeDnsCache =
@@ -198,6 +207,7 @@ trait TestLeoRoutes {
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
+      MockAdminServiceInterp,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -213,6 +223,7 @@ trait TestLeoRoutes {
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
+      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

@@ -1,3 +1,4 @@
+# Jupyter server config file for Azure VMs only!
 # Need to update the link in the azure_vm_init_script.sh with your commit hash to update this config
 c.ServerApp.quit_button=False
 c.ServerApp.certfile=''

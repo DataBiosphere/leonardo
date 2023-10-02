@@ -8,6 +8,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.Identity
 import fs2._
+import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoInternalServerError, ServiceAccountProvider}
@@ -21,7 +22,7 @@ class BucketHelper[F[_]](
   config: BucketHelperConfig,
   google2StorageDAO: GoogleStorageService[F],
   serviceAccountProvider: ServiceAccountProvider[F]
-)(implicit val logger: Logger[F], F: Async[F]) {
+)(implicit val logger: Logger[F], F: Async[F], files: Files[F]) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
@@ -98,6 +99,23 @@ class BucketHelper[F[_]](
         GcsBlobName(runtimeResource.asString)
       )).compile.drain
 
+  def uploadClusterCertsToInitBucket(initBucketName: GcsBucketName): F[Unit] = {
+    val uploadStream = for {
+      f <- Stream.emits(
+        Seq(
+          config.clusterFilesConfig.proxyServerCrt,
+          config.clusterFilesConfig.proxyServerKey,
+          config.clusterFilesConfig.proxyRootCaPem
+        )
+      )
+      upload <- TemplateHelper.fileStream[F](f) through google2StorageDAO.streamUploadBlob(
+        initBucketName,
+        GcsBlobName(f.getFileName.toString)
+      )
+    } yield upload
+    uploadStream.compile.drain
+  }
+
   def initializeBucketObjects(
     initBucketName: GcsBucketName,
     serviceAccountKey: Option[ServiceAccountKey],
@@ -117,7 +135,6 @@ class BucketHelper[F[_]](
     val customEnvVars = customClusterEnvironmentVariables.foldLeft("") { case (memo, (key, value)) =>
       memo + s"$key=$value\n"
     }
-
     val uploadRawFiles = for {
       f <- Stream.emits(
         Seq(

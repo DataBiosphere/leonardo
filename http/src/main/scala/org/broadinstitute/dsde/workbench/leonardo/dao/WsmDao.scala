@@ -106,7 +106,8 @@ final case class LandingZoneResource(resourceId: Option[String],
                                      resourceType: String,
                                      resourceName: Option[String],
                                      resourceParentId: Option[String],
-                                     region: String
+                                     region: String,
+                                     tags: Option[Map[String, String]]
 )
 
 object LandingZoneResourcePurpose extends Enumeration {
@@ -315,6 +316,7 @@ object WsmDecoders {
 
   implicit val createStorageContainerResultDecoder: Decoder[CreateStorageContainerResult] =
     Decoder.forProduct1("resourceId")(CreateStorageContainerResult.apply)
+
   implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
     for {
       tenantId <- c.downField("tenantId").as[String]
@@ -332,7 +334,7 @@ object WsmDecoders {
     Decoder.forProduct1("landingzones")(ListLandingZonesResult.apply)
 
   implicit val landingZoneResourceDecoder: Decoder[LandingZoneResource] =
-    Decoder.forProduct5("resourceId", "resourceType", "resourceName", "resourceParentId", "region")(
+    Decoder.forProduct6("resourceId", "resourceType", "resourceName", "resourceParentId", "region", "tags")(
       LandingZoneResource.apply
     )
 

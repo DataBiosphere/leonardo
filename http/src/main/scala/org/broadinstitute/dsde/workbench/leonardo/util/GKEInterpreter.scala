@@ -1,5 +1,4 @@
-package org.broadinstitute.dsde.workbench
-package leonardo
+package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import _root_.org.typelevel.log4cats.StructuredLogger
@@ -9,8 +8,11 @@ import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
+import fs2.io.file.Files
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
@@ -26,26 +28,33 @@ import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   tracedRetryF,
   DiskName,
+  GoogleComputeService,
   GoogleDiskService,
   GoogleResourceService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore, RStudioRestore}
-import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
+  buildAllowedAppChartOverrideValuesString,
+  buildCromwellAppChartOverrideValuesString,
+  buildCustomChartOverrideValuesString,
+  buildGalaxyChartOverrideValuesString
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
 import org.http4s.Uri
 
+import java.net.URL
 import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -64,9 +73,16 @@ class GKEInterpreter[F[_]](
   googleDiskService: GoogleDiskService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
-  googleResourceService: GoogleResourceService[F]
-)(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
-    extends GKEAlgebra[F] {
+  googleResourceService: GoogleResourceService[F],
+  computeService: GoogleComputeService[F]
+)(implicit
+  val executionContext: ExecutionContext,
+  logger: StructuredLogger[F],
+  dbRef: DbReference[F],
+  metrics: OpenTelemetryMetrics[F],
+  F: Async[F],
+  files: Files[F]
+) extends GKEAlgebra[F] {
   // DoneCheckable instances
   implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
@@ -121,6 +137,8 @@ class GKEInterpreter[F[_]](
       kubeNetwork = KubernetesNetwork(googleProject, network)
       kubeSubNetwork = KubernetesSubNetwork(googleProject, dbCluster.region, subnetwork)
 
+      networkConfig = new com.google.api.services.container.model.NetworkConfig()
+        .setEnableIntraNodeVisibility(params.enableIntraNodeVisibility)
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
         .setInitialClusterVersion(config.clusterConfig.version.value)
@@ -129,6 +147,7 @@ class GKEInterpreter[F[_]](
         .setNetwork(kubeNetwork.idString)
         .setSubnetwork(kubeSubNetwork.idString)
         .setResourceLabels(Map("leonardo" -> "true").asJava)
+        .setNetworkConfig(networkConfig)
         .setNetworkPolicy(
           new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
         )
@@ -337,7 +356,7 @@ class GKEInterpreter[F[_]](
       )
 
       // Create KSA
-      ksaName: ServiceAccountName <- F.fromOption(
+      ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppCreationException(
           s"Kubernetes Service Account not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}"
@@ -397,10 +416,9 @@ class GKEInterpreter[F[_]](
 
       // TODO: validate app release is the same as restore release
       appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(diskId).transaction
-      galaxyRestore: Option[GalaxyRestore] = appRestore.flatMap {
-        case a: GalaxyRestore   => Some(a)
-        case _: CromwellRestore => None
-        case _: RStudioRestore  => None
+      galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+        case a: AppRestore.GalaxyRestore => Some(a)
+        case _: AppRestore.Other         => None
       }
 
       // helm install and wait
@@ -443,18 +461,21 @@ class GKEInterpreter[F[_]](
             gsa,
             app.customEnvironmentVariables
           )
-        case AppType.RStudio =>
-          installRStudioApp(
+        case AppType.Allowed =>
+          installAllowedApp(
             helmAuthContext,
+            app.id,
             app.appName,
             app.release,
+            app.chart,
             dbCluster,
             dbApp.nodepool.nodepoolName,
             namespaceName,
             nfsDisk,
             ksaName,
             gsa,
-            app.auditInfo.creator
+            app.auditInfo.creator,
+            app.customEnvironmentVariables
           )
         case AppType.Custom =>
           installCustomApp(
@@ -508,7 +529,7 @@ class GKEInterpreter[F[_]](
                     )
                   )
                 ) { galaxyPvc =>
-                  val galaxyDiskRestore = GalaxyRestore(
+                  val galaxyDiskRestore = AppRestore.GalaxyRestore(
                     PvcId(galaxyPvc.getMetadata.getUid),
                     app.id
                   )
@@ -519,13 +540,262 @@ class GKEInterpreter[F[_]](
                 }
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
-        case AppType.RStudio  => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
+        case AppType.Allowed  => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
         case AppType.Custom   => F.unit
         case _ =>
           F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
       }
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+    } yield ()
+
+  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      googleProject <- F.fromOption(
+        params.googleProject,
+        AppUpdateException(
+          s"${params.appName} must have a google project in the GCP cloud context",
+          Some(ctx.traceId)
+        )
+      )
+
+      // Grab records from the database
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Gcp(googleProject), params.appName)
+        .transaction
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(CloudContext.Gcp(googleProject), params.appName, ctx.traceId, "No active app found in DB")
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in project ${googleProject}")
+
+      // Grab all of the values that we need to resend to the helm update command for each app
+      dbCluster = dbApp.cluster
+      nodepoolName = dbApp.nodepool.nodepoolName
+      machineTypeName = dbApp.nodepool.machineType
+      gkeClusterId = dbCluster.getClusterId
+
+      app = dbApp.app
+      namespaceName = app.appResources.namespace.name
+      gsa = app.googleServiceAccount
+      nfsDisk <- F.fromOption(
+        dbApp.app.appResources.disk,
+        AppUpdateException(s"NFS disk not found in DB for app ${app.appName.value}", Some(ctx.traceId))
+      )
+      ksaName <- F.fromOption(
+        app.appResources.kubernetesServiceAccountName,
+        AppUpdateException(
+          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
+          Some(ctx.traceId)
+        )
+      )
+      userEmail = app.auditInfo.creator
+      stagingBucketName = generateUniqueBucketName("leostaging-" + params.appName.value)
+
+      // Resolve the cluster in Google
+      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
+      googleCluster <- F.fromOption(
+        googleClusterOpt,
+        AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
+      )
+
+      (chartOverrideValues, appOk) <- app.appType match {
+        case AppType.Galaxy =>
+          for {
+
+            postgresDiskNameOpt <- for {
+              disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, googleProject, nfsDisk.zone)
+            } yield disk.map(x => DiskName(x.getName))
+
+            postgresDiskName <- F.fromOption(
+              postgresDiskNameOpt,
+              AppUpdateException(s"No postgres disk found in google for app ${app.appName.value} ",
+                                 traceId = Some(ctx.traceId)
+              )
+            )
+
+            appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(nfsDisk.id).transaction
+            galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+              case a: AppRestore.GalaxyRestore => Some(a)
+              case _: AppRestore.Other         => None
+            }
+
+            machineType <- computeService
+              .getMachineType(googleProject,
+                              ZoneName("us-central1-a"),
+                              machineTypeName
+              ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+              .flatMap(opt =>
+                F.fromOption(
+                  opt,
+                  new AppUpdateException(s"Unknown machine type for ${machineTypeName.value}",
+                                         traceId = Some(ctx.traceId)
+                  )
+                )
+              )
+
+            appMachineType = AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)
+
+            chartValues = buildGalaxyChartOverrideValuesString(
+              config,
+              app.appName,
+              app.release,
+              dbCluster,
+              nodepoolName,
+              userEmail,
+              app.customEnvironmentVariables,
+              ksaName,
+              namespaceName,
+              nfsDisk,
+              postgresDiskName,
+              appMachineType,
+              galaxyRestore
+            )
+
+            last <- streamFUntilDone(
+              appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy")),
+              config.monitorConfig.updateApp.maxAttempts,
+              config.monitorConfig.updateApp.interval
+            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError
+
+          } yield (chartValues.mkString(","), last)
+        case AppType.Cromwell =>
+          for {
+
+            last <- streamFUntilDone(
+              config.cromwellAppConfig.services
+                .map(_.name)
+                .traverse(s => appDao.isProxyAvailable(googleProject, app.appName, s)),
+              config.monitorConfig.createApp.maxAttempts,
+              config.monitorConfig.createApp.interval
+            ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+
+            chartValues = buildCromwellAppChartOverrideValuesString(
+              config,
+              app.appName,
+              dbCluster,
+              nodepoolName,
+              namespaceName,
+              nfsDisk,
+              ksaName,
+              gsa,
+              app.customEnvironmentVariables
+            )
+
+          } yield (chartValues.mkString(","), last)
+        case AppType.Allowed =>
+          for {
+            // Create the throwaway staging bucket to be used by Welder
+            _ <- bucketHelper
+              .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
+              .compile
+              .drain
+
+            allowedChart <- F.fromOption(
+              AllowedChartName.fromChartName(app.chart.name),
+              new RuntimeException(s"invalid chart name for ALLOWED app: ${app.chart.name}")
+            )
+
+            chartValues = buildAllowedAppChartOverrideValuesString(
+              config,
+              allowedChart,
+              app.appName,
+              dbCluster,
+              nodepoolName,
+              namespaceName,
+              nfsDisk,
+              ksaName,
+              userEmail,
+              stagingBucketName,
+              app.customEnvironmentVariables
+            )
+
+            last <- streamFUntilDone(
+              config.allowedAppConfig.services
+                .map(_.name)
+                .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+              config.monitorConfig.updateApp.maxAttempts,
+              config.monitorConfig.updateApp.interval
+            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+
+          } yield (chartValues.mkString(","), last)
+        case AppType.Custom =>
+          for {
+
+            desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
+            descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
+              AppUpdateException(
+                s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}",
+                Some(ctx.traceId)
+              )
+            }
+
+            (serviceName, serviceConfig) = descriptor.services.head
+
+            chartValues = buildCustomChartOverrideValuesString(
+              config,
+              params.appName,
+              app.release,
+              nodepoolName,
+              serviceName,
+              dbCluster,
+              namespaceName,
+              serviceConfig,
+              app.extraArgs,
+              nfsDisk,
+              ksaName,
+              serviceConfig.environment ++ app.customEnvironmentVariables
+            )
+
+            last <- streamFUntilDone(
+              descriptor.services.keys.toList.traverse(s =>
+                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
+              ),
+              config.monitorConfig.updateApp.maxAttempts,
+              config.monitorConfig.updateApp.interval
+            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+
+          } yield (chartValues, last)
+        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId)))
+      }
+
+      // Authenticate helm client
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+
+      // Upgrade app chart version and explicitly pass the values
+      _ <- helmClient
+        .upgradeChart(
+          app.release,
+          app.chart.name,
+          params.appChartVersion,
+          org.broadinstitute.dsp.Values(chartOverrideValues)
+        )
+        .run(helmAuthContext)
+
+      // Fail if apps are not live
+      _ <-
+        if (appOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdateException(
+              s"App ${params.appName.value} failed to update in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}",
+              Some(ctx.traceId)
+            )
+          )
+
+      _ <- logger.info(
+        s"Update app operation has finished for app ${app.appName.value} in cluster ${googleCluster}"
+      )
+
+      // Update app chart version in the DB
+      _ <- appQuery.updateChart(app.id, Chart(app.chart.name, params.appChartVersion)).transaction
+      // Put app status back to running
+      _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
+
+      _ <- logger.info(s"Done updating app ${params.appName} in project ${params.googleProject}")
     } yield ()
 
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -701,11 +971,9 @@ class GKEInterpreter[F[_]](
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
-      appRestore: Option[GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
-        case a: GalaxyRestore   => Some(a)
-        case _: CromwellRestore => None
-        case _: RStudioRestore  => None
-
+      appRestore: Option[AppRestore.GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
+        case a: AppRestore.GalaxyRestore => Some(a)
+        case _: AppRestore.Other         => None
       }
       _ <- appRestore.traverse { restore =>
         for {
@@ -749,29 +1017,51 @@ class GKEInterpreter[F[_]](
         if (dbNodepool.autoscalingEnabled) {
           nodepoolLock.withKeyLock(dbCluster.getClusterId) {
             for {
-              op <- gkeService.setNodepoolAutoscaling(
-                nodepoolId,
-                NodePoolAutoscaling.newBuilder().setEnabled(false).build()
-              )
-              _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
-              lastOp <- gkeService
-                .pollOperation(
-                  KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                  config.monitorConfig.scalingDownNodepool.interval,
-                  config.monitorConfig.scalingDownNodepool.maxAttempts
+              opOrError <- gkeService
+                .setNodepoolAutoscaling(
+                  nodepoolId,
+                  NodePoolAutoscaling.newBuilder().setEnabled(false).build()
                 )
-                .compile
-                .lastOrError
-              _ <-
-                if (lastOp.isDone)
-                  logger.info(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
-                  )
-                else
-                  logger.error(ctx.loggingCtx)(
-                    s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
-                  ) >>
-                    F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+                .attempt
+              _ <- opOrError match {
+                case Left(e: com.google.api.gax.rpc.NotFoundException) =>
+                  // Mark the app as `DELETED` instead of bubbling this error up to generic error handler
+                  for {
+                    _ <- appErrorQuery
+                      .save(
+                        dbApp.app.id,
+                        AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
+                      )
+                      .transaction
+                    _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
+                    _ <-
+                      nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now).transaction
+                  } yield ()
+                case Left(e) => F.raiseError(e)
+                case Right(op) =>
+                  for {
+                    _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
+                    lastOp <- gkeService
+                      .pollOperation(
+                        KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+                        config.monitorConfig.scalingDownNodepool.interval,
+                        config.monitorConfig.scalingDownNodepool.maxAttempts
+                      )
+                      .compile
+                      .lastOrError
+                    _ <-
+                      if (lastOp.isDone)
+                        logger.info(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
+                        )
+                      else
+                        logger.error(ctx.loggingCtx)(
+                          s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
+                        ) >>
+                          F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
+
+                  } yield ()
+              }
             } yield ()
           }
         } else F.unit
@@ -884,6 +1174,14 @@ class GKEInterpreter[F[_]](
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+        case AppType.Allowed =>
+          streamFUntilDone(
+            config.allowedAppConfig.services
+              .map(_.name)
+              .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+            config.monitorConfig.startApp.maxAttempts,
+            config.monitorConfig.startApp.interval
+          ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
         case AppType.Custom =>
           for {
             desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
@@ -900,7 +1198,7 @@ class GKEInterpreter[F[_]](
               config.monitorConfig.startApp.interval
             ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
           } yield last.isDone
-        case _ =>
+        case AppType.Wds | AppType.HailBatch | AppType.WorkflowsApp | AppType.CromwellRunnerApp =>
           F.raiseError(AppCreationException(s"App type ${dbApp.app.appType} not supported on GCP"))
       }
 
@@ -920,8 +1218,11 @@ class GKEInterpreter[F[_]](
           } yield ()
         } else {
           for {
-            // The app is Running at this point and Galaxy can be used
-            _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+            startTime <- F.realTimeInstant
+            // The app is Running at this point and can be used
+            _ <- appQuery.updateStatus(dbApp.app.id, AppStatus.Running).transaction
+            trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
+            _ <- appUsageQuery.recordStart(dbApp.app.id, startTime).whenA(trackUsage)
 
             // If autoscaling should be enabled, enable it now. Galaxy can still be used while this is in progress
             _ <-
@@ -1050,7 +1351,7 @@ class GKEInterpreter[F[_]](
                                   kubernetesServiceAccount: ServiceAccountName,
                                   nfsDisk: PersistentDisk,
                                   machineType: AppMachineType,
-                                  galaxyRestore: Option[GalaxyRestore]
+                                  galaxyRestore: Option[AppRestore.GalaxyRestore]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -1058,7 +1359,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
+        s"Installing helm chart $chart for app ${appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(nfsDisk.cloudContext),
@@ -1074,6 +1375,7 @@ class GKEInterpreter[F[_]](
       )
 
       chartValues = buildGalaxyChartOverrideValuesString(
+        config,
         appName,
         release,
         dbCluster,
@@ -1120,6 +1422,9 @@ class GKEInterpreter[F[_]](
       )
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
+      // Wait a bit before starting polling for the app status check as the certificates might not be quite ready yet
+      // This seems to only impact galaxy, See https://broadworkbench.atlassian.net/browse/IA-4551
+      _ <- F.sleep(60 seconds)
       isDone <- streamFUntilDone(
         appDao.isProxyAvailable(googleProject, appName, ServiceName("galaxy")),
         config.monitorConfig.createApp.maxAttempts,
@@ -1158,7 +1463,8 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getClusterId.toString}"
       )
 
-      chartValues = buildCromwellAppChartOverrideValuesString(appName,
+      chartValues = buildCromwellAppChartOverrideValuesString(config,
+                                                              appName,
                                                               cluster,
                                                               nodepoolName,
                                                               namespaceName,
@@ -1212,20 +1518,21 @@ class GKEInterpreter[F[_]](
     } yield ()
   }
 
-  private[util] def installRStudioApp(
+  private[util] def installAllowedApp(
     helmAuthContext: AuthContext,
+    appId: AppId,
     appName: AppName,
     release: Release,
+    chart: Chart,
     cluster: KubernetesCluster,
     nodepoolName: NodepoolName,
     namespaceName: NamespaceName,
     disk: PersistentDisk,
     ksaName: ServiceAccountName,
     gsa: WorkbenchEmail,
-    userEmail: WorkbenchEmail
-  )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val chart = config.rStudioAppConfig.chart
-
+    userEmail: WorkbenchEmail,
+    customEnvironmentVariables: Map[String, String]
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
 
@@ -1246,14 +1553,22 @@ class GKEInterpreter[F[_]](
         .compile
         .drain
 
-      chartValues = buildRStudioAppChartOverrideValuesString(appName,
+      allowedChart <- F.fromOption(
+        AllowedChartName.fromChartName(chart.name),
+        new RuntimeException(s"invalid chart name for ALLOWED app: ${chart.name}")
+      )
+
+      chartValues = buildAllowedAppChartOverrideValuesString(config,
+                                                             allowedChart,
+                                                             appName,
                                                              cluster,
                                                              nodepoolName,
                                                              namespaceName,
                                                              disk,
                                                              ksaName,
                                                              userEmail,
-                                                             stagingBucketName
+                                                             stagingBucketName,
+                                                             customEnvironmentVariables
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
@@ -1273,28 +1588,28 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for RSTUDIO app ${appName.value} in project ${cluster.cloudContext.asString}"
+        s"helm install for ALLOWED app ${appName.value} in project ${cluster.cloudContext.asString}"
       ).compile.lastOrError
 
       // Poll the app until it starts up
       last <- streamFUntilDone(
-        config.rStudioAppConfig.services
+        config.allowedAppConfig.services
           .map(_.name)
           .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
 
+      readyTime <- F.realTimeInstant
       _ <-
         if (!last.isDone) {
           val msg =
-            s"RStudio app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+            s"AoU app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
-        } else F.unit
+        } else appUsageQuery.recordStart(appId, readyTime).whenA(allowedChart.trackUsage)
 
     } yield ()
-  }
 
   private[util] def installCustomApp(appId: AppId,
                                      appName: AppName,
@@ -1353,6 +1668,7 @@ class GKEInterpreter[F[_]](
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
       chartValues = buildCustomChartOverrideValuesString(
+        config,
         appName,
         release,
         nodepoolName,
@@ -1508,7 +1824,6 @@ class GKEInterpreter[F[_]](
     googleProject: GoogleProject,
     projectLabels: Option[Map[String, String]]
   ): com.google.api.services.container.model.NodePool = {
-    import scala.jdk.CollectionConverters._
     val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
 
     val legacyGoogleNodepool = new com.google.api.services.container.model.NodePool()
@@ -1548,280 +1863,8 @@ class GKEInterpreter[F[_]](
     )
   }
 
-  private[util] def buildCromwellAppChartOverrideValuesString(
-    appName: AppName,
-    cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
-    namespaceName: NamespaceName,
-    disk: PersistentDisk,
-    ksaName: ServiceAccountName,
-    gsa: WorkbenchEmail,
-    customEnvironmentVariables: Map[String, String]
-  ): List[String] = {
-    val proxyPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/cromwell-service"
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val gcsBucket = customEnvironmentVariables.getOrElse("WORKSPACE_BUCKET", "<no workspace bucket defined>")
-
-    val rewriteTarget = "$2"
-    val ingress = List(
-      raw"""ingress.enabled=true""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.path=${proxyPath}""",
-      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.hosts[0].paths[0]=${proxyPath}${"(/|$)(.*)"}""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""db.password=${config.cromwellAppConfig.dbPassword.value}"""
-    )
-
-    List(
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Persistence
-      raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      raw"""env.swaggerBasePath=$proxyPath/cromwell""",
-      // cromwellConfig
-      raw"""config.gcsProject=${cluster.cloudContext.asString}""",
-      raw"""config.gcsBucket=$gcsBucket/cromwell-execution""",
-      // Service Account
-      raw"""config.serviceAccount.name=${ksaName.value}""",
-      raw"""config.serviceAccount.annotations.gcpServiceAccount=${gsa.value}"""
-    ) ++ ingress
-  }
-
-  private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
-                                                         release: Release,
-                                                         cluster: KubernetesCluster,
-                                                         nodepoolName: NodepoolName,
-                                                         userEmail: WorkbenchEmail,
-                                                         customEnvironmentVariables: Map[String, String],
-                                                         ksa: ServiceAccountName,
-                                                         namespaceName: NamespaceName,
-                                                         nfsDisk: PersistentDisk,
-                                                         postgresDiskName: DiskName,
-                                                         machineType: AppMachineType,
-                                                         galaxyRestore: Option[GalaxyRestore]
-  ): List[String] = {
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/galaxy"
-    val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
-    val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
-    // Machine type info
-    val maxLimitMemory = machineType.memorySizeInGb
-    val maxLimitCpu = machineType.numOfCpus
-    val maxRequestMemory = maxLimitMemory - 22
-    val maxRequestCpu = maxLimitCpu - 6
-
-    // Custom EV configs
-    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
-      List(
-        raw"""configs.$k=$v""",
-        raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.asString}-galaxykubeman-configs""",
-        raw"""extraEnv[$i].valueFrom.configMapKeyRef.key=$k"""
-      )
-    }
-
-    val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
-      List(
-        raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
-        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-galaxy-pvc"""
-      )
-    )
-    // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
-    // value override special characters such as '.'
-    // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
-    List(
-      // Storage class configs
-      raw"""nfs.storageClass.name=nfs-${release.asString}""",
-      raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
-      // Node selector config: this ensures the app is run on the user's nodepool
-      raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      raw"""galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: ${nodepoolName.value}""",
-      raw"""galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Ingress configs
-      raw"""galaxy.ingress.path=${ingressPath}""",
-      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
-      raw"""galaxy.ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""galaxy.ingress.hosts[0].paths[0].path=${ingressPath}""",
-      raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
-      // CVMFS configs
-      raw"""cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-${release.asString}""",
-      raw"""cvmfs.cvmfscsi.cache.alien.pvc.name=cvmfs-alien-cache""",
-      // Galaxy configs
-      raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
-      raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
-      raw"""galaxy.terra.launch.workspace=${workspaceName}""",
-      raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
-      raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
-      raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
-      // Tusd ingress configs
-      raw"""galaxy.tusd.ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""galaxy.tusd.ingress.hosts[0].paths[0].path=${ingressPath}/api/upload/resumable_upload""",
-      raw"""galaxy.tusd.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""galaxy.tusd.ingress.tls[0].secretName=tls-secret""",
-      // Set RabbitMQ storage class
-      raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
-      // Set Machine Type specs
-      raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
-      raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
-      raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
-      raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
-      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=${maxRequestMemory}""",
-      raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=${maxRequestCpu}""",
-      // RBAC configs
-      raw"""galaxy.serviceAccount.create=false""",
-      raw"""galaxy.serviceAccount.name=${ksa.value}""",
-      raw"""rbac.serviceAccount=${ksa.value}""",
-      // Persistence configs
-      raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
-      raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
-      raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
-      raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
-      raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword.value}""",
-      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName.value}""",
-      raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
-      raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
-      raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
-      raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
-      // Note Galaxy pvc claim is the nfs disk size minus 50G
-      raw"""galaxy.persistence.size=${(nfsDisk.size.gb - 50).toString}Gi"""
-    ) ++ configs ++ galaxyRestoreSettings
-  }
-
-  private[util] def buildRStudioAppChartOverrideValuesString(
-    appName: AppName,
-    cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
-    namespaceName: NamespaceName,
-    disk: PersistentDisk,
-    ksaName: ServiceAccountName,
-    userEmail: WorkbenchEmail,
-    stagingBucket: GcsBucketName
-  ): List[String] = {
-    val rstudioIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/rstudio-service"
-    val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-
-    val rewriteTarget = "$2"
-    val ingress = List(
-      raw"""ingress.enabled=true""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${rstudioIngressPath}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-      raw"""ingress.host=${k8sProxyHost}""",
-      raw"""ingress.rstudio.path=${rstudioIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
-    )
-
-    val welder = List(
-      raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",
-      raw"""welder.extraEnv[0].value=${cluster.cloudContext.asString}""",
-      raw"""welder.extraEnv[1].name=STAGING_BUCKET""",
-      raw"""welder.extraEnv[1].value=${stagingBucket.value}""",
-      raw"""welder.extraEnv[2].name=CLUSTER_NAME""",
-      raw"""welder.extraEnv[2].value=${appName.value}""",
-      raw"""welder.extraEnv[3].name=OWNER_EMAIL""",
-      raw"""welder.extraEnv[3].value=${userEmail.value}"""
-    )
-
-    List(
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Persistence
-      raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      // Service Account
-      raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder
-  }
-
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
-
-  private[util] def buildCustomChartOverrideValuesString(appName: AppName,
-                                                         release: Release,
-                                                         nodepoolName: NodepoolName,
-                                                         serviceName: String,
-                                                         cluster: KubernetesCluster,
-                                                         namespaceName: NamespaceName,
-                                                         service: CustomAppService,
-                                                         extraArgs: List[String],
-                                                         disk: PersistentDisk,
-                                                         ksaName: ServiceAccountName,
-                                                         customEnvironmentVariables: Map[String, String]
-  ): String = {
-    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
-    val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/${serviceName}"
-
-    // Command and args
-    val command = service.command.zipWithIndex.map { case (c, i) =>
-      raw"""image.command[$i]=$c"""
-    }
-    val args = service.args.zipWithIndex.map { case (a, i) =>
-      raw"""image.args[$i]=$a"""
-    } ++ extraArgs.zipWithIndex.map { case (a, i) =>
-      raw"""image.args[${i + service.args.length}]=$a"""
-    }
-
-    // Custom EVs
-    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
-      List(
-        raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].value=$v"""
-      )
-    }
-
-    val rewriteTarget = "$2"
-    // These nginx an ingress rules are condition.
-    // Some apps do not like behind behind a reverse proxy in this way, and require routing specified via this baseUrl
-    // The two methods are mutually exclusive
-    val ingress = service.baseUrl match {
-      case "/" =>
-        List(
-          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
-          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-          raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}"""
-        )
-      case _ => List(raw"""ingress.hosts[0].paths[0]=${service.baseUrl}""")
-    }
-
-    (List(
-      raw"""nameOverride=${serviceName}""",
-      // Image
-      raw"""image.image=${service.image.imageUrl}""",
-      raw"""image.port=${service.port}""",
-      raw"""image.baseUrl=${service.baseUrl}""",
-      // Ingress
-      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      // Persistence
-      raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      raw"""persistence.mountPath=${service.pdMountPath}""",
-      raw"""persistence.accessMode=${service.pdAccessMode}""",
-      raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ command ++ args ++ configs ++ ingress).mkString(",")
-  }
 
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
@@ -1872,6 +1915,10 @@ final case class AppStartException(message: String) extends AppProcessingExcepti
   override def getMessage: String = message
 }
 
+final case class AppUpdateException(message: String, traceId: Option[TraceId] = None) extends AppProcessingException {
+  override def getMessage: String = message
+}
+
 final case class DiskNotFoundForAppException(appId: AppId, traceId: TraceId)
     extends LeoException(s"No persistent disk found for ${appId}", traceId = Some(traceId))
 
@@ -1880,13 +1927,14 @@ final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       getAppResult: GetAppResult
 )
 
-final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
+final case class GKEInterpreterConfig(leoUrlBase: URL,
+                                      vpcNetworkTag: NetworkTag,
                                       terraAppSetupChartConfig: TerraAppSetupChartConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
                                       customAppConfig: CustomAppConfig,
-                                      rStudioAppConfig: RStudioAppConfig,
+                                      allowedAppConfig: AllowedAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,

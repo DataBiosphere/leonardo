@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   AzureRuntimeStartingError,
   AzureRuntimeStoppingError
 }
+import org.broadinstitute.dsp.ChartVersion
 import org.http4s.Uri
 
 import java.time.Instant
@@ -46,6 +47,15 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
                        cloudContext: AzureCloudContext,
                        landingZoneResources: LandingZoneResources,
                        storageContainer: Option[StorageContainerResponse]
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit]
+
+  def updateAndPollApp(appId: AppId,
+                       appName: AppName,
+                       appChartVersion: ChartVersion,
+                       workspaceId: Option[WorkspaceId],
+                       cloudContext: AzureCloudContext
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]

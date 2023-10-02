@@ -268,6 +268,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   ) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === clusterName)
       .filter(_.destroyedDate === destroyedDate)
@@ -285,11 +286,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, error, label, extension, image, scopes, patch)
   }
 
-  def getActiveRuntimeQueryByWorkspaceId(workspaceId: WorkspaceId, clusterName: RuntimeName) = {
+  def getRuntimeQueryByWorkspaceId(workspaceId: WorkspaceId, clusterName: RuntimeName) = {
     val baseQuery = clusterQuery
       .filterOpt(Some(workspaceId))(_.workspaceId === _)
       .filter(_.runtimeName === clusterName)
-      .filter(_.destroyedDate === dummyDate)
 
     for {
       ((((((cluster, error), label), extension), image), scopes), patch) <- baseQuery joinLeft
@@ -310,6 +310,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   ) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === clusterName)
       .filter(_.destroyedDate === destroyedDate)
@@ -320,23 +321,24 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   private[leonardo] def fullClusterQuery(
     baseClusterQuery: Query[ClusterTable, ClusterRecord, Seq]
-  ): Query[(ClusterTable,
-            Rep[Option[ClusterErrorTable]],
-            Rep[Option[LabelTable]],
-            Rep[Option[ExtensionTable]],
-            Rep[Option[ClusterImageTable]],
-            Rep[Option[ScopeTable]],
-            Rep[Option[PatchTable]]
-           ),
-           (ClusterRecord,
-            Option[ClusterErrorRecord],
-            Option[LabelRecord],
-            Option[ExtensionRecord],
-            Option[ClusterImageRecord],
-            Option[ScopeRecord],
-            Option[PatchRecord]
-           ),
-           Seq
+  ): Query[
+    (ClusterTable,
+     Rep[Option[ClusterErrorTable]],
+     Rep[Option[LabelTable]],
+     Rep[Option[ExtensionTable]],
+     Rep[Option[ClusterImageTable]],
+     Rep[Option[ScopeTable]],
+     Rep[Option[PatchTable]]
+    ),
+    (ClusterRecord,
+     Option[ClusterErrorRecord],
+     Option[LabelRecord],
+     Option[ExtensionRecord],
+     Option[ClusterImageRecord],
+     Option[ScopeRecord],
+     Option[PatchRecord]
+    ),
+    Seq
   ] =
     for {
       ((((((cluster, error), label), extension), image), scopes), patch) <- baseClusterQuery joinLeft
@@ -462,6 +464,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[ClusterRecord]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
@@ -475,6 +478,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[RuntimeSamResourceId]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
@@ -485,6 +489,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[GcsPath]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .map(_.initBucket)
@@ -495,6 +500,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     ec: ExecutionContext
   ): DBIO[Option[StagingBucket]] =
     clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .map(x => (x.cloudProvider, x.stagingBucket))
@@ -812,14 +818,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     // to a grouped (cluster -> (instances, labels)) structure.
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
-    val clusterRecordMap: Map[ClusterRecord,
-                              (Chain[ClusterErrorRecord],
-                               Map[String, Chain[String]],
-                               Chain[ExtensionRecord],
-                               Chain[ClusterImageRecord],
-                               Chain[ScopeRecord],
-                               Chain[PatchRecord]
-                              )
+    val clusterRecordMap: Map[
+      ClusterRecord,
+      (Chain[ClusterErrorRecord],
+       Map[String, Chain[String]],
+       Chain[ExtensionRecord],
+       Chain[ClusterImageRecord],
+       Chain[ScopeRecord],
+       Chain[PatchRecord]
+      )
     ] = clusterRecords.toList.foldMap {
       case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap

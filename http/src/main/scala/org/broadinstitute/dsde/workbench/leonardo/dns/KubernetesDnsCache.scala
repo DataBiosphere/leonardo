@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
-import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Async, Ref}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -27,7 +26,7 @@ final case class KubernetesDnsCacheKey(cloudContext: CloudContext, appName: AppN
 final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
-  hostToIpMapping: Ref[F, Map[Host, IP]],
+  hostToIpMapping: Ref[F, Map[String, IP]],
   hostStatusCache: Cache[F, KubernetesDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: KubernetesDnsCacheKey): F[HostStatus] =
@@ -52,7 +51,7 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
         hostToIpMapping
-          .getAndUpdate(_ + (h -> ip))
+          .getAndUpdate(_ + (h.address -> ip))
           .as[HostStatus](HostReady(h, "", CloudProvider.Gcp)) // TODO: update this once we start support AKS
     }
 }

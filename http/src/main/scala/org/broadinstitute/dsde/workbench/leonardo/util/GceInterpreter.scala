@@ -155,7 +155,7 @@ class GceInterpreter[F[_]](
             )
             isFormatted <- persistentDisk.formattedBy match {
               case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) | Some(FormattedBy.Cromwell) | Some(
-                    FormattedBy.RStudio
+                    FormattedBy.Allowed
                   ) =>
                 F.raiseError[Boolean](
                   new RuntimeException(
@@ -338,6 +338,8 @@ class GceInterpreter[F[_]](
     ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
+      ctx <- ev.ask
+      runtimeName = params.runtimeAndRuntimeConfig.runtime.runtimeName.asString
       zoneParam <- F.fromOption(
         LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException(
@@ -348,12 +350,24 @@ class GceInterpreter[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
       )
+      now <- F.realTimeInstant
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Getting shutdown script, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+      )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
+      now <- F.realTimeInstant
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Adding instance metadata, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+      )
       _ <- googleComputeService.addInstanceMetadata(
         googleProject,
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadata
+      )
+      now <- F.realTimeInstant
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Sending stop message to google, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
       opFuture <- googleComputeService.stopInstance(
         googleProject,
@@ -395,6 +409,7 @@ class GceInterpreter[F[_]](
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
+
       res <- opFutureOpt match {
         case None =>
           F.raiseError(new Exception(s"${params.runtimeAndRuntimeConfig.runtime.projectNameString} not found in GCP"))

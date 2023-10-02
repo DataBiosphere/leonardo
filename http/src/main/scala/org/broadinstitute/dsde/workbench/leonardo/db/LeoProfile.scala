@@ -134,10 +134,11 @@ private[leonardo] object LeoProfile extends MySQLProfile {
           res.fold(e => throw e, identity)
         }
       )
-    implicit def customImageTypeMapper = MappedColumnType.base[RuntimeImageType, String](
-      _.toString,
-      s => RuntimeImageType.withName(s)
-    )
+    implicit def customImageTypeMapper: BaseColumnType[RuntimeImageType] =
+      MappedColumnType.base[RuntimeImageType, String](
+        _.toString,
+        s => RuntimeImageType.withName(s)
+      )
     implicit val runtimeConfigIdMappedColumnType: BaseColumnType[RuntimeConfigId] =
       MappedColumnType.base[RuntimeConfigId, Long](_.id, RuntimeConfigId.apply)
     implicit val googleIdMappedColumnType: BaseColumnType[ProxyHostName] =
@@ -222,6 +223,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
 
     implicit val appIdColumnType: BaseColumnType[AppId] =
       MappedColumnType.base[AppId, Long](_.id, AppId.apply)
+    implicit val appUsageRecordIdColumnType: BaseColumnType[AppUsageId] =
+      MappedColumnType.base[AppUsageId, Long](_.id, AppUsageId.apply)
     implicit val appNameColumnType: BaseColumnType[AppName] =
       MappedColumnType.base[AppName, String](_.value, AppName.apply)
     implicit val appAccessScopeColumnType: BaseColumnType[AppAccessScope] =
@@ -301,6 +304,14 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val diskLinkColumnType: BaseColumnType[DiskLink] =
       MappedColumnType
         .base[DiskLink, String](_.asString, DiskLink.apply)
+
+    implicit val appControlledResourceStatusColumnType: BaseColumnType[AppControlledResourceStatus] =
+      MappedColumnType.base[AppControlledResourceStatus, String](
+        _.toString,
+        s =>
+          AppControlledResourceStatus.stringToObject
+            .getOrElse(s, throw ColumnDecodingException(s"invalid app controlled resource status ${s}"))
+      )
   }
 
   case class ColumnDecodingException(message: String) extends Exception

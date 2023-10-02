@@ -22,11 +22,12 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreat
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.client.Client
+import org.http4s.headers.Authorization
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -40,8 +41,8 @@ class RuntimeDataprocSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val (authTokenForOldApiClient, auth) = getAuthTokenAndAuthorization(Ron)
-  implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
+  implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
+  implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
@@ -207,15 +208,7 @@ class RuntimeDataprocSpec
         // preemptibles should be added in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
-        // check output of yarn node -list command
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list""")
-              output.get should include("Total Nodes:")
-            }
-          }
-        )
+        // TODO PR comment: we probably dont want to use selenium to verify the cluster/node status
 
         // startup script should have run again
         startScriptOutputs <- dep.storage

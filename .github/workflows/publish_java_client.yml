@@ -1,6 +1,7 @@
-name: Unit tests
+name: Publish Java Client
 
 on:
+  workflow_dispatch:
   push:
     branches: [ develop ]
     paths-ignore: ['**.md']

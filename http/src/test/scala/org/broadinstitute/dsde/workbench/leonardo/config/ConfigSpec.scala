@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
+import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -21,7 +22,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read LeoPubsubMessageSubscriberConfig properly" in {
     val expectedResult = LeoPubsubMessageSubscriberConfig(
       100,
-      295 seconds,
+      595 seconds,
       PersistentDiskMonitorConfig(
         CreateDiskTimeout(5, 20),
         PollMonitorConfig(2 seconds, 5, 3 seconds),
@@ -118,7 +119,25 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       GalaxyDrsUrl("https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"),
       5,
       3,
-      true
+      true,
+      List(
+        ChartVersion("0.7.3"),
+        ChartVersion("0.8.0"),
+        ChartVersion("1.2.0"),
+        ChartVersion("1.2.1"),
+        ChartVersion("1.2.2"),
+        ChartVersion("1.6.0"),
+        ChartVersion("1.6.1"),
+        ChartVersion("2.1.0"),
+        ChartVersion("2.4.4"),
+        ChartVersion("2.4.6"),
+        ChartVersion("2.4.7"),
+        ChartVersion("2.4.8"),
+        ChartVersion("2.4.9"),
+        ChartVersion("2.5.0"),
+        ChartVersion("2.5.1"),
+        ChartVersion("2.5.2")
+      )
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }
@@ -137,10 +156,11 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         PollMonitorConfig(30 seconds, 120, 15 seconds),
         PollMonitorConfig(30 seconds, 120, 15 seconds),
         PollMonitorConfig(2 seconds, 100, 3 seconds),
-        InterruptablePollMonitorConfig(120, 15 seconds, 30 minutes),
-        PollMonitorConfig(30 seconds, 120, 10 seconds),
+        InterruptablePollMonitorConfig(120, 0 seconds, 30 seconds),
+        PollMonitorConfig(0 days, 120, 0 days),
         PollMonitorConfig(0 days, 10, 2 seconds),
         PollMonitorConfig(0 days, 10, 2 seconds),
+        InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes),
         InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes)
       )
     Config.appMonitorConfig shouldBe expectedResult

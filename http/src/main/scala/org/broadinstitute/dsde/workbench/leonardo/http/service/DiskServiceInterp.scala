@@ -173,6 +173,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[GetPersistentDiskResponse] =
     for {
       ctx <- as.ask
+
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(cloudContext, diskName, ctx.traceId).transaction
       hasPermission <- authProvider.hasPermissionWithProjectFallback[PersistentDiskSamResourceId, PersistentDiskAction](
         resp.samResource,
@@ -192,26 +200,50 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
       ctx <- as.ask
+
+      // throw 403 if user doesn't have project permission
+      hasProjectPermission <- cloudContext.traverse(cc =>
+        authProvider.isUserProjectReader(
+          cc,
+          userInfo
+        )
+      )
+      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       paramMap <- F.fromEither(processListParameters(params))
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, creatorOnly, cloudContext).transaction
+      partition = disks.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
-      diskAndProjects = disks.map(d =>
-        (GoogleProject(d.cloudContext.asString), d.samResource)
-      ) // TODO: update this to support Azure
-      samVisibleDisksOpt <- NonEmptyList.fromList(diskAndProjects).traverse { ds =>
+
+      gcpDiskAndProjects = partition._1.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
+      gcpSamVisibleDisksOpt <- NonEmptyList.fromList(gcpDiskAndProjects).traverse { ds =>
+        authProvider
+          .filterResourceProjectVisible(ds, userInfo)
+      }
+
+      // TODO: use filterUserVisible (and remove old function) or make filterResourceProjectVisible handle both Azure and GCP
+      azureDiskAndProjects = partition._2.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
+      azureSamVisibleDisksOpt <- NonEmptyList.fromList(azureDiskAndProjects).traverse { ds =>
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
       }
+
+      samVisibleDisksOpt = (gcpSamVisibleDisksOpt, azureSamVisibleDisksOpt) match {
+        case (Some(a), Some(b)) => Some(a ++ b)
+        case (Some(a), None)    => Some(a)
+        case (None, Some(b))    => Some(b)
+        case (None, None)       => None
+      }
+
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))
       res = samVisibleDisksOpt match {
         case None => Vector.empty
         case Some(samVisibleDisks) =>
           val samVisibleDisksSet = samVisibleDisks.toSet
-          // Making the assumption that users will always be able to access disks that they create
           disks
             .filter(d =>
-              d.auditInfo.creator == userInfo.userEmail || samVisibleDisksSet.contains(
+              samVisibleDisksSet.contains(
                 (GoogleProject(d.cloudContext.asString), d.samResource)
               )
             )
@@ -241,6 +273,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       cloudContext = CloudContext.Gcp(googleProject)
+
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       // throw 404 if not existent
       diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
       disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(cloudContext, diskName, ctx.traceId)))(
@@ -287,6 +327,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       cloudContext = CloudContext.Gcp(googleProject)
+
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       // throw 404 if not existent
       diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
       disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(cloudContext, diskName, ctx.traceId)))(

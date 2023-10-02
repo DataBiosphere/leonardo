@@ -11,9 +11,10 @@ import scala.concurrent.ExecutionContext
 
 object RuntimeConfigQueries {
   type RuntimeJoinLabelJoinRuntimeConfigJoinPatch =
-    Query[(((ClusterTable, Rep[Option[LabelTable]]), RuntimeConfigTable), Rep[Option[PatchTable]]),
-          (((ClusterRecord, Option[LabelRecord]), RuntimeConfigRecord), Option[PatchRecord]),
-          Seq
+    Query[
+      (((ClusterTable, Rep[Option[LabelTable]]), RuntimeConfigTable), Rep[Option[PatchTable]]),
+      (((ClusterRecord, Option[LabelRecord]), RuntimeConfigRecord), Option[PatchRecord]),
+      Seq
     ]
 
   val runtimeConfigs = TableQuery[RuntimeConfigTable]
@@ -44,7 +45,7 @@ object RuntimeConfigQueries {
             case RuntimeConfig.GceConfig(_, _, _, _, _)                        => none[DiskId]
             case RuntimeConfig.GceWithPdConfig(_, persistentDiskId, _, _, _)   => persistentDiskId
             case RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _) => none[DiskId]
-            case RuntimeConfig.AzureConfig(_, persistentDiskId, _)             => persistentDiskId.some
+            case RuntimeConfig.AzureConfig(_, persistentDiskId, _)             => persistentDiskId
           }
         case None => none[DiskId]
       }

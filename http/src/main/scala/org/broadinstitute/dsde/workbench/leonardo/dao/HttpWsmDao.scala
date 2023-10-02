@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
+import cats.data.OptionT
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
@@ -185,6 +186,20 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                          false
       )
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
+      postgresResource <- getLandingZoneResource(groupedLzResources,
+                                                 "Microsoft.DBforPostgreSQL/flexibleServers",
+                                                 SHARED_RESOURCE
+      ).attempt // use attempt here because older Landing Zones do not have a Postgres server
+      postgresServer <- postgresResource.toOption.traverse { resource =>
+        getLandingZoneResourceName(resource, useParent = false).map { pgName =>
+          val tagValue = getLandingZoneResourceTagValue(resource, "pgbouncer-enabled")
+          val pgBouncerEnabled: Boolean = java.lang.Boolean.parseBoolean(tagValue.getOrElse("false"))
+          logger.info(
+            s"Landing Zone Postgres server has 'pgbouncer-enabled' tag $tagValue; setting pgBouncerEnabled to $pgBouncerEnabled."
+          )
+          PostgresServer(pgName, pgBouncerEnabled)
+        }
+      }
     } yield LandingZoneResources(
       landingZoneId,
       AKSClusterName(aksClusterName),
@@ -195,27 +210,80 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       SubnetworkName(batchNodesSubnetName),
       SubnetworkName(aksSubnetName),
       region,
-      ApplicationInsightsName(applicationInsightsName)
+      ApplicationInsightsName(applicationInsightsName),
+      postgresServer
     )
 
+  /**
+   * Given a LandingZoneResource, retrieve the value of a specific tag on that resource.
+   *
+   * @param resource the LZ resource to inspect
+   * @param tagName  name of the tag whose value to return
+   * @return the tag's value, or None if the tag is not present on the resource
+   */
+  private def getLandingZoneResourceTagValue(resource: LandingZoneResource, tagName: String): Option[String] =
+    resource.tags.flatMap(_.get(tagName))
+
+  /**
+   * Given a collection of landing zone resources by purpose, return the single resource that
+   * matches a given resource type and purpose. Throws an error if the resource is not found.
+   *
+   * @param landingZoneResourcesByPurpose the collection in which to search
+   * @param resourceType                  type of resource to return
+   * @param purpose                       purpose of resource to return
+   * @return the LandingZoneResource
+   */
+  private def getLandingZoneResource(
+    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+    resourceType: String,
+    purpose: LandingZoneResourcePurpose
+  ): F[LandingZoneResource] =
+    landingZoneResourcesByPurpose
+      .get((purpose, resourceType.toLowerCase))
+      .flatMap(_.headOption)
+      .fold(
+        F.raiseError[LandingZoneResource](
+          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
+        )
+      )(F.pure)
+
+  /**
+   * Given a collection of landing zone resources by purpose, return the name of the single resource that
+   * matches a given resource type and purpose. Throws an error if the resource is not found.
+   *
+   * @param landingZoneResourcesByPurpose the collection in which to search
+   * @param resourceType                  type of resource to return
+   * @param purpose                       purpose of resource to return
+   * @param useParent                     whether to return the resource's name or its parent's name
+   * @return name of the specified resource
+   */
   private def getLandingZoneResourceName(
     landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
     resourceType: String,
     purpose: LandingZoneResourcePurpose,
     useParent: Boolean
   ): F[String] =
-    landingZoneResourcesByPurpose
-      .get((purpose, resourceType.toLowerCase))
-      .flatMap(_.headOption)
-      .flatMap { r =>
-        if (useParent) r.resourceParentId.flatMap(_.split('/').lastOption)
-        else r.resourceName.orElse(r.resourceId.flatMap(_.split('/').lastOption))
-      }
-      .fold(
-        F.raiseError[String](
-          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-        )
-      )(F.pure)
+    for {
+      resource <- getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
+      name <- getLandingZoneResourceName(resource, useParent)
+    } yield name
+
+  /**
+   * Given a landing zone resource, return that resource's name. Throws an error if the name is not found.
+   *
+   * @param resource  the resource whose name to return
+   * @param useParent whether to return the resource's name or its parent's name
+   * @return name of the resource
+   */
+  private def getLandingZoneResourceName(resource: LandingZoneResource, useParent: Boolean): F[String] =
+    OptionT
+      .fromOption[F](
+        if (useParent) resource.resourceParentId.flatMap(_.split('/').lastOption)
+        else resource.resourceName.orElse(resource.resourceId.flatMap(_.split('/').lastOption))
+      )
+      .getOrRaise(
+        AppCreationException(s"could not determine name for resource $resource")
+      )
 
   private def getLandingZoneResourceId(
                                           landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],

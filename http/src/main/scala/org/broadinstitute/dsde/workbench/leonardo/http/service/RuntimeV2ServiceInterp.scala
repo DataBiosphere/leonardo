@@ -36,13 +36,13 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
-
 class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
                                              samDAO: SamDAO[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
-                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage]
+                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage],
+                                             wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -222,7 +222,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
-              diskId,
+              Some(diskId),
               landingZoneResources.region
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
@@ -256,13 +256,17 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+      runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
 
-      hasPermission <- checkSamPermission(
-        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
-        userInfo,
-        WsmResourceAction.Read
-      ).map(_._1)
+      hasPermission <-
+        if (runtime.auditInfo.creator == userInfo.userEmail)
+          F.pure(true)
+        else
+          checkSamPermission(
+            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+            userInfo,
+            WsmResourceAction.Read
+          ).map(_._1)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
@@ -312,12 +316,33 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
       }
 
-      // We only update IP to properly after the VM is created in WSM. Hence, if IP is not defined, we don't need to pass the VM resourceId
-      // to back leo, where it'll trigger a WSM call to delete the VM
-      wsmVMResourceSamId = runtime.hostIp.map(_ => WsmControlledResourceId(UUID.fromString(runtime.internalId)))
-      // If there's no controlled resource record, that means we created the DB record in front leo but failed somewhere in back leo (possibly in polling WSM)
-      // This is non-fatal, as we still want to allow users to clean up the db record if they have permission.
-      // We must check if they have permission other ways if we did not get an ID back from WSM though
+      // get wsm api
+      wsmAzureResourceApi <- wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
+      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
+
+      // if the vm is found in WSM and has a deletable state,
+      // then the resourceId is passed to back leo to make the delete call to WSM
+      // (state can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
+      deletableStatus = List("BROKEN", "READY")
+
+      attempt <- F.delay(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value)).attempt
+      wsmVMResourceSamId <- attempt match {
+        case Right(result) =>
+          val vmState = result.getMetadata.getState.getValue
+          val res = if (deletableStatus.contains(vmState)) Some(wsmResourceId) else None
+          log
+            .info(ctx.loggingCtx)(
+              s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
+            )
+            .as(res)
+        case Left(e) =>
+          log
+            .info(ctx.loggingCtx)(
+              s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm, ${e.getMessage}"
+            )
+            .as(None)
+      }
+
       hasPermission <-
         if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else
@@ -401,7 +426,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-      runtime <- RuntimeServiceDbQueries.getActiveRuntime(workspaceId, runtimeName).transaction
+      runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
 
       hasResourcePermission <- checkSamPermission(
         WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
@@ -561,7 +586,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             samProjectVisibleSamIds <- NonEmptyList.fromList(runtimesAndProjects.map(x => (x._2, x._3))).traverse {
               rs =>
                 authProvider
-                  .filterUserVisibleWithProjectFallback(
+                  .filterResourceProjectVisible(
                     rs,
                     userInfo
                   )
@@ -717,7 +742,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       errors = List.empty,
       userJupyterExtensionConfig = None,
       autopauseThreshold =
-        request.autoPauseThreshold.getOrElse(0), // TODO: default to 30 once we start supporting autopause
+        request.autopauseThreshold.getOrElse(0), // TODO: default to 30 once we start supporting autopause
       defaultClientId = None,
       allowStop = false,
       runtimeImages = runtimeImages,

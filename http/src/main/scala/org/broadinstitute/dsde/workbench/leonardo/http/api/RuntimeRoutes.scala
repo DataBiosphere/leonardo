@@ -10,7 +10,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Decoder, DecodingFailure, Encoder}
+import io.circe.{Decoder, DecodingFailure}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.duration._
@@ -177,11 +176,11 @@ class RuntimeRoutes(saturnIframeExtensionHostConfig: RefererConfig,
       )
       apiCall = runtimeService.createRuntime(userInfo, cloudContext, runtimeName, req)
       _ <- metrics.incrementCounter("createRuntime")
-      _ <- ctx.span.fold(apiCall)(span =>
+      resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntime")
           .use(_ => apiCall)
       )
-    } yield StatusCodes.Accepted: ToResponseMarshallable
+    } yield StatusCodes.Accepted -> resp: ToResponseMarshallable
 
   private[api] def getRuntimeHandler(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
     ev: Ask[IO, AppContext]
@@ -463,9 +462,6 @@ object RuntimeRoutes {
       tm.map(x => x minutes)
     )
   }
-
-  implicit val createRuntimeResponseEncoder: Encoder[CreateRuntimeResponse] =
-    Encoder.forProduct1("traceId")(x => CreateRuntimeResponse.unapply(x).get)
 
   implicit val updateGceConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
     for {

@@ -22,6 +22,7 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
+import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine.CaffeineCache
 
@@ -37,7 +38,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
                                 10,
                                 ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test"))
   )
-  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  implicit def unsafeLogger: Logger[IO] = Slf4jLogger.getLogger[IO]
   val underlyingPetTokenCache = Caffeine
     .newBuilder()
     .maximumSize(httpSamDaoConfig.petCacheMaxSize)
@@ -138,6 +139,64 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
     res.unsafeRunSync
 
+  }
+
+  it should "identify when a user is NOT an admin" in {
+    val response =
+      """
+        |{
+        |  "causes": [],
+        |  "message": "You must be an admin.",
+        |  "source": "sam",
+        |  "stackTrace": [],
+        |  "statusCode": 403
+        |}
+        |""".stripMargin
+
+    val noAdminSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Forbidden).withEntity(r))))
+    )
+    val samDao = new HttpSamDAO(noAdminSam, config, petTokenCache)
+    val res = samDao.isAdminUser(CommonTestData.userInfo).map(s => s shouldBe false)
+
+    res.unsafeRunSync
+  }
+
+  it should "identify when a user is an admin" in {
+    val response =
+      """
+        |{
+        |  "enabled": {
+        |    "tosAccepted": true,
+        |    "google": true,
+        |    "ldap": true,
+        |    "allUsersGroup": true,
+        |    "adminEnabled": true
+        |  },
+        |  "userInfo": {
+        |    "userEmail": "someone@broadinstitute.org",
+        |    "userSubjectId": "abc123"
+        |  }
+        |}
+        |""".stripMargin
+
+    val yesAdminSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+    )
+    val samDao = new HttpSamDAO(yesAdminSam, config, petTokenCache)
+    val res = samDao.isAdminUser(CommonTestData.userInfo).map(s => s shouldBe true)
+
+    res.unsafeRunSync
+  }
+
+  it should "throw an error when we can't tell whether the user is an admin" in {
+    val errorSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO(Response(status = Status.NotFound)))
+    )
+    val samDao = new HttpSamDAO(errorSam, config, petTokenCache)
+    val res = samDao.isAdminUser(CommonTestData.userInfo)
+
+    assertThrows[AuthProviderException](res.unsafeRunSync)
   }
 
   it should "decode ListResourceResponse properly" in {

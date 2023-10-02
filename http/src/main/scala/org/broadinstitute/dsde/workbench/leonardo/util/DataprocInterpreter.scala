@@ -13,7 +13,6 @@ import com.google.api.services.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.{
@@ -39,6 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.google.iam.IamMemberTypes
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.InstanceName
@@ -189,7 +189,14 @@ class DataprocInterpreter[F[_]: Parallel](
         initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
 
         // If we need to support 2 version of dataproc custom image, we'll update this
-        dataprocImage = config.dataprocConfig.customDataprocImage
+//        dataprocImage = config.dataprocConfig.customDataprocImage
+
+        // We need to maintain the old version of the dataproc image to uncouple the terra from the aou release
+        imageUrls = params.runtimeImages.map(_.imageUrl)
+        dataprocImage =
+          if (imageUrls.contains("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.15"))
+            config.dataprocConfig.legacyAouCustomDataprocImage
+          else config.dataprocConfig.customDataprocImage
 
         // If the cluster is configured with worker private access, then specify the
         // `leonardo-private` network tag. This tag will be removed from the master node
@@ -613,10 +620,10 @@ class DataprocInterpreter[F[_]: Parallel](
       _ <- retry(
         F.fromFuture(
           F.delay(
-            googleIamDAO.addIamRoles(imageProject,
-                                     config.groupsConfig.dataprocImageProjectGroupEmail,
-                                     MemberType.Group,
-                                     Set("roles/compute.imageUser")
+            googleIamDAO.addRoles(imageProject,
+                                  config.groupsConfig.dataprocImageProjectGroupEmail,
+                                  IamMemberTypes.Group,
+                                  Set("roles/compute.imageUser")
             )
           )
         ),
@@ -800,10 +807,10 @@ class DataprocInterpreter[F[_]: Parallel](
     def retryIam(project: GoogleProject, email: WorkbenchEmail, roles: Set[String]): F[Unit] = {
       val action = if (createCluster) {
 
-        F.fromFuture(F.delay(googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void))
+        F.fromFuture(F.delay(googleIamDAO.addRoles(project, email, IamMemberTypes.ServiceAccount, roles).void))
       } else {
 
-        F.fromFuture(F.delay(googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void))
+        F.fromFuture(F.delay(googleIamDAO.removeRoles(project, email, IamMemberTypes.ServiceAccount, roles).void))
       }
       retry(action, when409)
     }

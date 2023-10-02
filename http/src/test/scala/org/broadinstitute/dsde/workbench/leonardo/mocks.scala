@@ -116,6 +116,12 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     userInfo: UserInfo
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[R]] = ???
 
+  override def filterResourceProjectVisible[R](
+    resources: NonEmptyList[(GoogleProject, R)],
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(GoogleProject, R)]] =
+    ???
+
   override def filterUserVisibleWithProjectFallback[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
@@ -134,6 +140,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
+
+  override def isUserProjectReader(cloudContext: CloudContext, userInfo: UserInfo)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Boolean] = ???
 
   override def isUserWorkspaceOwner(workspaceResource: WorkspaceResourceSamResourceId, userInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
@@ -170,6 +180,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def filterWorkspaceReader(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
   ): IO[Set[WorkspaceResourceSamResourceId]] = ???
+
+  override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+
+  override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider
@@ -261,6 +275,9 @@ class MockGKEService extends GKEAlgebra[IO] {
   /** Creates an app and polls it for completion. */
   override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
+  /** Updates an app and polls it for completion. */
+  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
   /** Deletes a cluster and polls for completion */
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
@@ -281,6 +298,9 @@ class MockAKSInterp extends AKSAlgebra[IO] {
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Updates an app and polls it for completion */
+  override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
   override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }

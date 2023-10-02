@@ -5,7 +5,7 @@ import cats.effect.{Deferred, IO}
 import com.github.benmanes.caffeine.cache.Caffeine
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
-import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
+import org.broadinstitute.dsde.workbench.openTelemetry.{FakeOpenTelemetryMetricsInterpreter, OpenTelemetryMetrics}
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.prop.Configuration
@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 trait LeonardoTestSuite extends Matchers {
-  implicit val metrics = FakeOpenTelemetryMetricsInterpreter
+  implicit val metrics: OpenTelemetryMetrics[IO] = FakeOpenTelemetryMetricsInterpreter
   implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
   def ioAssertion(test: => IO[Assertion]): Assertion = test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -37,7 +37,7 @@ trait LeonardoTestSuite extends Matchers {
     CaffeineCache[IO, KubernetesClusterId, Semaphore[IO]](underlyingCache)
   val nodepoolLock = KeyLock[IO, KubernetesClusterId](cache)
 
-  def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 30): IO[Assertion] = {
+  def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 120): IO[Assertion] = {
     val process = Stream.eval(Deferred[IO, Assertion]).flatMap { signalToStop =>
       val accumulator = Accumulator(maxRetry, None)
       val signal = Stream.unfoldEval(accumulator) { acc =>

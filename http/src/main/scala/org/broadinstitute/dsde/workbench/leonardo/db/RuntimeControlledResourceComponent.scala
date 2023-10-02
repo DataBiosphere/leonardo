@@ -65,28 +65,24 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
 sealed abstract class WsmResourceType
 
 object WsmResourceType {
-  case object AzureVm extends WsmResourceType {
-    override def toString: String = "AZURE_VM"
-  }
-
-  case object AzureNetwork extends WsmResourceType {
-    override def toString: String = "AZURE_NETWORK"
-  }
-
   case object AzureDisk extends WsmResourceType {
     override def toString: String = "AZURE_DISK"
-  }
-
-  case object AzureStorageAccount extends WsmResourceType {
-    override def toString: String = "AZURE_STORAGE_ACCOUNT"
   }
 
   case object AzureStorageContainer extends WsmResourceType {
     override def toString: String = "AZURE_STORAGE_CONTAINER"
   }
 
-  case object AzureRelayNamespace extends WsmResourceType {
-    override def toString: String = "AZURE_RELAY_NAMESPACE"
+  case object AzureManagedIdentity extends WsmResourceType {
+    override def toString: String = "AZURE_MANAGED_IDENTITY"
+  }
+
+  case object AzureDatabase extends WsmResourceType {
+    override def toString: String = "AZURE_DATABASE"
+  }
+
+  case object AzureKubernetesNamespace extends WsmResourceType {
+    override def toString: String = "AZURE_KUBERNETES_NAMESPACE"
   }
 
   def values: Set[WsmResourceType] = sealerate.values[WsmResourceType]

@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unma
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import java.time.Instant
@@ -21,13 +22,13 @@ import scala.concurrent.ExecutionContext
 object KubernetesServiceDbQueries {
 
   /**
-   * List all apps in the given CloudContext, with optional label filter.
-   * This method should be used by v1 app routes. v2 apps should use `listFullAppsByWorkspaceId`.
-   *
-   * Note: the 'full' here means that all joins possible are done, meaning all fields in the cluster, nodepool,
-   * and app will be present. If you just need the cluster, nodepools, and cluster-wide namespaces, see the minimal
-   * join in the KubernetesClusterComponent.
-   */
+    * List all apps in the given CloudContext, with optional label filter.
+    * This method should be used by v1 app routes. v2 apps should use `listFullAppsByWorkspaceId`.
+    *
+    * Note: the 'full' here means that all joins possible are done, meaning all fields in the cluster, nodepool,
+    * and app will be present. If you just need the cluster, nodepools, and cluster-wide namespaces, see the minimal
+    * join in the KubernetesClusterComponent.
+    */
   def listFullApps(cloudContext: Option[CloudContext],
                    labelFilter: LabelMap = Map(),
                    includeDeleted: Boolean = false,
@@ -43,9 +44,9 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * List all apps in the given workspace, with optional label filter.
-   * This method should be used by v2 app routes.
-   */
+    * List all apps in the given workspace, with optional label filter.
+    * This method should be used by v2 app routes.
+    */
   def listFullAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
                                 labelFilter: LabelMap = Map(),
                                 includeDeleted: Boolean = false
@@ -60,8 +61,39 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * List all apps that need monitoring. Called by MonitorAtBoot.
-   */
+    * List all RUNNING apps that are not on the given target chart version. Used to decide which apps to update.
+    */
+  def listAppsForUpdate(targetVersion: Chart,
+                        appType: AppType,
+                        cloudProvider: CloudProvider,
+                        chartVersionsToInclude: List[Chart] = List(),
+                        chartVersionsToExclude: List[Chart] = List(),
+                        googleProject: Option[GoogleProject] = None,
+                        workspaceId: Option[WorkspaceId] = None,
+                        appNames: List[AppName] = List()
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[List[KubernetesCluster]] =
+    joinFullAppAndUnmarshal(
+      kubernetesClusterQuery
+        .filter(_.cloudProvider === cloudProvider)
+        .filterOpt(googleProject) { case (clusterTable, gp) =>
+          clusterTable.cloudContextDb === CloudContextDb(gp.value)
+        },
+      nodepoolQuery,
+      appQuery
+        .filter(_.status === (AppStatus.Running: AppStatus))
+        .filter(_.appType === appType)
+        .filter(_.chart =!= targetVersion)
+        .filterIf(chartVersionsToInclude.nonEmpty)(_.chart inSetBind chartVersionsToInclude)
+        .filterIf(chartVersionsToExclude.nonEmpty)(t => !(t.chart inSetBind chartVersionsToExclude))
+        .filterOpt(workspaceId) { case (appTable, wId) => appTable.workspaceId === wId }
+        .filterIf(appNames.nonEmpty)(_.appName inSetBind appNames)
+    )
+
+  /**
+    * List all apps that need monitoring. Called by MonitorAtBoot.
+    */
   def listMonitoredApps(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status
     joinFullAppAndUnmarshal(
@@ -71,8 +103,8 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * List all apps for metrics. Called by AppHealthMonitor.
-   */
+    * List all apps for metrics. Called by AppHealthMonitor.
+    */
   def listAppsForMetrics(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
       kubernetesClusterQuery,
@@ -81,9 +113,9 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * Looks up or persists a KubernetesCluster, and returns it.
-   * Throws an error if the cluster is in creating status.
-   */
+    * Looks up or persists a KubernetesCluster, and returns it.
+    * Throws an error if the cluster is in creating status.
+    */
   def saveOrGetClusterForApp(
     saveKubernetesCluster: SaveKubernetesCluster
   )(implicit ec: ExecutionContext): DBIO[SaveClusterResult] =
@@ -110,9 +142,9 @@ object KubernetesServiceDbQueries {
     } yield eitherClusterOrError
 
   /**
-   * Gets an active app by name and cloud context.
-   * This method should be used by v1 app routes. v2 apps should use `getActiveFullAppByWorkspaceIdAndAppName`.
-   */
+    * Gets an active app by name and cloud context.
+    * This method should be used by v1 app routes. v2 apps should use `getActiveFullAppByWorkspaceIdAndAppName`.
+    */
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
@@ -123,9 +155,9 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * Gets an active app by name and workspace.
-   * This method should be used by v2 app routes.
-   */
+    * Gets an active app by name and workspace.
+    * This method should be used by v2 app routes.
+    */
   def getActiveFullAppByWorkspaceIdAndAppName(workspaceId: WorkspaceId,
                                               appName: AppName,
                                               labelFilter: LabelMap = Map()
@@ -140,8 +172,8 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * Gets an app by ID. This method is safe to use for both v1 and v2 routes.
-   */
+    * Gets an app by ID. This method is safe to use for both v1 and v2 routes.
+    */
   def getFullAppById(cloudContext: CloudContext, appId: AppId, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
@@ -152,9 +184,9 @@ object KubernetesServiceDbQueries {
     )
 
   /**
-   * Queries a cluster by ID, and returns true if the cluster has a nodepool operation (creation, deletion)
-   * in progress.
-   */
+    * Queries a cluster by ID, and returns true if the cluster has a nodepool operation (creation, deletion)
+    * in progress.
+    */
   def hasClusterOperationInProgress(clusterId: KubernetesClusterLeoId)(implicit
     ec: ExecutionContext
   ): DBIO[Boolean] =
@@ -358,14 +390,18 @@ object KubernetesServiceDbQueries {
   }
 
   private def unmarshalNodepoolMap(
-    nodepools: Map[NodepoolRecord, Map[AppRecord,
-                                       (Chain[ServiceRecord],
-                                        Chain[NamespaceRecord],
-                                        Map[String, Chain[String]],
-                                        Map[PersistentDiskRecord, Map[String, Chain[String]]],
-                                        Chain[AppErrorRecord]
-                                       )
-    ]]
+    nodepools: Map[
+      NodepoolRecord,
+      Map[
+        AppRecord,
+        (Chain[ServiceRecord],
+         Chain[NamespaceRecord],
+         Map[String, Chain[String]],
+         Map[PersistentDiskRecord, Map[String, Chain[String]]],
+         Chain[AppErrorRecord]
+        )
+      ]
+    ]
   ): List[Nodepool] =
     nodepools
       .map { case (nodepoolRec, appMap) =>
@@ -375,13 +411,14 @@ object KubernetesServiceDbQueries {
       .toList
 
   private def unmarshalAppMap(
-    apps: Map[AppRecord,
-              (Chain[ServiceRecord],
-               Chain[NamespaceRecord],
-               Map[String, Chain[String]],
-               Map[PersistentDiskRecord, Map[String, Chain[String]]],
-               Chain[AppErrorRecord]
-              )
+    apps: Map[
+      AppRecord,
+      (Chain[ServiceRecord],
+       Chain[NamespaceRecord],
+       Map[String, Chain[String]],
+       Map[PersistentDiskRecord, Map[String, Chain[String]]],
+       Chain[AppErrorRecord]
+      )
     ]
   ): List[App] =
     apps
@@ -409,9 +446,13 @@ object KubernetesServiceDbQueries {
 sealed trait SaveClusterResult {
   def minimalCluster: KubernetesCluster
 }
+
 final case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool)
     extends SaveClusterResult
+
 final case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
+
 final case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError, traceId = None)
+
 final case class KubernetesAppCreationException(msg: String, traceId: Option[TraceId])
     extends LeoException(msg, StatusCodes.Conflict, traceId = traceId)

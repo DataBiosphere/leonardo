@@ -13,8 +13,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{
-  getActiveRuntimeQueryByWorkspaceId,
-  getRuntimeQueryByUniqueKey
+  getRuntimeQueryByUniqueKey,
+  getRuntimeQueryByWorkspaceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
@@ -29,7 +29,7 @@ import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
 
-  implicit val getResultListRuntimeResponse2 = GetResult { r =>
+  implicit val getResultListRuntimeResponse2: GetResult[ListRuntimeResponse2] = GetResult { r =>
     val id = r.<<[Long]
     val workspaceId = r.<<?[WorkspaceId]
     val runtimeName = r.<<[RuntimeName]
@@ -62,6 +62,7 @@ object RuntimeServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[Option[RuntimeStatus]] = {
     val res = clusterQuery
+      .filter(_.cloudProvider === cloudContext.cloudProvider)
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
@@ -97,10 +98,10 @@ object RuntimeServiceDbQueries {
     }
   }
 
-  def getActiveRuntime(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+  def getRuntimeByWorkspaceId(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
     executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
-    val activeRuntime = getActiveRuntimeQueryByWorkspaceId(workspaceId, runtimeName)
+    val activeRuntime = getRuntimeQueryByWorkspaceId(workspaceId, runtimeName)
       .join(runtimeConfigs)
       .on(_._1.runtimeConfigId === _.id)
       .joinLeft(persistentDiskQuery.tableQuery)
@@ -159,14 +160,15 @@ object RuntimeServiceDbQueries {
     // to a grouped (cluster -> (instances, labels)) structure.
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
-    val clusterRecordMap: Map[ClusterRecord,
-                              (Chain[ClusterErrorRecord],
-                               Map[String, Chain[String]],
-                               Chain[ExtensionRecord],
-                               Chain[ClusterImageRecord],
-                               Chain[ScopeRecord],
-                               Chain[PatchRecord]
-                              )
+    val clusterRecordMap: Map[
+      ClusterRecord,
+      (Chain[ClusterErrorRecord],
+       Map[String, Chain[String]],
+       Chain[ExtensionRecord],
+       Chain[ClusterImageRecord],
+       Chain[ScopeRecord],
+       Chain[PatchRecord]
+      )
     ] = clusterRecords.toList.foldMap {
       case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap

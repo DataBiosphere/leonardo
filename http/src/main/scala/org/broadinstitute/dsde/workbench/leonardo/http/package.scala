@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import _root_.io.opencensus.trace.{AttributeValue, Span, Tracing}
 import akka.http.scaladsl.model.Uri.Host
 import cats.Applicative
 import cats.effect.{Resource, Sync}
@@ -7,7 +8,6 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.Encoder
 import io.opencensus.scala.http.ServiceData
-import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
 import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
@@ -35,7 +35,7 @@ package object http {
   val bucketPathMaxLength = 1024
   val WORKSPACE_NAME_KEY = "WORKSPACE_NAME"
 
-  implicit val errorReportSource = ErrorReportSource("leonardo")
+  implicit val errorReportSource: ErrorReportSource = ErrorReportSource("leonardo")
   implicit def dbioToIO[A](dbio: DBIO[A]): DBIOOps[A] = new DBIOOps(dbio)
   implicit def cloudServiceOps(cloudService: CloudService): CloudServiceOps = new CloudServiceOps(cloudService)
   implicit val serviceDataEncoder: Encoder[ServiceData] = Encoder.forProduct2(
@@ -92,6 +92,33 @@ package object http {
     Resource.make[F, Unit](Sync[F].delay(span.putAttribute("api", AttributeValue.stringAttributeValue(apiName))))(_ =>
       Sync[F].delay(span.end())
     )
+
+  /**
+   * Creates a child Span from the parent span in the AppContext. If no parent span exists, a root
+   * Span is created. Returns a Resource which closes the Span.
+   *
+   * Usage:
+   *
+   * def myMethod(implicit ev: Ask[F, AppContext]): F[Unit] = {
+   *   // The provided AppContext has a parent Span
+   *   childSpan("myChildMethod").use { implicit ev: Ask[F, AppContext] =>
+   *     // The AppContext in this scope includes a child Span named "myChildMethod"
+   *     myChildMethod() // Returns F[Unit]
+   *   }
+   * }
+   */
+  def childSpan[F[_]: Sync](name: String)(implicit ev: Ask[F, AppContext]): Resource[F, Ask[F, AppContext]] =
+    for {
+      ctx <- Resource.eval(ev.ask)
+      newSpan <- Resource.make[F, Span](
+        Sync[F].delay(
+          Tracing.getTracer
+            .spanBuilderWithExplicitParent(name, ctx.span.orNull)
+            .startSpan()
+        )
+      )(span => Sync[F].delay(span.end()))
+      newCtx = ctx.copy(span = Some(newSpan))
+    } yield Ask.const[F, AppContext](newCtx)
 
   val genericDataprocRuntimeConfig = Generic[RuntimeConfig.DataprocConfig]
   val genericDataprocRuntimeConfigInCreateRuntimeMessage = Generic[RuntimeConfigInCreateRuntimeMessage.DataprocConfig]

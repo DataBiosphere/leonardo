@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
+import cats.syntax.all._
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
@@ -9,7 +10,7 @@ import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, _}
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Decoder, Encoder, KeyEncoder}
+import io.circe.{Decoder, DecodingFailure, Encoder, KeyEncoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -168,7 +169,6 @@ object AppV2Routes {
     Decoder.instance { x =>
       for {
         c <- x.downField("kubernetesRuntimeConfig").as[Option[KubernetesRuntimeConfig]]
-        a <- x.downField("appType").as[Option[AppType]]
         s <- x.downField("accessScope").as[Option[AppAccessScope]]
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
@@ -176,8 +176,26 @@ object AppV2Routes {
         dp <- x.downField("descriptorPath").as[Option[Uri]]
         ea <- x.downField("extraArgs").as[Option[List[String]]]
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
+
+        optStr <- x.downField("appType").as[Option[String]]
+        cn <- x.downField("allowedChartName").as[Option[AllowedChartName]]
+        // TODO: once AOU has migrated to use the new app type, we can use much simpler version instead of this workaround for backwards compatibility
+        (appType, allowedChartName) <- optStr match {
+          case Some(value) =>
+            AppType.stringToObject
+              .get(value) match {
+              case Some(v) => (v, cn).asRight[DecodingFailure]
+              case None =>
+                if (value == "RSTUDIO")
+                  (AppType.Allowed, Some(AllowedChartName.RStudio)).asRight[DecodingFailure]
+                else
+                  DecodingFailure(s"Invalid app type ${value}", List.empty).asLeft[(AppType, Option[AllowedChartName])]
+            }
+          case None => (AppType.Galaxy, cn).asRight[DecodingFailure]
+        }
       } yield CreateAppRequest(c,
-                               a.getOrElse(AppType.Galaxy),
+                               appType,
+                               allowedChartName,
                                s,
                                d,
                                l.getOrElse(Map.empty),
@@ -199,6 +217,7 @@ object AppV2Routes {
       "proxyUrls",
       "appName",
       "appType",
+//      "chartName",
       "diskName",
       "auditInfo",
       "accessScope",
@@ -212,6 +231,7 @@ object AppV2Routes {
        x.proxyUrls,
        x.appName,
        x.appType,
+//       x.chartName,
        x.diskName,
        x.auditInfo,
        x.accessScope,
@@ -231,7 +251,23 @@ object AppV2Routes {
       "customEnvironmentVariables",
       "auditInfo",
       "appType",
+//      "chartName",
       "accessScope",
       "labels"
-    )(x => GetAppResponse.unapply(x).get)
+    )(x =>
+      (x.appName,
+       x.cloudContext,
+       x.kubernetesRuntimeConfig,
+       x.errors,
+       x.status,
+       x.proxyUrls,
+       x.diskName,
+       x.customEnvironmentVariables,
+       x.auditInfo,
+       //       x.chartName, TODO: revert this once CBAS are upgraded
+       x.appType,
+       x.accessScope,
+       x.labels
+      )
+    )
 }

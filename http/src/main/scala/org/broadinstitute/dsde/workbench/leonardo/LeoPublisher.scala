@@ -51,7 +51,11 @@ final class LeoPublisher[F[_]](
             .handleErrorWith { t =>
               val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
               Stream
-                .eval(logger.error(loggingCtx, t)(s"Failed to publish message of type ${event.messageType.asString}"))
+                .eval(
+                  logger.error(loggingCtx, t)(
+                    s"Failed to publish message of type ${event.messageType.asString}, message: $event"
+                  )
+                )
             }
       }
     Stream(publishingStream, recordMetrics).covary[F].parJoin(2)
@@ -118,6 +122,8 @@ final class LeoPublisher[F[_]](
           appQuery.updateStatus(m.appId, AppStatus.Stopping).transaction
         case m: LeoPubsubMessage.StartAppMessage =>
           appQuery.updateStatus(m.appId, AppStatus.Starting).transaction
+        case m: LeoPubsubMessage.UpdateAppMessage =>
+          appQuery.updateStatus(m.appId, AppStatus.Updating).transaction
         case _: LeoPubsubMessage.UpdateDiskMessage =>
           F.unit
         case _: LeoPubsubMessage.UpdateRuntimeMessage =>

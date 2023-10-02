@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.effect.Ref
@@ -97,9 +96,11 @@ object CommonTestData {
   val userEmail = WorkbenchEmail("user1@example.com")
   val userEmail2 = WorkbenchEmail("user2@example.com")
   val userEmail3 = WorkbenchEmail("user3@example.com")
+  val userEmail4 = WorkbenchEmail("user4@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
   val userInfo2 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user2"), userEmail2, 0)
   val userInfo3 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user3"), userEmail3, 0)
+  val userInfo4 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user4"), userEmail4, 0)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
   val unauthorizedUserInfo =
@@ -232,11 +233,13 @@ object CommonTestData {
     RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val customDataprocImage =
     RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val legacyAouCustomDataprocImage =
+    RuntimeImage(BootSource, "legacy_aou_custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680))
-  val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
+  val hostToIpMapping = Ref.unsafe[IO, Map[String, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(
@@ -568,7 +571,8 @@ object CommonTestData {
     SubnetworkName("batchsub"),
     SubnetworkName("akssub"),
     azureRegion,
-    ApplicationInsightsName("lzappinsights")
+    ApplicationInsightsName("lzappinsights"),
+    Some(PostgresServer("postgres", false))
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

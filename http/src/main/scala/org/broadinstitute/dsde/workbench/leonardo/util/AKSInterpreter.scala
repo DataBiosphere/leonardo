@@ -2,54 +2,34 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
-import cats.Show
+import akka.http.scaladsl.model.StatusCodes
+import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.client.ApiException
+import bio.terra.workspace.model._
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.azure.core.management.AzureEnvironment
-import com.azure.core.management.profile.AzureProfile
-import com.azure.identity.ClientSecretCredentialBuilder
-import com.azure.resourcemanager.compute.ComputeManager
-import com.azure.resourcemanager.compute.models.{
-  ResourceIdentityType,
-  VirtualMachineIdentityUserAssignedIdentities,
-  VirtualMachineScaleSetIdentity,
-  VirtualMachineScaleSetUpdate
-}
-import com.azure.resourcemanager.msi.MsiManager
-import com.azure.resourcemanager.msi.models.Identity
-import io.kubernetes.client.openapi.ApiClient
-import io.kubernetes.client.openapi.apis.CoreV1Api
-import io.kubernetes.client.openapi.models.V1NamespaceList
-import io.kubernetes.client.util.Config
+import com.azure.core.management.exception.ManagementException
+import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
-import org.broadinstitute.dsde.workbench.google2.{
-  autoClosableResourceF,
-  recoverF,
-  streamFUntilDone,
-  streamUntilDoneOrTimeout,
-  tracedRetryF
-}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaService.{Cbas, CbasUI, Cromwell}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.util2.withLogging
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, WorkspaceNotFoundException}
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
-import java.io.ByteArrayInputStream
 import java.net.URL
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
@@ -57,32 +37,42 @@ import scala.jdk.CollectionConverters._
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
-                           azureBatchService: AzureBatchService[F],
                            azureContainerService: AzureContainerService[F],
-                           azureApplicationInsightsService: AzureApplicationInsightsService[F],
                            azureRelayService: AzureRelayService[F],
                            samDao: SamDAO[F],
-                           cromwellDao: CromwellDAO[F],
-                           cbasDao: CbasDAO[F],
-                           cbasUiDao: CbasUiDAO[F],
-                           wdsDao: WdsDAO[F],
-                           hailBatchDao: HailBatchDAO[F]
+                           wsmDao: WsmDao[F],
+                           kubeAlg: KubernetesAlgebra[F],
+                           wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
+  appTypeToAppInstall: AppType => AppInstall[F],
   executionContext: ExecutionContext,
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
-  F: Async[F]
+  F: Async[F],
+  files: Files[F]
 ) extends AKSAlgebra[F] {
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
+
   implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
   private[util] def isPodDone(podStatus: PodStatus): Boolean =
     podStatus == PodStatus.Failed || podStatus == PodStatus.Succeeded
+
   implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
     (ps: List[PodStatus]) => ps.forall(isPodDone)
 
-  private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
-    Release(s"${appReleaseName.asString}-setup-rls")
+  implicit private def createDatabaseDoneCheckable: DoneCheckable[CreatedControlledAzureDatabaseResult] =
+    _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
+
+  implicit private def createKubernetesNamespaceDoneCheckable
+    : DoneCheckable[CreatedControlledAzureKubernetesNamespaceResult] =
+    _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
+
+  implicit private def deleteWsmResourceDoneCheckable: DoneCheckable[DeleteControlledAzureResourceResult] =
+    _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
+
+  private def getListenerReleaseName(appReleaseName: Release): Release =
+    Release(s"${appReleaseName.asString}-listener-rls")
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -101,186 +91,137 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                             )
       )
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
-
-      ksaName <- F.fromOption(
-        app.appResources.kubernetesServiceAccountName,
-        AppCreationException(
-          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
+      namespacePrefix = app.appResources.namespace.name.value
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      // Authenticate helm client
-      authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      // Create WSM managed identity if shared app
+      wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp =>
+          childSpan("createWsmIdentityResource").use { implicit ev =>
+            createWsmIdentityResource(app, namespacePrefix, params.workspaceId).map(_.some)
+          }
+        case _ => F.pure(None)
+      }
 
-      // Deploy aad-pod-identity chart
-      // This only needs to be done once per cluster, but multiple helm installs have no effect.
-      // See https://broadworkbench.atlassian.net/browse/IA-3804 for tracking migration to AKS Workload Identity.
-      _ <- helmClient
-        .installChart(
-          config.aadPodIdentityConfig.release,
-          config.aadPodIdentityConfig.chartName,
-          config.aadPodIdentityConfig.chartVersion,
-          config.aadPodIdentityConfig.values,
-          true
+      // Create WSM databases
+      wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
+        createWsmDatabaseResources(
+          app,
+          app.appType,
+          params.workspaceId,
+          namespacePrefix,
+          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName),
+          params.landingZoneResources
         )
-        .run(authContext.copy(namespace = config.aadPodIdentityConfig.namespace))
+      }
+
+      // Create WSM kubernetes namespace
+      wsmNamespace <- childSpan("createWsmKubernetesNamespaceResource").use { implicit ev =>
+        createWsmKubernetesNamespaceResource(
+          app,
+          params.workspaceId,
+          namespacePrefix,
+          wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
+          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
+        )
+      }
+
+      // The k8s namespace name and service account name are in the WSM response
+      namespaceName = NamespaceName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace)
+      ksaName = ServiceAccountName(wsmNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesServiceAccount)
+
+      // The managed identity name is either the WSM identity (for shared apps) or the
+      // pet managed identity (for private apps). The latter is confusingly stored in the
+      // 'googleServiceAccount' column in the APP table.
+      managedIdentityName = ManagedIdentityName(
+        wsmManagedIdentityOpt
+          .map(_.getAzureManagedIdentity.getAttributes.getManagedIdentityName)
+          .getOrElse(app.googleServiceAccount.value.split('/').last)
+      )
 
       // Create relay hybrid connection pool
+      // TODO: make into a WSM resource
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
-      relayPrimaryKey <- azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                                       hcName,
-                                                                       params.cloudContext
-      )
+      relayPrimaryKey <- childSpan("createRelayHybridConnection").use { implicit ev =>
+        azureRelayService.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                      hcName,
+                                                      params.cloudContext
+        )
+      }
       relayDomain = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
-      _ <- helmClient
-        .installChart(
-          getTerraAppSetupChartReleaseName(app.release),
-          config.terraAppSetupChartConfig.chartName,
-          config.terraAppSetupChartConfig.chartVersion,
-          buildSetupChartOverrideValues(
+      // Authenticate helm client
+      authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
+
+      // Build listener helm values
+      values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
+        app.release,
+        app.samResourceId,
+        params.landingZoneResources.relayNamespace,
+        hcName,
+        relayPrimaryKey,
+        app.appType,
+        params.workspaceId,
+        app.appName,
+        refererConfig.validHosts + relayDomain,
+        config.samConfig,
+        config.listenerImage,
+        config.leoUrlBase
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Relay listener values for app ${params.appName.value} are ${values.asString}"
+      )
+
+      // Install listener helm chart
+      _ <- childSpan("helmInstallRelayListener").use { _ =>
+        helmClient
+          .installChart(
+            getListenerReleaseName(app.release),
+            config.listenerChartConfig.chartName,
+            config.listenerChartConfig.chartVersion,
+            values,
+            false
+          )
+          .run(authContext)
+      }
+
+      // Build app helm values
+      helmOverrideValueParams = BuildHelmOverrideValuesParams(
+        app,
+        params.workspaceId,
+        params.cloudContext,
+        params.landingZoneResources,
+        params.storageContainer,
+        relayPath,
+        ksaName,
+        managedIdentityName,
+        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName),
+        config
+      )
+      values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
+
+      // Install app chart
+      _ <- childSpan("helmInstallApp").use { _ =>
+        helmClient
+          .installChart(
             app.release,
-            app.samResourceId,
-            ksaName,
-            params.landingZoneResources.relayNamespace,
-            hcName,
-            relayPrimaryKey,
-            app.appType,
-            params.workspaceId,
-            app.appName
-          ),
-          true
-        )
-        .run(authContext)
-
-      // get the pet userToken
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-      userToken <- F.fromOption(
-        tokenOpt,
-        AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
-      )
-
-      // Resolve pet managed identity in Azure
-      // Only do this for user-private apps; do not assign any identity for shared apps.
-      // In the future we may use a shared identity instead.
-      petMi <- app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => F.pure(None)
-        case _ =>
-          for {
-            msi <- buildMsiManager(params.cloudContext)
-            petMi <- F.delay(
-              msi.identities().getById(app.googleServiceAccount.value)
-            )
-
-            // Assign the pet managed identity to the VM scale set backing the cluster node pool
-            _ <- assignVmScaleSet(params.landingZoneResources.clusterName, params.cloudContext, petMi)
-          } yield Some(petMi)
+            app.chart.name,
+            app.chart.version,
+            values,
+            createNamespace = false
+          )
+          .run(authContext)
       }
 
-      // Resolve Application Insights resource in Azure to pass to the helm chart.
-      applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
-        params.landingZoneResources.applicationInsightsName,
-        params.cloudContext
-      )
-
-      // Deploy app chart
-      _ <- app.appType match {
-        case AppType.Cromwell =>
-          for {
-            // Get the batch account key
-            batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-                                                              params.cloudContext
-            )
-            batchAccountKey = batchAccount.getKeys().primary
-
-            // Storage container is required for Cromwell app
-            storageContainer <- F.fromOption(
-              params.storageContainer,
-              AppCreationException("Storage container required for Cromwell app", Some(ctx.traceId))
-            )
-
-            _ <- helmClient
-              .installChart(
-                app.release,
-                app.chart.name,
-                app.chart.version,
-                buildCromwellChartOverrideValues(
-                  app.release,
-                  params.appName,
-                  params.cloudContext,
-                  params.workspaceId,
-                  params.landingZoneResources,
-                  relayPath,
-                  petMi,
-                  storageContainer,
-                  BatchAccountKey(batchAccountKey),
-                  applicationInsightsComponent.connectionString(),
-                  app.sourceWorkspaceId,
-                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
-                ),
-                createNamespace = true
-              )
-              .run(authContext)
-          } yield ()
-        case AppType.Wds =>
-          for {
-            _ <- helmClient
-              .installChart(
-                app.release,
-                app.chart.name,
-                app.chart.version,
-                buildWdsChartOverrideValues(
-                  app.release,
-                  params.appName,
-                  params.cloudContext,
-                  params.workspaceId,
-                  params.landingZoneResources,
-                  petMi,
-                  applicationInsightsComponent.connectionString(),
-                  app.sourceWorkspaceId,
-                  userToken // TODO: Remove once permanent solution utilizing the multi-user sam app identity has been implemented
-                ),
-                createNamespace = true
-              )
-              .run(authContext)
-          } yield ()
-        case AppType.HailBatch =>
-          for {
-            // Storage container is required for HailBatch app
-            storageContainer <- F.fromOption(
-              params.storageContainer,
-              AppCreationException("Storage container required for Hail Batch app", Some(ctx.traceId))
-            )
-            _ <- helmClient
-              .installChart(
-                app.release,
-                app.chart.name,
-                app.chart.version,
-                buildHailBatchChartOverrideValues(
-                  params.appName,
-                  params.workspaceId,
-                  params.landingZoneResources,
-                  petMi,
-                  storageContainer,
-                  relayDomain,
-                  hcName
-                ),
-                createNamespace = true
-              )
-              .run(authContext)
-          } yield ()
-        case _ => F.raiseError(AppCreationException(s"App type ${app.appType} not supported on Azure"))
+      appOk <- childSpan("pollAppCreation").use { implicit ev =>
+        pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
       }
-
-      appOk <- pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
       _ <-
         if (appOk)
           F.unit
@@ -315,11 +256,172 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${params.appName.value} in cluster ${params.landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
       )
-
     } yield ()
 
+  override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    for {
+      ctx <- ev.ask
+
+      workspaceId <- F.fromOption(
+        params.workspaceId,
+        AppUpdateException(
+          s"${params.appName} must have a Workspace in the Azure cloud context",
+          Some(ctx.traceId)
+        )
+      )
+
+      // Grab records from the database
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(params.cloudContext), params.appName)
+        .transaction
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(CloudContext.Azure(params.cloudContext),
+                             params.appName,
+                             ctx.traceId,
+                             "No active app found in DB"
+        )
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
+
+      app = dbApp.app
+
+      // Grab the LZ and storage container information associated with the workspace
+      leoAuth <- samDao.getLeoAuthToken
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+      landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
+
+      // Get the optional storage container for the workspace
+      storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, leoAuth)
+
+      // Build WSM client
+      wsmApi <- buildWsmControlledResourceApiClient
+
+      // Call WSM to get the managed identity for the app.
+      // This is optional because a WSM identity is only created for shared apps.
+      wsmIdentities <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
+        .transaction
+      wsmIdentityOpt <- wsmIdentities.headOption.traverse { wsmIdentity =>
+        F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
+      }
+
+      // Call WSM to get the list of databases for the app.
+      wsmDatabases <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+      wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
+        F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
+      }
+
+      // Call WSM to get the Kubernetes namespace (required)
+      wsmNamespaces <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
+        .transaction
+      wsmNamespaceOpt <- wsmNamespaces.headOption.traverse { wsmNamespace =>
+        F.delay(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value))
+      }
+      wsmNamespace <- F.fromOption(wsmNamespaceOpt,
+                                   AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
+      )
+
+      // The k8s namespace name and service account name are in the WSM response
+      namespaceName = NamespaceName(wsmNamespace.getAttributes.getKubernetesNamespace)
+      ksaName = ServiceAccountName(wsmNamespace.getAttributes.getKubernetesServiceAccount)
+
+      // The managed identity name is either the WSM identity (for shared apps) or the
+      // pet managed identity (for private apps). The latter is confusingly stored in the
+      // 'googleServiceAccount' column in the APP table.
+      managedIdentityName = ManagedIdentityName(
+        wsmIdentityOpt
+          .map(_.getAttributes.getManagedIdentityName)
+          .getOrElse(app.googleServiceAccount.value.split('/').last)
+      )
+
+      // Get relay hybrid connection information
+      hcName = RelayHybridConnectionName(s"${params.appName.value}-${workspaceId.value}")
+      relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayEndpoint = s"https://${relayDomain}/"
+      relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
+      relayPrimaryKey <- azureRelayService.getRelayHybridConnectionKey(landingZoneResources.relayNamespace,
+                                                                       hcName,
+                                                                       params.cloudContext
+      )
+
+      // Authenticate helm client
+      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+
+      // Update the relay listener deployment
+      _ <- childSpan("helmUpdateListener").use { implicit ev =>
+        updateListener(authContext,
+                       app,
+                       landingZoneResources,
+                       workspaceId,
+                       hcName,
+                       relayPrimaryKey,
+                       relayDomain,
+                       config.listenerChartConfig
+        )
+      }
+
+      // Build app helm values
+      helmOverrideValueParams = BuildHelmOverrideValuesParams(
+        app,
+        workspaceId,
+        params.cloudContext,
+        landingZoneResources,
+        storageContainer,
+        relayPath,
+        ksaName,
+        managedIdentityName,
+        wsmDbNames.map(_.getAttributes.getDatabaseName),
+        config
+      )
+      values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
+
+      // Upgrade app chart version and explicitly pass the values
+      _ <- childSpan("helmUpdateApp").use { _ =>
+        helmClient
+          .upgradeChart(
+            app.release,
+            app.chart.name,
+            params.appChartVersion,
+            values
+          )
+          .run(authContext)
+      }
+
+      // Poll until all pods in the app namespace are running
+      appOk <- childSpan("pollAppUpdate").use { implicit ev =>
+        pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
+      }
+      _ <-
+        if (appOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdateException(
+              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              Some(ctx.traceId)
+            )
+          )
+
+      _ <- logger.info(
+        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.clusterName}"
+      )
+
+      // Update app chart version in the DB
+      _ <- appQuery.updateChart(app.id, Chart(app.chart.name, params.appChartVersion)).transaction
+      // Put app status back to running
+      _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
+
+      _ <- logger.info(s"Done updating app ${params.appName} in workspace ${params.workspaceId}")
+    } yield ()
+  }
+
   override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext, keepHistory) = params
+    val DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext) = params
     for {
       ctx <- ev.ask
 
@@ -334,110 +436,124 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Deleting app $appName in workspace $workspaceId")
 
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
-      kubernetesNamespace = KubernetesNamespace(namespaceName)
 
-      clusterName = landingZoneResources.clusterName // NOT the same as dbCluster.clusterName
+      // WSM deletion order matters here. Delete WSM database resources first.
+      wsmDatabases <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+      _ <- childSpan("deleteWsmDatabases").use { implicit ev =>
+        wsmDatabases.traverse { database =>
+          deleteWsmResource(workspaceId, app, database)
+        }
+      }
+
+      // Then delete namespace resources
+      wsmNamespaces <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
+        .transaction
+      deletedNamespace <- childSpan("deleteWsmNamespace").use { implicit ev =>
+        wsmNamespaces
+          .traverse { namespace =>
+            deleteWsmNamespaceResource(workspaceId, app, namespace)
+          }
+          .map(_.nonEmpty)
+      }
+
+      // Then delete identity resources
+      wsmIdentities <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
+        .transaction
+      _ <- childSpan("deleteWsmIdentity").use { implicit ev =>
+        wsmIdentities.traverse { identity =>
+          deleteWsmResource(workspaceId, app, identity)
+        }
+      }
+
+      // If this app did not have a WSM-tracked kubernetes namespace, delete it explicitly
+      _ <-
+        if (deletedNamespace) F.unit
+        else {
+          for {
+            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
+
+            kubernetesNamespace = KubernetesNamespace(app.appResources.namespace.name)
+
+            // Delete the namespace which should delete all resources in it
+            _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)
+
+            // Poll until the namespace is actually deleted
+            // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
+            fa = kubeAlg.namespaceExists(client, kubernetesNamespace).map(exists => !exists)
+            _ <- streamUntilDoneOrTimeout(fa,
+                                          config.appMonitorConfig.deleteApp.maxAttempts,
+                                          config.appMonitorConfig.deleteApp.initialDelay,
+                                          "delete namespace timed out"
+            )
+          } yield ()
+        }
 
       // Delete hybrid connection for this app
       // for backwards compatibility, name used to be just the appName
+      // TODO: make relay hybrid connection a WSM resource
       name = app.customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", app.appName.value)
 
-      _ <- azureRelayService
-        .deleteRelayHybridConnection(
-          landingZoneResources.relayNamespace,
-          RelayHybridConnectionName(name),
-          cloudContext
-        )
-
-      // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, cloudContext, namespaceName)
-
-      // Uninstall the app chart and setup chart
-      _ <- helmClient.uninstall(app.release, keepHistory).run(authContext)
-      _ <- helmClient
-        .uninstall(
-          getTerraAppSetupChartReleaseName(app.release),
-          keepHistory
-        )
-        .run(authContext)
-
-      client <- buildCoreV1Client(cloudContext, landingZoneResources.clusterName)
-
-      // Poll until all pods in the app namespace are deleted
-      _ <- streamUntilDoneOrTimeout(
-        listPodStatus(client, KubernetesNamespace(app.appResources.namespace.name)),
-        config.appMonitorConfig.deleteApp.maxAttempts,
-        config.appMonitorConfig.deleteApp.interval,
-        "helm deletion timed out"
-      )
-
-      // Delete the namespace only after the helm uninstall completes.
-      _ <- deleteNamespace(client, kubernetesNamespace)
-
-      // Poll until the namespace is actually deleted
-      // Mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`
-      fa = namespaceExists(client, kubernetesNamespace).map(exists => !exists)
-      _ <- streamUntilDoneOrTimeout(fa,
-                                    config.appMonitorConfig.deleteApp.maxAttempts,
-                                    config.appMonitorConfig.deleteApp.initialDelay,
-                                    "delete namespace timed out"
-      )
+      _ <- childSpan("deleteRelayHybridConnection").use { implicit ev =>
+        azureRelayService
+          .deleteRelayHybridConnection(
+            landingZoneResources.relayNamespace,
+            RelayHybridConnectionName(name),
+            cloudContext
+          )
+          .handleErrorWith {
+            case e: ManagementException if e.getResponse.getStatusCode == StatusCodes.NotFound.intValue =>
+              logger.info(s"${name} does not exist to delete in ${cloudContext}")
+            case e => F.raiseError[Unit](e)
+          }
+      }
 
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-      _ <- tokenOpt match {
-        case Some(token) =>
-          samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                        Authorization(Credentials.Token(AuthScheme.Bearer, token))
-          )
-        case None =>
-          logger.warn(
-            s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
-          )
+      _ <- childSpan("deleteSamResource").use { implicit ev =>
+        tokenOpt match {
+          case Some(token) =>
+            samDao.deleteResourceInternal(dbApp.app.samResourceId,
+                                          Authorization(Credentials.Token(AuthScheme.Bearer, token))
+            )
+          case None =>
+            logger.warn(
+              s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
+            )
+        }
       }
 
       _ <- logger.info(
-        s"Delete app operation has finished for app ${app.appName.value} in cluster ${clusterName}"
+        s"Delete app operation has finished for app ${app.appName.value} in workspace ${app.workspaceId}"
       )
 
-      _ <- appQuery.updateStatus(app.id, AppStatus.Deleted).transaction
+      _ <- appQuery.markAsDeleted(app.id, ctx.now).transaction
 
       _ <- logger.info(s"Done deleting app $appName in workspace $workspaceId")
     } yield ()
   }
 
-  private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri, appType: AppType)(implicit
+  private[util] def pollApp(userEmail: WorkbenchEmail, relayBaseUri: Uri, appInstall: AppInstall[F])(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] = for {
+    ctx <- ev.ask
+    tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+    token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
+    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+
+    res <- appInstall.checkStatus(relayBaseUri, authHeader)
+  } yield res
+
+  private[util] def pollAppCreation(userEmail: WorkbenchEmail, relayBaseUri: Uri, appInstall: AppInstall[F])(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
-      ctx <- ev.ask
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-      token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
-      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-
-      op = appType match {
-        case AppType.Cromwell =>
-          // Status check each configured coa service for Cromwell app type
-          config.coaAppConfig.coaServices
-            .collect {
-              case Cbas =>
-                cbasDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-              case CbasUI =>
-                cbasUiDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-              case Cromwell =>
-                cromwellDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-            }
-            .toList
-            .sequence
-            .map(_.forall(identity))
-        case AppType.Wds =>
-          wdsDao.getStatus(relayBaseUri, authHeader, appType).handleError(_ => false)
-        case AppType.HailBatch =>
-          hailBatchDao.getStatus(relayBaseUri, authHeader).handleError(_ => false)
-        case _ => F.raiseError[Boolean](AppCreationException(s"App type ${appType} not supported on Azure"))
-      }
+      _ <- ev.ask
+      op = pollApp(userEmail, relayBaseUri, appInstall)
 
       appOk <- streamFUntilDone(
         op,
@@ -446,259 +562,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
     } yield appOk.isDone
 
-  private[util] def buildSetupChartOverrideValues(release: Release,
-                                                  samResourceId: AppSamResourceId,
-                                                  ksaName: ServiceAccountName,
-                                                  relayNamespace: RelayNamespace,
-                                                  relayHcName: RelayHybridConnectionName,
-                                                  relayPrimaryKey: PrimaryKey,
-                                                  appType: AppType,
-                                                  workspaceId: WorkspaceId,
-                                                  appName: AppName
-  ): Values = {
-    val relayTargetHost = appType match {
-      case AppType.Cromwell  => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.Wds       => s"http://wds-${release.asString}-wds-svc:8080"
-      case AppType.HailBatch => "http://batch:8080"
-      case AppType.Galaxy | AppType.Custom | AppType.RStudio =>
-        F.raiseError(AppCreationException(s"App type $appType not supported on Azure"))
-    }
-
-    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
-    // so requires that we don't strip the entity path. For other app types we do
-    // strip the entity path.
-    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
-
-    Values(
-      List(
-        raw"cloud=azure",
-        // KSA configs
-        raw"serviceAccount.name=${ksaName.value}",
-
-        // relay configs
-        raw"relaylistener.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
-        raw"relaylistener.connectionName=${relayHcName.value}",
-        raw"relaylistener.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
-        raw"relaylistener.targetHost=$relayTargetHost",
-        raw"relaylistener.samUrl=${config.samConfig.server}",
-        raw"relaylistener.samResourceId=${samResourceId.resourceId}",
-        raw"relaylistener.samResourceType=${samResourceId.resourceType.asString}",
-        raw"relaylistener.samAction=connect",
-        raw"relaylistener.workspaceId=${workspaceId.value.toString}",
-        raw"relaylistener.runtimeName=${appName.value}",
-        raw"relaylistener.image=${config.listenerImage}",
-        raw"""relaylistener.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-
-        // general configs
-        raw"fullnameOverride=setup-${release.asString}"
-      ).mkString(",")
-    )
-  }
-
-  private[util] def buildCromwellChartOverrideValues(release: Release,
-                                                     appName: AppName,
-                                                     cloudContext: AzureCloudContext,
-                                                     workspaceId: WorkspaceId,
-                                                     landingZoneResources: LandingZoneResources,
-                                                     relayPath: Uri,
-                                                     petManagedIdentity: Option[Identity],
-                                                     storageContainer: StorageContainerResponse,
-                                                     batchAccountKey: BatchAccountKey,
-                                                     applicationInsightsConnectionString: String,
-                                                     sourceWorkspaceId: Option[WorkspaceId],
-                                                     userAccessToken: String
-  ): Values =
-    Values(
-      List(
-        // azure resources configs
-        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        raw"config.batchAccountKey=${batchAccountKey.value}",
-        raw"config.batchAccountName=${landingZoneResources.batchAccountName.value}",
-        raw"config.batchNodesSubnetId=${landingZoneResources.batchNodesSubnetName.value}",
-        raw"config.drsUrl=${config.drsConfig.url}",
-        raw"config.landingZoneId=${landingZoneResources.landingZoneId}",
-        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
-        raw"config.region=${landingZoneResources.region}",
-        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
-
-        // relay configs
-        raw"relay.path=${relayPath.renderString}",
-
-        // persistence configs
-        raw"persistence.storageResourceGroup=${cloudContext.managedResourceGroupName.value}",
-        raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
-        raw"persistence.blobContainer=${storageContainer.name.value}",
-        raw"persistence.leoAppInstanceName=${appName.value}",
-        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
-        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
-        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
-
-        // identity configs
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-
-        // Sam configs
-        raw"sam.url=${config.samConfig.server}",
-
-        // Leo configs
-        raw"leonardo.url=${config.leoUrlBase}",
-
-        // Enabled services configs
-        raw"cbas.enabled=${config.coaAppConfig.coaServices.contains(Cbas)}",
-        raw"cbasUI.enabled=${config.coaAppConfig.coaServices.contains(CbasUI)}",
-        raw"cromwell.enabled=${config.coaAppConfig.coaServices.contains(Cromwell)}",
-
-        // general configs
-        raw"fullnameOverride=coa-${release.asString}",
-        raw"instrumentationEnabled=${config.coaAppConfig.instrumentationEnabled}",
-        // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}"
-      ).mkString(",")
-    )
-
-  private[util] def buildWdsChartOverrideValues(release: Release,
-                                                appName: AppName,
-                                                cloudContext: AzureCloudContext,
-                                                workspaceId: WorkspaceId,
-                                                landingZoneResources: LandingZoneResources,
-                                                petManagedIdentity: Option[Identity],
-                                                applicationInsightsConnectionString: String,
-                                                sourceWorkspaceId: Option[WorkspaceId],
-                                                userAccessToken: String
-  ): Values = {
-    val valuesList =
-      List(
-        // azure resources configs
-        raw"config.resourceGroup=${cloudContext.managedResourceGroupName.value}",
-        raw"config.applicationInsightsConnectionString=${applicationInsightsConnectionString}",
-
-        // Azure subscription configs currently unused
-        raw"config.subscriptionId=${cloudContext.subscriptionId.value}",
-        raw"config.region=${landingZoneResources.region}",
-
-        // persistence configs
-        raw"general.leoAppInstanceName=${appName.value}",
-        raw"general.workspaceManager.workspaceId=${workspaceId.value}",
-
-        // identity configs
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-
-        // Sam configs
-        raw"sam.url=${config.samConfig.server}",
-
-        // workspace manager
-        raw"workspacemanager.url=${config.wsmConfig.uri.renderString}",
-
-        // general configs
-        raw"fullnameOverride=wds-${release.asString}",
-        raw"instrumentationEnabled=${config.wdsAppConfig.instrumentationEnabled}",
-
-        // import configs
-        raw"import.dataRepoUrl=${config.tdr.url}",
-
-        // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userAccessToken}"
-      )
-    val updatedLs = sourceWorkspaceId match {
-      case Some(value) => valuesList ::: List(raw"provenance.sourceWorkspaceId=${value.value}")
-      case None        => valuesList
-    }
-    Values(updatedLs.mkString(","))
-  }
-
-  private[util] def buildHailBatchChartOverrideValues(appName: AppName,
-                                                      workspaceId: WorkspaceId,
-                                                      landingZoneResources: LandingZoneResources,
-                                                      petManagedIdentity: Option[Identity],
-                                                      storageContainer: StorageContainerResponse,
-                                                      relayDomain: String,
-                                                      hcName: RelayHybridConnectionName
-  ): Values =
-    Values(
-      List(
-        raw"persistence.storageAccount=${landingZoneResources.storageAccountName.value}",
-        raw"persistence.blobContainer=${storageContainer.name.value}",
-        raw"persistence.workspaceManager.url=${config.wsmConfig.uri.renderString}",
-        raw"persistence.workspaceManager.workspaceId=${workspaceId.value}",
-        raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
-        raw"persistence.workspaceManager.storageContainerUrl=https://${landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
-        raw"persistence.leoAppName=${appName.value}",
-
-        // identity configs
-        raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-        raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-        raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
-        raw"relay.domain=${relayDomain}",
-        raw"relay.subpath=/${hcName.value}"
-      ).mkString(",")
-    )
-
-  private[util] def assignVmScaleSet(clusterName: AKSClusterName,
-                                     cloudContext: AzureCloudContext,
-                                     petManagedIdentity: Identity
-  )(implicit ev: Ask[F, AppContext]): F[Unit] = for {
-    // Resolve the cluster in Azure
-    cluster <- azureContainerService.getCluster(clusterName, cloudContext)
-
-    // Resolve the VM scale set backing the node pool
-    // Note: we are making the assumption here that there is 1 node pool per cluster.
-    compute <- buildComputeManager(cloudContext)
-    getFirstVmScaleSet = for {
-      vmScaleSets <- F.delay(compute.virtualMachineScaleSets().listByResourceGroup(cluster.nodeResourceGroup()))
-      vmScaleSet <- F
-        .fromOption(
-          vmScaleSets.iterator().asScala.nextOption(),
-          AppCreationException(
-            s"VM scale set not found for cluster ${cloudContext.managedResourceGroupName.value}/${clusterName.value}"
-          )
-        )
-    } yield vmScaleSet
-
-    // Retry getting the VM scale set since Azure returns an empty list sporadically for some reason
-    retryConfig = RetryPredicates.retryAllConfig
-    vmScaleSet <- tracedRetryF(retryConfig)(
-      getFirstVmScaleSet,
-      s"Get VM scale set for cluster ${cloudContext.managedResourceGroupName.value}/${clusterName.value}"
-    ).compile.lastOrError
-
-    // Assign VM scale set to the pet UAMI (if not already assigned).
-    //
-    // Note: normally this is done behind the scenes by aad-pod-identity. However in our case the deny assignments
-    // block it, so we need to use "Managed" mode handle the assignment ourselves. For more info see:
-    // https://azure.github.io/aad-pod-identity/docs/configure/standard_to_managed_mode/
-    //
-    // Note also that we are using the service client instead of the fluent API to do this, because the fluent API
-    // makes a POST request instead of a PATCH, leading to errors. (Possible Java SDK bug?)
-    existingUamis = vmScaleSet.userAssignedManagedServiceIdentityIds().asScala
-    _ <-
-      if (existingUamis.contains(petManagedIdentity.id)) {
-        F.unit
-      } else {
-        F.delay(
-          compute
-            .serviceClient()
-            .getVirtualMachineScaleSets
-            .update(
-              cluster.nodeResourceGroup,
-              vmScaleSet.name(),
-              new VirtualMachineScaleSetUpdate()
-                .withIdentity(
-                  new VirtualMachineScaleSetIdentity()
-                    .withType(ResourceIdentityType.USER_ASSIGNED)
-                    .withUserAssignedIdentities(
-                      (petManagedIdentity.id :: existingUamis.toList)
-                        .map(_ -> new VirtualMachineIdentityUserAssignedIdentities())
-                        .toMap
-                        .asJava
-                    )
-                )
-            )
-        )
-      }
-  } yield ()
+  private[util] def pollAppUpdate(userEmail: WorkbenchEmail, relayBaseUri: Uri, appInstall: AppInstall[F])(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] =
+    for {
+      _ <- ev.ask
+      op = pollApp(userEmail, relayBaseUri, appInstall)
+      appOk <- streamFUntilDone(
+        op,
+        maxAttempts = config.appMonitorConfig.updateApp.maxAttempts,
+        delay = config.appMonitorConfig.updateApp.interval
+      ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
+    } yield appOk.isDone
 
   private[util] def getHelmAuthContext(clusterName: AKSClusterName,
                                        cloudContext: AzureCloudContext,
@@ -732,165 +607,432 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield authContext
 
-  private[util] def buildMsiManager(cloudContext: AzureCloudContext): F[MsiManager] = {
-    val azureProfile =
-      new AzureProfile(cloudContext.tenantId.value, cloudContext.subscriptionId.value, AzureEnvironment.AZURE)
-    val clientSecretCredential = new ClientSecretCredentialBuilder()
-      .clientId(config.appRegistrationConfig.clientId.value)
-      .clientSecret(config.appRegistrationConfig.clientSecret.value)
-      .tenantId(config.appRegistrationConfig.managedAppTenantId.value)
-      .build
-    F.delay(MsiManager.authenticate(clientSecretCredential, azureProfile))
-  }
-
-  private[util] def buildComputeManager(cloudContext: AzureCloudContext): F[ComputeManager] = {
-    val azureProfile =
-      new AzureProfile(cloudContext.tenantId.value, cloudContext.subscriptionId.value, AzureEnvironment.AZURE)
-    val clientSecretCredential = new ClientSecretCredentialBuilder()
-      .clientId(config.appRegistrationConfig.clientId.value)
-      .clientSecret(config.appRegistrationConfig.clientSecret.value)
-      .tenantId(config.appRegistrationConfig.managedAppTenantId.value)
-      .build
-    F.delay(ComputeManager.authenticate(clientSecretCredential, azureProfile))
-  }
-
-  private[util] def buildCoreV1Client(cloudContext: AzureCloudContext, clusterName: AKSClusterName): F[CoreV1Api] = {
-    // we do not want to have to specify this at resource (class) creation time, so we create one on each load here
-    implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
-    for {
-      credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
-      client <- createClient(
-        credentials
-      )
-      _ <- F.blocking(client.setApiKey(credentials.token.value))
-    } yield new CoreV1Api(client)
-  }
-
-  private def deleteNamespace(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Unit] = {
-    val delete = for {
-      traceId <- ev.ask
-      call =
-        recoverF(
-          F.blocking(
-            client.deleteNamespace(
-              namespace.name.value,
-              "true",
-              null,
-              null,
-              null,
-              null,
-              null
-            )
-          ).void
-            .recoverWith {
-              case e: com.google.gson.JsonSyntaxException
-                  if e.getMessage.contains("Expected a string but was BEGIN_OBJECT") =>
-                logger.error(e)("Ignore response parsing error")
-            } // see https://github.com/kubernetes-client/java/wiki/6.-Known-Issues#1-exception-on-deleting-resources-javalangillegalstateexception-expected-a-string-but-was-begin_object
-          ,
-          whenStatusCode(404)
-        )
-      _ <- withLogging(
-        call,
-        Some(traceId),
-        s"io.kubernetes.client.openapi.apis.CoreV1Api.deleteNamespace(${namespace.name.value}, true, null, null, null, null, null)"
-      )
-    } yield ()
-
-    // There is a known bug with the client lib json decoding.  `com.google.gson.JsonSyntaxException` occurs every time.
-    // See https://github.com/kubernetes-client/java/issues/86
-    delete.handleErrorWith {
-      case _: com.google.gson.JsonSyntaxException =>
-        F.unit
-      case e: Throwable => F.raiseError(e)
+  private def getWsmCommonFields(name: String,
+                                 description: String,
+                                 app: App
+  ): bio.terra.workspace.model.ControlledResourceCommonFields = {
+    val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
+      .resourceId(UUID.randomUUID())
+      .name(name)
+      .description(description)
+      .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
+      .cloningInstructions(CloningInstructionsEnum.NOTHING)
+    app.samResourceId.accessScope match {
+      case Some(AppAccessScope.WorkspaceShared) =>
+        commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
+      case _ =>
+        commonFieldsBase
+          .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+          .privateResourceUser(
+            new bio.terra.workspace.model.PrivateResourceUser()
+              .userName(app.auditInfo.creator.value)
+              .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+          )
     }
   }
 
-  private def listPodStatus(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
-  ): F[List[PodStatus]] =
+  private[util] def createWsmIdentityResource(app: App, namespacePrefix: String, workspaceId: WorkspaceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreatedControlledAzureManagedIdentity] =
     for {
-      traceId <- ev.ask
-      call =
-        F.blocking(
-          client.listNamespacedPod(namespace.name.value, "true", null, null, null, null, null, null, null, null, null)
-        )
-
-      response <- withLogging(
-        call,
-        Some(traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}, true, null, null, null, null, null, null, null, null)"
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating WSM identity for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
       )
 
-      listPodStatus: List[PodStatus] = response.getItems.asScala.toList.flatMap(v1Pod =>
-        PodStatus.stringToPodStatus
-          .get(v1Pod.getStatus.getPhase)
-      )
+      // Build WSM client
+      wsmApi <- buildWsmControlledResourceApiClient
 
-    } yield listPodStatus
+      // Name of the managed identity. Must be unique per landing zone.
+      identityName = s"id${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
 
-  // The underlying http client for ApiClient claims that it releases idle threads and that shutdown is not necessary
-  // Here is a guide on how to proactively release resource if this proves to be problematic https://square.github.io/okhttp/4.x/okhttp/okhttp3/-ok-http-client/#shutdown-isnt-necessary
-  private def createClient(credentials: AKSCredentials): F[ApiClient] = {
-    val certResource = autoClosableResourceF(
-      new ByteArrayInputStream(Base64.getDecoder.decode(credentials.certificate.value))
-    )
-
-    for {
-      apiClient <- certResource.use { certStream =>
-        F.delay(
-          Config
-            .fromToken(
-              credentials.server.value,
-              credentials.token.value
-            )
-            .setSslCaCert(certStream)
-        )
+      // Name of the WSM resource. Must be unique per workspace.
+      // For shared apps, name it by the appType so it's semantically meaningful.
+      // There can only be at most 1 shared app type per workspace anyway.
+      // For private apps, use managed identity name to ensure uniqueness.
+      wsmResourceName = app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp => s"id${app.appType.toString.toLowerCase}"
+        case _                         => identityName
       }
-    } yield apiClient // appending here a .setDebugging(true) prints out useful API request/response info for development
+
+      identityCommonFields = getWsmCommonFields(wsmResourceName, s"Identity for Leo app ${app.appName.value}", app)
+      createIdentityParams = new AzureManagedIdentityCreationParameters().name(
+        identityName
+      )
+      createIdentityRequest = new CreateControlledAzureManagedIdentityRequestBody()
+        .common(identityCommonFields)
+        .azureManagedIdentity(createIdentityParams)
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create identity request: ${createIdentityRequest}")
+
+      // Execute WSM call
+      createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create identity response: ${createIdentityResponse}")
+
+      // Save record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery
+        .insert(
+          app.id.id,
+          WsmControlledResourceId(createIdentityResponse.getResourceId),
+          WsmResourceType.AzureManagedIdentity,
+          AppControlledResourceStatus.Created
+        )
+        .transaction
+
+    } yield createIdentityResponse
+
+  private[util] def createWsmDatabaseResources(app: App,
+                                               appInstall: AppInstall[F],
+                                               workspaceId: WorkspaceId,
+                                               namespacePrefix: String,
+                                               owner: Option[String],
+                                               landingZoneResources: LandingZoneResources
+  )(implicit ev: Ask[F, AppContext]): F[List[CreatedControlledAzureDatabaseResult]] =
+    if (landingZoneResources.postgresServer.isDefined) {
+      for {
+        ctx <- ev.ask
+        wsmApi <- buildWsmControlledResourceApiClient
+        res <- appInstall.databases.collect { case d @ CreateDatabase(_, _) => d }.traverse { database =>
+          createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
+        }
+      } yield res
+    } else {
+      ev.ask.flatMap(ctx =>
+        F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
+      )
+    }
+
+  private[util] def createWsmDatabaseResource(app: App,
+                                              workspaceId: WorkspaceId,
+                                              database: CreateDatabase,
+                                              namespacePrefix: String,
+                                              owner: Option[String],
+                                              wsmApi: ControlledAzureResourceApi
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreatedControlledAzureDatabaseResult] = {
+    // Build create DB request
+
+    // Name of the database. Must be unique per landing zone.
+    val dbName = s"${database.prefix}_${namespacePrefix.split('-').headOption.getOrElse(namespacePrefix)}"
+
+    // Name of the WSM resource. Must be unique per workspace.
+    // For shared apps, name it by the databasePrefix so it's semantically meaningful.
+    // There can only be at most 1 shared app type per workspace anyway.
+    // For private apps, use the database name to ensure uniqueness.
+    val wsmResourceName = app.samResourceId.resourceType match {
+      case SamResourceType.SharedApp => database.prefix
+      case _                         => dbName
+    }
+
+    val databaseCommonFields =
+      getWsmCommonFields(wsmResourceName, s"${database.prefix} database for Leo app ${app.appName.value}", app)
+    val createDatabaseParams = new AzureDatabaseCreationParameters()
+      .name(dbName)
+      .allowAccessForAllWorkspaceUsers(database.allowAccessForAllWorkspaceUsers)
+    owner.foreach(createDatabaseParams.setOwner)
+    val createDatabaseJobControl = new JobControl().id(dbName)
+    val createDatabaseRequest = new CreateControlledAzureDatabaseRequestBody()
+      .common(databaseCommonFields)
+      .azureDatabase(createDatabaseParams)
+      .jobControl(createDatabaseJobControl)
+
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating ${database.prefix} database for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+      )
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create database request: ${createDatabaseRequest}")
+
+      _ <- appControlledResourceQuery
+        .insert(
+          app.id.id,
+          WsmControlledResourceId(createDatabaseRequest.getCommon.getResourceId),
+          WsmResourceType.AzureDatabase,
+          AppControlledResourceStatus.Creating
+        )
+        .transaction
+
+      // Execute WSM call
+      createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create database response: ${createDatabaseResponse}")
+
+      // Poll for DB creation
+      // We don't actually care about the JobReport - just that it succeeded.
+      op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName))
+      result <- streamFUntilDone(
+        op,
+        config.appMonitorConfig.createApp.maxAttempts,
+        config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create database job result: ${result}")
+
+      _ <-
+        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+          F.raiseError(
+            AppCreationException(
+              s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
+              Some(ctx.traceId)
+            )
+          )
+        } else F.unit
+
+      // Save record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery
+        .updateStatus(
+          WsmControlledResourceId(result.getAzureDatabase.getMetadata.getResourceId),
+          AppControlledResourceStatus.Created
+        )
+        .transaction
+    } yield result
   }
 
-  private def namespaceExists(client: CoreV1Api, namespace: KubernetesNamespace)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Boolean] =
+  private[util] def createWsmKubernetesNamespaceResource(app: App,
+                                                         workspaceId: WorkspaceId,
+                                                         namespacePrefix: String,
+                                                         databases: List[String],
+                                                         identity: Option[String]
+  )(implicit ev: Ask[F, AppContext]): F[CreatedControlledAzureKubernetesNamespaceResult] =
     for {
-      traceId <- ev.ask
-      call =
-        recoverF(
-          F.blocking(
-            client.listNamespace("true", false, null, null, null, null, null, null, null, false)
-          ),
-          whenStatusCode(409)
-        )
-      v1NamespaceList <- withLogging(
-        call,
-        Some(traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespace()",
-        Show.show[Option[V1NamespaceList]](
-          _.fold("No namespace found")(x => x.getItems.asScala.toList.map(_.getMetadata.getName).mkString(","))
-        )
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
       )
-    } yield v1NamespaceList
-      .map(ls => ls.getItems.asScala.toList)
-      .getOrElse(List.empty)
-      .exists(x => x.getMetadata.getName == namespace.name.value)
 
+      // Build WSM client
+      wsmApi <- buildWsmControlledResourceApiClient
+
+      // Name of the WSM resource. Must be unique per workspace.
+      // For shared apps, name it by the appType so it's semantically meaningful.
+      // There can only be at most 1 shared app type per workspace anyway.
+      // For private apps, use the namespacePrefix to ensure uniqueness.
+      wsmResourceName = app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp => s"${app.appType.toString.toLowerCase}-ns"
+        case _                         => namespacePrefix
+      }
+
+      // Build common fields
+      namespaceCommonFields =
+        getWsmCommonFields(wsmResourceName,
+                           s"$namespacePrefix kubernetes namespace for Leo app ${app.appName.value}",
+                           app
+        )
+
+      // Build createNamespace fields
+      appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      createNamespaceParams = new AzureKubernetesNamespaceCreationParameters()
+        .namespacePrefix(namespacePrefix)
+        .databases((databases ++ appExternalDatabaseNames).asJava)
+      _ = identity.foreach(createNamespaceParams.setManagedIdentity)
+
+      // Build request
+      createNamespaceJobControl = new JobControl().id(namespacePrefix)
+      createNamespaceRequest = new CreateControlledAzureKubernetesNamespaceRequestBody()
+        .common(namespaceCommonFields)
+        .azureKubernetesNamespace(createNamespaceParams)
+        .jobControl(createNamespaceJobControl)
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace request: ${createNamespaceRequest}")
+
+      _ <- appControlledResourceQuery
+        .insert(
+          app.id.id,
+          WsmControlledResourceId(createNamespaceRequest.getCommon.getResourceId),
+          WsmResourceType.AzureKubernetesNamespace,
+          AppControlledResourceStatus.Creating
+        )
+        .transaction
+
+      // Execute WSM call
+      createNamespaceResponse <- F.delay(
+        wsmApi.createAzureKubernetesNamespace(createNamespaceRequest, workspaceId.value)
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace response: ${createNamespaceResponse}")
+
+      // Poll for namespace creation
+      op = F.delay(wsmApi.getCreateAzureKubernetesNamespaceResult(workspaceId.value, namespacePrefix))
+      result <- streamFUntilDone(
+        op,
+        config.appMonitorConfig.createApp.maxAttempts,
+        config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace job result: ${result}")
+
+      _ <-
+        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+          F.raiseError(
+            AppCreationException(
+              s"WSM namespace creation failed for app ${app.appName.value}. WSM response: ${result}",
+              Some(ctx.traceId)
+            )
+          )
+        } else F.unit
+
+      // Save record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery
+        .updateStatus(
+          WsmControlledResourceId(result.getAzureKubernetesNamespace.getMetadata.getResourceId),
+          AppControlledResourceStatus.Created
+        )
+        .transaction
+    } yield result
+
+  private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
+                                               app: App,
+                                               wsmResource: AppControlledResourceRecord
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      // Build WSM client
+      wsmApi <- buildWsmControlledResourceApiClient
+
+      // Build delete namespace request
+      jobId = UUID.randomUUID()
+      deleteNamespaceRequest = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
+        new JobControl().id(jobId.toString)
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteNamespaceRequest}")
+
+      // Execute WSM call
+      result <- F.delay(
+        wsmApi.deleteAzureKubernetesNamespace(deleteNamespaceRequest, workspaceId.value, wsmResource.resourceId.value)
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace response: ${result}")
+
+      // Update record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery
+        .updateStatus(
+          wsmResource.resourceId,
+          AppControlledResourceStatus.Deleting
+        )
+        .transaction
+
+      // Poll for namespace deletion
+      op = F.delay(
+        wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, jobId.toString)
+      )
+      result <- streamFUntilDone(
+        op,
+        config.appMonitorConfig.createApp.maxAttempts,
+        config.appMonitorConfig.createApp.interval
+      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace job result: ${result}")
+
+      _ <-
+        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
+          F.raiseError(
+            AppCreationException(
+              s"WSM namespace deletion failed for app ${app.appName.value}. WSM response: ${result}",
+              Some(ctx.traceId)
+            )
+          )
+        } else F.unit
+
+      // Update record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+    } yield ()
+
+  private[util] def deleteWsmResource(workspaceId: WorkspaceId, app: App, wsmResource: AppControlledResourceRecord)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Unit] = {
+    val delete = for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
+      )
+      _ <- wsmResource.resourceType match {
+        case WsmResourceType.AzureManagedIdentity =>
+          F.delay(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
+        case WsmResourceType.AzureDatabase =>
+          F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
+        case _ =>
+          F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
+      }
+      // Update record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+    } yield ()
+
+    delete.handleErrorWith {
+      case e: ApiException if e.getCode == StatusCodes.NotFound.intValue =>
+        // If the resource doesn't exist, that's fine. We're deleting it anyway.
+        F.unit
+      case e => F.raiseError(e)
+    }
+  }
+
+  private[util] def updateListener(authContext: AuthContext,
+                                   app: App,
+                                   landingZoneResources: LandingZoneResources,
+                                   workspaceId: WorkspaceId,
+                                   hcName: RelayHybridConnectionName,
+                                   primaryKey: PrimaryKey,
+                                   relayDomain: String,
+                                   listenerChartConfig: ListenerChartConfig
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    // Update the Relay Listener if the app tracks it as a service.
+    // We're not tracking the listener version in the DB so we can't really pick and choose which versions to update.
+    // We started tracking it as a service when we switched the chart over to terra-helmfile.
+    if (app.appResources.services.exists(s => s.config.name == listenerChartConfig.service.config.name)) {
+      val values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
+        app.release,
+        app.samResourceId,
+        landingZoneResources.relayNamespace,
+        hcName,
+        primaryKey,
+        app.appType,
+        workspaceId,
+        app.appName,
+        refererConfig.validHosts + relayDomain,
+        config.samConfig,
+        config.listenerImage,
+        config.leoUrlBase
+      )
+      for {
+        ctx <- ev.ask
+        _ <- logger.info(ctx.loggingCtx)(
+          s"Listener values for app ${app.appName.value} are ${values.asString}"
+        )
+        _ <- helmClient
+          .upgradeChart(
+            getListenerReleaseName(app.release),
+            config.listenerChartConfig.chartName,
+            config.listenerChartConfig.chartVersion,
+            values
+          )
+          .run(authContext)
+      } yield ()
+    } else {
+      ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
+    }
+
+  private def buildWsmControlledResourceApiClient(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi] =
+    for {
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmApi
 }
 
 final case class AKSInterpreterConfig(
-  terraAppSetupChartConfig: TerraAppSetupChartConfig,
-  coaAppConfig: CoaAppConfig,
-  wdsAppConfig: WdsAppConfig,
-  hailBatchAppConfig: HailBatchAppConfig,
-  aadPodIdentityConfig: AadPodIdentityConfig,
-  appRegistrationConfig: AzureAppRegistrationConfig,
   samConfig: SamConfig,
   appMonitorConfig: AppMonitorConfig,
   wsmConfig: HttpWsmDaoConfig,
-  drsConfig: DrsConfig,
   leoUrlBase: URL,
   listenerImage: String,
-  tdr: TdrConfig
+  listenerChartConfig: ListenerChartConfig
 )
