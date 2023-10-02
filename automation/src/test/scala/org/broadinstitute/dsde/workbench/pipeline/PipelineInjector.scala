@@ -40,8 +40,8 @@ trait PipelineInjector {
           userMetadataSeq <- json.as[Seq[UserMetadata]]
         } yield userMetadataSeq
         decoded match {
-          case Right(u)    => u
-          case Left(error) => Seq()
+          case Right(u) => u
+          case Left(_)  => Seq()
         }
       case _ => Seq()
     }
@@ -49,10 +49,12 @@ trait PipelineInjector {
   trait Users {
     val users: Seq[UserMetadata]
 
-    def getUserCredential(like: String): Option[UserMetadata] = {
-      val filteredResults = users.filter(_.email.toLowerCase.contains(like.toLowerCase))
-      if (filteredResults.isEmpty) None else Some(filteredResults.head)
-    }
+    def getUserCredential(like: String): Option[UserMetadata] =
+      users
+        .filter(_.email.toLowerCase.contains(like.toLowerCase))
+        .headOption
+      // val filteredResults = users.filter(_.email.toLowerCase.contains(like.toLowerCase))
+      // if (filteredResults.isEmpty) None else Some(filteredResults.head)
   }
 
   object Owners extends Users {
