@@ -19,7 +19,7 @@ jobs:
     outputs:
       custom-version-json: ${{ steps.render-leo-version.outputs.custom-version-json }}
     steps:
-      - uses: 'actions/checkout@v3'
+      - uses: 'actions/checkout@v4'
 
       - name: Bump the tag to a new version
         uses: databiosphere/github-actions/actions/bumper@bumper-0.0.6
@@ -77,7 +77,7 @@ jobs:
         run: |-
           echo 'log-results=true' >> $GITHUB_OUTPUT
           if ${{ github.ref_name == 'develop' }}; then
-            echo 'test-context=leonardo-dev-merge' >> $GITHUB_OUTPUT
+            echo 'test-context=dev-merge' >> $GITHUB_OUTPUT
           else
             echo 'test-context=pr-test' >> $GITHUB_OUTPUT
           fi
@@ -152,7 +152,7 @@ jobs:
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
-          inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}", "ENV": "${{ matrix.testing-env }}", "sbt-test-command": "\"testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab\"" }'
+          inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}", "ENV": "${{ matrix.testing-env }}", "sbt-test-command": "\"testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab\"", "log-results": "${{ needs.prepare-configs.outputs.log-results }}", "test-context": "${{ needs.prepare-configs.outputs.test-context }}", "caller_run_id": "${{ github.run_id }}" }'
 
   destroy-bee-workflow:
     strategy:
