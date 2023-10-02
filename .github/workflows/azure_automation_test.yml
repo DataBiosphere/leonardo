@@ -165,6 +165,8 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}",
+            "mrg-id": "staticTestingMrg",
+            "landing-zone-id": "f41c1a97-179b-4a18-9615-5214d79ba600",
             "bee-name": "${{ env.BEE_NAME }}",
             "billing-project": "${{ needs.params-gen.outputs.project-name }}",
             "billing-project-creator": "${{ needs.init-github-context.outputs.owner-subject }}",

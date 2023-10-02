@@ -251,7 +251,7 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 final case class AzureBillingProjectName(value: String) extends AnyVal
 trait AzureBilling extends FixtureAnyFreeSpecLike {
   this: TestSuite =>
-  import io.circe.{Decoder, parser}
+  import io.circe.{parser, Decoder}
   import org.broadinstitute.dsde.workbench.auth.AuthToken
   import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
   override type FixtureParam = WorkspaceResponse
@@ -271,12 +271,16 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
 
-    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
+    println("pipeline projectName:" + bee.billingProject)
 
     try
       sys.props.get(azureProjectKey) match {
         case None => throw new RuntimeException("leonardo.azureProject system property is not set")
         case Some(projectName) =>
+          println("withFixture projectName: " + projectName)
           withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
             runTestAndCheckOutcome(workspace)
           }
@@ -440,15 +444,15 @@ final class LeonardoAzureSuite
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     val bee = PipelineInjector(PipelineInjector.e2eEnv())
-    //implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
     val res = for {
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
-      //_ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
+      // _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
       //  IO(sys.props.put(azureProjectKey, projectName))
       _ <- IO(sys.props.put(azureProjectKey, bee.billingProject))
-      //}
+      // }
       // hardcode this if you want to use a static billing project
       //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
     } yield ()
