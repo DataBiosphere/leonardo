@@ -85,7 +85,7 @@ jobs:
   report-to-sherlock:
     # Report new Leonardo version to Broad DevOps
     uses: broadinstitute/sherlock/.github/workflows/client-report-app-version.yaml@main
-    needs: [ leonardo-build-tag-publish-job ]
+    needs: [ leo-build-tag-publish-job ]
     with:
       new-version: ${{ needs.leonardo-build-tag-publish-job.outputs.tag }}
       chart-name: 'leonardo'
