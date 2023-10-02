@@ -148,7 +148,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         RelayNamespace("lznamespace"),
         StorageAccountName("lzstorage"),
         NetworkName("lzvnet"),
-        SubnetworkName("batchsub"),
+        SubnetworkName("id-prefix/batchsub"),
         SubnetworkName("akssub"),
         com.azure.core.management.Region.US_EAST,
         ApplicationInsightsName("lzappinsights"),
