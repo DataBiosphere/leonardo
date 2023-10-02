@@ -87,13 +87,20 @@ jobs:
         run: |
           echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
       - name: dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v3
+        uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
+          run-name: "${{ env.BEE_CREATE_RUN_NAME }}"
           workflow: bee-create
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: refs/heads/iv-upgrade-workflow-dispatch-to-support-run-name
           token: ${{ env.TOKEN }}
-          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "bee-template-name": "rawls-e2e-azure-tests", "version-template": "dev", "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}" }'
+          inputs: '{
+            "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
+            "bee-name": "${{ env.BEE_NAME }}",
+            "bee-template-name": "rawls-e2e-azure-tests",
+            "version-template": "dev",
+            "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}"
+          }'
 
   leo-automation-test-job:
     runs-on: ubuntu-latest
