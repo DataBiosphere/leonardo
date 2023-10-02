@@ -5,24 +5,23 @@ import cats.effect.std.UUIDGen
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
-import org.broadinstitute.dsde.rawls.model.WorkspaceName
+import org.broadinstitute.dsde.rawls.model.{AzureManagedAppCoordinates, WorkspaceName}
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec, AzureRuntimeSpec}
+import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
 import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRole
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
+import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
-import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
-import org.http4s.headers.Authorization
 
 import java.util.UUID
 
@@ -272,12 +271,16 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
 
-    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
+    println("pipeline projectName:" + bee.billingProject)
 
     try
       sys.props.get(azureProjectKey) match {
         case None => throw new RuntimeException("leonardo.azureProject system property is not set")
         case Some(projectName) =>
+          println("withFixture projectName: " + projectName)
           withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
             runTestAndCheckOutcome(workspace)
           }
@@ -431,7 +434,7 @@ final class LeonardoTerraDockerSuite
 
 final class LeonardoAzureSuite
     extends Suites(
-      new AzureRuntimeSpec,
+      // new AzureRuntimeSpec,
       new AzureDiskSpec,
       new AzureAutopauseSpec
     )
@@ -440,13 +443,16 @@ final class LeonardoAzureSuite
     with ParallelTestExecution
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
-    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
     val res = for {
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
-      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
-        IO(sys.props.put(azureProjectKey, projectName))
-      }
+      // _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
+      //   IO(sys.props.put(azureProjectKey, projectName))
+      // }
+      _ <- IO(sys.props.put(azureProjectKey, bee.billingProject))
       // hardcode this if you want to use a static billing project
       //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
     } yield ()

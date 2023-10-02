@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.azure
 
-import org.scalatest.prop.TableDrivenPropertyChecks
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
@@ -11,11 +9,13 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   ClusterStatus,
   CreateAzureRuntimeRequest
 }
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
-import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
+import org.broadinstitute.dsde.workbench.service.test.CleanUp
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
 
@@ -28,7 +28,9 @@ class AzureAutopauseSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+  // implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+  val bee: PipelineInjector = PipelineInjector(PipelineInjector.e2eEnv())
+  implicit val accessToken: IO[AuthToken] = IO.pure(bee.Owners.getUserCredential("hermione").get.makeAuthToken)
 
   "azure runtime autopauses" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
