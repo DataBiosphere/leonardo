@@ -130,8 +130,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false)
 
-  private def toCromwellRunnerAppDatabaseNames(dbNames: List[String]): Option[CromwellRunnerAppDatabaseNames] =
-    (dbNames.find(_.startsWith("cromwell")),
+  def toCromwellRunnerAppDatabaseNames(dbNames: List[String]): Option[CromwellRunnerAppDatabaseNames] =
+    (dbNames.find(name => name.startsWith("cromwell") && !name.startsWith("cromwellmetadata")),
      dbNames.find(_.startsWith("tes")),
      dbNames.find(_.startsWith("cromwellmetadata"))
     )
