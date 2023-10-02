@@ -206,6 +206,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Running pull chart for ${params.appName.value}"
+      )
+      _ <- childSpan("helmPullChart").use { _ =>
+        helmClient
+          .pullChart(
+            app.chart.name,
+            app.chart.version
+          )
+          .run(authContext)
+      }
       // Install app chart
       _ <- childSpan("helmInstallApp").use { _ =>
         helmClient
