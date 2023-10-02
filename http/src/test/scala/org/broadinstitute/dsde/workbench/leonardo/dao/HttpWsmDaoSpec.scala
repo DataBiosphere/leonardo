@@ -93,24 +93,24 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         LandingZoneResourcesByPurpose(
           WORKSPACE_BATCH_SUBNET,
           List(
-            buildMockLandingZoneResource("DeployedSubnet", "batchsub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "batchsub")
           )
         ),
         LandingZoneResourcesByPurpose(
           AKS_NODE_POOL_SUBNET,
           List(
-            buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "akssub")
           )
         ),
         LandingZoneResourcesByPurpose(
           WORKSPACE_COMPUTE_SUBNET,
           List(
-            buildMockLandingZoneResource("DeployedSubnet", "computesub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "computesub")
           )
         ),
         LandingZoneResourcesByPurpose(
           POSTGRESQL_SUBNET,
-          List(buildMockLandingZoneResource("DeployedSubnet", "postgressub", false))
+          List(buildMockLandingZoneResource("DeployedSubnet", "postgressub"))
         )
       )
       val landingZoneResourcesResult =
@@ -168,8 +168,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     LandingZoneResource(
       resourceId = if (useId) Some(s"id-prefix/${resourceName}") else None,
       resourceType,
-      resourceName = if (useId) None else Some(resourceName),
-      resourceParentId = if (useId) None else Some("lzvnet"),
+      resourceName = if (resourceType.equalsIgnoreCase("DeployedSubnet")) Some(resourceName) else None,
+      resourceParentId = if (resourceType.equalsIgnoreCase("DeployedSubnet")) Some("lzvnet") else None,
       region = com.azure.core.management.Region.US_EAST.toString,
       tags
     )
