@@ -8,7 +8,7 @@ on:
     paths-ignore: [ '**.md' ]
   push:
     branches: [ develop ]
-    paths-ignore: ['**.md']
+    paths-ignore: [ '**.md' ]
 
 jobs:
   leo-build-tag-publish-job:
