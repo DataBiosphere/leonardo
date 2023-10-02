@@ -29,14 +29,18 @@ jobs:
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.extract-inputs.outputs.branch }}
-      delete-bee: ${{ steps.extract-inputs.outputs.delete-bee }}
+      branch: ${{ steps.prepare-outputs.outputs.branch }}
+      delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
+      log-results: ${{ steps.prepare-outputs.outputs.log-results }}
+      test-context: ${{ steps.prepare-outputs.outputs.test-context }}
     steps:
-      - name: Get inputs or use defaults
-        id: extract-inputs
+      - name: Get inputs and/or set defaults
+        id: prepare-outputs
         run: |
           echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
+          echo "log-results=true" >> $GITHUB_OUTPUT
+          echo "test-context=azure-e2e" >> $GITHUB_OUTPUT
 
 
   leo-build-tag-publish-job:
@@ -112,7 +116,7 @@ jobs:
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
-          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17", "ref": "${{ needs.init-github-context.outputs.branch }}" }'
+          inputs: '{ "bee-name": "${{ env.BEE_NAME }}", "ENV": "qa", "test-group-name": "workspaces_azure", "sbt-test-command": "${{ env.leo_test_command }}", "java-version": "17", "ref": "${{ needs.init-github-context.outputs.branch }}", "log-results": "${{ needs.init-github-context.outputs.log-results }}", "test-context": "${{ needs.init-github-context.outputs.test-context }}", "caller_run_id": "${{ github.run_id }}" }'
 
   destroy-bee-workflow:
     runs-on: ubuntu-latest
