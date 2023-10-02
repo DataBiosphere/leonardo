@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.pipeline
 
-import io.circe.Decoder
+import io.circe.{Decoder, Encoder}
 
 /**
  * Enum-like sealed trait representing the user type.
@@ -77,4 +77,6 @@ object UserType {
     case "student" => Right(Student)
     case other     => Left(s"Unknown user type: $other")
   }
+
+  implicit val userTypeEncoder: Encoder[UserType] = Encoder.encodeString.contramap(_.title)
 }
