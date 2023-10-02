@@ -4,10 +4,10 @@ name: leo-build-tag-publish-and-run-tests
 
 on:
   pull_request:
+    branches: [ develop ]
     paths-ignore: [ '**.md' ]
   push:
-    branches:
-      - develop
+    branches: [ develop ]
     paths-ignore: ['**.md']
 
 jobs:
