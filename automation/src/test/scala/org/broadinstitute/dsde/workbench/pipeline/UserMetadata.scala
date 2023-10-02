@@ -5,23 +5,24 @@ import io.circe.syntax.EncoderOps
 import io.circe.{Decoder, Encoder, HCursor, Json}
 
 case class UserMetadata(email: String, `type`: UserType, bearer: String) {
-  implicit val userMetadataDecoder: Decoder[UserMetadata] = new Decoder[UserMetadata] {
-    final def apply(c: HCursor): Decoder.Result[UserMetadata] =
-      for {
-        email <- c.downField("email").as[String]
-        userType <- c.downField("type").as[UserType]
-        bearer <- c.downField("bearer").as[String]
-      } yield UserMetadata(email, userType, bearer)
-  }
+  def makeAuthToken: ProxyAuthToken =
+    ProxyAuthToken(this, new MockGoogleCredential.Builder().build())
+}
 
-  implicit val userMetadataEncoder: Encoder[UserMetadata] = new Encoder[UserMetadata] {
-    final def apply(a: UserMetadata): Json = Json.obj(
+object UserMetadata {
+  implicit val userMetadataDecoder: Decoder[UserMetadata] = (c: HCursor) =>
+    for {
+      email <- c.downField("email").as[String]
+      userType <- c.downField("type").as[UserType]
+      bearer <- c.downField("bearer").as[String]
+    } yield UserMetadata(email, userType, bearer)
+
+  implicit val userMetadataEncoder: Encoder[UserMetadata] = (a: UserMetadata) =>
+    Json.obj(
       ("email", Json.fromString(a.email)),
       ("type", a.`type`.asJson),
       ("bearer", Json.fromString(a.bearer))
     )
-  }
 
-  def makeAuthToken: ProxyAuthToken =
-    ProxyAuthToken(this, (new MockGoogleCredential.Builder()).build())
+  implicit val seqUserMetadataDecoder: Decoder[Seq[UserMetadata]] = Decoder.decodeSeq[UserMetadata]
 }

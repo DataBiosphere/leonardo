@@ -1,9 +1,8 @@
 package org.broadinstitute.dsde.workbench.pipeline
 
 import com.typesafe.scalalogging.LazyLogging
-import io.circe.parser.decode
+import io.circe.parser
 
-import java.util.Base64
 import scala.util.Random
 
 object PredefinedEnv {
@@ -22,10 +21,24 @@ trait PipelineInjector {
 
   // Retrieves user metadata from the environment and decodes it from Base64.
   // Returns a sequence of UserMetadata objects. An empty Seq will be returned if retrieval fails.
+  // def usersMetadata: Seq[UserMetadata] =
+  //  sys.env.get(PredefinedEnv.UsersMetadataB64) match {
+  //    case Some(b64) =>
+  //      val decoded = decode[Seq[UserMetadata]](new String(Base64.getDecoder.decode(b64), "UTF-8"))
+  //      decoded match {
+  //        case Right(u)    => u
+  //        case Left(error) => Seq()
+  //      }
+  //    case _ => Seq()
+  //  }
+
   def usersMetadata: Seq[UserMetadata] =
     sys.env.get(PredefinedEnv.UsersMetadataB64) match {
       case Some(b64) =>
-        val decoded = decode[Seq[UserMetadata]](new String(Base64.getDecoder.decode(b64), "UTF-8"))
+        val decoded = for {
+          json <- parser.parse(b64)
+          userMetadataSeq <- json.as[Seq[UserMetadata]]
+        } yield userMetadataSeq
         decoded match {
           case Right(u)    => u
           case Left(error) => Seq()
