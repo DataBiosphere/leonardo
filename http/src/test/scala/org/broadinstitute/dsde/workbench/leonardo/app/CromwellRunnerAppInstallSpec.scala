@@ -79,4 +79,13 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
+
+  it should "find the first instance of each database type" in {
+    cromwellRunnerAppInstall.toCromwellRunnerAppDatabaseNames(
+      List("cromwellmetadata_zyxwvu",
+           "cromwell_12345",
+           "tes_12345"
+      ) // put cromwellmetadata first to ensure it doesn't get confused with cromwell
+    ) should be(Some(CromwellRunnerAppDatabaseNames("cromwell_12345", "tes_12345", "cromwellmetadata_zyxwvu")))
+  }
 }
