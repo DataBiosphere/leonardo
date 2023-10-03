@@ -17,14 +17,35 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
-// Typeclass representing a Sam resource and associated policies
+/**
+ * Typeclass representing a Sam resource and associated policies.
+ * @tparam R SamResourceId
+ */
 sealed trait SamResource[R] {
+
+  // Values per resource. These require a specific resource instance, which affects return value for some App types.
+  /** Type of the resource (originally defined in Sam). */
   def resourceType(r: R): SamResourceType
+
+  /** ID of the resource. */
   def resourceIdAsString(r: R): String
+
+  /**
+   * TODO [] this kind of access logic should obviously be modeled in Sam. Do that instead.
+   *
+   * Sam roles on which read access is explicitly granted. Empty set permits all.
+   * Given a resource type `X`, with `someX` a child of a workspace or project W,
+   * a user could read someX iff:
+   * 1. the user is granted Owner role or its equivalent on W
+   * 2. the user is granted any role in X.policyNames
+   * 3. X.policyNames is empty and the user is granted any role on W
+   */
   def policyNames(r: R): Set[SamPolicyName]
+
+  /** Sam role corresponding to Leonardo's concept of "owner" for the resource. */
   def ownerRoleName(r: R): SamRole
 
-  // Defaults
+  // Defaults. These are independent of a specific resource instance. Equivalent to the method calls above except for some App types.
   def resourceType: SamResourceType
   def policyNames: Set[SamPolicyName]
   def ownerRoleName: SamRole
@@ -32,7 +53,7 @@ sealed trait SamResource[R] {
 object SamResource {
   class ProjectSamResource extends SamResource[ProjectSamResourceId] {
     val resourceType: SamResourceType = SamResourceType.Project
-    val policyNames: Set[SamPolicyName] = Set(SamPolicyName.Owner)
+    val policyNames: Set[SamPolicyName] = Set.empty
     val ownerRoleName: SamRole = SamRole.Owner
 
     def resourceType(r: ProjectSamResourceId): SamResourceType = resourceType
@@ -79,7 +100,7 @@ object SamResource {
   }
   class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {
     val resourceType: SamResourceType = SamResourceType.Workspace
-    val policyNames: Set[SamPolicyName] = Set(SamPolicyName.Owner)
+    val policyNames: Set[SamPolicyName] = Set.empty
     val ownerRoleName: SamRole = SamRole.Owner
 
     def resourceType(r: WorkspaceResourceSamResourceId): SamResourceType = resourceType

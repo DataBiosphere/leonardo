@@ -152,7 +152,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     val ownerRole: SamRole = samResource.ownerRoleName
-    val isOwnerInPolicies: Boolean = samResource.policyNames.exists { policyName: SamPolicyName =>
+    val canOwnerRead: Boolean = samResource.policyNames.isEmpty || samResource.policyNames.exists { policyName: SamPolicyName =>
       ownerRole.asString == policyName.toString
     }
     for {
@@ -160,13 +160,18 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         .getResourcePolicies[R](authHeader, samResource.resourceType)
 
       authorizedPolicies =
-        if (isOwner && !isOwnerInPolicies) {
+        if (isOwner && !canOwnerRead) {
           // The resource might be improperly configured; the resource owner role is not included in the SamResource's policyNames. Show nothing
           List.empty
-        } else if (isOwner && isOwnerInPolicies) {
+        } else if (isOwner && canOwnerRead) {
           // Show only resources the user owns
           resourcesAndPolicies filter { case (_, policy) =>
             ownerRole.asString == policy.toString
+          }
+        } else if (!samResource.policyNames.isEmpty) {
+          // Show only resources on which the user is granted a readable policy
+          resourcesAndPolicies filter { case (_, policy) =>
+            samResource.policyNames.contains(policy)
           }
         } else {
           // Show all resources the user is granted any role on (reader)
