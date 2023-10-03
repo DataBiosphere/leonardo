@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
 import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRole
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.http4s.headers.Authorization
@@ -272,9 +273,9 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
       super.withFixture(test.toNoArgTest(workspace))
 
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    // val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    val bee = PipelineInjector(PipelineInjector.e2eEnv())
     // implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
-    // println("pipeline projectName:" + bee.billingProject)
+    println("pipeline projectName:" + bee.billingProject)
 
     try
       sys.props.get(azureProjectKey) match {
@@ -444,9 +445,10 @@ final class LeonardoAzureSuite
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    // val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    val bee = PipelineInjector(PipelineInjector.e2eEnv())
     // implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
     val res = for {
+      _ <- IO(println("bee billing project " + bee.billingProject))
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
       _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
