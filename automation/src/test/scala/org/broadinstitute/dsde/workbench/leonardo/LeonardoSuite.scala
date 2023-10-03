@@ -445,7 +445,7 @@ final class LeonardoAzureSuite
   override def beforeAll(): Unit = {
     // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val bee = PipelineInjector(PipelineInjector.e2eEnv())
-    implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
+    // implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
     val res = for {
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
