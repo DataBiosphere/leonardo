@@ -278,9 +278,9 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
     try
       sys.props.get(azureProjectKey) match {
-        case None => throw new RuntimeException("leonardo.azureProject system property is not set")
+        case None              => throw new RuntimeException("leonardo.azureProject system property is not set")
         case Some(projectName) =>
-          println("withFixture projectName: " + projectName)
+          // println("withFixture projectName: " + projectName)
           withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
             runTestAndCheckOutcome(workspace)
           }

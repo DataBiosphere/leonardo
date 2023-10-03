@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
-import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
@@ -30,7 +29,7 @@ class AzureAutopauseSpec
     with CleanUp {
 
   implicit val accessToken: IO[AuthToken] = Hermione.authToken()
-  val bee: PipelineInjector = PipelineInjector(PipelineInjector.e2eEnv())
+  // val bee: PipelineInjector = PipelineInjector(PipelineInjector.e2eEnv())
   // implicit val accessToken: IO[AuthToken] = IO.pure(bee.Owners.getUserCredential("hermione").get.makeAuthToken)
 
   "azure runtime autopauses" taggedAs ExcludeFromJenkins in { workspaceDetails =>
