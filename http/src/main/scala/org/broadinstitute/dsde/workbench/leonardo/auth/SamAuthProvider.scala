@@ -159,6 +159,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     for {
       resourcesAndPolicies: List[(R, SamPolicyName)] <- samDao
         .getResourcePolicies[R](authHeader, samResource.resourceType)
+      _ = logger.info(s"getAuthorizedIds : ${resourcesAndPolicies.mkString}")
 
       authorizedPolicies =
         if (isOwner && !canOwnerRead) {

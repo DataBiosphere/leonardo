@@ -11,20 +11,24 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
+import org.mockito.ArgumentMatchers.{any, eq => isEq}
+import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
 
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {
+class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter with MockitoSugar {
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig =
     SamAuthProviderConfig(false,
                           customAppCreationAllowedGroup = GroupName("custom_app_users"),
@@ -416,21 +420,49 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     val petRuntime = RuntimeSamResourceId("pet_runtime")
     mockSam.createResourceAsGcpPet(petRuntime, userEmail2, project).unsafeRunSync()
 
+    // Visible owned runtime returned as reader or owner
     samAuthProvider
       .getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
       .unsafeRunSync() shouldBe List(
       runtimeSamResource
     )
-
     samAuthProvider
       .getAuthorizedIds[RuntimeSamResourceId](isOwner = true, userInfo)
       .unsafeRunSync() shouldBe List(
       runtimeSamResource
     )
 
-    samAuthProvider
+    // Visible workspace is returned as owner, then as writer
+    val mockWorkspaceId = WorkspaceResourceSamResourceId(WorkspaceId(UUID.randomUUID))
+    val mockSamDao = mock[SamDAO[IO]](defaultMockitoAnswer[IO])
+    when(mockSamDao.getResourcePolicies[WorkspaceResourceSamResourceId](any, any)(any, any, any))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Owner))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Owner))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Writer))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Writer))))
+
+    val mockSamAuthProvider =
+      new SamAuthProvider(mockSamDao, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+
+    // => owned workspace is in owner IDs
+    mockSamAuthProvider
+      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
+      .unsafeRunSync() shouldBe List(mockWorkspaceId)
+
+    // => owned workspace is in reader IDs
+    mockSamAuthProvider
       .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
+      .unsafeRunSync() shouldBe List(mockWorkspaceId)
+
+    // => read workspace is NOT in owner IDs
+    mockSamAuthProvider
+      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
       .unsafeRunSync() shouldBe List.empty
+
+    // => read workspace is in reader IDs
+    mockSamAuthProvider
+      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
+      .unsafeRunSync() shouldBe List(mockWorkspaceId)
   }
 
   it should "filter user visible resources" in {
