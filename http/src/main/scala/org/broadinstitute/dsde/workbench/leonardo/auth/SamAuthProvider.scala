@@ -152,8 +152,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     val ownerRole: SamRole = samResource.ownerRoleName
-    val canOwnerRead: Boolean = samResource.policyNames.isEmpty || samResource.policyNames.exists { policyName: SamPolicyName =>
-      ownerRole.asString == policyName.toString
+    val canOwnerRead: Boolean = samResource.policyNames.isEmpty || samResource.policyNames.exists {
+      policyName: SamPolicyName =>
+        ownerRole.asString == policyName.toString
     }
     for {
       resourcesAndPolicies: List[(R, SamPolicyName)] <- samDao
