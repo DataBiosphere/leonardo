@@ -118,6 +118,7 @@ object DataAccess {
       persistentDiskQuery.nullifyDiskIds andThen
       TableQuery[ServiceTable].delete andThen
       TableQuery[AppErrorTable].delete andThen
+      TableQuery[AppUsageTable].delete andThen
       TableQuery[AppTable].delete andThen
       TableQuery[NamespaceTable].delete andThen
       TableQuery[NodepoolTable].delete andThen
