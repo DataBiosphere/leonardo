@@ -131,7 +131,11 @@ jobs:
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
           # Note: There is a hard limit of bee-name not exceeding 32 characters
-          inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}", "version-template": "${{ matrix.terra-env }}", "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}" }'
+          inputs: '{
+            "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}",
+            "version-template": "${{ matrix.terra-env }}",
+            "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}"
+            }'
 
   leo-swat-test-job:
     strategy:
@@ -145,6 +149,8 @@ jobs:
       id-token: 'write'
     steps:
       - name: dispatch to terra-github-workflows
+        env:
+          leo_test_command: "testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab"
         uses: broadinstitute/workflow-dispatch@v3
         with:
           workflow: leonardo-swat-tests
@@ -152,7 +158,14 @@ jobs:
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
-          inputs: '{ "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}", "ENV": "${{ matrix.testing-env }}", "sbt-test-command": "\"testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab\"", "log-results": "${{ needs.prepare-configs.outputs.log-results }}", "test-context": "${{ needs.prepare-configs.outputs.test-context }}", "caller_run_id": "${{ github.run_id }}" }'
+          inputs: '{
+            "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}",
+            "ENV": "${{ matrix.testing-env }}",
+            "sbt-test-command": "${{ env.leo_test_command }}",
+            "log-results": "${{ needs.prepare-configs.outputs.log-results }}",
+            "test-context": "${{ needs.prepare-configs.outputs.test-context }}",
+            "caller_run_id": "${{ github.run_id }}"
+            }'
 
   destroy-bee-workflow:
     strategy:
