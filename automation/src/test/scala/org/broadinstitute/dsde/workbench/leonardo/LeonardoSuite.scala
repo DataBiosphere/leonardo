@@ -6,9 +6,9 @@ import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.{AzureManagedAppCoordinates, WorkspaceName}
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec}
@@ -279,9 +279,9 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
     try
       sys.props.get(azureProjectKey) match {
-        case None              => throw new RuntimeException("leonardo.azureProject system property is not set")
+        case None => throw new RuntimeException("leonardo.azureProject system property is not set")
         case Some(projectName) =>
-          // println("withFixture projectName: " + projectName)
+          println("withFixture projectName (should match pipeline projectName): " + projectName)
           withRawlsWorkspace(AzureBillingProjectName(projectName)) { workspace =>
             runTestAndCheckOutcome(workspace)
           }
@@ -444,17 +444,18 @@ final class LeonardoAzureSuite
     with ParallelTestExecution
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
-    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val bee = PipelineInjector(PipelineInjector.e2eEnv())
-    // implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
+    implicit val accessToken: AuthToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
     val res = for {
       _ <- IO(println("bee billing project " + bee.billingProject))
+      _ <- IO(println("hermione access token " + accessToken.buildCredential().getAccessToken))
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
-      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
-        IO(sys.props.put(azureProjectKey, projectName))
-      }
-      // _ <- IO(sys.props.put(azureProjectKey, bee.billingProject))
+      // _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
+      //  IO(sys.props.put(azureProjectKey, projectName))
+      // }
+      _ <- IO(sys.props.put(azureProjectKey, bee.billingProject))
       // hardcode this if you want to use a static billing project
       //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
     } yield ()
