@@ -18,6 +18,7 @@ jobs:
       id-token: 'write'
     outputs:
       custom-version-json: ${{ steps.render-leo-version.outputs.custom-version-json }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: 'actions/checkout@v4'
 
