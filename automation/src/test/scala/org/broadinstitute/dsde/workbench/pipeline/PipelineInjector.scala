@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.pipeline
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser
 
+import java.util.Base64
 import scala.util.Random
 
 object PredefinedEnv {
@@ -35,11 +36,13 @@ trait PipelineInjector {
   def usersMetadata: Seq[UserMetadata] =
     sys.env.get(PredefinedEnv.UsersMetadataB64) match {
       case Some(b64) =>
-        val decoded = for {
-          json <- parser.parse(b64)
-          userMetadataSeq <- json.as[Seq[UserMetadata]]
-        } yield userMetadataSeq
-        decoded match {
+        val decodedB64 = new String(Base64.getDecoder.decode(b64), "UTF-8")
+        println("Decoded B64: " + decodedB64)
+        val userMetadataSeq = for {
+          json <- parser.parse(decodedB64)
+          seq <- json.as[Seq[UserMetadata]]
+        } yield seq
+        userMetadataSeq match {
           case Right(u) => u
           case Left(_)  => Seq()
         }
@@ -53,8 +56,8 @@ trait PipelineInjector {
       users
         .filter(_.email.toLowerCase.contains(like.toLowerCase))
         .headOption
-      // val filteredResults = users.filter(_.email.toLowerCase.contains(like.toLowerCase))
-      // if (filteredResults.isEmpty) None else Some(filteredResults.head)
+    // val filteredResults = users.filter(_.email.toLowerCase.contains(like.toLowerCase))
+    // if (filteredResults.isEmpty) None else Some(filteredResults.head)
   }
 
   object Owners extends Users {
