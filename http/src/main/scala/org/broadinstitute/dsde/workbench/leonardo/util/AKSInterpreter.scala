@@ -97,18 +97,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
       )
 
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Running pull chart for ${params.appName.value}"
-      )
-      _ <- childSpan("helmPullChart").use { _ =>
-        helmClient
-          .pullChart(
-            app.chart.name,
-            app.chart.version
-          )
-          .run(authContext)
-      }
-
       // Create WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
         case SamResourceType.SharedApp =>
@@ -169,6 +157,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Authenticate helm client
       authContext <- getHelmAuthContext(params.landingZoneResources.clusterName, params.cloudContext, namespaceName)
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Running pull chart for ${params.appName.value}"
+      )
+      _ <- childSpan("helmPullChart").use { _ =>
+        helmClient
+          .pullChart(
+            app.chart.name,
+            app.chart.version
+          )
+          .run(authContext)
+      }
 
       // Build listener helm values
       values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
