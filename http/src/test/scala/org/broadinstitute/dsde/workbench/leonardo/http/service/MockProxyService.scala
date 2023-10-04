@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessedMessage
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
@@ -33,7 +33,7 @@ class MockProxyService(
   samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   googleOauth2Service: GoogleOAuth2Service[IO],
   samDAO: Option[SamDAO[IO]] = None,
-  queue: Option[Queue[IO, UpdateDateAccessMessage]] = None
+  queue: Option[Queue[IO, UpdateDateAccessedMessage]] = None
 )(implicit
   system: ActorSystem,
   executionContext: ExecutionContext,
@@ -47,7 +47,7 @@ class MockProxyService(
       runtimeDnsCache,
       kubernetesDnsCache,
       authProvider,
-      queue.getOrElse(Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
+      queue.getOrElse(Queue.bounded[IO, UpdateDateAccessedMessage](100).unsafeRunSync),
       googleOauth2Service,
       LocalProxyResolver,
       samDAO.getOrElse(new MockSamDAO()),
