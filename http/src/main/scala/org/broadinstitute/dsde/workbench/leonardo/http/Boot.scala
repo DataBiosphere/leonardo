@@ -97,6 +97,7 @@ import scala.jdk.CollectionConverters._
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
 
+  // See https://typelevel.org/cats-effect/docs/core/starvation-and-tuning
   override protected def blockedThreadDetectionEnabled = true
 
   private def startup(): IO[Unit] = {
