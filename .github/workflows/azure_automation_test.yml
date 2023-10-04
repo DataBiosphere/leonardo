@@ -256,7 +256,10 @@ jobs:
 
   delete-billing-project-v2-from-bee-workflow:
     runs-on: ubuntu-latest
-    needs: [ init-github-context, params-gen, leo-automation-test-job ]
+    needs:
+      - init-github-context
+      - params-gen
+      - leo-automation-test-job
     if: always()
     steps:
       - name: dispatch to terra-github-workflows
@@ -265,7 +268,7 @@ jobs:
           run-name: "${{ env.DEL_BP_V2_RUN_NAME }}"
           workflow: .github/workflows/delete-billing-project-v2-from-bee.yaml
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: refs/heads/iv-upgrade-workflow-dispatch-to-support-run-name
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.DEL_BP_V2_RUN_NAME }}",
@@ -303,8 +306,13 @@ jobs:
 
   notify-slack-on-failure:
     runs-on: ubuntu-latest
-    needs: [ init-github-context, leo-build-tag-publish-job, create-bee-workflow, leo-automation-test-job, destroy-bee-workflow ] # Want to notify regardless of which step fails
-    if: ${{ github.event_name == 'schedule' && failure() }}
+    needs:
+      - init-github-context
+      - leo-build-tag-publish-job
+      - create-bee-workflow
+      - leo-automation-test-job
+      - destroy-bee-workflow
+    if: ${{ github.event_name == 'schedule' && failure() }} # Want to notify regardless of which step fails
     steps:
       - name: Notify slack
         uses: slackapi/slack-github-action@v1.23.0
