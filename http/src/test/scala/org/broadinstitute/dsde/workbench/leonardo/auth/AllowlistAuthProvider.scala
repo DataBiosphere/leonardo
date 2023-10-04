@@ -61,7 +61,7 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     samResource: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[IO, TraceId]
-  ): IO[List[R]] =
+  ): IO[Set[R]] =
     checkAllowlist(userInfo).map {
       case true  => List.empty
       case false => List.empty

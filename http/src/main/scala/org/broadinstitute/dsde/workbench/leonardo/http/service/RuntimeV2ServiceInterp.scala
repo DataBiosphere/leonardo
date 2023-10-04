@@ -546,6 +546,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
         .flatMap(ids => F.pure(ids.map(_.resourceId)))
 
+      _ = println(
+        s"filtering with \nreader runtimes: ${readerRuntimeIds} \nreader workspaces: ${readerWorkspaceIds} \nowner workspaces: ${ownerWorkspaceIds} \n"
+      )
+
       // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)

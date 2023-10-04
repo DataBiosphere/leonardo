@@ -230,7 +230,7 @@ trait LeoAuthProvider[F[_]] {
     samResource: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
-  ): F[List[R]]
+  ): F[Set[R]]
 
   def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
     sr: SamResource[R],

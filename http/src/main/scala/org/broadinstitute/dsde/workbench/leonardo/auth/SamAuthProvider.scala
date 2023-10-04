@@ -149,7 +149,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     samResource: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
-  ): F[List[R]] = {
+  ): F[Set[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     val ownerRole: SamRole = samResource.ownerRoleName
     val canOwnerRead: Boolean = samResource.policyNames.isEmpty || samResource.policyNames.exists {
@@ -171,7 +171,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           resourcesAndPolicies filter { case (_, policy) =>
             ownerRole.asString == policy.toString
           }
-        } else if (!samResource.policyNames.isEmpty) {
+        } else if (samResource.policyNames.nonEmpty) {
           // Show only resources on which the user is granted a readable policy
           resourcesAndPolicies filter { case (_, policy) =>
             samResource.policyNames.contains(policy)
@@ -182,7 +182,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         }
       _ = println(s"111111111 get authorized IDs ${samResource.resourceType} filtered to ${authorizedPolicies}")
       authorizedIds: List[R] = authorizedPolicies.map { case (samResourceId, _) => samResourceId }
-    } yield authorizedIds
+    } yield authorizedIds.toSet
   }
 
   override def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
