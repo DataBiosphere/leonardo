@@ -550,7 +550,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
 
       _ = println(
-        s"filtering with \nreader runtimes: ${readerRuntimeIds} \nreader workspaces: ${readerWorkspaceIds} \nowner workspaces: ${ownerWorkspaceIds} \n"
+        s"filtering with || reader runtimes: ${readerRuntimeIds} || reader workspaces: ${readerWorkspaceIds} || owner workspaces: ${ownerWorkspaceIds} \n"
       )
 
       // Parameters: parse search filters from request
