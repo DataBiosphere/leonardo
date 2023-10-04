@@ -5,9 +5,9 @@ import com.google.api.client.googleapis.testing.auth.oauth2.MockGoogleCredential
 import io.circe.syntax.EncoderOps
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector.BEE
-import org.http4s.{AuthScheme, Credentials}
+import org.broadinstitute.dsde.workbench.pipeline.Pipeline.BEE
 import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials}
 
 case class UserMetadata(email: String, `type`: UserType, bearer: String) {
   def makeAuthToken: AuthToken =
@@ -34,7 +34,9 @@ object UserMetadata {
     )
 
   implicit val seqUserMetadataDecoder: Decoder[Seq[UserMetadata]] = Decoder.decodeSeq[UserMetadata]
+}
 
+object TestUser {
   val Hermione: UserMetadata = BEE.Owners.getUserCredential("hermione").get
   val Ron: UserMetadata = BEE.Owners.getUserCredential("ron").get
 }

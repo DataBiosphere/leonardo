@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
-import org.broadinstitute.dsde.workbench.pipeline.UserMetadata.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.pipeline.TestUser.{Hermione, Ron}
 // import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec, AzureRuntimeSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector.BILLING_PROJECT
+import org.broadinstitute.dsde.workbench.pipeline.Pipeline.BILLING_PROJECT
 import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRole
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.http4s.headers.Authorization

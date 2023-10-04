@@ -65,7 +65,9 @@ object PipelineInjector extends LazyLogging {
     logger.debug("E2E Env: " + sys.env.getOrElse(PredefinedEnv.E2EENV, ""))
     sys.env.getOrElse(PredefinedEnv.E2EENV, "")
   }
+}
 
+object Pipeline {
   val BEE: PipelineInjector = PipelineInjector(PipelineInjector.e2eEnv())
   val BILLING_PROJECT: String = BEE.billingProject
 }

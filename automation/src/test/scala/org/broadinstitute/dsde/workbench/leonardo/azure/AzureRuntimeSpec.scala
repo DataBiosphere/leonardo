@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.pipeline.UserMetadata.Hermione
+import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
 // import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
@@ -30,6 +30,11 @@ class AzureRuntimeSpec
     with TableDrivenPropertyChecks
     with Retries
     with CleanUp {
+
+  val e = Hermione.email
+  println("Email: " + e)
+  val b = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  println("Token: " + b)
 
   implicit val accessToken: IO[AuthToken] = Hermione.authToken()
   implicit val authorization: IO[Authorization] = Hermione.authorization()
