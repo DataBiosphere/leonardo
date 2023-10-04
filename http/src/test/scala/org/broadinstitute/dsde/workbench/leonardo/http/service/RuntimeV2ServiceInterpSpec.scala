@@ -121,11 +121,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
    * @return
    */
   def mockAuthorize(userInfo: UserInfo,
-                    readerRuntimeSamIds: List[RuntimeSamResourceId] = List.empty,
-                    readerWorkspaceSamIds: List[WorkspaceResourceSamResourceId] = List.empty,
-                    readerProjectSamIds: List[ProjectSamResourceId] = List.empty,
-                    ownerWorkspaceSamIds: List[WorkspaceResourceSamResourceId] = List.empty,
-                    ownerProjectSamIds: List[ProjectSamResourceId] = List.empty
+                    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+                    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
+                    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
   ): AllowlistAuthProvider = {
     val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
 
@@ -1591,9 +1591,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val mockAuthProvider = mockAuthorize(
       userInfo,
-      List(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2)),
-      List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure)))),
-      List(ProjectSamResourceId(GoogleProject(projectIdGcp)))
+      Set(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2)),
+      Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure)))),
+      Set(ProjectSamResourceId(GoogleProject(projectIdGcp)))
     )
 
     val testService = makeInterp(authProvider = mockAuthProvider)
@@ -1649,15 +1649,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val mockAuthProvider = mockAuthorize(
       userInfo,
       // user can read all runtimes
-      List(RuntimeSamResourceId(runtimeId1),
-           RuntimeSamResourceId(runtimeId2),
-           RuntimeSamResourceId(runtimeId3),
-           RuntimeSamResourceId(runtimeId4)
+      Set(RuntimeSamResourceId(runtimeId1),
+          RuntimeSamResourceId(runtimeId2),
+          RuntimeSamResourceId(runtimeId3),
+          RuntimeSamResourceId(runtimeId4)
       ),
       // user can only read workspace1
-      List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure1)))),
+      Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure1)))),
       // user can only read project1
-      List(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
+      Set(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
     )
     val testService = makeInterp(authProvider = mockAuthProvider)
 
@@ -1743,15 +1743,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         val userInfo = mockUserInfo("jerome@vore.gov")
         val mockAuthProvider = mockAuthorize(
           userInfo,
-          readerRuntimeSamIds = List(RuntimeSamResourceId(runtimeId))
+          readerRuntimeSamIds = Set(RuntimeSamResourceId(runtimeId))
             .filter(_ => runtimeAccess == TestRuntimeAccess.Reader),
-          readerWorkspaceSamIds = List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(contextId))))
+          readerWorkspaceSamIds = Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(contextId))))
             .filter(_ => context != TestContext.GoogleProject && contextAccess != TestContextAccess.Nothing),
-          readerProjectSamIds = List(ProjectSamResourceId(GoogleProject(contextId)))
+          readerProjectSamIds = Set(ProjectSamResourceId(GoogleProject(contextId)))
             .filter(_ => context == TestContext.GoogleProject && contextAccess != TestContextAccess.Nothing),
-          ownerWorkspaceSamIds = List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(contextId))))
+          ownerWorkspaceSamIds = Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(contextId))))
             .filter(_ => context != TestContext.GoogleProject && contextAccess == TestContextAccess.Owner),
-          ownerProjectSamIds = List(ProjectSamResourceId(GoogleProject(contextId)))
+          ownerProjectSamIds = Set(ProjectSamResourceId(GoogleProject(contextId)))
             .filter(_ => context == TestContext.GoogleProject && contextAccess == TestContextAccess.Owner)
         )
         val testService = makeInterp(authProvider = mockAuthProvider)
@@ -1813,19 +1813,19 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val mockAuthProvider = mockAuthorize(
       userInfo,
       // user can read runtimes 3, 4, and 5
-      List(RuntimeSamResourceId(runtimeId3), RuntimeSamResourceId(runtimeId4), RuntimeSamResourceId(runtimeId5)),
+      Set(RuntimeSamResourceId(runtimeId3), RuntimeSamResourceId(runtimeId4), RuntimeSamResourceId(runtimeId5)),
       // user can read all workspaces
-      List(
+      Set(
         WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1))),
         WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId2))),
         WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId3)))
       ),
       // user can read all projects
-      List(ProjectSamResourceId(GoogleProject(projectIdGcp1)), ProjectSamResourceId(GoogleProject(projectIdGcp2))),
+      Set(ProjectSamResourceId(GoogleProject(projectIdGcp1)), ProjectSamResourceId(GoogleProject(projectIdGcp2))),
       // user owns workspace 1
-      List(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1)))),
+      Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1)))),
       // user owns project 1
-      List(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
+      Set(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
     )
     val testService = makeInterp(authProvider = mockAuthProvider)
 
@@ -1936,9 +1936,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val mockAuthProvider = mockAuthorize(
       userInfo,
       // can read all runtimes
-      List(runtimeId1, runtimeId2),
+      Set(runtimeId1, runtimeId2),
       // can read all workspaces
-      List(WorkspaceResourceSamResourceId(workspaceId1))
+      Set(WorkspaceResourceSamResourceId(workspaceId1))
     )
     val testService = makeInterp(authProvider = mockAuthProvider)
     val res = for {
@@ -1999,11 +1999,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val mockAuthProvider = mockAuthorize(
       userInfo,
       // can read all runtimes
-      List(runtimeId1, runtimeId2),
+      Set(runtimeId1, runtimeId2),
       // can read workspace
-      List(WorkspaceResourceSamResourceId(workspaceId1)),
+      Set(WorkspaceResourceSamResourceId(workspaceId1)),
       // owns workspace
-      ownerWorkspaceSamIds = List(WorkspaceResourceSamResourceId(workspaceId1))
+      ownerWorkspaceSamIds = Set(WorkspaceResourceSamResourceId(workspaceId1))
     )
     val testService = makeInterp(authProvider = mockAuthProvider)
 

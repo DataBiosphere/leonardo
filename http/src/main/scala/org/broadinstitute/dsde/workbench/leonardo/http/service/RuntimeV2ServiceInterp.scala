@@ -36,7 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   StartRuntimeMessage,
   StopRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
@@ -535,19 +535,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Authorize: get resource IDs the user can see
       readerRuntimeIds: List[String] <- authProvider
         .getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId)))
+        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
       readerWorkspaceIds: List[String] <- authProvider
         .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId)))
+        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
       ownerWorkspaceIds: List[String] <- authProvider
         .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId)))
+        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
       readerProjectIds: List[String] <- authProvider
         .getAuthorizedIds[ProjectSamResourceId](isOwner = false, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId)))
+        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
       ownerProjectIds: List[String] <- authProvider
         .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId)))
+        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
 
       _ = println(
         s"filtering with \nreader runtimes: ${readerRuntimeIds} \nreader workspaces: ${readerWorkspaceIds} \nowner workspaces: ${ownerWorkspaceIds} \n"

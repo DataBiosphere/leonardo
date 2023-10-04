@@ -63,8 +63,8 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     ev: Ask[IO, TraceId]
   ): IO[Set[R]] =
     checkAllowlist(userInfo).map {
-      case true  => List.empty
-      case false => List.empty
+      case true  => Set.empty
+      case false => Set.empty
     }
 
   def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
