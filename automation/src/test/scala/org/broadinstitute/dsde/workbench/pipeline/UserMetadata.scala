@@ -38,5 +38,5 @@ object UserMetadata {
 
 object TestUser {
   val Hermione: UserMetadata = BEE.Owners.getUserCredential("hermione").get
-  val Ron: UserMetadata = BEE.Owners.getUserCredential("ron").get
+  val Ron: UserMetadata = BEE.Students.getUserCredential("ron").get
 }
