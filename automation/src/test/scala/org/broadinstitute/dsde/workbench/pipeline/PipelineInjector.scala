@@ -20,24 +20,10 @@ trait PipelineInjector {
   def billingProject: String =
     sys.env.getOrElse(PredefinedEnv.BillingProject, "")
 
-  // Retrieves user metadata from the environment and decodes it from Base64.
-  // Returns a sequence of UserMetadata objects. An empty Seq will be returned if retrieval fails.
-  // def usersMetadata: Seq[UserMetadata] =
-  //  sys.env.get(PredefinedEnv.UsersMetadataB64) match {
-  //    case Some(b64) =>
-  //      val decoded = decode[Seq[UserMetadata]](new String(Base64.getDecoder.decode(b64), "UTF-8"))
-  //      decoded match {
-  //        case Right(u)    => u
-  //        case Left(error) => Seq()
-  //      }
-  //    case _ => Seq()
-  //  }
-
   def usersMetadata: Seq[UserMetadata] =
     sys.env.get(PredefinedEnv.UsersMetadataB64) match {
       case Some(b64) =>
         val decodedB64 = new String(Base64.getDecoder.decode(b64), "UTF-8")
-        println("Decoded B64: " + decodedB64)
         val userMetadataSeq = for {
           json <- parser.parse(decodedB64)
           seq <- json.as[Seq[UserMetadata]]
@@ -53,11 +39,7 @@ trait PipelineInjector {
     val users: Seq[UserMetadata]
 
     def getUserCredential(like: String): Option[UserMetadata] =
-      users
-        .filter(_.email.toLowerCase.contains(like.toLowerCase))
-        .headOption
-    // val filteredResults = users.filter(_.email.toLowerCase.contains(like.toLowerCase))
-    // if (filteredResults.isEmpty) None else Some(filteredResults.head)
+      users.find(_.email.toLowerCase.contains(like.toLowerCase))
   }
 
   object Owners extends Users {
@@ -83,4 +65,7 @@ object PipelineInjector extends LazyLogging {
     logger.debug("E2E Env: " + sys.env.getOrElse(PredefinedEnv.E2EENV, ""))
     sys.env.getOrElse(PredefinedEnv.E2EENV, "")
   }
+
+  val BEE: PipelineInjector = PipelineInjector(PipelineInjector.e2eEnv())
+  val BILLING_PROJECT: String = BEE.billingProject
 }

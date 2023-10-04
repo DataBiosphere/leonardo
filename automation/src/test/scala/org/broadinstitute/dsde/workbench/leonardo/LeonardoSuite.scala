@@ -5,19 +5,20 @@ import cats.effect.std.UUIDGen
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
-import org.broadinstitute.dsde.rawls.model.{AzureManagedAppCoordinates, WorkspaceName}
+import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec}
+import org.broadinstitute.dsde.workbench.pipeline.UserMetadata.{Hermione, Ron}
+// import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec, AzureRuntimeSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector
+import org.broadinstitute.dsde.workbench.pipeline.PipelineInjector.BILLING_PROJECT
 import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRole
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.http4s.headers.Authorization
@@ -262,20 +263,20 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
   // Note that the final 'optional' field for a pre-created landing zone is not technically optional
   // If you fail to include a landing zone, the wb-libs call to create the billing project will fail, timing out due to landing zone creation not being an expected part of creation
   // Contact the workspaces team if this fails to work
-  implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
-    UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
-    UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
-    "staticTestingMrg",
-    Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
-  )
+  // implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
+  //   UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
+  //   UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
+  //   "staticTestingMrg",
+  //   Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
+  // )
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
 
     implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    // val bee = PipelineInjector(PipelineInjector.e2eEnv())
     // implicit val accessToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
-    println("pipeline projectName:" + bee.billingProject)
+    // println("pipeline projectName:" + bee.billingProject)
 
     try
       sys.props.get(azureProjectKey) match {
@@ -435,7 +436,7 @@ final class LeonardoTerraDockerSuite
 
 final class LeonardoAzureSuite
     extends Suites(
-      // new AzureRuntimeSpec,
+      new AzureRuntimeSpec,
       new AzureDiskSpec,
       new AzureAutopauseSpec
     )
@@ -445,17 +446,18 @@ final class LeonardoAzureSuite
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val bee = PipelineInjector(PipelineInjector.e2eEnv())
-    implicit val accessToken: AuthToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
+    // val bee = PipelineInjector(PipelineInjector.e2eEnv())
+    // implicit val accessToken: AuthToken = bee.Owners.getUserCredential("hermione").get.makeAuthToken
+    implicit val accessToken: AuthToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val res = for {
-      _ <- IO(println("bee billing project " + bee.billingProject))
+      _ <- IO(println("bee billing project " + BILLING_PROJECT))
       _ <- IO(println("hermione access token " + accessToken.buildCredential().getAccessToken))
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
       // _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
       //  IO(sys.props.put(azureProjectKey, projectName))
       // }
-      _ <- IO(sys.props.put(azureProjectKey, bee.billingProject))
+      _ <- IO(sys.props.put(azureProjectKey, BILLING_PROJECT))
       // hardcode this if you want to use a static billing project
       //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
     } yield ()
