@@ -522,7 +522,7 @@ object Boot extends IOApp {
       publisherQueue <- Resource.eval(Queue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
       dataAccessedUpdater <- Resource.eval(
-        Queue.bounded[F, UpdateDateAccessMessage](dateAccessUpdaterConfig.queueSize)
+        Queue.bounded[F, UpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
       )
       subscriberQueue <- Resource.eval(Queue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
@@ -926,7 +926,7 @@ final case class AppDependencies[F[_]](
   authProvider: SamAuthProvider[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
-  dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessMessage],
+  dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   nonLeoMessageGoogleSubscriber: GoogleSubscriber[F, NonLeoMessage],
   asyncTasksQueue: Queue[F, Task[F]],

@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   workspaceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -48,7 +49,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              wsmDao: WsmDao[F],
                                              samDAO: SamDAO[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
-                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessMessage],
+                                             dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
                                              wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
@@ -450,7 +451,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
         .whenA(!hasResourcePermission)
 
-      _ <- dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, runtime.cloudContext, ctx.now)) >>
+      _ <- dateAccessUpdaterQueue.offer(
+        UpdateDateAccessedMessage(UpdateTarget.Runtime(runtimeName), runtime.cloudContext, ctx.now)
+      ) >>
         log.info(s"Queued message to update dateAccessed for runtime ${runtime.cloudContext}/$runtimeName")
     } yield ()
 
