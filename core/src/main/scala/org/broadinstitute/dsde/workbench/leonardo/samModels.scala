@@ -236,6 +236,7 @@ object WsmResourceAction {
     sealerate.collect[WsmResourceAction].map(a => (a.asString, a)).toMap
 }
 
+// TODO [IA-4608] merge with SamPolicyName
 sealed trait SamRole extends Product with Serializable {
   def asString: String
 }
@@ -253,6 +254,7 @@ object SamRole {
   val stringToRole = sealerate.collect[SamRole].map(p => (p.asString, p)).toMap
 }
 
+// TODO [IA-4608] merge with SamRole
 sealed trait SamPolicyName extends Serializable with Product
 object SamPolicyName {
   final case object Creator extends SamPolicyName {

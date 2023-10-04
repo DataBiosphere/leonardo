@@ -535,6 +535,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       // Authorize: get resource IDs the user can see
 
+      // TODO [] delegate authorization check for v2 resources to workspace-manager
+
       // v2 runtimes are WSM-managed resources and their permissions are stored
       // in relation to their WsmResourceSamResourceId
       // HACK: accept any ID in the list of readable WSM resources as a valid
@@ -559,7 +561,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ownerProjectIds: List[String] <- authProvider
         .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
         .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
-      )
 
       // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
