@@ -51,20 +51,24 @@ jobs:
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.extract-inputs.outputs.branch }}
-      delete-bee: ${{ steps.extract-inputs.outputs.delete-bee }}
-      student-subjects: ${{ steps.extract-inputs.outputs.student-subjects }}
-      owner-subject: ${{ steps.extract-inputs.outputs.owner-subject }}
-      service-account: ${{ steps.extract-inputs.outputs.service-account }}
+      branch: ${{ steps.prepare-outputs.outputs.branch }}
+      delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
+      owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
+      student-subjects: ${{ steps.prepare-outputs.outputs.student-subjects }}
+      service-account: ${{ steps.prepare-outputs.outputs.service-account }}
+      log-results: ${{ steps.prepare-outputs.outputs.log-results }}
+      test-context: ${{ steps.prepare-outputs.outputs.test-context }}
     steps:
-      - name: Get inputs or use defaults
-        id: extract-inputs
+      - name: Get inputs and/or set defaults
+        id: prepare-outputs
         run: |
           echo "branch=${{ inputs.branch                            || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee                    || false }}" >> "$GITHUB_OUTPUT"
           echo "owner-subject=${{ inputs.owner-subject              || 'hermione.owner@quality.firecloud.org' }}" >> "$GITHUB_OUTPUT"
           echo "student-subjects=${{ toJson(inputs.student-subjects || '["harry.potter@quality.firecloud.org","ron.weasley@quality.firecloud.org"]') }}" >> "$GITHUB_OUTPUT"
           echo "service-account=${{ inputs.service-account          || 'firecloud-qa@broad-dsde-qa.iam.gserviceaccount.com' }}" >> "$GITHUB_OUTPUT"
+          echo "log-results=true" >> $GITHUB_OUTPUT
+          echo "test-context=azure-e2e" >> $GITHUB_OUTPUT
 
   leo-build-tag-publish-job:
     runs-on: ubuntu-latest
