@@ -118,7 +118,7 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     samResource: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[IO, TraceId]
-  ): IO[List[R]] = ???
+  ): IO[Set[R]] = ???
 
   override def filterUserVisible[R](
     resources: NonEmptyList[R],
