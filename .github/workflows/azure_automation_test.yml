@@ -191,6 +191,15 @@ jobs:
       - name: Configure the user subjects for the test
         run: |
           escapedJSON=$(echo '${{ needs.init-github-context.outputs.student-subjects }}' | sed 's/"/\"/g')
+          USER_SUBJECTS_1='{
+              "service_account": "${{ needs.init-github-context.outputs.service-account }}",
+              "owners": ["${{ needs.init-github-context.outputs.owner-subject }}"],
+              "students": "$escapedJSON"
+            }'
+          USER_SUBJECTS_1=$(echo "$USER_SUBJECTS_1" |
+                      tr -d '\n' |
+                      jq -c '.')
+          echo $USER_SUBJECTS_1
           echo "USER_SUBJECTS={\"service_account\":\"${{ needs.init-github-context.outputs.service-account }}\", \"owners\": [\"${{ needs.init-github-context.outputs.owner-subject }}\"], \"students\": $escapedJSON}" >> $GITHUB_ENV
 
       - name: Configure e2e-infrastructure input parameter
@@ -215,10 +224,10 @@ jobs:
           TEST_REPORTING='{
               "log_results": {
                 "description": "boolean to log test results to bigquery",
-                "val": "${{ needs.init-github-context.outputs.log-results }}"
+                "val": ${{ needs.init-github-context.outputs.log-results }}
               },
               "test_context": {
-                "description": "descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to `env` of the bigquery table",
+                "description": "descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table",
                 "val": "${{ needs.init-github-context.outputs.test-context }}"
               },
               "caller_run_id": {
