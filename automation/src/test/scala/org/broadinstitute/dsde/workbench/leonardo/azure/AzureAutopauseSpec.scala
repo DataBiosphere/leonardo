@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.azure
 
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
@@ -9,13 +11,12 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   ClusterStatus,
   CreateAzureRuntimeRequest
 }
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
+// import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
-import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
+import org.broadinstitute.dsde.workbench.service.test.CleanUp
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 
 import scala.concurrent.duration._
 
@@ -27,15 +28,6 @@ class AzureAutopauseSpec
     with TableDrivenPropertyChecks
     with Retries
     with CleanUp {
-
-  // implicit val accessToken: IO[AuthToken] = Hermione.authToken()
-  // val bee: PipelineInjector = PipelineInjector(PipelineInjector.e2eEnv())
-  // implicit val accessToken: IO[AuthToken] = IO(bee.Owners.getUserCredential("hermione").get.makeAuthToken)
-
-  val e = Hermione.email
-  println("Email: " + e)
-  val b = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  println("Token: " + b)
 
   implicit val accessToken: IO[AuthToken] = Hermione.authToken()
 

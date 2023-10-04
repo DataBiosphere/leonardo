@@ -31,11 +31,6 @@ class AzureRuntimeSpec
     with Retries
     with CleanUp {
 
-  val e = Hermione.email
-  println("Email: " + e)
-  val b = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  println("Token: " + b)
-
   implicit val accessToken: IO[AuthToken] = Hermione.authToken()
   implicit val authorization: IO[Authorization] = Hermione.authorization()
 
