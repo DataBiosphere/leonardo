@@ -15,7 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   projectSamResourceDecoder,
   runtimeSamResourceDecoder,
-  workspaceSamResourceIdDecoder
+  workspaceSamResourceIdDecoder,
+  wsmResourceSamResourceIdDecoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
@@ -33,7 +34,8 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
   runtimeSamResourceAction,
-  workspaceSamResourceAction
+  workspaceSamResourceAction,
+  wsmResourceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -122,6 +124,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
    */
   def mockAuthorize(userInfo: UserInfo,
                     readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+                    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
                     readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
                     readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
                     ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
@@ -137,6 +140,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         any(Ask[IO, TraceId].getClass)
       )
     ).thenReturn(IO.pure(readerRuntimeSamIds))
+    when(
+      mockAuthProvider.getAuthorizedIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
+        any(wsmResourceSamResourceAction.getClass),
+        any(Decoder[WsmResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerWsmSamIds))
     when(
       mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
         any(workspaceSamResourceAction.getClass),
@@ -1592,6 +1602,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val mockAuthProvider = mockAuthorize(
       userInfo,
       Set(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2)),
+      Set.empty,
       Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure)))),
       Set(ProjectSamResourceId(GoogleProject(projectIdGcp)))
     )
@@ -1654,6 +1665,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           RuntimeSamResourceId(runtimeId3),
           RuntimeSamResourceId(runtimeId4)
       ),
+      Set.empty,
       // user can only read workspace1
       Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure1)))),
       // user can only read project1
@@ -1745,6 +1757,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           readerRuntimeSamIds = Set(RuntimeSamResourceId(runtimeId))
             .filter(_ => runtimeAccess == TestRuntimeAccess.Reader),
+          Set.empty,
           readerWorkspaceSamIds = Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(contextId))))
             .filter(_ => context != TestContext.GoogleProject && contextAccess != TestContextAccess.Nothing),
           readerProjectSamIds = Set(ProjectSamResourceId(GoogleProject(contextId)))
@@ -1814,6 +1827,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       userInfo,
       // user can read runtimes 3, 4, and 5
       Set(RuntimeSamResourceId(runtimeId3), RuntimeSamResourceId(runtimeId4), RuntimeSamResourceId(runtimeId5)),
+      Set.empty,
       // user can read all workspaces
       Set(
         WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1))),
@@ -1937,6 +1951,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       userInfo,
       // can read all runtimes
       Set(runtimeId1, runtimeId2),
+      Set.empty,
       // can read all workspaces
       Set(WorkspaceResourceSamResourceId(workspaceId1))
     )
@@ -2000,6 +2015,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       userInfo,
       // can read all runtimes
       Set(runtimeId1, runtimeId2),
+      Set.empty,
       // can read workspace
       Set(WorkspaceResourceSamResourceId(workspaceId1)),
       // owns workspace

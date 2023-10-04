@@ -26,7 +26,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
 // do not remove `runtimeSamResourceAction`; it is implicit
   runtimeSamResourceAction,
 // do not remove `workspaceSamResourceAction`; it is implicit
-  workspaceSamResourceAction
+  workspaceSamResourceAction,
+// do not remove `wsmResourceSamResourceAction`; it is implicit
+  wsmResourceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
@@ -533,9 +535,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- authProvider.checkUserEnabled(userInfo)
 
       // Authorize: get resource IDs the user can see
+
+      // v2 runtimes are WSM-managed resources and their permissions are stored
+      // in relation to their WsmResourceSamResourceId
+      // HACK: accept any ID in the list of readable WSM resources as a valid
+      // readable runtime ID. Some of these IDs are for non-runtime resources.
       readerRuntimeIds: List[String] <- authProvider
         .getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
         .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
+      readerWsmIds: List[String] <- authProvider
+        .getAuthorizedIds[WsmResourceSamResourceId](isOwner = false, userInfo)
+        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
+      readerRuntimeOrWsmIds = readerRuntimeIds ++ readerWsmIds
+
       readerWorkspaceIds: List[String] <- authProvider
         .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
         .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
@@ -550,7 +562,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
 
       _ = println(
-        s"filtering with || reader runtimes: ${readerRuntimeIds} || reader workspaces: ${readerWorkspaceIds} || owner workspaces: ${ownerWorkspaceIds} \n"
+        s"filtering with || reader runtimes: ${readerRuntimeOrWsmIds} || reader workspaces: ${readerWorkspaceIds} || owner workspaces: ${ownerWorkspaceIds} \n"
       )
 
       // Parameters: parse search filters from request
@@ -566,7 +578,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           workspaceId, // whether to find only runtimes in a single workspace
           cloudProvider, // Google | Azure
           // Authorization scopes
-          readerRuntimeIds,
+          readerRuntimeOrWsmIds,
           readerWorkspaceIds,
           ownerWorkspaceIds,
           readerProjectIds,
