@@ -157,6 +157,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         headers = Headers(authHeader)
       )
     )(onError)
+    // todo obviously remove this?
     _ = println(s"${ctx.asString} 00000000 all resource policies ${resp}")
   } yield resp
 

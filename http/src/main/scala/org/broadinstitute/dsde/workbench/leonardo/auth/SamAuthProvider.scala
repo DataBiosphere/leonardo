@@ -157,9 +157,10 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         ownerRole.asString == policyName.toString
     }
     for {
+      traceId <- ev.ask
       resourcesAndPolicies: List[(R, SamPolicyName)] <- samDao
         .getResourcePolicies[R](authHeader, samResource.resourceType)
-      _ = logger.info(s"getAuthorizedIds : ${resourcesAndPolicies.mkString}")
+      _ = logger.info(Map("traceId" -> traceId.asString))(s"getAuthorizedIds : ${resourcesAndPolicies.mkString}")
 
       authorizedPolicies =
         if (isOwner && !canOwnerRead) {
