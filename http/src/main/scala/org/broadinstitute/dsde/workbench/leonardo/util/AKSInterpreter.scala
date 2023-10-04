@@ -3,7 +3,7 @@ package leonardo
 package util
 
 import akka.http.scaladsl.model.StatusCodes
-import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model._
 import cats.effect.Async
@@ -74,6 +74,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private def getListenerReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-listener-rls")
 
+  private def retrieveWsmReferenceDatabases(resourceApi: ResourceApi,
+                                            referenceDatabaseNames: Set[String],
+                                            workspaceId: UUID
+  ): F[List[String]] = {
+    val wsmResourceDatabases = F.delay(
+      resourceApi
+        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
+        .getResources
+        .asScala
+        .toList
+    )
+    wsmResourceDatabases.map { dbs =>
+      dbs
+        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
+        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
+    }
+  }
+
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -117,6 +135,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           params.landingZoneResources
         )
       }
+
+      // get ReferenceDatabases from WSM
+      wsmResourceApi <- buildWsmResourceApiClient
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      referenceDatabases <-
+        if (referenceDatabaseNames.nonEmpty) {
+          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, params.workspaceId.value)
+        } else F.pure(List.empty)
 
       // Create WSM kubernetes namespace
       wsmNamespace <- childSpan("createWsmKubernetesNamespaceResource").use { implicit ev =>
@@ -201,7 +227,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName),
+        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName) ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -285,6 +311,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
 
       app = dbApp.app
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
 
       // Grab the LZ and storage container information associated with the workspace
       leoAuth <- samDao.getLeoAuthToken
@@ -314,6 +341,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
         F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
       }
+
+      // call WSM resource API to get list of ReferenceDatabases
+      wsmResourceApi <- buildWsmResourceApiClient
+      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      referenceDatabases <-
+        if (referenceDatabaseNames.nonEmpty) {
+          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, workspaceId.value)
+        } else F.pure(List.empty)
 
       // Call WSM to get the Kubernetes namespace (required)
       wsmNamespaces <- appControlledResourceQuery
@@ -375,7 +410,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDbNames.map(_.getAttributes.getDatabaseName),
+        wsmDbNames.map(_.getAttributes.getDatabaseName) ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -1025,6 +1060,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
       wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmApi
+
+  private def buildWsmResourceApiClient(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
+    for {
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi <- wsmClientProvider.getResourceApi(token)
     } yield wsmApi
 }
 
