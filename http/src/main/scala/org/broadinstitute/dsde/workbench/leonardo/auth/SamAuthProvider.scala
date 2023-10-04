@@ -157,14 +157,14 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         ownerRole.asString == policyName.toString
     }
     for {
-      traceId <- ev.ask
       resourcesAndPolicies: List[(R, SamPolicyName)] <- samDao
         .getResourcePolicies[R](authHeader, samResource.resourceType)
-      _ = logger.info(Map("traceId" -> traceId.asString))(s"getAuthorizedIds : ${resourcesAndPolicies.mkString}")
 
       authorizedPolicies =
         if (isOwner && !canOwnerRead) {
-          // The resource might be improperly configured; the resource owner role is not included in the SamResource's policyNames. Show nothing
+          logger.warn(
+            s"Resource type ${samResource.resourceType} may be incorrectly configured: ownerRoleName not found in policyNames"
+          )
           List.empty
         } else if (isOwner && canOwnerRead) {
           // Show only resources the user owns
@@ -180,6 +180,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           // Show all resources the user is granted any role on (reader)
           resourcesAndPolicies
         }
+      _ = println(s"111111111 get authorized IDs ${samResource.resourceType} filtered to ${authorizedPolicies}")
       authorizedIds: List[R] = authorizedPolicies.map { case (samResourceId, _) => samResourceId }
     } yield authorizedIds
   }
