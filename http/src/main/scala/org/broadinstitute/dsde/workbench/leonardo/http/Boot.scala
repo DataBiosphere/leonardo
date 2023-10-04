@@ -97,6 +97,8 @@ import scala.jdk.CollectionConverters._
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
 
+  override protected def blockedThreadDetectionEnabled = true
+
   private def startup(): IO[Unit] = {
     // We need an ActorSystem to host our application in
 
