@@ -38,7 +38,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   StartRuntimeMessage,
   StopRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
@@ -560,9 +559,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ownerProjectIds: List[String] <- authProvider
         .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
         .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
-
-      _ = println(
-        s"filtering with || reader runtimes: ${readerRuntimeOrWsmIds} || reader workspaces: ${readerWorkspaceIds} || owner workspaces: ${ownerWorkspaceIds} \n"
       )
 
       // Parameters: parse search filters from request

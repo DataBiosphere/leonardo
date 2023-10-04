@@ -180,7 +180,6 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           // Show all resources the user is granted any role on (reader)
           resourcesAndPolicies
         }
-      _ = println(s"111111111 get authorized IDs ${samResource.resourceType} filtered to ${authorizedPolicies}")
       authorizedIds: List[R] = authorizedPolicies.map { case (samResourceId, _) => samResourceId }
     } yield authorizedIds.toSet
   }

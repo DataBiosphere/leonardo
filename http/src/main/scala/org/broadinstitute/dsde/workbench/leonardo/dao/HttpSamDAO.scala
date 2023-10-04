@@ -139,7 +139,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           headers = Headers(authHeader)
         )
       )(onError)
-      _ = println(s"${ctx.asString} 00000000 get resource policies ${resp}")
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
   override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
@@ -158,8 +157,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         headers = Headers(authHeader)
       )
     )(onError)
-    // todo obviously remove this?
-    _ = println(s"${ctx.asString} 00000000 get resource roles ${resp}")
   } yield resp
 
   override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(

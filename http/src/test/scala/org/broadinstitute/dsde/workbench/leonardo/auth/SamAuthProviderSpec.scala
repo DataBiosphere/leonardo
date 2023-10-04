@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
-import org.mockito.ArgumentMatchers.{any, eq => isEq}
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
