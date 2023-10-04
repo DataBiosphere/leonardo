@@ -38,12 +38,18 @@ trait PipelineInjector {
   trait Users {
     val users: Seq[UserMetadata]
 
-    def getUserCredential(like: String): Option[UserMetadata] =
+    def getUserCredential(like: String): Option[UserMetadata] = {
+      println("getUserCredential: " + like)
+      println("users: " + users)
       users.find(_.email.toLowerCase.contains(like.toLowerCase))
+    }
   }
 
   object Owners extends Users {
+    println("Owners filter")
+    println(usersMetadata)
     val users: Seq[UserMetadata] = usersMetadata.filter(_.`type` == Owner)
+    println(users)
   }
 
   object Students extends Users {
