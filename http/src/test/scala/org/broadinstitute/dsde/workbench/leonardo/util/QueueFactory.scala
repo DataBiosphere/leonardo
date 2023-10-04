@@ -5,7 +5,7 @@ import cats.effect.std.Queue
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.google2.Event
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage}
 
 object QueueFactory {
   val queueSize = 1000
@@ -18,5 +18,5 @@ object QueueFactory {
 
   def asyncTaskQueue() = Queue.bounded[IO, Task[IO]](queueSize).unsafeRunSync()
 
-  def makeDateAccessedQueue() = Queue.bounded[IO, UpdateDateAccessMessage](10).unsafeRunSync()
+  def makeDateAccessedQueue() = Queue.bounded[IO, UpdateDateAccessedMessage](10).unsafeRunSync()
 }
