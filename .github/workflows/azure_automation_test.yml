@@ -219,7 +219,7 @@ jobs:
               },
               "test_context": {
                 "description": "descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to `env` of the bigquery table",
-                "val": "${{ needs.init-github-context.outputs.test=context }}"
+                "val": "${{ needs.init-github-context.outputs.test-context }}"
               },
               "caller_run_id": {
                 "description": "run_id of caller, defaults to this ghas run_id",
