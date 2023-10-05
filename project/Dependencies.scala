@@ -142,7 +142,8 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
 
-  val workSpaceManagerV = "0.254.916-SNAPSHOT"
+  val samV = "0.1-fd8ee25"
+  val workspaceManagerV = "0.254.916-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
@@ -159,7 +160,8 @@ object Dependencies {
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
   def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j)
 
-  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+  val sam = "org.broadinstitute.dsde.workbench" %% "sam-client" % samV
+  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workspaceManagerV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
 
   val coreDependencies = List(
@@ -190,6 +192,7 @@ object Dependencies {
     workbenchAzure,
     workbenchAzureTest,
     logbackClassic,
+    sam,
     workspaceManager,
     terraCommonLib
   )
