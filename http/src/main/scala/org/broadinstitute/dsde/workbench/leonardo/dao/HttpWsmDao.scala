@@ -182,8 +182,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceId(groupedLzResources,
                                                        "DeployedSubnet",
-                                                       WORKSPACE_BATCH_SUBNET,
-                                                       false
+                                                       WORKSPACE_BATCH_SUBNET
       )
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
       postgresResource <- getLandingZoneResource(groupedLzResources,
@@ -288,18 +287,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   private def getLandingZoneResourceId(
     landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
     resourceType: String,
-    purpose: LandingZoneResourcePurpose,
-    useParent: Boolean
+    purpose: LandingZoneResourcePurpose
   ): F[String] =
-    landingZoneResourcesByPurpose
-      .get((purpose, resourceType.toLowerCase))
-      .flatMap(_.headOption)
-      .flatMap(_.resourceId)
-      .fold(
-        F.raiseError[String](
-          AppCreationException(s"${resourceType} resource with purpose ${purpose} not found in landing zone")
-        )
-      )(F.pure)
+    getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
+      .map(_.resourceId)
 
   private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
