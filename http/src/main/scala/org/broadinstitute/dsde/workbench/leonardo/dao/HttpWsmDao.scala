@@ -182,8 +182,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceId(groupedLzResources,
                                                        "DeployedSubnet",
-                                                       WORKSPACE_BATCH_SUBNET,
-                                                       false
+                                                       WORKSPACE_BATCH_SUBNET
       )
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
       postgresResource <- getLandingZoneResource(groupedLzResources,
@@ -285,26 +284,21 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         AppCreationException(s"could not determine name for resource $resource")
       )
 
-  private def getLandingZoneResourceId(resource: LandingZoneResource, useParent: Boolean): F[String] =
-    OptionT
-      .fromOption[F](
-        if (useParent) resource.resourceParentId
-        else resource.resourceName.orElse(resource.resourceId)
-      )
-      .getOrRaise(
-        AppCreationException(s"could not determine id for resource $resource")
-      )
-
   private def getLandingZoneResourceId(
     landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
     resourceType: String,
-    purpose: LandingZoneResourcePurpose,
-    useParent: Boolean
+    purpose: LandingZoneResourcePurpose
   ): F[String] =
     for {
       resource <- getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
-      name <- getLandingZoneResourceName(resource, useParent)
-    } yield name
+      id <- OptionT
+          .fromOption[F](
+            resource.resourceId
+          )
+          .getOrRaise(
+            AppCreationException(s"could not determine id for resource $resource")
+          )
+    } yield id
 
   private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
