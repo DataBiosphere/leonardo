@@ -194,7 +194,7 @@ jobs:
           USER_SUBJECTS_1='{
               "service_account": "${{ needs.init-github-context.outputs.service-account }}",
               "owners": ["${{ needs.init-github-context.outputs.owner-subject }}"],
-              "students": "$escapedJSON"
+              "students": ${{ needs.init-github-context.outputs.student-subjects }}
             }'
           USER_SUBJECTS_1=$(echo "$USER_SUBJECTS_1" |
                       tr -d '\n' |
