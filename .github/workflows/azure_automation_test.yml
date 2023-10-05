@@ -190,17 +190,18 @@ jobs:
     steps:
       - name: Configure the user subjects for the test
         run: |
-          escapedJSON=$(echo '${{ needs.init-github-context.outputs.student-subjects }}' | sed 's/"/\"/g')
-          USER_SUBJECTS_1='{
+          # escapedJSON=$(echo '${{ needs.init-github-context.outputs.student-subjects }}' | sed 's/"/\"/g')
+          USER_SUBJECTS='{
               "service_account": "${{ needs.init-github-context.outputs.service-account }}",
               "owners": ["${{ needs.init-github-context.outputs.owner-subject }}"],
               "students": ${{ needs.init-github-context.outputs.student-subjects }}
             }'
-          USER_SUBJECTS_1=$(echo "$USER_SUBJECTS_1" |
-                      tr -d '\n' |
-                      jq -c '.')
-          echo $USER_SUBJECTS_1
-          echo "USER_SUBJECTS={\"service_account\":\"${{ needs.init-github-context.outputs.service-account }}\", \"owners\": [\"${{ needs.init-github-context.outputs.owner-subject }}\"], \"students\": $escapedJSON}" >> $GITHUB_ENV
+          USER_SUBJECTS=$(echo "$USER_SUBJECTS" |
+            tr -d '\n' |
+            jq -c '.')
+          # echo $USER_SUBJECTS
+          echo "USER_SUBJECTS=$USER_SUBJECTS" >> $GITHUB_ENV
+          # echo "USER_SUBJECTS={\"service_account\":\"${{ needs.init-github-context.outputs.service-account }}\", \"owners\": [\"${{ needs.init-github-context.outputs.owner-subject }}\"], \"students\": $escapedJSON}" >> $GITHUB_ENV
 
       - name: Configure e2e-infrastructure input parameter
         run: |
