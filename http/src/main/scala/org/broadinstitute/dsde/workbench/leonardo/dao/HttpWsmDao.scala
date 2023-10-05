@@ -182,7 +182,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
       batchNodesSubnetName <- getLandingZoneResourceId(groupedLzResources,
                                                        "DeployedSubnet",
-                                                       WORKSPACE_BATCH_SUBNET
+                                                       WORKSPACE_BATCH_SUBNET,
+                                                       false
       )
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
       postgresResource <- getLandingZoneResource(groupedLzResources,
@@ -298,7 +299,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
     resourceType: String,
     purpose: LandingZoneResourcePurpose,
-    useParent: Boolean): F[String] =
+    useParent: Boolean
+  ): F[String] =
     for {
       resource <- getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
       name <- getLandingZoneResourceName(resource, useParent)
