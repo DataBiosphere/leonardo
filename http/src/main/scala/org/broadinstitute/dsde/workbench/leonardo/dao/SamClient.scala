@@ -10,6 +10,13 @@ import org.broadinstitute.dsde.workbench.client.sam.model.{ResourceType, UserRes
 import scala.jdk.CollectionConverters.ListHasAsScala
 
 class SamClient(config: HttpSamDaoConfig) {
+  private def getConfigApi(accessToken: String): ConfigApi = {
+    val apiClient = new ApiClient()
+    apiClient.setAccessToken(accessToken)
+    apiClient.setBasePath(config.samUri.toString)
+    new ConfigApi(apiClient)
+  }
+
   private def getResourcesApi(accessToken: String): ResourcesApi = {
     val apiClient = new ApiClient()
     apiClient.setAccessToken(accessToken)
@@ -17,11 +24,10 @@ class SamClient(config: HttpSamDaoConfig) {
     new ResourcesApi(apiClient)
   }
 
-  private def getConfigApi(accessToken: String): ConfigApi = {
-    val apiClient = new ApiClient()
-    apiClient.setAccessToken(accessToken)
-    apiClient.setBasePath(config.samUri.toString)
-    new ConfigApi(apiClient)
+  /** List the configuration for all resource types. */
+  def listResourceTypes(token: String): List[ResourceType] = {
+    val samConfigApi = getConfigApi(token)
+    samConfigApi.listResourceTypes.asScala.toList
   }
 
   /** Can the user perform the given action on the given resource? */
@@ -39,11 +45,5 @@ class SamClient(config: HttpSamDaoConfig) {
   def listResourcesAndPolicies(token: String, resourceType: String): List[UserResourcesResponse] = {
     val samResourceApi = getResourcesApi(token)
     samResourceApi.listResourcesAndPoliciesV2(resourceType).asScala.toList
-  }
-
-  /** List the configuration for all resource types. */
-  def listResourceTypes(token: String): List[ResourceType] = {
-    val samConfigApi = getConfigApi(token)
-    samConfigApi.listResourceTypes.asScala.toList
   }
 }
