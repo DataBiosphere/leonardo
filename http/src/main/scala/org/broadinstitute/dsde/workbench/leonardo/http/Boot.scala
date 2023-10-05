@@ -872,6 +872,7 @@ object Boot extends IOApp {
         .withConnectTimeout(30 seconds)
         .withRequestTimeout(60 seconds)
         .withMaxTotalConnections(100)
+        .withMaxWaitQueueLimit(1024)
         .withMaxIdleDuration(30 seconds)
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(

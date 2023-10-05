@@ -94,7 +94,7 @@ private[db] class DbRef[F[_]](database: JdbcBackend#DatabaseDef, concurrentDbAcc
     dbio: DBIO[T],
     isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
   ): F[T] =
-    concurrentDbAccessPermits.permit.use(_ => F.fromFuture(F.delay(inTransactionFuture(dbio, isolationLevel))))
+    concurrentDbAccessPermits.permit.use(_ => F.fromFuture(F.blocking(inTransactionFuture(dbio, isolationLevel))))
 
   private[db] def close(): Unit =
     database.close()
