@@ -144,7 +144,7 @@ jobs:
         terra-env: [ dev ] # what versions of apps do we use to emulate types of environments
         testing-env: [ qa ] # what env resources to use, e.g. SA keys
     runs-on: ubuntu-latest
-    needs: [create-bee-workflow]
+    needs: [create-bee-workflow, prepare-configs]
     permissions:
       contents: 'read'
       id-token: 'write'
