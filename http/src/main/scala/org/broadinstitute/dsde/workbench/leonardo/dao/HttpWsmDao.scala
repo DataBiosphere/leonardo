@@ -284,13 +284,25 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         AppCreationException(s"could not determine name for resource $resource")
       )
 
+  private def getLandingZoneResourceId(resource: LandingZoneResource, useParent: Boolean): F[String] =
+    OptionT
+      .fromOption[F](
+        if (useParent) resource.resourceParentId
+        else resource.resourceName.orElse(resource.resourceId)
+      )
+      .getOrRaise(
+        AppCreationException(s"could not determine id for resource $resource")
+      )
+
   private def getLandingZoneResourceId(
     landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
     resourceType: String,
-    purpose: LandingZoneResourcePurpose
-  ): F[String] =
-    getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
-      .map(_.resourceId)
+    purpose: LandingZoneResourcePurpose,
+    useParent: Boolean): F[String] =
+    for {
+      resource <- getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
+      name <- getLandingZoneResourceName(resource, useParent)
+    } yield name
 
   private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
