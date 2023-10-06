@@ -223,12 +223,13 @@ trait LeoAuthProvider[F[_]] {
     ev: Ask[F, TraceId]
   ): F[(List[A], List[ProjectAction])]
 
-  def getAuthorizedIds[R <: SamResourceId](
-    isOwner: Boolean,
+  def listResourceIds[R <: SamResourceId](
+    hasOwnerRole: Boolean,
     userInfo: UserInfo
   )(implicit
-    samResource: SamResource[R],
-    decoder: Decoder[R],
+    resourceDefinition: SamResource[R],
+    appDefinition: SamResource[AppSamResourceId],
+    resourceIdDecoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[Set[R]]
 

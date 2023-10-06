@@ -35,7 +35,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
   runtimeSamResourceAction,
   workspaceSamResourceAction,
-  wsmResourceSamResourceAction
+  wsmResourceSamResourceAction,
+  AppSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -113,7 +114,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   /**
    * Generate a mocked AuthProvider which will permit action on the given resource IDs by the given user.
-   * TODO: cover actions beside `checkUserEnabled` and `getAuthorizedIds`
+   * TODO: cover actions beside `checkUserEnabled` and `listResourceIds`
    * @param userInfo
    * @param readerRuntimeSamIds
    * @param readerWorkspaceSamIds
@@ -134,45 +135,51 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
     when(
-      mockAuthProvider.getAuthorizedIds[RuntimeSamResourceId](isEq(false), isEq(userInfo))(
+      mockAuthProvider.listResourceIds[RuntimeSamResourceId](isEq(false), isEq(userInfo))(
         any(runtimeSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
         any(Decoder[RuntimeSamResourceId].getClass),
         any(Ask[IO, TraceId].getClass)
       )
     ).thenReturn(IO.pure(readerRuntimeSamIds))
     when(
-      mockAuthProvider.getAuthorizedIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
+      mockAuthProvider.listResourceIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
         any(wsmResourceSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
         any(Decoder[WsmResourceSamResourceId].getClass),
         any(Ask[IO, TraceId].getClass)
       )
     ).thenReturn(IO.pure(readerWsmSamIds))
     when(
-      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
+      mockAuthProvider.listResourceIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
         any(workspaceSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
         any(Decoder[WorkspaceResourceSamResourceId].getClass),
         any(Ask[IO, TraceId].getClass)
       )
     ).thenReturn(IO.pure(readerWorkspaceSamIds))
     when(
-      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
+      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
         any(projectSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
         any(Decoder[ProjectSamResourceId].getClass),
         any(Ask[IO, TraceId].getClass)
       )
     )
       .thenReturn(IO.pure(readerProjectSamIds))
     when(
-      mockAuthProvider.getAuthorizedIds[WorkspaceResourceSamResourceId](isEq(true), isEq(userInfo))(
+      mockAuthProvider.listResourceIds[WorkspaceResourceSamResourceId](isEq(true), isEq(userInfo))(
         any(workspaceSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
         any(Decoder[WorkspaceResourceSamResourceId].getClass),
         any(Ask[IO, TraceId].getClass)
       )
     )
       .thenReturn(IO.pure(ownerWorkspaceSamIds))
     when(
-      mockAuthProvider.getAuthorizedIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
+      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
         any(projectSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
         any(Decoder[ProjectSamResourceId].getClass),
         any(Ask[IO, TraceId].getClass)
       )

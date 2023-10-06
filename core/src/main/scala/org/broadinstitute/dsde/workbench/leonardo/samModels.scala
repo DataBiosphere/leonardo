@@ -237,24 +237,34 @@ object WsmResourceAction {
 }
 
 // TODO [IA-4608] merge with SamPolicyName
+/** Represents a role in Sam, permitting a set of actions on a resource of a certain type. */
 sealed trait SamRole extends Product with Serializable {
   def asString: String
+  override def toString = asString
 }
 object SamRole {
+
   final case object Creator extends SamRole {
     val asString = "creator"
   }
   final case object Manager extends SamRole {
     val asString = "manager"
   }
+  final case object Writer extends SamRole {
+    val asString = "writer"
+  }
   final case object Owner extends SamRole {
     val asString = "owner"
+  }
+  final case object User extends SamRole {
+    val asString = "user"
   }
   final case class Other(asString: String) extends SamRole
   val stringToRole = sealerate.collect[SamRole].map(p => (p.asString, p)).toMap
 }
 
 // TODO [IA-4608] merge with SamRole
+/** Represents a role in Sam, permitting a set of actions on a resource of a certain type. */
 sealed trait SamPolicyName extends Serializable with Product
 object SamPolicyName {
   final case object Creator extends SamPolicyName {

@@ -97,6 +97,14 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
     }
 
+  override def listResourceIdsWithRole[R <: SamResourceId](
+    authHeader: Authorization
+  )(implicit
+    resourceDefinition: SamResource[R],
+    resourceIdDecoder: Decoder[R],
+    ev: Ask[IO, TraceId]
+  ): IO[List[(R, SamRole)]] = ???
+
   override def getResourcePolicies[R](authHeader: Authorization, resourceType: SamResourceType)(implicit
     sr: SamResource[R],
     decoder: Decoder[R],

@@ -128,60 +128,49 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   }
 
   /**
-   * Get all Sam resource IDs of the given type on which the user is granted supported permissions. Returns explicitly
-   * granted policies only; users with workspace owner access, for example, can see all runtimes in the workspace, but
-   * getAuthorizedIds[SamRuntimeResourceId] is not guaranteed to return all runtimes in that workspace. Works for any
+   * Get all Sam resource IDs of the given type on which the user is granted permission to `discover`. Returns ids with explicitly
+   * granted roles only; users with workspace `owner` role, for example, can see all runtimes in the workspace, but
+   * `listResourceIds[SamRuntimeResourceId]` is not guaranteed to return all runtimes in that workspace. Works for any
    * Sam resource type except SharedApp and similar alternative app types; these require a specific Sam resource object
    * to determine permissions, as these are stored on the individual records.
-   * @param isOwner whether to return only resources that the user is granted ownership on (has `ownerRoleName`,
-   * and `ownerRoleName` is an element in `policyNames` on the SamResource)
+   * @param hasOwnerRole whether to return only resources that the user is granted ownership on (has role = `ownerRoleName`)
    * @param userInfo the current user
-   * @param samResource the resource archetype (App, Runtime, etc)
-   * @param decoder converts Json -> SamResourceId, needed by SamDao
+   * @param resourceDefinition the resource archetype (App, Runtime, etc)
+   * @param resourceIdDecoder converts Json -> SamResourceId, needed by SamDao
    * @param ev the request context
    * @tparam R SamResourceId
-   * @return List[SamResourceId] of all resources of type R which are visible to the user at the given access level
+   * @return List[SamResourceId] of all resources of type R which are discoverable (or owned, if `hasOwnerRole`) by the user
    */
-  override def getAuthorizedIds[R <: SamResourceId](
-    isOwner: Boolean,
+  override def listResourceIds[R <: SamResourceId](
+    hasOwnerRole: Boolean,
     userInfo: UserInfo
   )(implicit
-    samResource: SamResource[R],
-    decoder: Decoder[R],
+    resourceDefinition: SamResource[R],
+    appDefinition: SamResource[AppSamResourceId],
+    resourceIdDecoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[Set[R]] = {
+    require(resourceDefinition != appDefinition)
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    val ownerRole: SamRole = samResource.ownerRoleName
-    val canOwnerRead: Boolean = samResource.policyNames.isEmpty || samResource.policyNames.exists {
-      policyName: SamPolicyName =>
-        ownerRole.asString == policyName.toString
-    }
-    for {
-      resourcesAndPolicies: List[(R, SamPolicyName)] <- samDao
-        .getResourcePolicies[R](authHeader, samResource.resourceType)
 
-      authorizedPolicies =
-        if (isOwner && !canOwnerRead) {
-          logger.warn(
-            s"Resource type ${samResource.resourceType} may be incorrectly configured: ownerRoleName not found in policyNames"
-          )
-          List.empty
-        } else if (isOwner && canOwnerRead) {
-          // Show only resources the user owns
-          resourcesAndPolicies filter { case (_, policy) =>
-            ownerRole.asString == policy.toString
-          }
-        } else if (samResource.policyNames.nonEmpty) {
-          // Show only resources on which the user is granted a readable policy
-          resourcesAndPolicies filter { case (_, policy) =>
-            samResource.policyNames.contains(policy)
-          }
-        } else {
-          // Show all resources the user is granted any role on (reader)
-          resourcesAndPolicies
+    // TODO get `ownerRoleName` from Sam config for the resource type
+    val ownerRole: SamRole = resourceDefinition.ownerRoleName
+    val resourceType: SamResourceType = resourceDefinition.resourceType
+    for {
+
+      resourcesWithRole: List[(R, SamRole)] <- samDao
+        .listResourceIdsWithRole[R](authHeader)
+
+      discoverableIds: Set[R] = resourcesWithRole
+        .filter {
+          case (_, role) if hasOwnerRole => role == ownerRole
+          case _ if !hasOwnerRole        => true
         }
-      authorizedIds: List[R] = authorizedPolicies.map { case (samResourceId, _) => samResourceId }
-    } yield authorizedIds.toSet
+        .map { case (samResourceId, _) =>
+          samResourceId
+        }
+        .toSet
+    } yield discoverableIds
   }
 
   override def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
