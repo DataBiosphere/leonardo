@@ -3,7 +3,14 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, LandingZoneResources, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  AppId,
+  AppName,
+  BillingProfileId,
+  LandingZoneResources,
+  WorkspaceId
+}
 import org.broadinstitute.dsp.ChartVersion
 
 trait AKSAlgebra[F[_]] {
@@ -21,22 +28,22 @@ final case class CreateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     workspaceId: WorkspaceId,
                                     cloudContext: AzureCloudContext,
-                                    landingZoneResources: LandingZoneResources,
-                                    storageContainer: Option[StorageContainerResponse]
+                                    billingProfileId: BillingProfileId
 )
 
 final case class UpdateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     appChartVersion: ChartVersion,
                                     workspaceId: Option[WorkspaceId],
-                                    cloudContext: AzureCloudContext
+                                    cloudContext: AzureCloudContext,
+                                    billingProfileId: BillingProfileId
 )
 
 final case class DeleteAKSAppParams(
   appName: AppName,
   workspaceId: WorkspaceId,
-  landingZoneResourcesOpt: LandingZoneResources,
-  cloudContext: AzureCloudContext
+  cloudContext: AzureCloudContext,
+  billingProfileId: BillingProfileId
 )
 
 /** Enumerates the possible identity modes for an AKS app. */

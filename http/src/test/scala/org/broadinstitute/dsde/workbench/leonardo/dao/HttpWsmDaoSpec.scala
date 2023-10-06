@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.azure.{
 }
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
   AKS_NODE_POOL_SUBNET,
   LandingZoneResourcePurpose,

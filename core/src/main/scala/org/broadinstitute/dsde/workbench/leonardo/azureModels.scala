@@ -6,7 +6,6 @@ import org.broadinstitute.dsde.workbench.azure.{
   BatchAccountName,
   RelayNamespace
 }
-
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 
 import java.util.UUID
@@ -18,6 +17,10 @@ final case class AzureUnimplementedException(message: String) extends Exception 
 }
 
 final case class StorageAccountName(value: String) extends AnyVal
+
+final case class StorageContainerName(value: String) extends AnyVal
+
+final case class StorageContainer(name: StorageContainerName, resourceId: WsmControlledResourceId)
 
 final case class WsmJobId(value: String) extends AnyVal
 

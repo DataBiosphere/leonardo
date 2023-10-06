@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   LandingZoneResources,
   ManagedIdentityName,
+  StorageContainer,
   WorkspaceId
 }
 import org.broadinstitute.dsp.Values
@@ -64,7 +65,7 @@ final case class BuildHelmOverrideValuesParams(app: App,
                                                workspaceId: WorkspaceId,
                                                cloudContext: AzureCloudContext,
                                                landingZoneResources: LandingZoneResources,
-                                               storageContainer: Option[StorageContainerResponse],
+                                               storageContainer: Option[StorageContainer],
                                                relayPath: Uri,
                                                ksaName: ServiceAccountName,
                                                managedIdentityName: ManagedIdentityName,
