@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.{Hermione, Ron}
-// import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec, AzureRuntimeSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
@@ -258,16 +257,6 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
   override type FixtureParam = WorkspaceResponse
   val azureProjectKey = "leonardo.azureProject"
 
-  // These are static coordinates for this managed app in the azure portal: https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview
-  // Note that the final 'optional' field for a pre-created landing zone is not technically optional
-  // If you fail to include a landing zone, the wb-libs call to create the billing project will fail, timing out due to landing zone creation not being an expected part of creation
-  // Contact the workspaces team if this fails to work
-  // implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
-  //   UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
-  //   UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
-  //   "staticTestingMrg",
-  //   Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
-  // )
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
       super.withFixture(test.toNoArgTest(workspace))
@@ -440,13 +429,9 @@ final class LeonardoAzureSuite
     with ParallelTestExecution
     with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
-    // implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val res = for {
       _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
       _ <- IO(super.beforeAll())
-      // _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
-      //  IO(sys.props.put(azureProjectKey, projectName))
-      // }
       _ <- IO(sys.props.put(azureProjectKey, BILLING_PROJECT))
       // hardcode this if you want to use a static billing project
       //  _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
