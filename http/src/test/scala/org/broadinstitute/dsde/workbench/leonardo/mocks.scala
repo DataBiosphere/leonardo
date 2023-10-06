@@ -111,7 +111,7 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     ev: Ask[IO, TraceId]
   ): IO[(List[A], List[ProjectAction])] = ???
 
-  def listResourceIds[R <: SamResourceId](
+  override def listResourceIds[R <: SamResourceId](
     hasOwnerRole: Boolean,
     userInfo: UserInfo
   )(implicit
