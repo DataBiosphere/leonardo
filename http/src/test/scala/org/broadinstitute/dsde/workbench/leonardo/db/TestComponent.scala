@@ -31,6 +31,7 @@ import slick.jdbc.JdbcProfile
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 
 trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtils with BeforeAndAfterAll {
 
@@ -108,12 +109,13 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     cloudContext: CloudContext,
     clusterName: RuntimeName,
     destroyedDateOpt: Option[Instant]
-  ): DBIO[Option[Runtime]] = {
-    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+  ): DBIO[Option[Runtime]] =
     fullClusterQueryByUniqueKey(cloudContext, clusterName, destroyedDateOpt).result map { recs =>
       clusterQuery.unmarshalFullCluster(recs).headOption
     }
-  }
+
+  def getAllAppUsage: DBIO[Seq[AppUsageRecord]] =
+    appUsageQuery.result
 
   def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
                                   clusterName: RuntimeName,

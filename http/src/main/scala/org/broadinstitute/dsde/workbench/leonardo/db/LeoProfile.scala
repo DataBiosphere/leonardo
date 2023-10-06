@@ -223,6 +223,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
 
     implicit val appIdColumnType: BaseColumnType[AppId] =
       MappedColumnType.base[AppId, Long](_.id, AppId.apply)
+    implicit val appUsageRecordIdColumnType: BaseColumnType[AppUsageId] =
+      MappedColumnType.base[AppUsageId, Long](_.id, AppUsageId.apply)
     implicit val appNameColumnType: BaseColumnType[AppName] =
       MappedColumnType.base[AppName, String](_.value, AppName.apply)
     implicit val appAccessScopeColumnType: BaseColumnType[AppAccessScope] =

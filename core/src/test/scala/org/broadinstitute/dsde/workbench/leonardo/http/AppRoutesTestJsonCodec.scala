@@ -40,7 +40,7 @@ object AppRoutesTestJsonCodec {
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
   implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct13(
+    Decoder.forProduct14(
       "appName",
       "cloudContext",
       "region",
@@ -52,46 +52,13 @@ object AppRoutesTestJsonCodec {
       "customEnvironmentVariables",
       "auditInfo",
       "appType",
-//      "chartName",
+      "chartName",
       "accessScope",
       "labels"
-    )(
-      (appName,
-       cloudContext,
-       region,
-       kubernetesRuntimeConfig,
-       errors,
-       status,
-       proxyUrls,
-       diskName,
-       customEnvironmentVariables,
-       auditInfo,
-       //       chartName, TODO: revert this once CBAS are upgraded
-       appType,
-       accessScope,
-       labels
-      ) =>
-        GetAppResponse(
-          appName,
-          cloudContext,
-          region,
-          kubernetesRuntimeConfig,
-          errors,
-          status,
-          proxyUrls,
-          diskName,
-          customEnvironmentVariables,
-          auditInfo,
-          //       chartName, TODO: revert this once CBAS are upgraded
-          appType,
-          org.broadinstitute.dsp.ChartName("dummy"),
-          accessScope,
-          labels
-        )
-    )
+    )(GetAppResponse.apply)
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] =
-    Decoder.forProduct13(
+    Decoder.forProduct14(
       "workspaceId",
       "cloudContext",
       "region",
@@ -101,42 +68,10 @@ object AppRoutesTestJsonCodec {
       "proxyUrls",
       "appName",
       "appType",
-//      "chartName",
+      "chartName",
       "diskName",
       "auditInfo",
       "accessScope",
       "labels"
-    )(
-      (workspaceId,
-       cloudContext,
-       region,
-       kubernetesRuntimeConfig,
-       errors,
-       status,
-       proxyUrls,
-       appName,
-       appType,
-       //       chartName, TODO: revert this once CBAS are upgraded
-       diskName,
-       auditInfo,
-       accessScope,
-       labels
-      ) =>
-        ListAppResponse(
-          workspaceId,
-          cloudContext,
-          region,
-          kubernetesRuntimeConfig,
-          errors,
-          status,
-          proxyUrls,
-          appName,
-          appType,
-          org.broadinstitute.dsp.ChartName("dummy"),
-          diskName,
-          auditInfo,
-          accessScope,
-          labels
-        )
-    )
+    )(ListAppResponse.apply)
 }

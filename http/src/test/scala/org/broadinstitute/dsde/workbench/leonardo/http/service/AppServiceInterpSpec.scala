@@ -796,6 +796,36 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.diskId shouldBe None
   }
 
+  it should "delete an app and record AppUsage stopTime" in isolatedDbTest {
+    val res = for {
+      publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      kubeServiceInterp = makeInterp(publisherQueue)
+
+      savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
+      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      savedApp <- IO(
+        makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
+          .copy(status = AppStatus.Running)
+          .save()
+      )
+
+      _ <- appUsageQuery.recordStart(savedApp.id, Instant.now())
+      gcpContext = savedCluster.cloudContext match {
+        case g @ CloudContext.Gcp(_) => g
+        case _                       => fail("expected GCP context")
+      }
+      _ <- kubeServiceInterp.deleteApp(userInfo, gcpContext, savedApp.appName, false)
+      _ <- withLeoPublisher(publisherQueue) {
+        for {
+          appUsage <- getAllAppUsage.transaction
+        } yield appUsage.headOption.map(_.stopTime).isDefined shouldBe true
+      }
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "error on delete if app is in a status that cannot be deleted" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
@@ -1153,8 +1183,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Running).save())
+      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      savedApp <- IO(
+        makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
+          .copy(status = AppStatus.Running)
+          .save()
+      )
 
+      _ <- appUsageQuery.recordStart(savedApp.id, Instant.now())
       gcpContext = savedCluster.cloudContext match {
         case g @ CloudContext.Gcp(_) => g
         case _                       => fail("expected GCP context")
@@ -1166,6 +1202,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
             .getActiveFullAppByName(savedCluster.cloudContext, savedApp.appName)
             .transaction
           msg <- publisherQueue.tryTake
+          appUsage <- getAllAppUsage.transaction
         } yield {
           dbAppOpt.isDefined shouldBe true
           dbAppOpt.get.app.status shouldBe AppStatus.Stopping
@@ -1175,6 +1212,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           dbAppOpt.get.cluster.status shouldBe KubernetesClusterStatus.Running
 
           msg shouldBe None
+
+          appUsage.headOption.map(_.stopTime).isDefined shouldBe true
         }
       }
     } yield ()
