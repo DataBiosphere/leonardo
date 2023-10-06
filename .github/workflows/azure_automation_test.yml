@@ -96,7 +96,7 @@ jobs:
           run-name: "${{ env.LEO_BUILD_RUN_NAME }}"
           workflow: leonardo-build
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/iv-upgrade-workflow-dispatch-to-support-run-name
+          ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.LEO_BUILD_RUN_NAME }}",
@@ -129,7 +129,7 @@ jobs:
           run-name: "${{ env.BEE_CREATE_RUN_NAME }}"
           workflow: bee-create
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/iv-upgrade-workflow-dispatch-to-support-run-name
+          ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
@@ -246,7 +246,7 @@ jobs:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
           workflow: .github/workflows/leonardo-swat-tests.yaml
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/iv-upgrade-workflow-dispatch-to-support-run-name
+          ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
@@ -275,7 +275,7 @@ jobs:
           run-name: "${{ env.DEL_BP_V2_RUN_NAME }}"
           workflow: .github/workflows/delete-billing-project-v2-from-bee.yaml
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/iv-upgrade-workflow-dispatch-to-support-run-name
+          ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.DEL_BP_V2_RUN_NAME }}",
@@ -303,7 +303,7 @@ jobs:
           run-name: "${{ env.BEE_DESTROY_RUN_NAME }}"
           workflow: bee-destroy
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/iv-upgrade-workflow-dispatch-to-support-run-name
+          ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.BEE_DESTROY_RUN_NAME }}",
