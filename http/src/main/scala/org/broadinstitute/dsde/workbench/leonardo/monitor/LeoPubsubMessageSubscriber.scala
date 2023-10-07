@@ -1597,35 +1597,11 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(c) =>
-          for {
-            landingZoneResources <- F.fromOption(
-              msg.landingZoneResources,
-              PubsubKubernetesError(
-                AppError(s"Landing zone required for Azure apps",
-                         ctx.now,
-                         ErrorAction.CreateApp,
-                         ErrorSource.App,
-                         None,
-                         Some(ctx.traceId)
-                ),
-                Some(msg.appId),
-                false,
-                None,
-                None,
-                None
-              )
-            )
-            task = azurePubsubHandler.createAndPollApp(msg.appId,
-                                                       msg.appName,
-                                                       msg.workspaceId,
-                                                       c,
-                                                       landingZoneResources,
-                                                       msg.storageContainer
-            )
-            _ <- asyncTasks.offer(
-              Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
-            )
-          } yield ()
+          val task =
+            azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, c, msg.billingProfileId)
+          asyncTasks.offer(
+            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
+          )
         case CloudContext.Gcp(c) =>
           F.raiseError(
             PubsubKubernetesError(
@@ -1654,31 +1630,10 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(c) =>
-          for {
-            landingZoneResources <- F.fromOption(
-              msg.landingZoneResourcesOpt,
-              PubsubKubernetesError(
-                AppError(s"Landing zone required for Azure apps",
-                         ctx.now,
-                         ErrorAction.CreateApp,
-                         ErrorSource.App,
-                         None,
-                         Some(ctx.traceId)
-                ),
-                Some(msg.appId),
-                false,
-                None,
-                None,
-                None
-              )
-            )
-            task =
-              azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, landingZoneResources, c)
-            _ <- asyncTasks.offer(
-              Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2")
-            )
-          } yield ()
-
+          val task = azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, c, msg.billingProfileId)
+          asyncTasks.offer(
+            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2")
+          )
         case CloudContext.Gcp(c) =>
           F.raiseError(
             PubsubKubernetesError(

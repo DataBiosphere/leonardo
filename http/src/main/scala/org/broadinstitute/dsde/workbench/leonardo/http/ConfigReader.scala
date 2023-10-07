@@ -11,6 +11,7 @@ import org.http4s.Uri
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpLandingZoneDAOConfig, HttpWsmDaoConfig}
 
 object ConfigReader {
   lazy val appConfig =
@@ -30,7 +31,8 @@ final case class AzureConfig(
   hailBatchAppConfig: HailBatchAppConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
-  listenerChartConfig: ListenerChartConfig
+  listenerChartConfig: ListenerChartConfig,
+  landingZone: HttpLandingZoneDAOConfig
 )
 
 final case class OidcAuthConfig(

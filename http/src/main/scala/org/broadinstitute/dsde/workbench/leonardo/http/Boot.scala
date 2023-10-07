@@ -198,8 +198,7 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO,
-          appDependencies.samDAO
+          appDependencies.wsmDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -439,6 +438,20 @@ object Boot extends IOApp {
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
+      wsmUtils = new WorkspaceManagerUtils(wsmClientProvider, samDao)
+
+      // TODO configure
+      underlyingLandingZoneCache = buildCache[BillingProfileId, scalacache.Entry[LandingZoneResources]](
+        1000,
+        1.day
+      )
+      landingZoneCaffeineCache <- Resource.make(
+        F.delay(CaffeineCache[F, BillingProfileId, LandingZoneResources](underlyingLandingZoneCache))
+      )(_.close)
+      landingZoneDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_lz_client"), true)
+        .map(client =>
+          new HttpLandingZoneDAO[F](ConfigReader.appConfig.azure.landingZone, client, landingZoneCaffeineCache)
+        )
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
@@ -734,7 +747,8 @@ object Boot extends IOApp {
         samDao,
         wsmDao,
         kubeAlg,
-        wsmClientProvider
+        wsmClientProvider,
+        landingZoneDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -749,7 +763,9 @@ object Boot extends IOApp {
         azureRelay,
         azureVmService,
         aksAlg,
-        refererConfig
+        refererConfig,
+        landingZoneDao,
+        wsmUtils
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
@@ -824,7 +840,9 @@ object Boot extends IOApp {
         listenerDao,
         wsmClientProvider,
         kubeAlg,
-        azureContainerService
+        azureContainerService,
+        landingZoneDao,
+        wsmUtils
       )
     }
 
@@ -948,5 +966,7 @@ final case class AppDependencies[F[_]](
   listenerDAO: ListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider[F],
   kubeAlg: KubernetesAlgebra[F],
-  azureContainerService: AzureContainerService[F]
+  azureContainerService: AzureContainerService[F],
+  landingZoneDAO: LandingZoneDAO[F],
+  wsmUtils: WorkspaceManagerUtils[F]
 )

@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.util.AKSInterpreterConfig
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,

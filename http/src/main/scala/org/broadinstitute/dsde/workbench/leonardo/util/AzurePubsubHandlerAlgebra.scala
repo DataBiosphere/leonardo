@@ -2,8 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName, RelayNamespace}
-import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, RelayNamespace}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -45,8 +44,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
                        appName: AppName,
                        workspaceId: WorkspaceId,
                        cloudContext: AzureCloudContext,
-                       landingZoneResources: LandingZoneResources,
-                       storageContainer: Option[StorageContainerResponse]
+                       billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
@@ -55,7 +53,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
                        appName: AppName,
                        appChartVersion: ChartVersion,
                        workspaceId: Option[WorkspaceId],
-                       cloudContext: AzureCloudContext
+                       cloudContext: AzureCloudContext,
+                       billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
@@ -63,8 +62,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def deleteApp(appId: AppId,
                 appName: AppName,
                 workspaceId: WorkspaceId,
-                landingZoneResources: LandingZoneResources,
-                cloudContext: AzureCloudContext
+                cloudContext: AzureCloudContext,
+                billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
@@ -94,7 +93,7 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           vmImage: AzureImage,
                                           useExistingDisk: Boolean,
                                           workspaceName: String,
-                                          storageContainerName: ContainerName
+                                          storageContainerName: StorageContainerName
 )
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 

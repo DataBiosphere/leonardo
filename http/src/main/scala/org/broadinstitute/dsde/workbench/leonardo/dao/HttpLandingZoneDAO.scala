@@ -219,7 +219,7 @@ class HttpLandingZoneDAO[F[_]](config: HttpLandingZoneDAOConfig,
         AppCreationException(s"could not determine name for resource $resource")
       )
 
-  private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  private def getLandingZone(billingProfileId: BillingProfileId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[LandingZone]] =
     for {
@@ -229,7 +229,7 @@ class HttpLandingZoneDAO[F[_]](config: HttpLandingZoneDAOConfig,
           method = Method.GET,
           uri = config.uri
             .withPath(Uri.Path.unsafeFromString("/api/landingzones/v1/azure"))
-            .withQueryParam("billingProfileId", billingProfileId),
+            .withQueryParam("billingProfileId", billingProfileId.value),
           headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)

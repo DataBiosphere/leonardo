@@ -42,6 +42,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            samDao: SamDAO[F],
                            kubeAlg: KubernetesAlgebra[F],
                            wsmClientProvider: WsmApiClientProvider[F],
+                           wsmUtils: WorkspaceManagerUtils[F],
                            landingZoneDAO: LandingZoneDAO[F]
 )(implicit
   appTypeToAppInstall: AppType => AppInstall[F],
@@ -105,7 +106,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Get the optional storage container for the workspace
       storageContainer <- childSpan("getWorkspaceSharedStorageContainer").use { implicit ev =>
-        getWorkspaceSharedStorageContainer(params.workspaceId, app.auditInfo.creator)
+        wsmUtils.getWorkspaceSharedStorageContainer(params.workspaceId, app.auditInfo.creator)
       }
 
       // Create WSM managed identity if shared app
@@ -310,7 +311,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Get the optional storage container for the workspace
       storageContainer <- childSpan("getWorkspaceSharedStorageContainer").use { implicit ev =>
-        getWorkspaceSharedStorageContainer(params.workspaceId, app.auditInfo.creator)
+        wsmUtils.getWorkspaceSharedStorageContainer(workspaceId, app.auditInfo.creator)
       }
 
       // Build WSM client
@@ -932,39 +933,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .transaction
     } yield result
-
-  private[util] def getWorkspaceSharedStorageContainer(
-    workspaceId: WorkspaceId,
-    userEmail: WorkbenchEmail
-  )(implicit ev: Ask[F, AppContext]): F[Option[StorageContainer]] =
-    for {
-      ctx <- ev.ask
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-      token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
-      wsmResourceApi <- wsmClientProvider.getResourceApi(token)
-      wsmResp <- F.blocking(
-        wsmResourceApi
-          .enumerateResources(workspaceId.value,
-                              0,
-                              100,
-                              ResourceType.AZURE_STORAGE_CONTAINER,
-                              StewardshipType.CONTROLLED
-          )
-          .getResources
-          .asScala
-          .toList
-      )
-      storageContainerOpt = wsmResp
-        .find { r =>
-          r.getMetadata.getControlledResourceMetadata.getAccessScope == AccessScope.SHARED_ACCESS && r.getMetadata.getResourceType == ResourceType.AZURE_STORAGE_CONTAINER
-        }
-        .map { r =>
-          StorageContainer(
-            StorageContainerName(r.getResourceAttributes.getAzureStorageContainer.getStorageContainerName),
-            WsmControlledResourceId(r.getMetadata.getResourceId)
-          )
-        }
-    } yield storageContainerOpt
 
   private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
                                                app: App,

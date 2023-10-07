@@ -35,8 +35,7 @@ final case class UpdateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     appChartVersion: ChartVersion,
                                     workspaceId: Option[WorkspaceId],
-                                    cloudContext: AzureCloudContext,
-                                    billingProfileId: BillingProfileId
+                                    cloudContext: AzureCloudContext
 )
 
 final case class DeleteAKSAppParams(

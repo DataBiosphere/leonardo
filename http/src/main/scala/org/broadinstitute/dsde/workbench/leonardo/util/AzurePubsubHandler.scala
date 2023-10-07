@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.http.{childSpan, ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -44,7 +44,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F],
   aksAlgebra: AKSAlgebra[F],
-  refererConfig: RefererConfig
+  refererConfig: RefererConfig,
+  landingZoneDAO: LandingZoneDAO[F],
+  wsmUtils: WorkspaceManagerUtils[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
 
@@ -60,18 +62,37 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: RuntimeConfig.AzureConfig => F.pure(x)
         case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
+      // Query the Landing Zone service for the landing zone resources
+      leoAuth <- samDAO.getLeoAuthToken
+      landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
+        landingZoneDAO.getLandingZoneResources(msg.billingProfileId, leoAuth)
+      }
+
+      // Get the optional storage container for the workspace
+      storageContainerOpt <- childSpan("getWorkspaceSharedStorageContainer").use { implicit ev =>
+        wsmUtils.getWorkspaceSharedStorageContainer(msg.workspaceId, runtime.auditInfo.creator)
+      }
+      storageContainer <- F.fromOption(
+        storageContainerOpt,
+        AzureRuntimeCreationError(
+          runtime.id,
+          msg.workspaceId,
+          s"Storage container not found for runtime: ${runtime.id}",
+          msg.useExistingDisk
+        )
+      )
       createVmJobId = WsmJobId(s"create-vm-${runtime.id.toString.take(10)}")
       _ <- createRuntime(
         CreateAzureRuntimeParams(
           msg.workspaceId,
           runtime,
-          msg.storageContainerResourceId,
-          msg.landingZoneResources,
+          storageContainer.resourceId,
+          landingZoneResources,
           azureConfig,
           config.runtimeDefaults.image,
           msg.useExistingDisk,
           msg.workspaceName,
-          msg.containerName
+          storageContainer.name
         ),
         WsmJobControl(createVmJobId)
       )
@@ -79,7 +100,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         PollRuntimeParams(msg.workspaceId,
                           runtime,
                           createVmJobId,
-                          msg.landingZoneResources.relayNamespace,
+                          landingZoneResources.relayNamespace,
                           msg.useExistingDisk
         )
       )
@@ -523,6 +544,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       auth <- samDAO.getLeoAuthToken
 
+      // Query the Landing Zone service for the landing zone resources
+      leoAuth <- samDAO.getLeoAuthToken
+      landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
+        landingZoneDAO.getLandingZoneResources(msg.billingProfileId, leoAuth)
+      }
+
       // Delete the staging storage container in WSM
       stagingBucketResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
@@ -561,7 +588,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // Delete hybrid connection for this VM
       _ <- azureRelay.deleteRelayHybridConnection(
-        msg.landingZoneResources.relayNamespace,
+        landingZoneResources.relayNamespace,
         RelayHybridConnectionName(runtime.runtimeName.asString),
         cloudContext
       )
@@ -740,14 +767,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                 appName: AppName,
                                 workspaceId: WorkspaceId,
                                 cloudContext: AzureCloudContext,
-                                landingZoneResources: LandingZoneResources,
-                                storageContainer: Option[StorageContainerResponse]
+                                billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, landingZoneResources, storageContainer)
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, billingProfileId)
       _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(
@@ -771,13 +797,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                 appName: AppName,
                                 appChartVersion: ChartVersion,
                                 workspaceId: Option[WorkspaceId],
-                                cloudContext: AzureCloudContext
+                                cloudContext: AzureCloudContext,
+                                billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
+      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext, billingProfileId)
       _ <- aksAlgebra.updateAndPollApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(
@@ -801,14 +828,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     appId: AppId,
     appName: AppName,
     workspaceId: WorkspaceId,
-    landingZoneResources: LandingZoneResources,
-    cloudContext: AzureCloudContext
+    cloudContext: AzureCloudContext,
+    billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      params = DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext)
+      params = DeleteAKSAppParams(appName, workspaceId, cloudContext, billingProfileId)
       _ <- aksAlgebra.deleteApp(params).adaptError { case e =>
         PubsubKubernetesError(
           AppError(

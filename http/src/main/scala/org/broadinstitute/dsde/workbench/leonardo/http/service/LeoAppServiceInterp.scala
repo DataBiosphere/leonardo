@@ -808,6 +808,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           workspaceId,
           cloudContext,
           diskOpt,
+          BillingProfileId(workspaceDesc.spendProfile),
           Some(ctx.traceId)
         )
         _ <- publisherQueue.offer(deleteMessage)
