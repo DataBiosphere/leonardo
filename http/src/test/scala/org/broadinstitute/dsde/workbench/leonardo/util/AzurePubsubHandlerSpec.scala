@@ -10,7 +10,7 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -83,7 +83,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -99,15 +99,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        false,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -161,7 +153,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -178,15 +170,7 @@ class AzurePubsubHandlerSpec
           getRuntime.auditInfo.dateAccessed.isAfter(startTime.plusMillis(mockLatencyMillis)) shouldBe true
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        false,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -236,7 +220,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime1 = makeCluster(1)
           .copy(
@@ -265,15 +249,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime2.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        true,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime2.id, workspaceId, true, None, "WorkspaceName", billingProfileId)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -323,7 +299,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -340,15 +316,7 @@ class AzurePubsubHandlerSpec
           diskStatus shouldBe (Some(DiskStatus.Deleted))
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        false,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -396,7 +364,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -409,15 +377,7 @@ class AzurePubsubHandlerSpec
           getRuntime = getRuntimeOpt.get
         } yield getRuntime.status shouldBe RuntimeStatus.Error
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        false,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azurePubsubHandler.createAndPollRuntime(msg)
@@ -465,7 +425,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(2)
           .copy(
@@ -499,7 +459,7 @@ class AzurePubsubHandlerSpec
                                         Some(disk.id),
                                         workspaceId,
                                         Some(wsmResourceId),
-                                        landingZoneResources,
+                                        billingProfileId,
                                         None
         )
 
@@ -546,7 +506,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(2)
           .copy(
@@ -580,7 +540,7 @@ class AzurePubsubHandlerSpec
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
           .transaction
-        msg = DeleteAzureRuntimeMessage(runtime.id, None, workspaceId, Some(wsmResourceId), landingZoneResources, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, None, workspaceId, Some(wsmResourceId), billingProfileId, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
 
@@ -610,7 +570,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -628,15 +588,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        false,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -670,7 +622,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -678,15 +630,7 @@ class AzurePubsubHandlerSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        true,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, true, None, "WorkspaceName", billingProfileId)
 
         err <- azureInterp.createAndPollRuntime(msg).attempt
 
@@ -727,7 +671,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -735,15 +679,7 @@ class AzurePubsubHandlerSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
-                                        true,
-                                        None,
-                                        "WorkspaceName",
-                                        ContainerName("dummy")
-        )
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, true, None, "WorkspaceName", billingProfileId)
 
         err <- azureInterp.createAndPollRuntime(msg).attempt
 
@@ -776,7 +712,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(2)
           .copy(
@@ -806,7 +742,7 @@ class AzurePubsubHandlerSpec
                                         Some(disk.id),
                                         workspaceId,
                                         Some(wsmResourceId),
-                                        landingZoneResources,
+                                        billingProfileId,
                                         None
         )
 
@@ -849,7 +785,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(2)
           .copy(
@@ -879,7 +815,7 @@ class AzurePubsubHandlerSpec
                                         Some(disk.id),
                                         workspaceId,
                                         Some(wsmResourceId),
-                                        landingZoneResources,
+                                        billingProfileId,
                                         None
         )
 
@@ -909,7 +845,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(2)
           .copy(
@@ -940,7 +876,7 @@ class AzurePubsubHandlerSpec
                                         Some(disk.id),
                                         workspaceId,
                                         Some(wsmResourceId),
-                                        landingZoneResources,
+                                        billingProfileId,
                                         None
         )
 
@@ -973,7 +909,7 @@ class AzurePubsubHandlerSpec
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime = makeCluster(1)
         .copy(
@@ -1015,7 +951,7 @@ class AzurePubsubHandlerSpec
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime = makeCluster(1)
         .copy(
@@ -1049,7 +985,7 @@ class AzurePubsubHandlerSpec
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime = makeCluster(1)
         .copy(
@@ -1091,7 +1027,7 @@ class AzurePubsubHandlerSpec
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime = makeCluster(1)
         .copy(
@@ -1125,13 +1061,7 @@ class AzurePubsubHandlerSpec
     val res = for {
       ctx <- appContext.ask[AppContext]
       result <- azureInterp
-        .createAndPollApp(appId,
-                          AppName("app"),
-                          WorkspaceId(UUID.randomUUID()),
-                          azureCloudContext,
-                          landingZoneResources,
-                          None
-        )
+        .createAndPollApp(appId, AppName("app"), WorkspaceId(UUID.randomUUID()), azureCloudContext, billingProfileId)
         .attempt
     } yield result shouldBe Left(
       PubsubKubernetesError(
@@ -1185,7 +1115,7 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(2)
           .copy(

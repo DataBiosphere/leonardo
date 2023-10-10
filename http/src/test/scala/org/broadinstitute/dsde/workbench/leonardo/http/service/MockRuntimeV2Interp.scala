@@ -6,8 +6,8 @@ import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.model.UserInfo
-import CommonTestData._
 
 class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   override def createRuntime(userInfo: UserInfo,
@@ -27,7 +27,7 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
         .fromRuntime(CommonTestData.testCluster,
                      RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
                                                Some(DiskId(-1)),
-                                               azureRegion
+                                               None
                      ),
                      None
         )
@@ -69,7 +69,7 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
           CommonTestData.testCluster.auditInfo,
           RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
                                     Some(DiskId(-1)),
-                                    azureRegion
+                                    None
           ),
           CommonTestData.testCluster.proxyUrl,
           CommonTestData.testCluster.status,

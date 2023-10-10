@@ -57,7 +57,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   val wsmDao = new MockWsmDAO
-  val samDao = new MockSamDAO
 
   val gcpWsmDao = new MockWsmDAO {
     override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
@@ -124,8 +123,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       passComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -135,8 +133,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughMemoryComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -146,8 +143,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughCpuComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
 
     for {
@@ -178,8 +174,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       noLabelsGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -209,8 +204,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -1285,8 +1279,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1436,8 +1429,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1480,8 +1472,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1523,8 +1514,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1563,8 +1553,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1609,8 +1598,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1655,8 +1643,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -2515,8 +2502,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       googleResourceService,
       customAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
   }
 }

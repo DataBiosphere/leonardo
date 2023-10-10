@@ -93,7 +93,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    authProvider,
                                    wsmDao,
-                                   mockSamDAO,
                                    queue,
                                    dateAccessedQueue,
                                    wsmClientProvider
@@ -197,7 +196,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       serviceConfig,
       allowListAuthProvider,
       new MockWsmDAO,
-      mockSamDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
       wsmClientProvider
@@ -208,7 +206,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       serviceConfig,
       allowListAuthProvider2,
       new MockWsmDAO,
-      mockSamDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
       wsmClientProvider
@@ -233,7 +230,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
         ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
@@ -306,12 +303,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        storageContainerResourceId,
-        landingZoneResources,
         false,
         Some(context.traceId),
         workspaceDesc.get.displayName,
-        ContainerName("dummy")
+        BillingProfileId("spend-profile")
       )
       message shouldBe expectedMessage
     }
@@ -511,7 +506,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
         ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
@@ -549,12 +544,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        storageContainerResourceId,
-        landingZoneResources,
         false,
         Some(context.traceId),
         workspaceDesc.get.displayName,
-        ContainerName("dummy")
+        BillingProfileId("spend-profile")
       )
       message shouldBe expectedMessage
     }
@@ -571,7 +564,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
         ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
@@ -621,12 +614,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        storageContainerResourceId,
-        landingZoneResources,
         false,
         Some(context.traceId),
         workspaceDesc.get.displayName,
-        ContainerName("dummy")
+        BillingProfileId("spend-profile")
       )
       message shouldBe expectedMessage
     }
@@ -1083,7 +1074,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           Some(disk.id),
           workspaceId,
           Some(wsmResourceId),
-          landingZoneResources,
+          BillingProfileId("spend-profile"),
           Some(context.traceId)
         )
       message shouldBe expectedMessage
@@ -1193,7 +1184,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                   Some(disk.id),
                                   workspaceId,
                                   None,
-                                  landingZoneResources,
+                                  BillingProfileId("spend-profile"),
                                   Some(context.traceId)
         )
       message shouldBe expectedMessage
@@ -1262,7 +1253,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                   Some(disk.id),
                                   workspaceId,
                                   None,
-                                  landingZoneResources,
+                                  BillingProfileId("spend-profile"),
                                   Some(context.traceId)
         )
       message shouldBe expectedMessage
@@ -1323,7 +1314,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                   None,
                                   workspaceId,
                                   Some(wsmResourceId),
-                                  landingZoneResources,
+                                  BillingProfileId("spend-profile"),
                                   Some(context.traceId)
         )
       message shouldBe expectedMessage
@@ -1518,14 +1509,14 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                   Some(disk_2.id),
                                   workspaceId,
                                   Some(wsmResourceId_2),
-                                  landingZoneResources,
+                                  BillingProfileId("spend-profile"),
                                   Some(context.traceId)
         ),
         DeleteAzureRuntimeMessage(preDeleteCluster_3.id,
                                   Some(disk_3.id),
                                   workspaceId,
                                   Some(wsmResourceId_3),
-                                  landingZoneResources,
+                                  BillingProfileId("spend-profile"),
                                   Some(context.traceId)
         )
       )
