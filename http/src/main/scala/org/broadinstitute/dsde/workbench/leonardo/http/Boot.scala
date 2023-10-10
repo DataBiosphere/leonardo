@@ -432,10 +432,9 @@ object Boot extends IOApp {
       appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
-      // TODO configure
       underlyingLandingZoneCache = buildCache[BillingProfileId, scalacache.Entry[LandingZoneResources]](
-        1000,
-        1.day
+        500,
+        4 hours
       )
       landingZoneCaffeineCache <- Resource.make(
         F.delay(CaffeineCache[F, BillingProfileId, LandingZoneResources](underlyingLandingZoneCache))
