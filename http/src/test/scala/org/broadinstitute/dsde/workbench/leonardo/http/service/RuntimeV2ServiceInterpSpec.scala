@@ -135,7 +135,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
     when(
-      mockAuthProvider.listResourceIds[RuntimeSamResourceId](isEq(false), isEq(userInfo))(
+      mockAuthProvider.listResourceIds[RuntimeSamResourceId](isEq(true), isEq(userInfo))(
         any(runtimeSamResourceAction.getClass),
         any(AppSamResourceAction.getClass),
         any(Decoder[RuntimeSamResourceId].getClass),
