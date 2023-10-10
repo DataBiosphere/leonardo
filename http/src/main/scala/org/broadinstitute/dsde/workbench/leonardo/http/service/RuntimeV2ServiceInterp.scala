@@ -28,7 +28,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
 // do not remove `workspaceSamResourceAction`; it is implicit
   workspaceSamResourceAction,
 // do not remove `wsmResourceSamResourceAction`; it is implicit
-  wsmResourceSamResourceAction
+  wsmResourceSamResourceAction,
+// do not remove `AppSamResourceAction`; it is implicit
+  AppSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
@@ -534,33 +536,45 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- authProvider.checkUserEnabled(userInfo)
 
       // Authorize: get resource IDs the user can see
+      // HACK: leonardo is modeling access control here, handling inheritance
+      // of workspace and project-level permissions. Sam and WSM already do this,
+      // and should be considered the point of truth.
 
-      // TODO [] delegate authorization check for v2 resources to workspace-manager
+      // TODO [] delegate hierarchical list-resources-I-can-see check to workspace-manager or sam
 
-      // v2 runtimes are WSM-managed resources and their permissions are stored
-      // in relation to their WsmResourceSamResourceId
+      // v1 runtimes (sam resource type `notebook-cluster`) are readable only
+      // by their creators (`Creator` is the SamResource.Runtime `ownerRoleName`),
+      // if the creator also has read access to the corresponding SamResource.Project
+      creatorV1RuntimeIds: Set[RuntimeSamResourceId] <- authProvider
+        .listResourceIds[RuntimeSamResourceId](hasOwnerRole = true, userInfo)
+      readerProjectIds: Set[ProjectSamResourceId] <- authProvider
+        .listResourceIds[ProjectSamResourceId](hasOwnerRole = false, userInfo)
+
+      // v1 runtimes are discoverable by owners on the corresponding Project
+      ownerProjectIds: Set[ProjectSamResourceId] <- authProvider
+        .listResourceIds[ProjectSamResourceId](hasOwnerRole = true, userInfo)
+
+      // v2 runtimes are WSM-managed resources and they're modeled as `WsmResourceSamResource`s.
       // HACK: accept any ID in the list of readable WSM resources as a valid
-      // readable runtime ID. Some of these IDs are for non-runtime resources.
-      readerRuntimeIds: List[String] <- authProvider
-        .getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
-      readerWsmIds: List[String] <- authProvider
-        .getAuthorizedIds[WsmResourceSamResourceId](isOwner = false, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
-      readerRuntimeOrWsmIds = readerRuntimeIds ++ readerWsmIds
+      // readable v2 runtime ID. Some of these IDs are for non-runtime resources.
+      // TODO [] call WSM to list workspaces, then list runtimes per workspace, to get these IDs?
 
-      readerWorkspaceIds: List[String] <- authProvider
-        .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
-      ownerWorkspaceIds: List[String] <- authProvider
-        .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
-      readerProjectIds: List[String] <- authProvider
-        .getAuthorizedIds[ProjectSamResourceId](isOwner = false, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
-      ownerProjectIds: List[String] <- authProvider
-        .getAuthorizedIds[ProjectSamResourceId](isOwner = true, userInfo)
-        .flatMap(ids => F.pure(ids.map(_.resourceId).toList))
+      // v2 runtimes are readable by users with read access to both runtime and workspace
+      readerV2WsmIds: Set[WsmResourceSamResourceId] <- authProvider
+        .listResourceIds[WsmResourceSamResourceId](hasOwnerRole = false, userInfo)
+      readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- authProvider
+        .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
+
+      // v2 runtimes are discoverable by owners on the corresponding Workspace
+      ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- authProvider
+        .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
+
+      readerRuntimeRawIds: List[String] = List(creatorV1RuntimeIds, readerV2WsmIds).flatMap(_.map(_.resourceId).toList)
+
+      readerWorkspaceRawIds = readerWorkspaceIds.map(_.resourceId).toList
+      ownerWorkspaceRawIds = ownerWorkspaceIds.map(_.resourceId).toList
+      readerProjectRawIds = readerProjectIds.map(_.resourceId).toList
+      ownerProjectRawIds = ownerProjectIds.map(_.resourceId).toList
 
       // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
@@ -575,11 +589,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           workspaceId, // whether to find only runtimes in a single workspace
           cloudProvider, // Google | Azure
           // Authorization scopes
-          readerRuntimeOrWsmIds,
-          readerWorkspaceIds,
-          ownerWorkspaceIds,
-          readerProjectIds,
-          ownerProjectIds
+          readerRuntimeRawIds,
+          readerWorkspaceRawIds,
+          ownerWorkspaceRawIds,
+          readerProjectRawIds,
+          ownerProjectRawIds
         )
         .map(_.toList)
         .transaction

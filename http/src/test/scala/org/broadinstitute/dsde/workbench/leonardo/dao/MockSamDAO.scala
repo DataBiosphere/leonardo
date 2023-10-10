@@ -97,6 +97,39 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
     }
 
+  override def listResourceIdsWithRole[R <: SamResourceId](
+    authHeader: Authorization
+  )(implicit
+    resourceDefinition: SamResource[R],
+    resourceIdDecoder: Decoder[R],
+    ev: Ask[IO, TraceId]
+  ): IO[List[(R, SamRole)]] = resourceDefinition.resourceType match {
+    case SamResourceType.Runtime =>
+      IO.pure(
+        runtimeCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+      )
+    case SamResourceType.Project =>
+      IO.pure(
+        (projectOwners ++ projectUsers)
+          .get(authHeader)
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+      )
+    case SamResourceType.PersistentDisk =>
+      IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]])
+    case SamResourceType.SharedApp => throw new Exception("SharedApp not supported")
+    case SamResourceType.App => throw new Exception("App not supported")
+    case SamResourceType.Workspace =>
+      IO.pure(
+        workspaceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+      )
+    case SamResourceType.WsmResource =>
+      IO.pure(
+        wmsResourceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+      )
+  }
+
   override def getResourcePolicies[R](authHeader: Authorization, resourceType: SamResourceType)(implicit
     sr: SamResource[R],
     decoder: Decoder[R],

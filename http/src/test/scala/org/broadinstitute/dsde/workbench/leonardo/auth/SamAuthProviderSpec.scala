@@ -422,12 +422,12 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     // Visible owned runtime returned as reader or owner
     samAuthProvider
-      .getAuthorizedIds[RuntimeSamResourceId](isOwner = false, userInfo)
+      .listResourceIds[RuntimeSamResourceId](hasOwnerRole = false, userInfo)
       .unsafeRunSync() shouldBe Set(
       runtimeSamResource
     )
     samAuthProvider
-      .getAuthorizedIds[RuntimeSamResourceId](isOwner = true, userInfo)
+      .listResourceIds[RuntimeSamResourceId](hasOwnerRole = true, userInfo)
       .unsafeRunSync() shouldBe Set(
       runtimeSamResource
     )
@@ -435,33 +435,33 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     // Visible workspace is returned as owner, then as writer
     val mockWorkspaceId = WorkspaceResourceSamResourceId(WorkspaceId(UUID.randomUUID))
     val mockSamDao = mock[SamDAO[IO]](defaultMockitoAnswer[IO])
-    when(mockSamDao.getResourcePolicies[WorkspaceResourceSamResourceId](any, any)(any, any, any))
-      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Owner))))
-      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Owner))))
-      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Writer))))
-      .thenReturn(IO.pure(List((mockWorkspaceId, SamPolicyName.Writer))))
+    when(mockSamDao.listResourceIdsWithRole[WorkspaceResourceSamResourceId](any)(any, any, any))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Owner))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Owner))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Writer))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Writer))))
 
     val mockSamAuthProvider =
       new SamAuthProvider(mockSamDao, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
 
     // => owned workspace is in owner IDs
     mockSamAuthProvider
-      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
       .unsafeRunSync() shouldBe Set(mockWorkspaceId)
 
     // => owned workspace is in reader IDs
     mockSamAuthProvider
-      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
       .unsafeRunSync() shouldBe Set(mockWorkspaceId)
 
     // => read workspace is NOT in owner IDs
     mockSamAuthProvider
-      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = true, userInfo)
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
       .unsafeRunSync() shouldBe Set.empty
 
     // => read workspace is in reader IDs
     mockSamAuthProvider
-      .getAuthorizedIds[WorkspaceResourceSamResourceId](isOwner = false, userInfo)
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
       .unsafeRunSync() shouldBe Set(mockWorkspaceId)
   }
 
