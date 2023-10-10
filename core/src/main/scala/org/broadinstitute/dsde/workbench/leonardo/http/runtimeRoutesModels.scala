@@ -149,6 +149,8 @@ object GetRuntimeResponse {
   )
 }
 
+final case class ListRuntimeIdResponse(id: Long, samResource: RuntimeSamResourceId)
+
 final case class ListRuntimeResponse2(id: Long,
                                       workspaceId: Option[WorkspaceId],
                                       samResource: RuntimeSamResourceId,
@@ -163,6 +165,14 @@ final case class ListRuntimeResponse2(id: Long,
 )
 
 object RuntimeRoutesCodec {
+  implicit val listRuntimeIdResponseEncoder: Encoder[ListRuntimeIdResponse] = Encoder.forProduct1(
+    "id"
+  )(x =>
+    (
+      x.id
+    )
+  )
+
   implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct11(
     "id",
     "workspaceId",

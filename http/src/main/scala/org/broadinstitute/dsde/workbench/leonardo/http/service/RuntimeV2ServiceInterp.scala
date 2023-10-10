@@ -532,6 +532,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
 
+      // Parameters: parse search filters from request
+      (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
+      excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
+
       // Authorize: user has an active account and has accepted terms of service
       _ <- authProvider.checkUserEnabled(userInfo)
 
@@ -540,7 +545,16 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // of workspace and project-level permissions. Sam and WSM already do this,
       // and should be considered the point of truth.
 
-      // TODO [] delegate hierarchical list-resources-I-can-see check to workspace-manager or sam
+      // HACK: leonardo short-circuits access control to grant access to runtime creators.
+      // This supports the use case where `terra-ui` requests status of runtimes that have
+      // not yet been provisioned in Sam.
+      creatorRuntimeIdsBackdoor <- if (creatorOnly.isDefined) RuntimeServiceDbQueries
+        .listRuntimeIdsForCreator(creatorOnly.get)
+        .map(_.map(_.samResource).toSet)
+        .transaction
+        .flatMap(F.pure(_))
+      else
+        F.pure(Set.empty)
 
       // v1 runtimes (sam resource type `notebook-cluster`) are readable only
       // by their creators (`Creator` is the SamResource.Runtime `ownerRoleName`),
@@ -569,17 +583,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- authProvider
         .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
 
-      readerRuntimeRawIds: List[String] = List(creatorV1RuntimeIds, readerV2WsmIds).flatMap(_.map(_.resourceId).toList)
-
-      readerWorkspaceRawIds = readerWorkspaceIds.map(_.resourceId).toList
-      ownerWorkspaceRawIds = ownerWorkspaceIds.map(_.resourceId).toList
-      readerProjectRawIds = readerProjectIds.map(_.resourceId).toList
-      ownerProjectRawIds = ownerProjectIds.map(_.resourceId).toList
-
-      // Parameters: parse search filters from request
-      (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
-      excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
-      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
+      // combine: to read a runtime, user needs to be at least one of:
+      // - creator of a v1 runtime (Sam-authenticated)
+      // - any role on a v2 runtime (Sam-authenticated)
+      // - creator of a runtime (in Leo db) and filtering their request by creator-only
+      readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ readerV2WsmIds ++ creatorRuntimeIdsBackdoor
 
       runtimes <- RuntimeServiceDbQueries
         .listAuthorizedRuntimes(
@@ -589,11 +597,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           workspaceId, // whether to find only runtimes in a single workspace
           cloudProvider, // Google | Azure
           // Authorization scopes
-          readerRuntimeRawIds,
-          readerWorkspaceRawIds,
-          ownerWorkspaceRawIds,
-          readerProjectRawIds,
-          ownerProjectRawIds
+          readerRuntimeIds,
+          readerWorkspaceIds,
+          ownerWorkspaceIds,
+          readerProjectIds,
+          ownerProjectIds
         )
         .map(_.toList)
         .transaction

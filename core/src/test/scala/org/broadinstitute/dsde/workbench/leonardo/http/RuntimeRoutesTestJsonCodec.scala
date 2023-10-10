@@ -213,6 +213,15 @@ object RuntimeRoutesTestJsonCodec {
     )
   }
 
+  implicit val listRuntimeIdResponseDecoder: Decoder[ListRuntimeIdResponse] = Decoder.instance { x =>
+    for {
+      id <- x.downField("id").as[Long]
+    } yield ListRuntimeIdResponse(
+      id,
+      RuntimeSamResourceId("fakeId")
+    )
+  }
+
   implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]

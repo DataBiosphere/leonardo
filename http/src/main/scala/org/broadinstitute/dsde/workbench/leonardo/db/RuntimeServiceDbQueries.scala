@@ -5,22 +5,16 @@ import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.Runtime
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, RuntimeSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.GetResultInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
-import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{
-  getRuntimeQueryByUniqueKey,
-  getRuntimeQueryByWorkspaceId
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  RuntimeNotFoundByWorkspaceIdException,
-  RuntimeNotFoundException
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{getRuntimeQueryByUniqueKey, getRuntimeQueryByWorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeIdResponse, ListRuntimeResponse2}
+import org.broadinstitute.dsde.workbench.leonardo.model.{RuntimeNotFoundByWorkspaceIdException, RuntimeNotFoundException}
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import slick.jdbc.GetResult
@@ -55,6 +49,16 @@ object RuntimeServiceDbQueries {
       status,
       labelMap,
       r.nextBoolean()
+    )
+  }
+
+  implicit val getResultListRuntimeIdResponse: GetResult[ListRuntimeIdResponse] = GetResult { r =>
+    val id = r.<<[Long]
+    val samId = r.<<[RuntimeSamResourceId]
+
+    ListRuntimeIdResponse(
+      id,
+      samId
     )
   }
 
@@ -264,6 +268,20 @@ object RuntimeServiceDbQueries {
     listRuntimesHelper(labelMap, excludeStatuses, creatorOnly, workspaceId, cp)
   }
 
+  def listRuntimeIdsForCreator(creator: WorkbenchEmail): DBIO[Vector[ListRuntimeIdResponse]] = {
+    val sqlStatement =
+      sql"""
+        select
+          `id`,
+          `internalId`
+        from
+          `CLUSTER`
+        where
+          `creator` = '${creator.value}'
+      """.stripMargin
+    sqlStatement.as[ListRuntimeIdResponse]
+  }
+
   /**
    * List runtimes filtered by the given terms. Only return authorized resources (per reader*Ids and/or owner*Ids).
    * @param labelMap
@@ -279,19 +297,19 @@ object RuntimeServiceDbQueries {
    * @return
    */
   def listAuthorizedRuntimes(
-    // Filters
-    labelMap: LabelMap,
-    excludeStatuses: List[RuntimeStatus],
-    creatorOnly: Option[WorkbenchEmail],
-    workspaceId: Option[WorkspaceId],
-    cloudProvider: Option[CloudProvider],
+                              // Filters
+                              labelMap: LabelMap,
+                              excludeStatuses: List[RuntimeStatus],
+                              creatorOnly: Option[WorkbenchEmail],
+                              workspaceId: Option[WorkspaceId],
+                              cloudProvider: Option[CloudProvider],
 
-    // Authorizations
-    readerRuntimeIds: List[String],
-    readerWorkspaceIds: List[String],
-    ownerWorkspaceIds: List[String],
-    readerGoogleProjectIds: List[String],
-    ownerGoogleProjectIds: List[String]
+                              // Authorizations
+                              readerRuntimeIds: Set[SamResourceId],
+                              readerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
+                              ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
+                              readerGoogleProjectIds: Set[ProjectSamResourceId],
+                              ownerGoogleProjectIds: Set[ProjectSamResourceId]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val cp = cloudProvider.map(cp => Right(cp))
     listAuthorizedRuntimesHelper(
@@ -300,11 +318,11 @@ object RuntimeServiceDbQueries {
       creatorOnly,
       workspaceId,
       cp,
-      readerRuntimeIds,
-      readerWorkspaceIds,
-      ownerWorkspaceIds,
-      readerGoogleProjectIds,
-      ownerGoogleProjectIds
+      readerRuntimeIds.map(_.resourceId).toList,
+      readerWorkspaceIds.map(_.resourceId).toList,
+      ownerWorkspaceIds.map(_.resourceId).toList,
+      readerGoogleProjectIds.map(_.resourceId).toList,
+      ownerGoogleProjectIds.map(_.resourceId).toList
     )
   }
 
