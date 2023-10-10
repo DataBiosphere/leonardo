@@ -70,7 +70,7 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 
-  def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+  def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources]
 

@@ -33,10 +33,14 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
+import scalacache.Cache
 
 import java.util.UUID
 
-class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
+class HttpWsmDao[F[_]](httpClient: Client[F],
+                       config: HttpWsmDaoConfig,
+                       lzResourcesCache: Cache[F, BillingProfileId, LandingZoneResources]
+)(implicit
   logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
@@ -125,7 +129,12 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+  override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[LandingZoneResources] =
+    lzResourcesCache.cachingF(billingProfileId)(None)(getLandingZoneResourcesInternal(billingProfileId, userToken))
+
+  private def getLandingZoneResourcesInternal(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources] =
     for {
@@ -297,7 +306,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         )
     } yield id
 
-  private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  private def getLandingZone(billingProfileId: BillingProfileId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[LandingZone]] =
     for {
@@ -307,7 +316,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
           method = Method.GET,
           uri = config.uri
             .withPath(Uri.Path.unsafeFromString("/api/landingzones/v1/azure"))
-            .withQueryParam("billingProfileId", billingProfileId),
+            .withQueryParam("billingProfileId", billingProfileId.value),
           headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)
