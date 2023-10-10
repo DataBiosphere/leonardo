@@ -5,8 +5,8 @@ import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, Azu
 import org.broadinstitute.dsde.workbench.pipeline.Pipeline.BILLING_PROJECT
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.service.Rawls
-import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Outcome, ParallelTestExecution, Succeeded, Suites, TestSuite}
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import org.scalatest._
 
 import java.util.UUID
 
@@ -153,7 +153,7 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
     s"${UUID.randomUUID().toString()}-azure-test-workspace"
 }
 
-@DoNotDiscover
+@ExcludeFromJenkins
 final class LeonardoAzureSuite
     extends Suites(
       new AzureRuntimeSpec,
