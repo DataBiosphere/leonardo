@@ -110,7 +110,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
         WorkspaceDescription(
           workspaceId,
           "workspaceName" + workspaceId,
-          "9f3434cb-8f18-4595-95a9-d9b1ec9731d4",
+          "spend-profile",
           Some(
             AzureCloudContext(TenantId(workspaceId.toString),
                               SubscriptionId(workspaceId.toString),
@@ -122,7 +122,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+  override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[IO, AppContext]
   ): IO[LandingZoneResources] =
     IO.pure(

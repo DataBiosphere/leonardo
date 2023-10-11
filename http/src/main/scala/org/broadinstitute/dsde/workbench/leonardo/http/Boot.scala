@@ -198,15 +198,13 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO,
-          appDependencies.samDAO
+          appDependencies.wsmDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
         runtimeServiceConfig,
         appDependencies.authProvider,
         appDependencies.wsmDAO,
-        appDependencies.samDAO,
         appDependencies.publisherQueue,
         appDependencies.dateAccessedUpdaterQueue,
         appDependencies.wsmClientProvider
@@ -434,8 +432,15 @@ object Boot extends IOApp {
       appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
+      underlyingLandingZoneCache = buildCache[BillingProfileId, scalacache.Entry[LandingZoneResources]](
+        500,
+        4 hours
+      )
+      landingZoneCaffeineCache <- Resource.make(
+        F.delay(CaffeineCache[F, BillingProfileId, LandingZoneResources](underlyingLandingZoneCache))
+      )(_.close)
       wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true)
-        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
+        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm, landingZoneCaffeineCache))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
@@ -734,7 +739,8 @@ object Boot extends IOApp {
         samDao,
         wsmDao,
         kubeAlg,
-        wsmClientProvider
+        wsmClientProvider,
+        wsmDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](

@@ -22,13 +22,13 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
   StartRuntimeMessage,
   StopRuntimeMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
@@ -36,10 +36,10 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+
 class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
-                                             samDAO: SamDAO[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
                                              dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
                                              wsmClientProvider: WsmApiClientProvider[F]
@@ -81,16 +81,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
-      _ <- F
-        .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
-
-      storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
-      storageContainer <- F.fromOption(
-        storageContainerOpt,
-        BadRequestException(s"Workspace ${workspaceId.value} doesn't have storage container provisioned appropriately",
-                            Some(ctx.traceId)
-        )
-      )
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
       // enforcing one runtime per workspace/user at a time
       runtime <- RuntimeServiceDbQueries
@@ -113,18 +104,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
-
-      // Get the Landing Zone Resources for the app for Azure
-      leoAuth <- samDAO.getLeoAuthToken
-      landingZoneResources <- cloudContext.cloudProvider match {
-        case CloudProvider.Gcp =>
-          F.raiseError(
-            BadRequestException(s"Workspace ${workspaceId.value} is GCP and doesn't support V2 VM creation",
-                                Some(ctx.traceId)
-            )
-          )
-        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
-      }
 
       runtimeImage: RuntimeImage = RuntimeImage(
         RuntimeImageType.Azure,
@@ -192,7 +171,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       samResource,
                       config.azureConfig.diskConfig,
                       req,
-                      landingZoneResources.region,
                       workspaceId,
                       ctx.now
                     )
@@ -202,7 +180,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     .handleErrorWith { t =>
                       log.error(t)(
                         s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${req.azureDiskConfig.name.value}"
-                      ) >> F.raiseError(t)
+                      ) >> F.raiseError[Unit](t)
                     }
                   disk <- persistentDiskQuery.save(pd).transaction
                 } yield disk.id
@@ -223,7 +201,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
               Some(diskId),
-              landingZoneResources.region
+              None
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
@@ -231,12 +209,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               CreateAzureRuntimeMessage(
                 savedRuntime.id,
                 workspaceId,
-                storageContainer.resourceId,
-                landingZoneResources,
                 useExistingDisk,
                 Some(ctx.traceId),
                 workspaceDesc.displayName,
-                storageContainer.name
+                BillingProfileId(workspaceDesc.spendProfile)
               )
             )
           } yield ()
@@ -360,8 +336,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
-      leoAuth <- samDAO.getLeoAuthToken
-      landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
 
       // Update DB record to Deleting status
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
@@ -377,7 +351,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                   diskIdToDelete,
                                   workspaceId,
                                   wsmVMResourceSamId,
-                                  landingZoneResources,
+                                  BillingProfileId(workspaceDesc.spendProfile),
                                   Some(ctx.traceId)
         )
       )
@@ -620,7 +594,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
-                                     region: com.azure.core.management.Region,
                                      workspaceId: WorkspaceId,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
@@ -645,7 +618,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
-      ZoneName(region.toString),
+      ZoneName("unset"),
       diskName,
       userInfo.userEmail,
       samResource,

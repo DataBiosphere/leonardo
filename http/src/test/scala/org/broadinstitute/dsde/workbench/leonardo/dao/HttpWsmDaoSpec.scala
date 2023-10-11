@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
 import org.broadinstitute.dsde.workbench.azure.{
@@ -22,6 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
   WORKSPACE_COMPUTE_SUBNET
 }
 import org.broadinstitute.dsde.workbench.leonardo.{
+  BillingProfileId,
   LandingZoneResources,
   LeonardoTestSuite,
   PostgresServer,
@@ -35,17 +37,24 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
+import scalacache.caffeine.CaffeineCache
 
 import java.util.UUID
 
 class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll {
   val config = HttpWsmDaoConfig(Uri.unsafeFromString("127.0.0.1"))
+  val underlyingLzResourcesCache = Caffeine
+    .newBuilder()
+    .maximumSize(10)
+    .build[BillingProfileId, scalacache.Entry[LandingZoneResources]]()
+  val lzResourcesCache = CaffeineCache[IO, BillingProfileId, LandingZoneResources](underlyingLzResourcesCache)
+
   it should "not error when getting 404 during resource deletion" in {
     val wsmClient = Client.fromHttpApp[IO](
       HttpApp(_ => IO(Response(status = Status.NotFound)))
     )
 
-    val wsmDao = new HttpWsmDao[IO](wsmClient, config)
+    val wsmDao = new HttpWsmDao[IO](wsmClient, config, lzResourcesCache)
     val res = wsmDao
       .deleteVm(
         DeleteWsmResourceRequest(WorkspaceId(UUID.randomUUID()),
@@ -70,8 +79,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
   testCases.foreach { case (tags, expectedPgBouncer) =>
     it should s"correctly get landing zone resources and detect PgBouncer for tags: $tags" in {
-      val billingId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
-      val landingZoneId = UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe")
+      val billingId = UUID.randomUUID()
+      val landingZoneId = UUID.randomUUID()
 
       val originalLandingZone = LandingZone(landingZoneId, billingId, "def", "v1", "2022-11-11")
       val landingZoneResponse = ListLandingZonesResult(List(originalLandingZone))
@@ -130,10 +139,10 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         }
       )
 
-      val wsmDao = new HttpWsmDao[IO](wsmClient, config)
+      val wsmDao = new HttpWsmDao[IO](wsmClient, config, lzResourcesCache)
       val res = wsmDao
         .getLandingZoneResources(
-          billingId.toString,
+          BillingProfileId(billingId.toString),
           Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
         )
         .attempt
@@ -142,7 +151,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       res.isRight shouldBe true
 
       val expectedLandingZoneResources = LandingZoneResources(
-        UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
+        landingZoneId,
         AKSClusterName("lzcluster"),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),
