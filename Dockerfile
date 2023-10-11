@@ -32,7 +32,7 @@ ENV NGINX_VERSION 4.3.0
 ENV CROMWELL_CHART_VERSION 0.2.366
 ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.366
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
-ENV CROMWELL_RUNNER_APP_VERSION 0.36.0
+ENV CROMWELL_RUNNER_APP_VERSION 0.37.0
 # WORKFLOWS APP comment to prevent merge conflicts
 ENV WORKFLOWS_APP_VERSION 0.58.0
 # WDS CHART comment to prevent merge conflicts
