@@ -4076,6 +4076,9 @@ components:
           description: the name of the app
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
+        region:
+          type: string
+          description: region of app
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         errors:
@@ -4119,6 +4122,9 @@ components:
           description: workspaceId
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
+        region:
+          type: string
+          description: region of app
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         errors:

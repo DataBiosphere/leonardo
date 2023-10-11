@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import bio.terra.common.tracing.JerseyTracingFilter
-import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.client.ApiClient
 import cats.effect.Async
 import cats.mtl.Ask
@@ -21,6 +21,7 @@ import org.http4s.Uri
  */
 trait WsmApiClientProvider[F[_]] {
   def getControlledAzureResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi]
+  def getResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ResourceApi]
 }
 
 class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Async[F]) extends WsmApiClientProvider[F] {
@@ -44,4 +45,7 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
     ev: Ask[F, AppContext]
   ): F[ControlledAzureResourceApi] =
     getApiClient(token).map(apiClient => new ControlledAzureResourceApi(apiClient))
+
+  override def getResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
+    getApiClient(token).map(apiClient => new ResourceApi(apiClient))
 }
