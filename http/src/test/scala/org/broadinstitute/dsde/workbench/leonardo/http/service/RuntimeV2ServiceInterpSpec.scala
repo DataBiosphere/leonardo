@@ -1666,13 +1666,16 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val userInfo = mockUserInfo("jerome@vore.gov")
     val mockAuthProvider = mockAuthorize(
       userInfo,
-      // user can read all runtimes
+      // user can read runtimes which are 'notebook-cluster' aka Runtimes
       Set(RuntimeSamResourceId(runtimeId1),
           RuntimeSamResourceId(runtimeId2),
-          RuntimeSamResourceId(runtimeId3),
-          RuntimeSamResourceId(runtimeId4)
+          RuntimeSamResourceId(runtimeId3)
       ),
-      Set.empty,
+      // user can read runtimes which are WsmResources
+      Set(
+        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtimeId3))),
+        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtimeId4))),
+      ),
       // user can only read workspace1
       Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure1)))),
       // user can only read project1
@@ -1695,7 +1698,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .copy(samResource = samResource2, cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp2)))
           .save()
       )
-      // Azure runtime 2 (in workspace1): seen
+      // Azure runtime 3 (in workspace1): seen
       samResource3 <- IO(RuntimeSamResourceId(runtimeId3))
       runtime3 <- IO(
         makeCluster(3)
@@ -1706,7 +1709,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      // Azure runtime 3 (in workspace2): hidden
+      // Azure runtime 4 (in workspace2): hidden
       samResource4 <- IO(RuntimeSamResourceId(runtimeId4))
       runtime4 <- IO(
         makeCluster(4)
@@ -1965,7 +1968,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val testService = makeInterp(authProvider = mockAuthProvider)
     val res = for {
       samResource1 <- IO(runtimeId1)
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource2 <- IO(runtimeId2)
       runtime1 <- IO(
         makeCluster(1)
           .copy(samResource = samResource1, workspaceId = Some(workspaceId1))
@@ -2006,6 +2009,74 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       listResponse3.map(_.samResource).toSet shouldBe Set.empty
       listResponse4.map(_.samResource).toSet shouldBe Set.empty
       listResponse5.map(_.samResource).toSet shouldBe Set.empty
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "list runtimes filtered by creator" taggedAs SlickPlainQueryTest in isolatedDbTest {
+    val wsmId1 = WsmResourceSamResourceId(WsmControlledResourceId(UUID.randomUUID))
+    val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val runtimeId3 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val runtimeId4 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val workspaceId1 = WorkspaceId(UUID.randomUUID)
+    val userInfoCreator = mockUserInfo("karen@styx.hel")
+    val userInfoOther = mockUserInfo("mike@heavn.io")
+    val mockAuthProvider = mockAuthorize(
+      userInfoCreator,
+      // user has auth permission for runtime1
+      Set.empty,
+      Set(wsmId1),
+      // user can read workspace1
+      Set(WorkspaceResourceSamResourceId(workspaceId1))
+    )
+    val testService = makeInterp(authProvider = mockAuthProvider)
+    val res = for {
+      // runtime 1: I created, in a workspace I can read => visible
+      samResource1 <- IO(RuntimeSamResourceId(wsmId1.resourceId.toString))
+      runtime1 <- IO(
+        makeCluster(1, Some(userInfoCreator.userEmail))
+          .copy(samResource = samResource1, workspaceId = Some(workspaceId1))
+          .save()
+      )
+
+      // runtime 2: I created, but in a workspace I cannot read, and I DO NOT HAVE SAM PERMISSION => hidden
+      samResource2 <- IO(runtimeId2)
+      runtime2 <- IO(
+        makeCluster(2, Some(userInfoCreator.userEmail))
+          .copy(samResource = samResource2, workspaceId = Some(WorkspaceId(UUID.randomUUID)))
+          .save()
+      )
+
+      // runtime 3: someone else created, in a workspace I can read => hidden
+      samResource3 <- IO(runtimeId3)
+      runtime3 <- IO(
+        makeCluster(3, Some(userInfoOther.userEmail))
+          .copy(samResource = samResource3, workspaceId = Some(workspaceId1))
+          .save()
+      )
+
+      // runtime 4: I created, in a workspace I can read, and I DO NOT HAVE SAM PERMISSION => seen if role=creator, else hid
+      samResource4 <- IO(runtimeId4)
+      runtime4 <- IO(
+        makeCluster(4, Some(userInfoCreator.userEmail))
+          .copy(samResource = samResource4, workspaceId = Some(workspaceId1))
+          .save()
+      )
+
+      listResponseCreator <- testService.listRuntimes(userInfoCreator,
+        None,
+        None,
+        Map("role" -> "creator")
+      )
+      listResponseAny <- testService.listRuntimes(userInfoCreator,
+        None,
+        None,
+        Map.empty
+      )
+    } yield {
+      listResponseCreator.map(_.samResource).toSet shouldBe Set(samResource1, samResource4)
+      listResponseAny.map(_.samResource).toSet shouldBe Set(samResource1)
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

@@ -277,7 +277,7 @@ object RuntimeServiceDbQueries {
         from
           `CLUSTER`
         where
-          `creator` = '${creator.value}'
+          `creator` = ${creator.value}
       """.stripMargin
     sqlStatement.as[ListRuntimeIdResponse]
   }
