@@ -164,7 +164,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
       discoverableIds: Set[R] = resourcesWithRole
         .filter {
           case (_, role) if hasOwnerRole => role == ownerRole
-          case _ if !hasOwnerRole        => true
+          case _                         => true
         }
         .map { case (samResourceId, _) =>
           samResourceId
