@@ -88,7 +88,7 @@ import scalacache.caffeine._
 import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{Executors, TimeUnit}
 import javax.net.ssl.SSLContext
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -97,7 +97,7 @@ import scala.jdk.CollectionConverters._
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
 
-  override def blockedThreadDetectionEnabled = true
+//  override def blockedThreadDetectionEnabled = true
 
   private def startup(): IO[Unit] = {
     // We need an ActorSystem to host our application in
@@ -879,6 +879,7 @@ object Boot extends IOApp {
         .withMaxTotalConnections(100)
         .withMaxWaitQueueLimit(1024)
         .withMaxIdleDuration(30 seconds)
+        .withExecutionContext(ExecutionContext.fromExecutor(Executors.newCachedThreadPool()))
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
