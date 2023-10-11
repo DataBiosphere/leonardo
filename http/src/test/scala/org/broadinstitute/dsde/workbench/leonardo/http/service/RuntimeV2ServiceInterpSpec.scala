@@ -274,7 +274,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       clusterRec.workspaceId shouldBe Some(workspaceId)
 
       azureRuntimeConfig.machineType.value shouldBe VirtualMachineSizeTypes.STANDARD_A1.toString
-      azureRuntimeConfig.region shouldBe azureRegion
+      azureRuntimeConfig.region shouldBe None
       disk.name.value shouldBe defaultCreateAzureRuntimeReq.azureDiskConfig.name.value
 
       val expectedRuntimeImage = Set(

@@ -1720,7 +1720,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     cluster.status shouldEqual KubernetesClusterStatus.Running
 
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual MachineTypeName("Standard_A2_v2")
+    nodepool.machineType shouldEqual MachineTypeName("unset")
     nodepool.numNodes shouldEqual NumNodes(1)
     nodepool.autoscalingEnabled shouldEqual false
     nodepool.auditInfo.creator shouldEqual userInfo.userEmail

@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.{childSpan, ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -63,9 +63,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
       // Query the Landing Zone service for the landing zone resources
       leoAuth <- samDAO.getLeoAuthToken
-      landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
-        wsmDao.getLandingZoneResources(msg.billingProfileId, leoAuth)
-      }
+      landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, leoAuth)
 
       // Get the optional storage container for the workspace
       tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
@@ -548,9 +546,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       auth <- samDAO.getLeoAuthToken
 
       // Query the Landing Zone service for the landing zone resources
-      landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
-        wsmDao.getLandingZoneResources(msg.billingProfileId, auth)
-      }
+      landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, auth)
 
       // Delete the staging storage container in WSM
       stagingBucketResourceOpt <- controlledResourceQuery

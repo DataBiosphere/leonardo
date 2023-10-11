@@ -79,8 +79,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
   testCases.foreach { case (tags, expectedPgBouncer) =>
     it should s"correctly get landing zone resources and detect PgBouncer for tags: $tags" in {
-      val billingId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
-      val landingZoneId = UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe")
+      val billingId = UUID.randomUUID()
+      val landingZoneId = UUID.randomUUID()
 
       val originalLandingZone = LandingZone(landingZoneId, billingId, "def", "v1", "2022-11-11")
       val landingZoneResponse = ListLandingZonesResult(List(originalLandingZone))
@@ -151,7 +151,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       res.isRight shouldBe true
 
       val expectedLandingZoneResources = LandingZoneResources(
-        UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
+        landingZoneId,
         AKSClusterName("lzcluster"),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),
