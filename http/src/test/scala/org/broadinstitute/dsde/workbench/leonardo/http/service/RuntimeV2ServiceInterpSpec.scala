@@ -1667,14 +1667,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val mockAuthProvider = mockAuthorize(
       userInfo,
       // user can read runtimes which are 'notebook-cluster' aka Runtimes
-      Set(RuntimeSamResourceId(runtimeId1),
-          RuntimeSamResourceId(runtimeId2),
-          RuntimeSamResourceId(runtimeId3)
-      ),
+      Set(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2), RuntimeSamResourceId(runtimeId3)),
       // user can read runtimes which are WsmResources
       Set(
         WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtimeId3))),
-        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtimeId4))),
+        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtimeId4)))
       ),
       // user can only read workspace1
       Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure1)))),
@@ -2064,16 +2061,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .save()
       )
 
-      listResponseCreator <- testService.listRuntimes(userInfoCreator,
-        None,
-        None,
-        Map("role" -> "creator")
-      )
-      listResponseAny <- testService.listRuntimes(userInfoCreator,
-        None,
-        None,
-        Map.empty
-      )
+      listResponseCreator <- testService.listRuntimes(userInfoCreator, None, None, Map("role" -> "creator"))
+      listResponseAny <- testService.listRuntimes(userInfoCreator, None, None, Map.empty)
     } yield {
       listResponseCreator.map(_.samResource).toSet shouldBe Set(samResource1, samResource4)
       listResponseAny.map(_.samResource).toSet shouldBe Set(samResource1)

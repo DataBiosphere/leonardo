@@ -106,7 +106,12 @@ class MockSamDAO extends SamDAO[IO] {
   ): IO[List[(R, SamRole)]] = resourceDefinition.resourceType match {
     case SamResourceType.Runtime =>
       IO.pure(
-        runtimeCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+        runtimeCreators
+          .get(authHeader)
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
+          .asInstanceOf[List[(R, SamRole)]]
       )
     case SamResourceType.Project =>
       IO.pure(
@@ -114,19 +119,37 @@ class MockSamDAO extends SamDAO[IO] {
           .get(authHeader)
           .map(_.toList)
           .getOrElse(List.empty)
-          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
+          .asInstanceOf[List[(R, SamRole)]]
       )
     case SamResourceType.PersistentDisk =>
-      IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]])
+      IO.pure(
+        diskCreators
+          .get(authHeader)
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
+          .asInstanceOf[List[(R, SamRole)]]
+      )
     case SamResourceType.SharedApp => throw new Exception("SharedApp not supported")
-    case SamResourceType.App => throw new Exception("App not supported")
+    case SamResourceType.App       => throw new Exception("App not supported")
     case SamResourceType.Workspace =>
       IO.pure(
-        workspaceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+        workspaceCreators
+          .get(authHeader)
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
+          .asInstanceOf[List[(R, SamRole)]]
       )
     case SamResourceType.WsmResource =>
       IO.pure(
-        wmsResourceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString))}.asInstanceOf[List[(R, SamRole)]]
+        wmsResourceCreators
+          .get(authHeader)
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
+          .asInstanceOf[List[(R, SamRole)]]
       )
   }
 

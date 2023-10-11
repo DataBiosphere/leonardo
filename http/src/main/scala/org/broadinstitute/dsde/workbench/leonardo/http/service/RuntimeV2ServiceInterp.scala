@@ -548,13 +548,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // HACK: leonardo short-circuits access control to grant access to runtime creators.
       // This supports the use case where `terra-ui` requests status of runtimes that have
       // not yet been provisioned in Sam.
-      creatorRuntimeIdsBackdoor <- if (creatorOnly.isDefined) RuntimeServiceDbQueries
-        .listRuntimeIdsForCreator(creatorOnly.get)
-        .map(_.map(_.samResource).toSet)
-        .transaction
-        .flatMap(F.pure(_))
-      else
-        F.pure(Set.empty)
+      creatorRuntimeIdsBackdoor <-
+        if (creatorOnly.isDefined)
+          RuntimeServiceDbQueries
+            .listRuntimeIdsForCreator(creatorOnly.get)
+            .map(_.map(_.samResource).toSet)
+            .transaction
+            .flatMap(F.pure(_))
+        else
+          F.pure(Set.empty)
 
       // v1 runtimes (sam resource type `notebook-cluster`) are readable only
       // by their creators (`Creator` is the SamResource.Runtime `ownerRoleName`),

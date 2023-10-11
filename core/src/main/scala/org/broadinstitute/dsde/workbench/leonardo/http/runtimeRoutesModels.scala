@@ -167,11 +167,7 @@ final case class ListRuntimeResponse2(id: Long,
 object RuntimeRoutesCodec {
   implicit val listRuntimeIdResponseEncoder: Encoder[ListRuntimeIdResponse] = Encoder.forProduct1(
     "id"
-  )(x =>
-    (
-      x.id
-    )
-  )
+  )(x => x.id)
 
   implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct11(
     "id",
