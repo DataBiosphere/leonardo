@@ -52,7 +52,7 @@ object ProxyResolver {
         mapping <- hostToIpMapping.get
         // Use the IP if we have a mapping for it; otherwise fall back to default host name resolution
         h = mapping.get(host).map(_.asString).getOrElse(host)
-        res <- F.delay(new InetSocketAddress(h, port))
+        res <- F.blocking(new InetSocketAddress(h, port))
       } yield res
   }
 }
