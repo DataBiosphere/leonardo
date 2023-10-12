@@ -20,11 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{
   getRuntimeQueryByUniqueKey,
   getRuntimeQueryByWorkspaceId
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.{
-  DiskConfig,
-  GetRuntimeResponse,
-  ListRuntimeResponse2
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   RuntimeNotFoundByWorkspaceIdException,
   RuntimeNotFoundException
