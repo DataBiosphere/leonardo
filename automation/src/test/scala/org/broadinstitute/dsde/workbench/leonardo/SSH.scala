@@ -21,13 +21,12 @@ case class Tunnel(pid: String, port: Int) {
 object SSH {
   val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
-  // TODO: add a semaphor, only one tunnel at a time with same port
+  // TODO: If multiple tests need to ssh into an azure VM: add a lock of sorts, only one tunnel at a time with same port
   def startBastionTunnel(runtimeName: RuntimeName, port: Int = LeonardoConfig.Leonardo.defaultBastionPort)(implicit
     staticTestCoordinates: AzureManagedAppCoordinates
   ): Resource[IO, Tunnel] = {
     val targetResourceId =
       s"/subscriptions/${staticTestCoordinates.subscriptionId.toString}/resourceGroups/${staticTestCoordinates.managedResourceGroupId}/providers/Microsoft.Compute/virtualMachines/${runtimeName.asString}"
-    // TODO: this needs to be unique per tunnel
 
     val makeTunnel = for {
       scriptPath <- IO(getClass.getClassLoader.getResource("startTunnel.sh").getPath)
@@ -51,16 +50,15 @@ object SSH {
   // Note that a session is a one time use resource, and only supports one command execution
   def makeSSHSession(hostName: String, port: Int): Resource[IO, SessionAndClient] = {
     val sessionAndClient = for {
-      // TODO: clean
       _ <- loggerIO.info(
         s"Making ssh client u ${LeonardoConfig.Leonardo.vmUser} p ${LeonardoConfig.Leonardo.vmPassword}"
       )
       client <- IO(new SSHClient)
-      _ <- loggerIO.info("test1")
+      _ <- loggerIO.info(s"Adding host key verifier for shh client}")
       _ <- IO(client.addHostKeyVerifier(new PromiscuousVerifier()))
-      _ <- loggerIO.info("test2")
+      _ <- loggerIO.info("Connecting via ssh client")
       _ <- IO(client.connect(hostName, port))
-      _ <- loggerIO.info("test3")
+      _ <- loggerIO.info("Authenticating ssh client via password")
       _ <- IO(client.authPassword(LeonardoConfig.Leonardo.vmUser, LeonardoConfig.Leonardo.vmPassword))
       _ <- loggerIO.info("Starting ssh session")
       session <- IO(client.startSession())
@@ -84,7 +82,6 @@ object SSH {
       _ <- loggerIO.info("beginning to execute command")
       _ <- IO(session.allocateDefaultPTY())
       cmd <- IO(session.exec(cmd))
-//      s <- IO(session.startShell())
       (code, inputStream) = (cmd.getExitStatus(), cmd.getInputStream)
       outputLines = scala.io.Source.fromInputStream(inputStream).getLines().toList
       _ <- loggerIO.info("cmd output from exec:" + outputLines)

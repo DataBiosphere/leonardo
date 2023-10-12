@@ -29,7 +29,6 @@ object LeonardoConfig extends CommonConfig {
 
     val publisherConfig: PublisherConfig = PublisherConfig(GCS.pathToQAJson, topic)
 
-    // TODO: test these in generation script
     val vmUser = azure.getString("leoVmUser")
     val vmPassword = azure.getString("leoVmPassword")
     val bastionName = azure.getString("bastionName")

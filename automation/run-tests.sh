@@ -30,9 +30,6 @@ yes | apt update
 yes | apt install lsof
 
 echo "Done installing lsof, running tests"
-echo "echoing stuff"
-cat /app/automation/src/test/resources/application.conf
-
 
 # Run the SBT tests
 sbt -batch -Dheadless=true "project automation" "$SBT_TEST_COMMAND"

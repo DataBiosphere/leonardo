@@ -223,13 +223,8 @@ object Dependencies {
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-a02f2fe-SNAP"
-//  val scalaSSH: ModuleID = "com.decodified" %% "scala-ssh" % "0.11.1" %
-//  val scalaSSH: ModuleID = "com.slamdata" %% "fs2-ssh" % "1.1.0"
-//  val scalaSSH2: ModuleID =  "io.github.zhongwm" %% "cable" % "0.4.1"
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.36.0"
 
-//  val fs2Core = "co.fs2" %% "fs2-core" % "3.9.1"
-//  val catsEffect = "org.typelevel" %% "cats-effect" % "2.5.5"
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
@@ -237,8 +232,6 @@ object Dependencies {
     logbackClassic % "test",
     leonardoClient,
     ssh,
-//    scalaSSH,
-//    scalaSSH2,
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
