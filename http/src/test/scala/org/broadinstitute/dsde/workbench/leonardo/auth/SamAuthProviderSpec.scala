@@ -465,6 +465,20 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe Set(mockWorkspaceId)
   }
 
+  it should "fail to get authorized IDs for App type" in {
+    val appId = AppSamResourceId("appId", None)
+
+    an[AuthProviderException] shouldBe thrownBy(
+      samAuthProvider
+        .listResourceIds[AppSamResourceId](hasOwnerRole = false, userInfo)(implicitly,
+                                                                           implicitly,
+                                                                           appSamIdDecoder,
+                                                                           implicitly
+        )
+        .unsafeRunSync()
+    )
+  }
+
   it should "filter user visible resources" in {
     // positive tests
     val newRuntime = RuntimeSamResourceId("new_runtime")
