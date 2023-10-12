@@ -315,21 +315,11 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
     println(s"withRawlsWorkspace: Rawls workspace get called, response: ${response}")
 
-    try
-      testCode(response)
-    catch {
-      case e: Throwable =>
-        println(s"Exception occurred during test: ${e}")
-        throw e
-    } finally
-      try
-        Rawls.workspaces.delete(projectName.value, workspaceName)
-      catch {
-        case e: Exception =>
-          println(
-            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: ${e}"
-          )
-      }
+    testCode(response)
+    // We don't clean up the rawls workspace because it causes a lot of noise in tests if they exit early
+    // This shouldn't be an issue, since the tests are run in a bee with resource cleanup enabled via janitor
+    // However, the billing project cannot be deleted without deleting the workspace
+    // Therefore, we use a flag to ensure `withTemporaryAzureBilling` doesn't clean-up and throw error
   }
 
   private def workspaceResponse(projectName: String, workspaceName: String)(implicit
