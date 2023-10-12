@@ -10,6 +10,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
+import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.azure.AKSClusterName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -19,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleResourceService,
   KubernetesName,
   MachineTypeName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
@@ -82,7 +84,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
+      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
             AppType.CromwellRunnerApp =>
@@ -92,11 +94,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case Some(cn) =>
               cn match {
                 case AllowedChartName.RStudio => F.unit
-                case AllowedChartName.Sas =>
+                case AllowedChartName.Sas     =>
+                  // TODO: https://precisionmedicineinitiative.atlassian.net/browse/RW-11059
                   if (config.enableSasAppGroupCheck)
                     authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
-                      if (res) F.unit
-                      else
+                      if (res) {
+                        if (enableIntraNodeVisibility)
+                          checkIfSasAppCreationIsAllowed(userInfo.userEmail, googleProject)
+                        else {
+                          F.raiseError[Unit](
+                            AuthenticationError(Some(userInfo.userEmail), "SAS is not supported")
+                          )
+                        }
+                      } else
                         F.raiseError[Unit](
                           AuthenticationError(Some(userInfo.userEmail),
                                               "You need to obtain a license in order to create a SAS App"
@@ -149,7 +159,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
 
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None)
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None)
       )
 
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
@@ -403,7 +413,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               Some(ctx.traceId)
             )
             trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
-            _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage)
+            _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage).recoverWith {
+              case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+            }
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
         }
@@ -643,7 +655,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now, landingZoneResourcesOpt.map(_.clusterName))
+        getSavableCluster(userInfo.userEmail,
+                          cloudContext,
+                          ctx.now,
+                          landingZoneResourcesOpt.map(_.clusterName),
+                          landingZoneResourcesOpt.map(_.region)
+        )
       )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       _ <-
@@ -845,7 +862,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
     now: Instant,
-    aksClusterName: Option[AKSClusterName]
+    aksClusterName: Option[AKSClusterName],
+    azureRegionOpt: Option[Region]
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -864,6 +882,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
+    // regionName can be empty in some test configurations
+    val regionName = if (azureRegionOpt.isEmpty) "" else azureRegionOpt.map(_.name).getOrElse("")
     for {
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
@@ -872,7 +892,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       cloudContext = cloudContext,
       clusterName = clusterName,
       location = config.leoKubernetesConfig.clusterConfig.location,
-      region = config.leoKubernetesConfig.clusterConfig.region,
+      region =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName(regionName)
+        else config.leoKubernetesConfig.clusterConfig.region,
       status =
         if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
         else KubernetesClusterStatus.Precreating,
@@ -940,6 +962,40 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
       } yield ()
     else F.unit
+
+  private[service] def checkIfSasAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      projectLabels <- googleResourceService.getLabels(googleProject)
+
+      allowedOrError = projectLabels match {
+        case Some(labels) =>
+          labels.get(SECURITY_GROUP) match {
+            case Some(securityGroupValue) =>
+              if (securityGroupValue == SECURITY_GROUP_HIGH)
+                Right(true)
+              else
+                Left(
+                  s"SAS is not supported for this project because the project doesn't have proper value for ${SECURITY_GROUP} label"
+                )
+            case None =>
+              Left(
+                s"SAS is not supported for this project because the project doesn't have value for ${SECURITY_GROUP} label"
+              )
+          }
+        case None =>
+          Left(s"SAS is not supported for this project because the project doesn't have ${SECURITY_GROUP} label")
+      }
+
+      _ <- allowedOrError match {
+        case Left(error) =>
+          log.info(Map("traceId" -> ctx.asString))(error) >> F.raiseError(ForbiddenError(userEmail, Some(ctx)))
+        case Right(_) => F.unit
+      }
+    } yield ()
 
   private def getLastUsedAppForDisk(
     req: CreateAppRequest,
