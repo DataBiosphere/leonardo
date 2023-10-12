@@ -44,6 +44,15 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[List[A]]
 
+  /** For every role the user is granted on a Sam resource, list it and the resource ID. */
+  def listResourceIdsWithRole[R <: SamResourceId](
+    authHeader: Authorization
+  )(implicit
+    resourceDefinition: SamResource[R],
+    resourceIdDecoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[List[(R, SamRole)]]
+
   /** Returns all resources and actions (policies) the calling user has permission to for a given resource type.*/
   def getResourcePolicies[R](authHeader: Authorization, resourceType: SamResourceType)(implicit
     sr: SamResource[R],

@@ -11,20 +11,24 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
 
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {
+class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter with MockitoSugar {
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig =
     SamAuthProviderConfig(false,
                           customAppCreationAllowedGroup = GroupName("custom_app_users"),
@@ -410,6 +414,69 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     samAuthProvider.notifyResourceDeleted(sharedAppSamId, userEmail, project).unsafeRunSync()
     mockSam.apps.get((sharedAppSamId, authHeader)) shouldBe None
     mockSam.apps.get((sharedAppSamId, projectOwnerAuthHeader)) shouldBe None
+  }
+
+  it should "get authorized IDs" in {
+    val petRuntime = RuntimeSamResourceId("pet_runtime")
+    mockSam.createResourceAsGcpPet(petRuntime, userEmail2, project).unsafeRunSync()
+
+    // Visible owned runtime returned as reader or owner
+    samAuthProvider
+      .listResourceIds[RuntimeSamResourceId](hasOwnerRole = false, userInfo)
+      .unsafeRunSync() shouldBe Set(
+      runtimeSamResource
+    )
+    samAuthProvider
+      .listResourceIds[RuntimeSamResourceId](hasOwnerRole = true, userInfo)
+      .unsafeRunSync() shouldBe Set(
+      runtimeSamResource
+    )
+
+    // Visible workspace is returned as owner, then as writer
+    val mockWorkspaceId = WorkspaceResourceSamResourceId(WorkspaceId(UUID.randomUUID))
+    val mockSamDao = mock[SamDAO[IO]](defaultMockitoAnswer[IO])
+    when(mockSamDao.listResourceIdsWithRole[WorkspaceResourceSamResourceId](any)(any, any, any))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Owner))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Owner))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Writer))))
+      .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Writer))))
+
+    val mockSamAuthProvider =
+      new SamAuthProvider(mockSamDao, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+
+    // => owned workspace is in owner IDs
+    mockSamAuthProvider
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
+      .unsafeRunSync() shouldBe Set(mockWorkspaceId)
+
+    // => owned workspace is in reader IDs
+    mockSamAuthProvider
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
+      .unsafeRunSync() shouldBe Set(mockWorkspaceId)
+
+    // => read workspace is NOT in owner IDs
+    mockSamAuthProvider
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
+      .unsafeRunSync() shouldBe Set.empty
+
+    // => read workspace is in reader IDs
+    mockSamAuthProvider
+      .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
+      .unsafeRunSync() shouldBe Set(mockWorkspaceId)
+  }
+
+  it should "fail to get authorized IDs for App type" in {
+    val appId = AppSamResourceId("appId", None)
+
+    an[AuthProviderException] shouldBe thrownBy(
+      samAuthProvider
+        .listResourceIds[AppSamResourceId](hasOwnerRole = false, userInfo)(implicitly,
+                                                                           implicitly,
+                                                                           appSamIdDecoder,
+                                                                           implicitly
+        )
+        .unsafeRunSync()
+    )
   }
 
   it should "filter user visible resources" in {

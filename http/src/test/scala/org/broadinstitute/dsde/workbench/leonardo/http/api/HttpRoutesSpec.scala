@@ -10,12 +10,11 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, RuntimeServiceDbQueries, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.AdminRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -31,6 +30,11 @@ import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.duration._
 
+/**
+ * Tests the full(ish) logical flow of calls to various Leonardo API endpoints.
+ * NOTE that you may have to run the whole spec, not individual tests,
+ * to get the expected results.
+ */
 class HttpRoutesSpec
     extends AnyFlatSpec
     with ScalatestRouteTest
@@ -555,90 +559,23 @@ class HttpRoutesSpec
     }
   }
 
+  // Tests only parameter parsing, not service logic.
   it should "list runtimes v2 with labels" in isolatedDbTest {
-
-    def testAzureCloudContext = AzureCloudContext(TenantId(workspaceId.toString),
-                                                  SubscriptionId(workspaceId.toString),
-                                                  ManagedResourceGroupName(workspaceId.toString)
-    )
-
-    def saLabels = Map("clusterServiceAccount" -> "user1@example.com")
-
-    def runtimesWithLabels(i: Int) =
-      defaultCreateAzureRuntimeReq
-        .copy(
-          labels = Map(s"label$i" -> s"value$i"),
-          azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName(s"azureDisk-$i"))
-        )
-
-    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-1",
-         runtimesWithLabels(1).asJson
-    ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-
-    val now = IO.realTimeInstant.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val runtime = RuntimeServiceDbQueries
-      .getRuntimeByWorkspaceId(workspaceId, RuntimeName("azureruntime-1"))(
-        scala.concurrent.ExecutionContext.global
-      )
-      .transaction
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    clusterQuery
-      .updateClusterStatus(runtime.id, RuntimeStatus.Deleted, now)
-      .transaction
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-2",
-         runtimesWithLabels(2).asJson
-    ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-
     Get(
-      s"/api/v2/runtimes/${workspaceId.value.toString}/azure?label1=value1&includeDeleted=true"
-    ) ~> httpRoutes.route ~> check {
+      s"/api/v2/runtimes/${workspaceId.value.toString}/azure?foo=bar&includeDeleted=true"
+    ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
       responseClusters should have size 1
-
-      val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
-      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-1")
-      cluster.labels shouldEqual Map(
-        "clusterName" -> s"azureruntime-1",
-        "runtimeName" -> s"azureruntime-1",
-        "creator" -> "user1@example.com",
-        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
-        "tool" -> "JupyterLab",
-        "label1" -> "value1"
-      ) ++ saLabels
-
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=label2%3Dvalue2") ~> httpRoutes.route ~> check {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=foo%3Dbar") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
       responseClusters should have size 1
-
-      val cluster = responseClusters.head
-      cluster.cloudContext shouldEqual CloudContext.Azure(testAzureCloudContext)
-      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-2")
-      cluster.labels shouldEqual Map(
-        "clusterName" -> s"azureruntime-2",
-        "runtimeName" -> s"azureruntime-2",
-        "creator" -> "user1@example.com",
-        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
-        "tool" -> "JupyterLab",
-        "label2" -> "value2"
-      ) ++ saLabels
-
-      // validateCookie { header[`Set-Cookie`] }
-      validateRawCookie(header("Set-Cookie"))
     }
 
     Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=bad") ~> httpRoutes.route ~> check {

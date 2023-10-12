@@ -125,6 +125,29 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
   }
 
+  /** For every role the user is granted on a Sam resource, list it and the resource ID. */
+  override def listResourceIdsWithRole[R <: SamResourceId](
+    authHeader: Authorization
+  )(implicit
+    resourceDefinition: SamResource[R],
+    resourceIdDecoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[List[(R, SamRole)]] =
+    for {
+      ctx <- ev.ask
+      resourceType = resourceDefinition.resourceType.asString
+      _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${resourceType}")
+      response <- httpClient.expectOr[List[ListResourceRolesItem[R]]](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${resourceType}")),
+          headers = Headers(authHeader)
+        )
+      )(onError)
+    } yield response.flatMap(item => item.samRoles.map(role => (item.samResourceId, role)))
+
+  /** @deprecated Prefer listResourceIdsWithRole. */
+  @Deprecated
   override def getResourcePolicies[R](
     authHeader: Authorization,
     resourceType: SamResourceType
@@ -157,7 +180,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         headers = Headers(authHeader)
       )
     )(onError)
-    _ = println(s"${ctx.asString} 00000000 all resource policies ${resp}")
   } yield resp
 
   override def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
@@ -627,8 +649,8 @@ object HttpSamDAO {
   implicit val samPolicyNameKeyEncoder: KeyEncoder[SamPolicyName] = new KeyEncoder[SamPolicyName] {
     override def apply(p: SamPolicyName): String = p.toString
   }
-  implicit val samResourceTypeEncooder: Encoder[SamResourceType] = Encoder.encodeString.contramap(_.asString)
-  implicit val samResourceIdEncooder: Encoder[SamResourceId] = Encoder.encodeString.contramap(_.resourceId)
+  implicit val samResourceTypeEncoder: Encoder[SamResourceType] = Encoder.encodeString.contramap(_.asString)
+  implicit val samResourceIdEncoder: Encoder[SamResourceId] = Encoder.encodeString.contramap(_.resourceId)
 
   implicit val samResourceEncoder: Encoder[SerializableSamResource] =
     Encoder.forProduct2("resourceTypeName", "resourceId")(x => (x.resourceTypeName, x.resourceId))
@@ -681,8 +703,21 @@ object HttpSamDAO {
     } yield SyncStatusResponse(lastSyncDate, email)
   }
 
+  /**
+   * Decodes the `roles` field to a SamRoleAction object.
+   * @deprecated Prefer SamResourceRoles and samResourceRolesDecoder.
+   */
+  @Deprecated
   implicit val samRoleActionDecoder: Decoder[SamRoleAction] = Decoder.forProduct1("roles")(SamRoleAction.apply)
 
+  /** Decodes the `roles` field to a SamResourceRoles object. */
+  implicit val samResourceRolesDecoder: Decoder[SamResourceRoles] = Decoder.forProduct1("roles")(SamResourceRoles.apply)
+
+  /**
+   * Decodes an item from Sam's resource list endpoint to a `ListResourceResponse`.
+   * @deprecated Prefer ListResourceRolesItem and listResourceRolesItemDecoder.
+   */
+  @Deprecated
   implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
     for {
       resourceId <- x.downField("resourceId").as[R]
@@ -691,6 +726,17 @@ object HttpSamDAO {
       inherited <- x.downField("inherited").as[SamRoleAction]
       public <- x.downField("public").as[SamRoleAction]
     } yield ListResourceResponse(resourceId, (direct.roles ++ inherited.roles ++ public.roles).toSet)
+  }
+
+  /** Decodes an item from Sam's resource list endpoint to a `ListResourceRolesItem`. Ignores any extra-role actions. */
+  implicit def listResourceRolesItemDecoder[R: Decoder]: Decoder[ListResourceRolesItem[R]] = Decoder.instance { x =>
+    for {
+      resourceId <- x.downField("resourceId").as[R]
+      // these three places can have duplicated SamResourceRoles
+      direct <- x.downField("direct").as[SamResourceRoles]
+      inherited <- x.downField("inherited").as[SamResourceRoles]
+      public <- x.downField("public").as[SamResourceRoles]
+    } yield ListResourceRolesItem[R](resourceId, (direct.roles ++ inherited.roles ++ public.roles).toSet)
   }
 
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
@@ -722,7 +768,15 @@ final case class CreateSamResourceRequest[R](samResourceId: R,
 
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
 
+/**
+ * An item in the list returned by the list resources endpoint, with a resource ID and a set of SamPolicyNames.
+ * @deprecated ListResourceRolesItem.
+ */
+@Deprecated
 final case class ListResourceResponse[R](samResourceId: R, samPolicyNames: Set[SamPolicyName])
+
+/** An item in the list returned by the list resources endpoint, with a resource ID and a set of SamRoles. */
+final case class ListResourceRolesItem[R](samResourceId: R, samRoles: Set[SamRole])
 
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
@@ -735,7 +789,12 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
 
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 
+/** @deprecated Prefer SamResourceRoles. */
+@Deprecated
 final case class SamRoleAction(roles: List[SamPolicyName])
+
+/** Holds a list of roles. Replicates `SamRoleAction` but uses SamRole, which is appropriate to model Sam resource roles. */
+final case class SamResourceRoles(roles: List[SamRole])
 
 final case class SamUserInfo(userSubjectId: UserSubjectId, userEmail: WorkbenchEmail, enabled: Boolean)
 
