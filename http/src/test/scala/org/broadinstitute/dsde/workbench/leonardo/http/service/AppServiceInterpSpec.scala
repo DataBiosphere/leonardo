@@ -22,7 +22,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesCon
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.{
+  AuthenticationError,
+  BadRequestException,
+  ForbiddenError,
+  LeoException
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
   CreateAppV2Message,
@@ -1295,6 +1300,48 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
+  it should "reject create SAS app request if it's not from AoU UI" in {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas)
+      )
+
+    val res = appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe (Left(AuthenticationError(Some(userInfo.userEmail), "SAS is not supported")))
+  }
+
+  it should "reject create SAS app request if it's not for an AoU project" in {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val grs = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map.from(List("security-group" -> "low"))))
+    }
+    val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), googleResourceService = grs)
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas),
+        labels = Map.from(List("all-of-us" -> "true"))
+      )
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      res <- appServiceInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .attempt
+    } yield res shouldBe (Left(ForbiddenError(userInfo.userEmail, Some(ctx.traceId))))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "reject create SAS app if user is not in SAS user group" in isolatedDbTest {
     val appName = AppName("sas_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
@@ -1337,6 +1384,33 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     res.isLeft shouldBe true
+  }
+
+  it should "create SAS app successfully for AoU" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val grs = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map.from(List("security-group" -> "high"))))
+    }
+    val queue = QueueFactory.makePublisherQueue()
+    val appServiceInterp = makeInterp(queue, googleResourceService = grs)
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas),
+        labels = Map.from(List("all-of-us" -> "true"))
+      )
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      res <- appServiceInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .attempt
+      msg <- queue.take
+    } yield msg.isInstanceOf[CreateAppMessage] shouldBe true
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "create a custom app with default security" in isolatedDbTest {
