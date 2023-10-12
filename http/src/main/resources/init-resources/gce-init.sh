@@ -373,25 +373,25 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   fi
 
   # Install NbExtensions
-  if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
-    for ext in ${JUPYTER_NB_EXTENSIONS}
-    do
-      log "Installing Jupyter NB extension [$ext]..."
-      if [[ $ext == 'gs://'* ]]; then
-        $GSUTIL_CMD cp $ext /var
-        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-      elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
-        JUPYTER_EXTENSION_FILE=`basename $ext`
-        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
-        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-      else
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
-      fi
-    done
-  fi
+#  if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
+#    for ext in ${JUPYTER_NB_EXTENSIONS}
+#    do
+#      log "Installing Jupyter NB extension [$ext]..."
+#      if [[ $ext == 'gs://'* ]]; then
+#        $GSUTIL_CMD cp $ext /var
+#        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+#        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+#      elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+#        JUPYTER_EXTENSION_FILE=`basename $ext`
+#        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
+#        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+#      else
+#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
+#      fi
+#    done
+#  fi
 
   # Install serverExtensions
   if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
