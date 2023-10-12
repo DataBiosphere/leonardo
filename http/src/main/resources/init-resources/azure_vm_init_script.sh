@@ -169,7 +169,7 @@ echo "VALID_HOSTS = ${VALID_HOSTS}"
 
 # Update rbase
 
-echo "Y"|sudo apt install --no-install-recommends r-base==4.3.1-4.2004.0
+echo "Y"|sudo apt install --no-install-recommends r-base=4.3.1-4.2004.0
 
 #Update kernel list
 
