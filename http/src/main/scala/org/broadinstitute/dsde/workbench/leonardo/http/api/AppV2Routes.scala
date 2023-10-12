@@ -208,16 +208,17 @@ object AppV2Routes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct12(
+    Encoder.forProduct14(
       "workspaceId",
       "cloudContext",
+      "region",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
       "proxyUrls",
       "appName",
       "appType",
-//      "chartName",
+      "chartName",
       "diskName",
       "auditInfo",
       "accessScope",
@@ -225,13 +226,14 @@ object AppV2Routes {
     )(x =>
       (x.workspaceId,
        x.cloudContext,
+       x.region,
        x.kubernetesRuntimeConfig,
        x.errors,
        x.status,
        x.proxyUrls,
        x.appName,
        x.appType,
-//       x.chartName,
+       x.chartName,
        x.diskName,
        x.auditInfo,
        x.accessScope,
@@ -240,9 +242,10 @@ object AppV2Routes {
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct12(
+    Encoder.forProduct14(
       "appName",
       "cloudContext",
+      "region",
       "kubernetesRuntimeConfig",
       "errors",
       "status",
@@ -251,23 +254,8 @@ object AppV2Routes {
       "customEnvironmentVariables",
       "auditInfo",
       "appType",
-//      "chartName",
+      "chartName",
       "accessScope",
       "labels"
-    )(x =>
-      (x.appName,
-       x.cloudContext,
-       x.kubernetesRuntimeConfig,
-       x.errors,
-       x.status,
-       x.proxyUrls,
-       x.diskName,
-       x.customEnvironmentVariables,
-       x.auditInfo,
-       //       x.chartName, TODO: revert this once CBAS are upgraded
-       x.appType,
-       x.accessScope,
-       x.labels
-      )
-    )
+    )(x => GetAppResponse.unapply(x).get)
 }

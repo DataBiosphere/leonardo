@@ -180,11 +180,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                                             false
       )
       vnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, true)
-      batchNodesSubnetName <- getLandingZoneResourceName(groupedLzResources,
-                                                         "DeployedSubnet",
-                                                         WORKSPACE_BATCH_SUBNET,
-                                                         false
-      )
+      batchNodesSubnetName <- getLandingZoneResourceId(groupedLzResources, "DeployedSubnet", WORKSPACE_BATCH_SUBNET)
       aksSubnetName <- getLandingZoneResourceName(groupedLzResources, "DeployedSubnet", AKS_NODE_POOL_SUBNET, false)
       postgresResource <- getLandingZoneResource(groupedLzResources,
                                                  "Microsoft.DBforPostgreSQL/flexibleServers",
@@ -284,6 +280,22 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       .getOrRaise(
         AppCreationException(s"could not determine name for resource $resource")
       )
+
+  private def getLandingZoneResourceId(
+    landingZoneResourcesByPurpose: Map[(LandingZoneResourcePurpose, String), List[LandingZoneResource]],
+    resourceType: String,
+    purpose: LandingZoneResourcePurpose
+  ): F[String] =
+    for {
+      resource <- getLandingZoneResource(landingZoneResourcesByPurpose, resourceType, purpose)
+      id <- OptionT
+        .fromOption[F](
+          resource.resourceId
+        )
+        .getOrRaise(
+          AppCreationException(s"could not determine id for resource $resource")
+        )
+    } yield id
 
   private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
