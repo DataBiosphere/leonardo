@@ -486,8 +486,16 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         && nbstripout --install --global \
         && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
-  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
-       && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+#  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+#       && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+#       && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#       && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
+#       && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+#       && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#       && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#       && mkdir -p $JUPYTER_HOME/nbconfig"
+
+  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
        && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
