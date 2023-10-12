@@ -40,6 +40,7 @@ class AutopauseMonitor[F[_]](
 
   private[monitor] val autoPauseCheck: F[Unit] =
     for {
+      _ <- logger.info(s"Executing autopause check at interval of ${config.autoFreezeCheckInterval}")
       clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
       now <- F.realTimeInstant
       pauseableClusters <- clusters.toList.filterA { cluster =>
