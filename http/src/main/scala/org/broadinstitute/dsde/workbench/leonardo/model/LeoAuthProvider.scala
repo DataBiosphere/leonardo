@@ -20,7 +20,9 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 /**
  * Typeclass representing a Sam resource and associated policies.
  * @tparam R SamResourceId
+ * @deprecated Prefer the Sam resource type config retrieved directly from Sam's Config API at `/api/config/v1/resourceTypes`.
  */
+@Deprecated
 sealed trait SamResource[R] {
 
   // Values per resource. These require a specific resource instance, which affects return value for some App types.
@@ -31,8 +33,6 @@ sealed trait SamResource[R] {
   def resourceIdAsString(r: R): String
 
   /**
-   * TODO [] this kind of access logic should obviously be modeled in Sam. Do that instead.
-   *
    * Sam roles on which read access is explicitly granted. Empty set permits all.
    * Given a resource type `X`, with `someX` a child of a workspace or project W,
    * a user could read someX iff:

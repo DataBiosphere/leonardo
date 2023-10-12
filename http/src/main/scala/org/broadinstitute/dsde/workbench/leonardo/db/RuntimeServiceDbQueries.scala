@@ -23,7 +23,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   DiskConfig,
   GetRuntimeResponse,
-  ListRuntimeIdResponse,
   ListRuntimeResponse2
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{

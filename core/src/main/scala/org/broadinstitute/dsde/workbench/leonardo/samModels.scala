@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import ca.mrvisser.sealerate
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -305,3 +306,6 @@ object AppAccessScope {
 
   def stringToObject: Map[String, AppAccessScope] = values.map(v => v.toString -> v).toMap
 }
+
+/** The response format for id-only runtime database calls. */
+final case class ListRuntimeIdResponse(id: Long, samResource: RuntimeSamResourceId)

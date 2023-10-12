@@ -153,9 +153,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     require(resourceDefinition != appDefinition)
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
 
-    // TODO get `ownerRoleName` from Sam config for the resource type
+    // TODO get `ownerRoleName` from Sam config API /api/config/v1/resourceTypes
     val ownerRole: SamRole = resourceDefinition.ownerRoleName
-    val resourceType: SamResourceType = resourceDefinition.resourceType
+
     for {
 
       resourcesWithRole: List[(R, SamRole)] <- samDao

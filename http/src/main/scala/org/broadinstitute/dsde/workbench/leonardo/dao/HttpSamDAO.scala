@@ -146,6 +146,8 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield response.flatMap(item => item.samRoles.map(role => (item.samResourceId, role)))
 
+  /** @deprecated Prefer listResourceIdsWithRole. */
+  @Deprecated
   override def getResourcePolicies[R](
     authHeader: Authorization,
     resourceType: SamResourceType
@@ -701,13 +703,21 @@ object HttpSamDAO {
     } yield SyncStatusResponse(lastSyncDate, email)
   }
 
-  /** Decodes the `roles` field to a SamRoleAction object. */
+  /**
+   * Decodes the `roles` field to a SamRoleAction object.
+   * @deprecated Prefer SamResourceRoles and samResourceRolesDecoder.
+   */
+  @Deprecated
   implicit val samRoleActionDecoder: Decoder[SamRoleAction] = Decoder.forProduct1("roles")(SamRoleAction.apply)
 
   /** Decodes the `roles` field to a SamResourceRoles object. */
   implicit val samResourceRolesDecoder: Decoder[SamResourceRoles] = Decoder.forProduct1("roles")(SamResourceRoles.apply)
 
-  /** Decodes an item from Sam's resource list endpoint to a `ListResourceResponse`. */
+  /**
+   * Decodes an item from Sam's resource list endpoint to a `ListResourceResponse`.
+   * @deprecated Prefer ListResourceRolesItem and listResourceRolesItemDecoder.
+   */
+  @Deprecated
   implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
     for {
       resourceId <- x.downField("resourceId").as[R]
@@ -758,7 +768,11 @@ final case class CreateSamResourceRequest[R](samResourceId: R,
 
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
 
-/** An item in the list returned by the list resources endpoint, with a resource ID and a set of SamPolicyNames. */
+/**
+ * An item in the list returned by the list resources endpoint, with a resource ID and a set of SamPolicyNames.
+ * @deprecated ListResourceRolesItem.
+ */
+@Deprecated
 final case class ListResourceResponse[R](samResourceId: R, samPolicyNames: Set[SamPolicyName])
 
 /** An item in the list returned by the list resources endpoint, with a resource ID and a set of SamRoles. */
@@ -775,6 +789,8 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
 
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 
+/** @deprecated Prefer SamResourceRoles. */
+@Deprecated
 final case class SamRoleAction(roles: List[SamPolicyName])
 
 /** Holds a list of roles. Replicates `SamRoleAction` but uses SamRole, which is appropriate to model Sam resource roles. */

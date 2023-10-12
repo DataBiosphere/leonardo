@@ -3,28 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AsyncRuntimeFields,
-  AuditInfo,
-  CloudContext,
-  CreateAzureDiskRequest,
-  CreateAzureRuntimeRequest,
-  LabelMap,
-  RuntimeConfig,
-  RuntimeError,
-  RuntimeImage,
-  RuntimeName,
-  RuntimeStatus,
-  UserJupyterExtensionConfig,
-  UserScriptPath,
-  WorkspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.{AsyncRuntimeFields, AuditInfo, CloudContext, CreateAzureDiskRequest, CreateAzureRuntimeRequest, LabelMap, RuntimeConfig, RuntimeError, RuntimeImage, RuntimeName, RuntimeStatus, UserJupyterExtensionConfig, UserScriptPath, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import java.net.URL
 import java.time.Instant
-
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 object RuntimeRoutesTestJsonCodec {
   implicit val dataprocConfigRequestEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct11(
@@ -210,15 +195,6 @@ object RuntimeRoutesTestJsonCodec {
       false,
       Map.empty,
       None
-    )
-  }
-
-  implicit val listRuntimeIdResponseDecoder: Decoder[ListRuntimeIdResponse] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[Long]
-    } yield ListRuntimeIdResponse(
-      id,
-      RuntimeSamResourceId("fakeId")
     )
   }
 
