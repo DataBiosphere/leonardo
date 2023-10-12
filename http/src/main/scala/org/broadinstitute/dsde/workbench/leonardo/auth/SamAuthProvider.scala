@@ -150,13 +150,22 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     resourceIdDecoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[Set[R]] = {
-    require(resourceDefinition != appDefinition)
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
 
     // TODO get `ownerRoleName` from Sam config API /api/config/v1/resourceTypes
     val ownerRole: SamRole = resourceDefinition.ownerRoleName
 
     for {
+      traceId <- ev.ask
+      _ <- F.raiseWhen(
+        resourceDefinition == appDefinition
+      )(
+        AuthProviderException(
+          traceId,
+          s"SamAuthProvider.listResourceIds should not be called for App resources",
+          StatusCodes.BadRequest
+        )
+      )
 
       resourcesWithRole: List[(R, SamRole)] <- samDao
         .listResourceIdsWithRole[R](authHeader)
