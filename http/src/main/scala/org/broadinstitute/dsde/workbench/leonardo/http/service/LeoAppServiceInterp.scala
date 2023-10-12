@@ -239,7 +239,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
       clusterNodepoolAction = saveClusterResult match {
-        case ClusterExists(_) =>
+        case ClusterExists(_, _) =>
           // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
           if (userNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
         case ClusterDoesNotExist(c, n) => Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
@@ -643,26 +643,38 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else F.unit
 
       // Save or retrieve a nodepool record for the app
-      userNodepoolOpt <- nodepoolQuery
-        .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
-        .transaction
-      clusterId = saveClusterResult.minimalCluster.id
-      nodepool <- userNodepoolOpt match {
-        case Some(n) =>
-          log.info(ctx.loggingCtx)(
-            s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
-          ) >> F.pure(n)
-        case None =>
+      // Use default nodepool for Azure
+      nodepool <-
+        if (cloudContext.cloudProvider == CloudProvider.Azure) {
+          F.pure(saveClusterResult.defaultNodepool.toNodepool())
+        } else {
           for {
-            _ <- log.info(ctx.loggingCtx)(
-              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
-            )
-            saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
-            )
-            savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
-          } yield savedNodepool
-      }
+            userNodepoolOpt <- nodepoolQuery
+              .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
+              .transaction
+            userNodepool <- userNodepoolOpt match {
+              case Some(n) =>
+                log.info(ctx.loggingCtx)(
+                  s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
+                ) >> F.pure(n)
+              case None =>
+                for {
+                  _ <- log.info(ctx.loggingCtx)(
+                    s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
+                  )
+                  saveNodepool <- F.fromEither(
+                    getUserNodepool(saveClusterResult.minimalCluster.id,
+                                    cloudContext,
+                                    originatingUserEmail,
+                                    machineConfig,
+                                    ctx.now
+                    )
+                  )
+                  savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+                } yield savedNodepool
+            }
+          } yield userNodepool
+        }
 
       // Retrieve a pet identity from Sam
       runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
