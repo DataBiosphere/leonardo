@@ -1,6 +1,10 @@
-Quickstart: running swintegration tests locally on Mac/Docker 
+Quickstart: running integration tests locally on Mac/Docker 
 
 ## Set Up
+
+For Azure tests:
+	Create a new [BEE](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE) with the `rawls-e2e-azure-tests` template
+
 
 Run this command on the VPN to generate you `application.conf` file
 ```bash
@@ -18,24 +22,7 @@ BEE_NAME=[Your BEE instance name] ./render-local-env.sh [branch of firecloud-aut
 * service root
 	* the name of your local clone of leonardo if not `leonardo`
 
-
-
-## Running in docker
-
-See [firecloud-automated-testing](https://github.com/broadinstitute/firecloud-automated-testing).
-
-
-## Running directly (with real chrome)
-
-### Set Up
-
-```
-brew install chromedriver
-```
-
-Note: Leonardo integration tests are not currently web-based but may fail due to dependencies without chromedriver
-	
-### Run tests
+### Run tests (GCP)
 
 `sbt -Djsse.enableSNIExtension=false -Dheadless=false "project automation" test`
 
@@ -56,11 +43,9 @@ Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do th
 	- If the `Spec` extends `ClusterFixtureSpec`/`RuntimeFixtureSpec`, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to `ClusterFixtureSpec`/`RuntimeFixtureSpec`. 
 	- If not, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to the `Spec` directly.
 
-### Developing azure automation tests locally
+### Run tests (Azure)
 
-When running azure automation tests locally against a fresh [bee](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE), you will have to perform a few extra steps:
-
-- Change all sections of `application.conf` to have the proper bee/terra URLS. For example, for a bee named `jc-bee-10`:
+- Check that all sections of `application.conf` have the proper bee/terra URLS. For example, for a bee named `jc-bee-10`:
 ```
 fireCloud {
   baseUrl = "https://firecloud.jc-bee-10.bee.envs-terra.bio/"
@@ -91,7 +76,17 @@ leonardo {
 }
 ```
 
-This above will allow the tests to run against a fresh bee. Then, tests can be run via `sbt  "project automation" "testOnly *[my-file-name]"`
+Then, tests can be run via `sbt  "project automation" "testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite"`
+If you want to test a specific test, you can comment out the other tests here:
+
+```
+final class LeonardoAzureSuite
+	extends Suites(
+		new AzureRuntimeSpec,
+		new AzureDiskSpec,
+		new AzureAutopauseSpec
+	)
+```
 
 To save time developing, you will likely want to reference the billing project and rawls workspace created in the first run of the tests.
 To do so:
