@@ -152,7 +152,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   ): F[Set[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
 
-    // TODO get `ownerRoleName` from Sam config API /api/config/v1/resourceTypes
+    // TODO model these permissions in Sam, so we can just get the ids on which user is granted Discover action
     val ownerRole: SamRole = resourceDefinition.ownerRoleName
 
     for {
