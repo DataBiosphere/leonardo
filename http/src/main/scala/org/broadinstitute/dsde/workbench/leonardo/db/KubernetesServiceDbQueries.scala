@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundExcept
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByCreator, filterByWorkspaceId, nonDeletedAppQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByWorkspaceIdAndCreator, nonDeletedAppQuery}
 import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
@@ -39,7 +39,10 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(
       listClustersByCloudContext(cloudContext),
       nodepoolQuery,
-      filterByCreator(if (includeDeleted) appQuery else nonDeletedAppQuery, creatorOnly),
+      filterByWorkspaceIdAndCreator(
+        query = if (includeDeleted) appQuery else nonDeletedAppQuery,
+        workspaceId = None,
+        creatorOnly = creatorOnly),
       labelFilter
     )
 
@@ -49,14 +52,18 @@ object KubernetesServiceDbQueries {
     */
   def listFullAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
                                 labelFilter: LabelMap = Map(),
-                                includeDeleted: Boolean = false
+                                includeDeleted: Boolean = false,
+                                creatorOnly: Option[WorkbenchEmail] = None
   )(implicit
     ec: ExecutionContext
   ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
       kubernetesClusterQuery,
       nodepoolQuery,
-      filterByWorkspaceId(if (includeDeleted) appQuery else nonDeletedAppQuery, workspaceId),
+      filterByWorkspaceIdAndCreator(
+        query = if (includeDeleted) appQuery else nonDeletedAppQuery,
+        workspaceId = workspaceId,
+        creatorOnly = creatorOnly),
       labelFilter
     )
 
@@ -167,7 +174,7 @@ object KubernetesServiceDbQueries {
     getActiveFullApp(
       kubernetesClusterQuery,
       nodepoolQuery,
-      filterByWorkspaceId(appQuery.findActiveByNameQuery(appName), Some(workspaceId)),
+      filterByWorkspaceIdAndCreator(appQuery.findActiveByNameQuery(appName), Some(workspaceId)),
       labelFilter
     )
 
