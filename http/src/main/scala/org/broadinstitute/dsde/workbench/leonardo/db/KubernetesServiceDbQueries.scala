@@ -174,7 +174,10 @@ object KubernetesServiceDbQueries {
     getActiveFullApp(
       kubernetesClusterQuery,
       nodepoolQuery,
-      filterByWorkspaceIdAndCreator(appQuery.findActiveByNameQuery(appName), Some(workspaceId)),
+      filterByWorkspaceIdAndCreator(
+        query = appQuery.findActiveByNameQuery(appName),
+        workspaceId = Some(workspaceId),
+        creatorOnly = None),
       labelFilter
     )
 
