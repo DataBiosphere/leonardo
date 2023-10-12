@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, ExcludeFromJenkins, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.http4s.headers.Authorization
 import org.scalatest.prop.TableDrivenPropertyChecks
@@ -22,6 +22,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import scala.concurrent.duration._
 
 @DoNotDiscover
+@ExcludeFromJenkins
 class AzureRuntimeSpec
     extends AzureBilling
     with LeonardoTestUtils

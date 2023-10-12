@@ -17,11 +17,12 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJe
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, ExcludeFromJenkins, LeonardoTestUtils}
 
 import scala.concurrent.duration._
 
 @DoNotDiscover
+@ExcludeFromJenkins
 class AzureDiskSpec
     extends AzureBilling
     with LeonardoTestUtils

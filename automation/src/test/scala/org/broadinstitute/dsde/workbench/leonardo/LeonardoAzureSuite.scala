@@ -5,8 +5,8 @@ import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, Azu
 import org.broadinstitute.dsde.workbench.pipeline.Pipeline.BILLING_PROJECT
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.service.Rawls
-import org.scalatest.freespec.FixtureAnyFreeSpecLike
 import org.scalatest._
+import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
 import java.util.UUID
 
