@@ -7,5 +7,5 @@ object LeonardoTestTags {
   object SlickPlainQueryTest extends Tag("SlickPlainQueryTest")
 
   // intent: do not run in given execution context
-  object ExcludeFromJenkins extends Tag("ExcludeFromJenkins")
+  object ExcludeFromJenkins extends Tag("org.broadinstitute.dsde.workbench.leonardo.ExcludeFromJenkins")
 }
