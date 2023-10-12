@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, WorkspaceNotFoundException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{Release, _}
 import org.http4s.headers.Authorization
@@ -74,24 +74,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private def getListenerReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-listener-rls")
-
-  private def retrieveWsmReferenceDatabases(resourceApi: ResourceApi,
-                                            referenceDatabaseNames: Set[String],
-                                            workspaceId: UUID
-  ): F[List[String]] = {
-    val wsmResourceDatabases = F.delay(
-      resourceApi
-        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
-        .getResources
-        .asScala
-        .toList
-    )
-    wsmResourceDatabases.map { dbs =>
-      dbs
-        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
-        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
-    }
-  }
 
   /** Creates an app and polls it for completion */
   override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
