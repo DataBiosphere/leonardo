@@ -550,7 +550,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     ).use { credential =>
       val scopedCredential = credential.createScoped(saScopes.asJava)
 
-      F.delay(scopedCredential.refresh).map(_ => scopedCredential.getAccessToken)
+      F.blocking(scopedCredential.refresh).map(_ => scopedCredential.getAccessToken)
     }
 
   private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
@@ -593,7 +593,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
 
   private def getTokenFromKey(key: Json): F[String] = {
     val keyStream = new ByteArrayInputStream(key.toString().getBytes)
-    F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
+    F.blocking(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
       .map(_.refreshAccessToken.getTokenValue)
   }
 

@@ -78,7 +78,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                             referenceDatabaseNames: Set[String],
                                             workspaceId: UUID
   ): F[List[String]] = {
-    val wsmResourceDatabases = F.delay(
+    val wsmResourceDatabases = F.blocking(
       resourceApi
         .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
         .getResources
@@ -331,7 +331,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
         .transaction
       wsmIdentityOpt <- wsmIdentities.headOption.traverse { wsmIdentity =>
-        F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
+        F.blocking(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
       }
 
       // Call WSM to get the list of databases for the app.
@@ -339,7 +339,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
         .transaction
       wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
-        F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
+        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
       }
 
       // call WSM resource API to get list of ReferenceDatabases
@@ -355,7 +355,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
         .transaction
       wsmNamespaceOpt <- wsmNamespaces.headOption.traverse { wsmNamespace =>
-        F.delay(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value))
+        F.blocking(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value))
       }
       wsmNamespace <- F.fromOption(wsmNamespaceOpt,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
@@ -701,7 +701,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"WSM create identity request: ${createIdentityRequest}")
 
       // Execute WSM call
-      createIdentityResponse <- F.delay(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
+      createIdentityResponse <- F.blocking(wsmApi.createAzureManagedIdentity(createIdentityRequest, workspaceId.value))
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create identity response: ${createIdentityResponse}")
 
@@ -790,13 +790,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
 
       // Execute WSM call
-      createDatabaseResponse <- F.delay(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
+      createDatabaseResponse <- F.blocking(wsmApi.createAzureDatabase(createDatabaseRequest, workspaceId.value))
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create database response: ${createDatabaseResponse}")
 
       // Poll for DB creation
       // We don't actually care about the JobReport - just that it succeeded.
-      op = F.delay(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName))
+      op = F.blocking(wsmApi.getCreateAzureDatabaseResult(workspaceId.value, dbName))
       result <- streamFUntilDone(
         op,
         config.appMonitorConfig.createApp.maxAttempts,
@@ -882,14 +882,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
 
       // Execute WSM call
-      createNamespaceResponse <- F.delay(
+      createNamespaceResponse <- F.blocking(
         wsmApi.createAzureKubernetesNamespace(createNamespaceRequest, workspaceId.value)
       )
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace response: ${createNamespaceResponse}")
 
       // Poll for namespace creation
-      op = F.delay(wsmApi.getCreateAzureKubernetesNamespaceResult(workspaceId.value, namespacePrefix))
+      op = F.blocking(wsmApi.getCreateAzureKubernetesNamespaceResult(workspaceId.value, namespacePrefix))
       result <- streamFUntilDone(
         op,
         config.appMonitorConfig.createApp.maxAttempts,
@@ -938,7 +938,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteNamespaceRequest}")
 
       // Execute WSM call
-      result <- F.delay(
+      result <- F.blocking(
         wsmApi.deleteAzureKubernetesNamespace(deleteNamespaceRequest, workspaceId.value, wsmResource.resourceId.value)
       )
 
@@ -953,7 +953,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
 
       // Poll for namespace deletion
-      op = F.delay(
+      op = F.blocking(
         wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, jobId.toString)
       )
       result <- streamFUntilDone(
@@ -989,9 +989,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       _ <- wsmResource.resourceType match {
         case WsmResourceType.AzureManagedIdentity =>
-          F.delay(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
+          F.blocking(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
         case WsmResourceType.AzureDatabase =>
-          F.delay(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
+          F.blocking(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
         case _ =>
           F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
