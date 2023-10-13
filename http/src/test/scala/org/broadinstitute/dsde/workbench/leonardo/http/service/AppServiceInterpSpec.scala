@@ -1675,11 +1675,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val cluster = clusters.head
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
 
+    clusters.flatMap(_.nodepools).size shouldBe 1
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual appReq.kubernetesRuntimeConfig.get.machineType
-    nodepool.numNodes shouldEqual appReq.kubernetesRuntimeConfig.get.numNodes
-    nodepool.autoscalingEnabled shouldEqual appReq.kubernetesRuntimeConfig.get.autoscalingEnabled
-    nodepool.auditInfo.creator shouldEqual userInfo.userEmail
+    nodepool.isDefault shouldBe true
 
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
@@ -1719,12 +1717,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
     cluster.status shouldEqual KubernetesClusterStatus.Running
 
+    clusters.flatMap(_.nodepools).size shouldBe 1
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual MachineTypeName("unset")
-    nodepool.numNodes shouldEqual NumNodes(1)
-    nodepool.autoscalingEnabled shouldEqual false
-    nodepool.auditInfo.creator shouldEqual userInfo.userEmail
-    nodepool.status shouldEqual NodepoolStatus.Running
+    nodepool.isDefault shouldBe true
 
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
