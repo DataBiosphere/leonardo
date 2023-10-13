@@ -171,7 +171,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(None)
     }
     val interp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1269,7 +1269,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1392,7 +1392,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(true)
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1436,7 +1436,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1479,7 +1479,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1519,7 +1519,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1565,7 +1565,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1611,7 +1611,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),

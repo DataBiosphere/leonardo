@@ -111,7 +111,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       }
                     }
 
-                  checkIfAllowed.whenA(config.enableSasAppGroupCheck)
+                  checkIfAllowed.whenA(config.enableSasApp)
               }
             case None =>
               F.raiseError(
