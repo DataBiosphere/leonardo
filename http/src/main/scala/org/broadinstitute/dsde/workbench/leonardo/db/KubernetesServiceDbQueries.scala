@@ -39,10 +39,10 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(
       listClustersByCloudContext(cloudContext),
       nodepoolQuery,
-      filterByWorkspaceIdAndCreator(
-        query = if (includeDeleted) appQuery else nonDeletedAppQuery,
-        workspaceId = None,
-        creatorOnly = creatorOnly),
+      filterByWorkspaceIdAndCreator(query = if (includeDeleted) appQuery else nonDeletedAppQuery,
+                                    workspaceId = None,
+                                    creatorOnly = creatorOnly
+      ),
       labelFilter
     )
 
@@ -60,10 +60,10 @@ object KubernetesServiceDbQueries {
     joinFullAppAndUnmarshal(
       kubernetesClusterQuery,
       nodepoolQuery,
-      filterByWorkspaceIdAndCreator(
-        query = if (includeDeleted) appQuery else nonDeletedAppQuery,
-        workspaceId = workspaceId,
-        creatorOnly = creatorOnly),
+      filterByWorkspaceIdAndCreator(query = if (includeDeleted) appQuery else nonDeletedAppQuery,
+                                    workspaceId = workspaceId,
+                                    creatorOnly = creatorOnly
+      ),
       labelFilter
     )
 
@@ -174,10 +174,10 @@ object KubernetesServiceDbQueries {
     getActiveFullApp(
       kubernetesClusterQuery,
       nodepoolQuery,
-      filterByWorkspaceIdAndCreator(
-        query = appQuery.findActiveByNameQuery(appName),
-        workspaceId = Some(workspaceId),
-        creatorOnly = None),
+      filterByWorkspaceIdAndCreator(query = appQuery.findActiveByNameQuery(appName),
+                                    workspaceId = Some(workspaceId),
+                                    creatorOnly = None
+      ),
       labelFilter
     )
 
