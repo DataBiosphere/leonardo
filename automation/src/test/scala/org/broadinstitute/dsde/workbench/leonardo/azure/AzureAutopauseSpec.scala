@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.azure
 
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
@@ -9,17 +11,15 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   ClusterStatus,
   CreateAzureRuntimeRequest
 }
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, ExcludeFromJenkins, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
-import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
+import org.broadinstitute.dsde.workbench.service.test.CleanUp
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 
 import scala.concurrent.duration._
 
 @DoNotDiscover
-@ExcludeFromJenkins
 class AzureAutopauseSpec
     extends AzureBilling
     with LeonardoTestUtils
@@ -28,9 +28,9 @@ class AzureAutopauseSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+  "azure runtime autopauses" taggedAs ExcludeFromJenkins in { workspaceDetails =>
+    implicit val accessToken: IO[AuthToken] = Hermione.authToken()
 
-  "azure runtime autopauses" in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()

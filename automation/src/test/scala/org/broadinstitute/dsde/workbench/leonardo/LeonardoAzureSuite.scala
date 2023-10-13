@@ -153,7 +153,6 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
     s"${UUID.randomUUID().toString()}-azure-test-workspace"
 }
 
-@ExcludeFromJenkins
 final class LeonardoAzureSuite
     extends Suites(
       new AzureRuntimeSpec,
