@@ -94,26 +94,24 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case Some(cn) =>
               cn match {
                 case AllowedChartName.RStudio => F.unit
-                case AllowedChartName.Sas     =>
-                  // TODO: https://precisionmedicineinitiative.atlassian.net/browse/RW-11059
-                  if (config.enableSasAppGroupCheck)
-                    authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
-                      if (res) {
-                        if (enableIntraNodeVisibility)
-                          checkIfSasAppCreationIsAllowed(userInfo.userEmail, googleProject)
-                        else {
+                case AllowedChartName.Sas =>
+                  val checkIfAllowed =
+                    if (enableIntraNodeVisibility)
+                      checkIfSasAppCreationIsAllowed(userInfo.userEmail, googleProject)
+                    else {
+                      authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
+                        if (res) {
+                          F.unit
+                        } else
                           F.raiseError[Unit](
-                            AuthenticationError(Some(userInfo.userEmail), "SAS is not supported")
+                            AuthenticationError(Some(userInfo.userEmail),
+                                                "You need to obtain a license in order to create a SAS App"
+                            )
                           )
-                        }
-                      } else
-                        F.raiseError[Unit](
-                          AuthenticationError(Some(userInfo.userEmail),
-                                              "You need to obtain a license in order to create a SAS App"
-                          )
-                        )
+                      }
                     }
-                  else F.unit
+
+                  checkIfAllowed.whenA(config.enableSasAppGroupCheck)
               }
             case None =>
               F.raiseError(
