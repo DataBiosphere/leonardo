@@ -534,7 +534,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       paramMap <- F.fromEither(processListParameters(params))
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       allClusters <- KubernetesServiceDbQueries
-        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2, creatorOnly)
         .transaction
       res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, false)
 
