@@ -1350,6 +1350,34 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "reject create SAS app request if SAS is disabled" in {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val grs = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map.from(List("security-group" -> "low"))))
+    }
+    val appServiceInterp =
+      makeInterp(QueueFactory.makePublisherQueue(), googleResourceService = grs, enableSasApp = false)
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas),
+        labels = Map.from(List("all-of-us" -> "true"))
+      )
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      res <- appServiceInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .attempt
+    } yield res shouldBe (Left(
+      AuthenticationError(Some(userInfo.userEmail), "SAS is not enabled. Please contact your administrator.")
+    ))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "create SAS app successfully for AoU even if user is not in sas_app_users group" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
@@ -2473,10 +2501,11 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                          authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
                          wsmDao: WsmDao[IO] = wsmDao,
                          enableCustomAppCheckFlag: Boolean = true,
+                         enableSasApp: Boolean = true,
                          googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                          customAppConfig: CustomAppConfig = gkeCustomAppConfig
   ) = {
-    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag)
+    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
 
     new LeoAppServiceInterp[IO](
       appConfig,

@@ -95,10 +95,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               cn match {
                 case AllowedChartName.RStudio => F.unit
                 case AllowedChartName.Sas =>
-                  val checkIfAllowed =
-                    if (enableIntraNodeVisibility)
+                  if (config.enableSasApp) {
+                    if (enableIntraNodeVisibility) {
                       checkIfSasAppCreationIsAllowed(userInfo.userEmail, googleProject)
-                    else {
+                    } else {
                       authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
                         if (res) {
                           F.unit
@@ -110,8 +110,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                           )
                       }
                     }
-
-                  checkIfAllowed.whenA(config.enableSasApp)
+                  } else
+                    F.raiseError[Unit](
+                      AuthenticationError(
+                        Some(userInfo.userEmail),
+                        "SAS is not enabled. Please contact your administrator."
+                      )
+                    )
               }
             case None =>
               F.raiseError(
