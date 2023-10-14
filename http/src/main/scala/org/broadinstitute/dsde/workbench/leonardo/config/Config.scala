@@ -788,7 +788,7 @@ object Config {
 
   val appServiceConfig = AppServiceConfig(
     config.getBoolean("app-service.enable-custom-app-check"),
-    config.getBoolean("app-service.enable-sas-group-app-check"),
+    config.getBoolean("app-service.enable-sas-app"),
     leoKubernetesConfig
   )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
