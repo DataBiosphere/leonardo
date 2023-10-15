@@ -526,6 +526,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] =
     for {
+      ctx <- as.ask
       // Make sure that the user still has access to the resource parent workspace
       hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
         WorkspaceResourceSamResourceId(workspaceId),
@@ -534,8 +535,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       paramMap <- F.fromEither(processListParameters(params))
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       allClusters <- KubernetesServiceDbQueries
-        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2, creatorOnly)
         .transaction
       res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, false)
 
