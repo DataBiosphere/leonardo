@@ -108,7 +108,7 @@ If the test fails with some intermediate resources remaining:
 - It may be helpful to clean up your BEE's leonardo DB since only one runtime can exist per workspace. You can find instructions to get shell mysql access to your BEE in the [leonardo handbook](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE#Connecting-to-your-BEE%E2%80%99s-databases).
   - Once you have shell access to your BEE's leonardo mysql, run the following *to delete all Leo runtime records*: `DELETE FROM CLUSTER_ERROR WHERE 1=1; DELETE FROM CLUSTER_IMAGE WHERE 1=1; DELETE FROM RUNTIME_CONTROLLED_RESOURCE WHERE 1=1; DELETE FROM CLUSTER WHERE 1=1; DELETE FROM RUNTIME_CONFIG WHERE 1=1; DELETE FROM PERSISTENT_DISK WHERE 1=1;`
 
-To get any tests working with the ssh tunnel, you will need to run
+To get any tests working with the ssh tunnel, you will need to run the following commands. Note that the argument after `-s` is the subscription ID and can be found in the Azure Portal under the static managed resource group.
 ```
 az login --service-principal -u $(vault read -field=client-id secret/dsde/terra/azure/qa/leonardo/managed-app-publisher) -p "$(vault read -field=client-secret secret/dsde/terra/azure/qa/leonardo/managed-app-publisher)" -t $(vault read -field=tenant-id secret/dsde/terra/azure/qa/leonardo/managed-app-publisher)
 az account set -s "f557c728-871d-408c-a28b-eb6b2141a087"
