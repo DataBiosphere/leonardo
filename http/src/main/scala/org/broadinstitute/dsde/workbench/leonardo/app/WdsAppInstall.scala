@@ -62,6 +62,10 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
       valuesList =
         List(
+          // environment config
+          raw"wds.environment=${config.environment}", 
+          raw"beeName=${config.beeName}",  
+
           // azure resources configs
           raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
@@ -81,7 +85,6 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
           // general configs
           raw"fullnameOverride=wds-${params.app.release.asString}",
-          raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // provenance (app-cloning) configs
           raw"provenance.userAccessToken=${userToken}",
