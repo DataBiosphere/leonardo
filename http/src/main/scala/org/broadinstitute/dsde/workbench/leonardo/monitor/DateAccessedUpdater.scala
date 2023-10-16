@@ -59,7 +59,7 @@ class DateAccessedUpdater[F[_]](
 }
 
 object DateAccessedUpdater {
-  implicit val updateDateAccessMessageOrder: Ordering[UpdateDateAccessedMessage] =
+  implicit val updateDateAccessedMessageOrder: Ordering[UpdateDateAccessedMessage] =
     Ordering.fromLessThan[UpdateDateAccessedMessage] { (msg1, msg2) =>
       if (msg1.cloudContext == msg2.cloudContext && msg1.updateTarget == msg2.updateTarget)
         msg1.dateAccessd.toEpochMilli < msg2.dateAccessd.toEpochMilli

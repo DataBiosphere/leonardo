@@ -19,7 +19,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
-  it should "sort UpdateDateAccessMessage properly" in {
+  it should "sort UpdateDateAccessedMessage properly" in {
     val msg1 = UpdateDateAccessedMessage(UpdateTarget.Runtime(RuntimeName("r1")),
                                          CloudContext.Gcp(GoogleProject("p1")),
                                          Instant.ofEpochMilli(1588264615480L)

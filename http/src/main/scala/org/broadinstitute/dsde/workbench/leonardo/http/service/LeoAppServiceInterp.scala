@@ -84,7 +84,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
+      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
             AppType.CromwellRunnerApp =>
@@ -95,17 +95,28 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               cn match {
                 case AllowedChartName.RStudio => F.unit
                 case AllowedChartName.Sas =>
-                  if (config.enableSasAppGroupCheck)
-                    authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
-                      if (res) F.unit
-                      else
-                        F.raiseError[Unit](
-                          AuthenticationError(Some(userInfo.userEmail),
-                                              "You need to obtain a license in order to create a SAS App"
+                  if (config.enableSasApp) {
+                    if (enableIntraNodeVisibility) {
+                      checkIfSasAppCreationIsAllowed(userInfo.userEmail, googleProject)
+                    } else {
+                      authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
+                        if (res) {
+                          F.unit
+                        } else
+                          F.raiseError[Unit](
+                            AuthenticationError(Some(userInfo.userEmail),
+                                                "You need to obtain a license in order to create a SAS App"
+                            )
                           )
-                        )
+                      }
                     }
-                  else F.unit
+                  } else
+                    F.raiseError[Unit](
+                      AuthenticationError(
+                        Some(userInfo.userEmail),
+                        "SAS is not enabled. Please contact your administrator."
+                      )
+                    )
               }
             case None =>
               F.raiseError(
@@ -515,6 +526,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] =
     for {
+      ctx <- as.ask
       // Make sure that the user still has access to the resource parent workspace
       hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
         WorkspaceResourceSamResourceId(workspaceId),
@@ -523,8 +535,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       paramMap <- F.fromEither(processListParameters(params))
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       allClusters <- KubernetesServiceDbQueries
-        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2, creatorOnly)
         .transaction
       res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, false)
 
@@ -954,6 +967,40 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
       } yield ()
     else F.unit
+
+  private[service] def checkIfSasAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      projectLabels <- googleResourceService.getLabels(googleProject)
+
+      allowedOrError = projectLabels match {
+        case Some(labels) =>
+          labels.get(SECURITY_GROUP) match {
+            case Some(securityGroupValue) =>
+              if (securityGroupValue == SECURITY_GROUP_HIGH)
+                Right(true)
+              else
+                Left(
+                  s"SAS is not supported for this project because the project doesn't have proper value for ${SECURITY_GROUP} label"
+                )
+            case None =>
+              Left(
+                s"SAS is not supported for this project because the project doesn't have value for ${SECURITY_GROUP} label"
+              )
+          }
+        case None =>
+          Left(s"SAS is not supported for this project because the project doesn't have ${SECURITY_GROUP} label")
+      }
+
+      _ <- allowedOrError match {
+        case Left(error) =>
+          log.info(Map("traceId" -> ctx.asString))(error) >> F.raiseError(ForbiddenError(userEmail, Some(ctx)))
+        case Right(_) => F.unit
+      }
+    } yield ()
 
   private def getLastUsedAppForDisk(
     req: CreateAppRequest,

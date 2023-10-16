@@ -1829,6 +1829,12 @@ paths:
           required: false
           schema:
             type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of apps
@@ -2996,7 +3002,7 @@ components:
         - proxyUrl
         - status
         - labels
-        - erors
+        - errors
         - autopauseThreshold
         - runtimeImages
         - scopes
@@ -3600,6 +3606,10 @@ components:
           description: The block size in bytes that the persistent disk is to be updated to.
     ClusterError:
       description: Errors encountered on cluster create
+      required:
+        - errorMessage
+        - errorCode
+        - timestamp
       properties:
         errorMessage:
           type: string
@@ -3610,6 +3620,9 @@ components:
         timestamp:
           type: string
           description: timestamp for error in ISO 8601 format
+        traceId:
+          type: string
+          description: trace for error
     AsyncRuntimeFields:
       description: Fields populated asynchronously to the runtime's creation
       type: object
