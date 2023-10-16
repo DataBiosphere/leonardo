@@ -4,6 +4,7 @@ package dao
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure._
+import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -52,7 +53,11 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   )(implicit ev: Ask[IO, AppContext]): IO[GetCreateVmJobResult] =
     IO.pure(
       GetCreateVmJobResult(
-        Some(WsmVm(WsmVMMetadata(WsmControlledResourceId(UUID.randomUUID())))),
+        Some(
+          WsmVm(WsmVMMetadata(WsmControlledResourceId(UUID.randomUUID())),
+                WsmVMAttributes(RegionName("southcentralus"))
+          )
+        ),
         WsmJobReport(
           request.jobId,
           "desc",

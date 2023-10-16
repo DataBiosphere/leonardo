@@ -11,7 +11,7 @@ import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, Vir
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -68,7 +68,7 @@ class AzurePubsubHandlerSpec
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId))),
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
             WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
             None
           )
@@ -94,9 +94,11 @@ class AzurePubsubHandlerSpec
         assertions = for {
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
+          getRuntimeConfig <- RuntimeConfigQueries.getRuntimeConfig(getRuntime.runtimeConfigId).transaction
         } yield {
           getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
           getRuntime.status shouldBe RuntimeStatus.Running
+          getRuntimeConfig shouldBe azureRuntimeConfig.copy(region = Some(RegionName("southcentralus")))
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
@@ -137,7 +139,7 @@ class AzurePubsubHandlerSpec
         Thread.sleep(mockLatencyMillis)
         IO.pure(
           GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId))),
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
             WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
             None
           )
@@ -164,10 +166,12 @@ class AzurePubsubHandlerSpec
         assertions = for {
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
+          getRuntimeConfig <- RuntimeConfigQueries.getRuntimeConfig(getRuntime.runtimeConfigId).transaction
         } yield {
           getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
           getRuntime.status shouldBe RuntimeStatus.Running
           getRuntime.auditInfo.dateAccessed.isAfter(startTime.plusMillis(mockLatencyMillis)) shouldBe true
+          getRuntimeConfig shouldBe azureRuntimeConfig.copy(region = Some(RegionName("southcentralus")))
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
@@ -205,7 +209,7 @@ class AzurePubsubHandlerSpec
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId))),
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
             WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
             None
           )
@@ -243,10 +247,12 @@ class AzurePubsubHandlerSpec
         assertions = for {
           getRuntimeOpt <- clusterQuery.getClusterById(runtime2.id).transaction
           getRuntime = getRuntimeOpt.get
+          getRuntimeConfig <- RuntimeConfigQueries.getRuntimeConfig(getRuntime.runtimeConfigId).transaction
         } yield {
           // check diskId is correct
           getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
           getRuntime.status shouldBe RuntimeStatus.Running
+          getRuntimeConfig shouldBe azureRuntimeConfig.copy(region = Some(RegionName("southcentralus")))
         }
 
         msg = CreateAzureRuntimeMessage(runtime2.id, workspaceId, true, None, "WorkspaceName", billingProfileId)
@@ -284,7 +290,7 @@ class AzurePubsubHandlerSpec
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId))),
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
             WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Failed, 200, ZonedDateTime.now(), None, "url"),
             None
           )
@@ -346,7 +352,7 @@ class AzurePubsubHandlerSpec
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId))),
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
             WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
             None
           )
@@ -620,7 +626,7 @@ class AzurePubsubHandlerSpec
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId))),
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
             WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
             None
           )
@@ -667,7 +673,7 @@ class AzurePubsubHandlerSpec
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId))),
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
             WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
             None
           )

@@ -513,6 +513,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
               _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), now).transaction
+              _ <- RuntimeConfigQueries
+                .updateRegion(params.runtime.runtimeConfigId, resp.vm.map(_.attributes.region))
+                .transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
             } yield ()
         }
