@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import com.github.benmanes.caffeine.cache.Caffeine
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
 import org.broadinstitute.dsde.workbench.azure.{
@@ -37,24 +36,18 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
-import scalacache.caffeine.CaffeineCache
 
 import java.util.UUID
 
 class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll {
   val config = HttpWsmDaoConfig(Uri.unsafeFromString("127.0.0.1"))
-  val underlyingLzResourcesCache = Caffeine
-    .newBuilder()
-    .maximumSize(10)
-    .build[BillingProfileId, scalacache.Entry[LandingZoneResources]]()
-  val lzResourcesCache = CaffeineCache[IO, BillingProfileId, LandingZoneResources](underlyingLzResourcesCache)
 
   it should "not error when getting 404 during resource deletion" in {
     val wsmClient = Client.fromHttpApp[IO](
       HttpApp(_ => IO(Response(status = Status.NotFound)))
     )
 
-    val wsmDao = new HttpWsmDao[IO](wsmClient, config, lzResourcesCache)
+    val wsmDao = new HttpWsmDao[IO](wsmClient, config)
     val res = wsmDao
       .deleteVm(
         DeleteWsmResourceRequest(WorkspaceId(UUID.randomUUID()),
@@ -139,7 +132,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         }
       )
 
-      val wsmDao = new HttpWsmDao[IO](wsmClient, config, lzResourcesCache)
+      val wsmDao = new HttpWsmDao[IO](wsmClient, config)
       val res = wsmDao
         .getLandingZoneResources(
           BillingProfileId(billingId.toString),

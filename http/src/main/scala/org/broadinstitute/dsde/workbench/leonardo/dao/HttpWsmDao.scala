@@ -33,14 +33,10 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
-import scalacache.Cache
 
 import java.util.UUID
 
-class HttpWsmDao[F[_]](httpClient: Client[F],
-                       config: HttpWsmDaoConfig,
-                       lzResourcesCache: Cache[F, BillingProfileId, LandingZoneResources]
-)(implicit
+class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
@@ -130,11 +126,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
     } yield res
 
   override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[LandingZoneResources] =
-    lzResourcesCache.cachingF(billingProfileId)(None)(getLandingZoneResourcesInternal(billingProfileId, userToken))
-
-  private def getLandingZoneResourcesInternal(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources] =
     for {
