@@ -19,7 +19,6 @@ import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.headers.Authorization
 import org.http4s.blaze.client.BlazeClientBuilder
 
-import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 /**
