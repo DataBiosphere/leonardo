@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
@@ -271,6 +271,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             )
           )
         )
+        .transaction
+
+      _ <- kubernetesClusterQuery
+        .updateRegion(dbApp.cluster.id, RegionName(landingZoneResources.region.name))
         .transaction
 
       // If we've got here, update the App status to Running.
