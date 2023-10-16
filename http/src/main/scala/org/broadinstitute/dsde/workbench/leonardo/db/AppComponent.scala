@@ -301,22 +301,19 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .filter(_.status =!= (AppStatus.Deleted: AppStatus))
       .filter(_.destroyedDate === dummyDate)
 
-  private[db] def filterByWorkspaceId(query: Query[AppTable, AppRecord, Seq],
-                                      workspaceId: Option[WorkspaceId]
-  ): Query[AppTable, AppRecord, Seq] =
-    workspaceId match {
+  private[db] def filterByWorkspaceIdAndCreator(query: Query[AppTable, AppRecord, Seq],
+                                                workspaceId: Option[WorkspaceId],
+                                                creatorOnly: Option[WorkbenchEmail]
+  ): Query[AppTable, AppRecord, Seq] = {
+    val queryWithWorkspaceFilter = workspaceId match {
       case Some(wid) => query.filter(_.workspaceId === wid)
       case None      => query
     }
-
-  private[db] def filterByCreator(query: Query[AppTable, AppRecord, Seq],
-                                  creatorOnly: Option[WorkbenchEmail]
-  ): Query[AppTable, AppRecord, Seq] =
     creatorOnly match {
-      case Some(email) => query.filter(_.creator === email)
-      case None        => query
+      case Some(email) => queryWithWorkspaceFilter.filter(_.creator === email)
+      case None        => queryWithWorkspaceFilter
     }
-
+  }
 }
 
 case class SaveApp(app: App)
