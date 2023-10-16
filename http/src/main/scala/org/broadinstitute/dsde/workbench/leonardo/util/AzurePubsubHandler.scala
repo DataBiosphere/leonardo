@@ -9,7 +9,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -64,6 +64,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       // Query the Landing Zone service for the landing zone resources
       leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, leoAuth)
+
+      // Infer the runtime region from the Landing Zone
+      _ <- RuntimeConfigQueries
+        .updateRegion(runtime.runtimeConfigId, Some(RegionName(landingZoneResources.region.name())))
+        .transaction
 
       // Get the optional storage container for the workspace
       tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
@@ -513,6 +518,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
               _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), now).transaction
+              // Update runtime region to the VM region
               _ <- RuntimeConfigQueries
                 .updateRegion(params.runtime.runtimeConfigId, resp.vm.map(_.attributes.region))
                 .transaction
