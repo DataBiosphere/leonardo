@@ -161,7 +161,6 @@ object KubernetesTestData {
       ingressChart,
       auditInfo,
       None,
-      List(),
       List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
     )
   }
@@ -187,15 +186,11 @@ object KubernetesTestData {
       ingressChart,
       auditInfo,
       None,
-      List(),
       List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
     )
   }
 
-  def makeNamespace(index: Int, prefix: String = ""): Namespace = {
-    val name = NamespaceName(prefix + "namespace" + index)
-    Namespace(NamespaceId(-1), name)
-  }
+  def makeNamespace(index: Int, prefix: String = ""): NamespaceName = NamespaceName(prefix + "namespace" + index)
 
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,

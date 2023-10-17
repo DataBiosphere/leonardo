@@ -3,7 +3,7 @@
     <changeSet logicalFilePath="leonardo" author="qi" id="qi_drop_columns_in_nodepool_table">
         <dropColumn tableName="NODEPOOL" columnName="dateAccessed"/>
         <addColumn tableName="APP">
-            <column name="namespaceName" type="VARCHAR(254)">
+            <column name="namespace" type="VARCHAR(254)">
                 <constraints nullable="true"/>
             </column>
         </addColumn>
@@ -11,7 +11,7 @@
         <sql>
             UPDATE APP
                 JOIN NAMESPACE ns ON ns.id = APP.namespaceId
-                SET APP.namespaceName = ns.namespaceName
+                SET APP.namespace = ns.namespace
         </sql>
     </changeSet>
 </databaseChangeLog>
