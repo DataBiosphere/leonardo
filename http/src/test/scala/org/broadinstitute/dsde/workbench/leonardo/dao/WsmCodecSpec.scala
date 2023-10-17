@@ -4,6 +4,7 @@ package dao
 import _root_.io.circe.syntax._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.parser._
+import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
@@ -107,7 +108,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/deb703b05ae13e10d62bc4f9b20a7c8368ee0b0b/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
@@ -238,7 +239,8 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
     val expected = GetCreateVmJobResult(
       Some(
         WsmVm(
-          WsmVMMetadata(WsmControlledResourceId(UUID.fromString("dcfa6fa4-ab46-465e-a8dd-76705cbdb4ec")))
+          WsmVMMetadata(WsmControlledResourceId(UUID.fromString("dcfa6fa4-ab46-465e-a8dd-76705cbdb4ec"))),
+          WsmVMAttributes(RegionName("westcentralus"))
         )
       ),
       WsmJobReport(

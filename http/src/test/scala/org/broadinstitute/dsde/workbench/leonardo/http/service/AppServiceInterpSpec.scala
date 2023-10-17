@@ -20,15 +20,9 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  AuthenticationError,
-  BadRequestException,
-  ForbiddenError,
-  LeoAuthProvider,
-  LeoException
-}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
   CreateAppV2Message,
@@ -57,7 +51,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   val wsmDao = new MockWsmDAO
-  val samDao = new MockSamDAO
 
   val gcpWsmDao = new MockWsmDAO {
     override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
@@ -124,8 +117,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       passComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -135,8 +127,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughMemoryComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -146,8 +137,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughCpuComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
 
     for {
@@ -178,8 +168,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       noLabelsGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -209,8 +198,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -1285,8 +1273,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1436,8 +1423,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1480,8 +1466,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1523,8 +1508,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1563,8 +1547,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1609,8 +1592,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1655,8 +1637,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1688,11 +1669,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val cluster = clusters.head
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
 
+    clusters.flatMap(_.nodepools).size shouldBe 1
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual appReq.kubernetesRuntimeConfig.get.machineType
-    nodepool.numNodes shouldEqual appReq.kubernetesRuntimeConfig.get.numNodes
-    nodepool.autoscalingEnabled shouldEqual appReq.kubernetesRuntimeConfig.get.autoscalingEnabled
-    nodepool.auditInfo.creator shouldEqual userInfo.userEmail
+    nodepool.isDefault shouldBe true
 
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
@@ -1732,12 +1711,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
     cluster.status shouldEqual KubernetesClusterStatus.Running
 
+    clusters.flatMap(_.nodepools).size shouldBe 1
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual MachineTypeName("Standard_A2_v2")
-    nodepool.numNodes shouldEqual NumNodes(1)
-    nodepool.autoscalingEnabled shouldEqual false
-    nodepool.auditInfo.creator shouldEqual userInfo.userEmail
-    nodepool.status shouldEqual NodepoolStatus.Running
+    nodepool.isDefault shouldBe true
 
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
@@ -2515,8 +2491,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       googleResourceService,
       customAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
   }
 }
