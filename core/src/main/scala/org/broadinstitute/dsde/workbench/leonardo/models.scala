@@ -8,6 +8,8 @@ import java.util.UUID
 
 final case class WorkspaceId(value: UUID) extends AnyVal
 
+final case class BillingProfileId(value: String) extends AnyVal
+
 final case class CloudContextDb(value: String) extends AnyVal
 
 sealed abstract class CloudContext extends Product with Serializable {
