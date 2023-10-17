@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -93,4 +93,10 @@ object RuntimeConfigQueries {
       .length
       .result
       .map(_ > 0)
+
+  def updateRegion(id: RuntimeConfigId, region: Option[RegionName]): DBIO[Int] =
+    runtimeConfigs
+      .filter(x => x.id === id)
+      .map(c => c.region)
+      .update(region)
 }
