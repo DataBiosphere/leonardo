@@ -10,6 +10,7 @@ object LeonardoConfig extends CommonConfig {
   private val leonardo = config.getConfig("leonardo")
   private val azure = config.getConfig("azure")
   private val gcs = config.getConfig("gcs")
+  private val leonardoClient = config.getConfig("leonardoClient")
 
   object Leonardo {
     val apiUrl: String = leonardo.getString("apiUrl")
@@ -42,6 +43,12 @@ object LeonardoConfig extends CommonConfig {
   // TODO: this should be updated once we're able to run azure automation tests as part of CI
   object WSM {
     val wsmUri: String = "https://workspace.dsde-dev.broadinstitute.org"
+  }
+
+  object LeonardoClient {
+    val writeTimeout = leonardoClient.getInt("writeTimeout")
+    val readTimeout = leonardoClient.getInt("readTimeout")
+    val connectionTimeout = leonardoClient.getInt("connectionTimeout")
   }
 
   // for NotebooksWhitelisted

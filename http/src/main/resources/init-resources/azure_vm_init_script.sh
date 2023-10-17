@@ -2,14 +2,6 @@
 set -e
 # Log output is saved at /var/log/azure_vm_init_script.log
 
-echo "TIMING: setup TIMING support"
-
-# DEBUGGING - adding timestamps to each command executed
-PS4='TIMING: $LINENO: $(date "+%s")\011 '
-#trap 'echo TIMING $( date +%s)' DEBUG
-set -x
-
-{
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
 # This is to avoid the error Ref BioC
@@ -306,6 +298,3 @@ jq --null-input \
 /anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
-
-
-} 2>&1 | tee /tmp/timing_results.log
