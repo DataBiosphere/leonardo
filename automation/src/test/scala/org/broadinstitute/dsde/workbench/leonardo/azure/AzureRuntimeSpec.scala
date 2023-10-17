@@ -33,7 +33,7 @@ class AzureRuntimeSpec
   implicit val accessToken: IO[AuthToken] = Hermione.authToken()
   implicit val authorization: IO[Authorization] = Hermione.authorization()
 
-  "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
+  "create, get, start, stop azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
