@@ -1,14 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
-package http
 package db
-
-import java.util.UUID
 
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{controlledResourceQuery, TestComponent, WsmResourceType}
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.scalatest.flatspec.AnyFlatSpecLike
+
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestComponent {
@@ -18,7 +17,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime = makeCluster(1)
         .copy(
@@ -49,7 +48,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime = makeCluster(1)
         .copy(
@@ -76,7 +75,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime1 = makeCluster(1)
         .copy(

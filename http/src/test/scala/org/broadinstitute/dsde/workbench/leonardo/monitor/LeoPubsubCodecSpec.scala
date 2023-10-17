@@ -1,27 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
-import java.util.UUID
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
-import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
-  ApplicationInsightsName,
-  AzureCloudContext,
-  BatchAccountName,
-  ContainerName,
-  ManagedResourceGroupName,
-  RelayNamespace,
-  SubscriptionId,
-  TenantId
-}
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
@@ -33,6 +20,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
+import java.time.Instant
+import java.util.UUID
 
 class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
@@ -140,12 +130,10 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val originalMessage =
       CreateAzureRuntimeMessage(1,
                                 WorkspaceId(UUID.randomUUID()),
-                                storageContainerResourceId,
-                                landingZoneResources,
                                 false,
                                 None,
                                 "WorkspaceName",
-                                ContainerName("dummy")
+                                BillingProfileId("spend-profile")
       )
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
@@ -186,8 +174,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
             ManagedResourceGroupName("rg-name")
           )
         ),
-        Some(landingZoneResources),
-        Some(StorageContainerResponse(ContainerName("sc-container"), storageContainerResourceId)),
+        BillingProfileId("spend-profile"),
         None
       )
 

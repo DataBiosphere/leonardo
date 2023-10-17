@@ -1,30 +1,22 @@
 package org.broadinstitute.dsde.workbench.leonardo
-package http
 package db
 
-import java.time.Instant
-import java.util.UUID
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  labelQuery,
-  LabelResourceType,
-  RuntimeServiceDbQueries,
-  TestComponent
-}
-import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.scalatest.concurrent.ScalaFutures
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
+import java.time.Instant
+import java.util.UUID
 import scala.collection.immutable.List
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
   val maxElapsed = 5.seconds
@@ -338,7 +330,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
       d3 <- makePersistentDisk(Some(DiskName("d3"))).save()
-      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), azureRegion)
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
       c3 <- IO(
         makeCluster(3).saveWithRuntimeConfig(
           c3RuntimeConfig
@@ -397,7 +389,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
 
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), azureRegion)
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
       c3 <- IO(
         makeCluster(3)
           .copy(workspaceId = Some(workspaceId2))
@@ -447,7 +439,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
 
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), azureRegion)
+      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
       c2 <- IO(
         makeCluster(2)
           .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
@@ -458,7 +450,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c2.cloudContext, c2.runtimeName).transaction
 
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), azureRegion)
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
       c3 <- IO(
         makeCluster(3)
           .copy(workspaceId = Some(workspaceId2), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
@@ -469,7 +461,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c3ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c3.cloudContext, c3.runtimeName).transaction
 
       d4 <- makePersistentDisk(Some(DiskName("d4"))).save()
-      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d4.id), azureRegion)
+      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d4.id), None)
       c4 <- IO(
         makeCluster(4)
           .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
@@ -480,7 +472,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c4ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c4.cloudContext, c4.runtimeName).transaction
 
       d5 <- makePersistentDisk(Some(DiskName("d5"))).save()
-      c5RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d5.id), azureRegion)
+      c5RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d5.id), None)
       c5 <- IO(
         makeCluster(5, Some(WorkbenchEmail("different@gmail.com")))
           .copy(workspaceId = Some(workspaceId2), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
