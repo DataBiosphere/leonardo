@@ -169,7 +169,7 @@ final case class WdsAppConfig(chartName: ChartName,
                               instrumentationEnabled: Boolean,
                               enabled: Boolean,
                               databaseEnabled: Boolean,
-                              environment: String, 
+                              environment: String,
                               beeName: String,
                               chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
