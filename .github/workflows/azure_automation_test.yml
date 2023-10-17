@@ -1,8 +1,8 @@
 name: Azure automation tests
 
 on:
-  pull_request:
-    branches: [ develop ]
+#  pull_request:
+#    branches: [ develop ]
 # if you want to debug this and trigger it on PRs against dev, you will need to add `github.head_ref` to the `branch=` line in `init-github-context` job
 # i.e. `echo "branch=${{ github.head_ref || inputs.branch }}" >> "$GITHUB_OUTPUT"`
   schedule:
@@ -37,7 +37,7 @@ jobs:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
         run: |
-          echo "branch=${{ github.head_ref || inputs.branch }}" >> "$GITHUB_OUTPUT"
+          echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
           echo "log-results=true" >> $GITHUB_OUTPUT
           echo "test-context=azure-e2e" >> $GITHUB_OUTPUT

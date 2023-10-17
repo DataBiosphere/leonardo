@@ -4,7 +4,6 @@ import org.scalatest.prop.TableDrivenPropertyChecks
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
@@ -20,13 +19,11 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries, TestSuite}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoConfig, LeonardoTestUtils, RuntimeName, SSH}
 
-import java.util.UUID
 import scala.concurrent.duration._
-//
+
 @DoNotDiscover
 class AzureDiskSpec
     extends AzureBilling
-//    extends TestSuite
     with LeonardoTestUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks
@@ -218,35 +215,4 @@ class AzureDiskSpec
         } yield ()
       res.unsafeRunSync()
   }
-
-//  implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
-//    UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
-//    UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
-//    "staticTestingMrg",
-//    Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
-//  )
-
-//  "ssh client smoke test" {
-//    val commandOutput = for {
-//      tunnel <- SSH.startBastionTunnel(RuntimeName("saturn-5c82f146-fba0-4344-9dee-475a006447f8"))
-//      output <- tunnel.use { t =>
-//        loggerIO.info("executing first command to create file for first runtime") >> SSH.makeSSHSession(t.hostName, t.port).unsafeRunSync().use { session =>
-//          // Sudo -S runs a command given to it as root, and expects the password from stdin (hence the password being piped into it)
-//          SSH.executeCommand(
-//            session,
-//            s"echo ${LeonardoConfig.Leonardo.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\""
-//          )
-//        } >> loggerIO.info("executing second command to get file contents for first runtime") >>
-//        SSH.makeSSHSession(t.hostName, t.port).unsafeRunSync().use { session =>
-//          SSH.executeCommand(session, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
-//        }
-//      }
-//    } yield output
-//
-//    commandOutput.unsafeRunSync()
-//
-//    1 shouldBe 1
-//    Thread.sleep(10000)
-//    0
-//  }
 }
