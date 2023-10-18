@@ -33,7 +33,7 @@ class AzureRuntimeSpec
   implicit val accessToken: IO[AuthToken] = Hermione.authToken()
   implicit val authorization: IO[Authorization] = Hermione.authorization()
 
-  "create, get, start, stop azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
+  "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
@@ -94,10 +94,59 @@ class AzureRuntimeSpec
         )
         _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
+
+        // now that the runtime is running, stop it!
+        _ <- IO(runtimeClient.stopRuntimeV2(workspaceId, runtimeName.asString))
+
+        stoppingRuntimeResponse <- callGetRuntime
+        _ <- loggerIO.info(s"stopping get runtime response ${stoppingRuntimeResponse}")
+        _ = stoppingRuntimeResponse.getStatus shouldBe ClusterStatus.STOPPING
+
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} in stopping status detected"
+        )
+
+        // Verify the runtime eventually becomes Stopped
+        monitorStopResult <- streamUntilDoneOrTimeout(
+          callGetRuntime,
+          6,
+          10 seconds,
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 10 minutes"
+        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
+
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} stopped monitor result: $monitorStopResult"
+        )
+        _ = monitorStopResult.getStatus shouldBe ClusterStatus.STOPPED
+
+        // now that the runtime is stopped, start it!
+        _ <- IO(runtimeClient.startRuntimeV2(workspaceId, runtimeName.asString))
+
+        startingRuntimeResponse <- callGetRuntime
+        _ <- loggerIO.info(s"starting get runtime response ${startingRuntimeResponse}")
+        _ = startingRuntimeResponse.getStatus shouldBe ClusterStatus.STARTING
+
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} in stopping status detected"
+        )
+
+        // Verify the runtime eventually becomes Started
+        monitorStartResult <- streamUntilDoneOrTimeout(
+          callGetRuntime,
+          6,
+          10 seconds,
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 10 minutes"
+        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
+
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} start monitor result: $monitorStartResult"
+        )
+        _ = monitorStartResult.getStatus shouldBe ClusterStatus.RUNNING
+
+        // Delete the runtime
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
         )
-        // Delete the runtime
         _ <- IO(runtimeClient.deleteAzureRuntime(workspaceId, runtimeName.asString, true))
 
         _ <- loggerIO.info(
