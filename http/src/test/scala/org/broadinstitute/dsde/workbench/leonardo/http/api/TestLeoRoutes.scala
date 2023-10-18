@@ -29,6 +29,7 @@ import org.scalatest.concurrent.PatienceConfiguration.Interval
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
+import org.scalatestplus.mockito.MockitoSugar
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
 
@@ -36,7 +37,6 @@ import java.io.ByteArrayInputStream
 import java.time.Instant
 import scala.concurrent.duration._
 import scala.util.matching.Regex
-import org.scalatestplus.mockito.MockitoSugar
 trait TestLeoRoutes {
   this: ScalatestRouteTest
     with Matchers
@@ -114,8 +114,7 @@ trait TestLeoRoutes {
     FakeGoogleComputeService,
     FakeGoogleResourceService,
     Config.gkeCustomAppConfig,
-    wsmDao,
-    new MockSamDAO
+    wsmDao
   )
 
   val serviceConfig = RuntimeServiceConfig(
@@ -132,7 +131,6 @@ trait TestLeoRoutes {
       serviceConfig,
       allowListAuthProvider,
       new MockWsmDAO,
-      new MockSamDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
       wsmClientProvider
