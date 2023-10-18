@@ -225,7 +225,7 @@ object Dependencies {
   val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-a02f2fe-SNAP"
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.3" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.2" % "test",
     logbackClassic % "test",
     leonardoClient,
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
