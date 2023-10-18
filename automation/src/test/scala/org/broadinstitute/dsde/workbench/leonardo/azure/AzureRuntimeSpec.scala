@@ -94,7 +94,6 @@ class AzureRuntimeSpec
         )
         _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
-
         // now that the runtime is running, stop it!
         _ <- IO(runtimeClient.stopRuntimeV2(workspaceId, runtimeName.asString))
 
