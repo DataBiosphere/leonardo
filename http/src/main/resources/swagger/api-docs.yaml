@@ -3900,7 +3900,6 @@ components:
           required:
             - machineType
             - persistentDiskId
-            - region
           properties:
             machineType:
               type: string
