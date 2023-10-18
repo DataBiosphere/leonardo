@@ -631,6 +631,9 @@ object JsonCodec {
         .leftMap(_.getMessage)
     }
 
+  implicit val billingProfileIdDecoder: Decoder[BillingProfileId] =
+    Decoder.decodeString.map(BillingProfileId)
+
   implicit val workspaceSamResourceIdDecoder: Decoder[WorkspaceResourceSamResourceId] =
     workspaceIdDecoder.map(WorkspaceResourceSamResourceId.apply)
 
@@ -740,6 +743,9 @@ object JsonCodec {
 
   implicit val workspaceIdEncoder: Encoder[WorkspaceId] =
     Encoder.encodeString.contramap(_.value.toString)
+
+  implicit val billingProfileIdEncoder: Encoder[BillingProfileId] =
+    Encoder.encodeString.contramap(_.value)
 
   implicit val wsmControlledResourceIdEncoder: Encoder[WsmControlledResourceId] =
     Encoder.encodeString.contramap(_.value.toString)

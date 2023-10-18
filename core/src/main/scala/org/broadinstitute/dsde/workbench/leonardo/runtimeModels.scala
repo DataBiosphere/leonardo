@@ -316,7 +316,7 @@ object RuntimeConfig {
   // Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
   final case class AzureConfig(machineType: MachineTypeName,
                                persistentDiskId: Option[DiskId],
-                               region: com.azure.core.management.Region
+                               region: Option[RegionName]
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.AzureVm
     val configType: RuntimeConfigType = RuntimeConfigType.AzureVmConfig

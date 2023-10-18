@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.sql.SQLDataException
-import java.time.Instant
-import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigTable.toRuntimeConfig
+
+import java.sql.SQLDataException
+import java.time.Instant
 
 class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNTIME_CONFIG") {
   def id = column[RuntimeConfigId]("id", O.PrimaryKey, O.AutoInc)
@@ -175,8 +175,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              r.persistentDiskId,
              None,
-             // TODO: should this be generalized to a type above regionName?
-             Some(RegionName(r.region.toString)),
+             r.region,
              (None, None),
              false,
              false
@@ -260,9 +259,7 @@ object RuntimeConfigTable {
         RuntimeConfig.AzureConfig(
           machineType,
           persistentDiskId,
-          Region.fromName(
-            region.getOrElse(throw new SQLDataException("region field should not be null for Azure.")).value
-          )
+          region
         )
     }
 }
