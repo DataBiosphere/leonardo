@@ -437,8 +437,8 @@ final class LeonardoAzureSuite
       _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
         IO(sys.props.put(azureProjectKey, projectName))
       }
-//       hardcode this if you want to use a static billing project
-//        _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
+      // hardcode this if you want to use a static billing project
+      // _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-beddf71a74"))
     } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
