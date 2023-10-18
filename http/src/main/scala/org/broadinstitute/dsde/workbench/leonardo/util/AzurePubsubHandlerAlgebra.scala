@@ -3,7 +3,6 @@ package util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName, RelayNamespace}
-import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -45,8 +44,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
                        appName: AppName,
                        workspaceId: WorkspaceId,
                        cloudContext: AzureCloudContext,
-                       landingZoneResources: LandingZoneResources,
-                       storageContainer: Option[StorageContainerResponse]
+                       billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
@@ -63,8 +61,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def deleteApp(appId: AppId,
                 appName: AppName,
                 workspaceId: WorkspaceId,
-                landingZoneResources: LandingZoneResources,
-                cloudContext: AzureCloudContext
+                cloudContext: AzureCloudContext,
+                billingProfileId: BillingProfileId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
