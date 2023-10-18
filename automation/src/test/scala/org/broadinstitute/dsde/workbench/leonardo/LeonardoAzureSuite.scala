@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
+import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
 import org.broadinstitute.dsde.workbench.leonardo.azure.{AzureAutopauseSpec, AzureDiskSpec, AzureRuntimeSpec}
 import org.broadinstitute.dsde.workbench.pipeline.Pipeline.BILLING_PROJECT
 import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
@@ -18,6 +19,13 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
   import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
   override type FixtureParam = WorkspaceResponse
   val azureProjectKey = "leonardo.azureProject"
+
+  implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
+    UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
+    UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
+    "staticTestingMrg",
+    Some(UUID.fromString("f41c1a97-179b-4a18-9615-5214d79ba600"))
+  )
 
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(workspace: WorkspaceResponse) =
@@ -68,17 +76,13 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
     try
       testCode(response)
-    catch {
-      case e: Throwable =>
-        println(s"Exception occurred during test: ${e}")
-        throw e
-    } finally
+    finally
       try
         Rawls.workspaces.delete(projectName.value, workspaceName)
       catch {
-        case e: Exception =>
+        case e: Throwable =>
           println(
-            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: ${e}"
+            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: $e"
           )
       }
   }

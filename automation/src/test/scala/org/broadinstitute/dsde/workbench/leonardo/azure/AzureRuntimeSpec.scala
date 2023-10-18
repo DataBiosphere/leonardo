@@ -42,6 +42,7 @@ class AzureRuntimeSpec
     val res =
       for {
         _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
+
         runtimeClient <- GeneratedLeonardoClient.generateRuntimesApi
         diskClient <- GeneratedLeonardoClient.generateDisksApi
 
