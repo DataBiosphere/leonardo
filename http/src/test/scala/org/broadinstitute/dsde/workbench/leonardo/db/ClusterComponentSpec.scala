@@ -367,7 +367,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                     Some(savedDisk.id),
-                                    azureRegion
+                                    None
           )
         )
       )
@@ -375,7 +375,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         makeCluster(2).saveWithRuntimeConfig(
           RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                     Some(savedDisk.id),
-                                    azureRegion
+                                    None
           )
         )
       )

@@ -34,7 +34,8 @@ final case class AuthenticationError(email: Option[WorkbenchEmail] = None, extra
     extends LeoException(
       s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
       StatusCodes.Unauthorized,
-      traceId = None
+      traceId = None,
+      extraMessageInLogging = extraMessage
     )
     with NoStackTrace
 

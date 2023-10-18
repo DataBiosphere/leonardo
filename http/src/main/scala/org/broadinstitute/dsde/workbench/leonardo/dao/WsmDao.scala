@@ -7,10 +7,12 @@ import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
+import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
   googleProjectDecoder,
+  regionDecoder,
   runtimeNameEncoder,
   storageContainerNameDecoder,
   storageContainerNameEncoder,
@@ -70,7 +72,7 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 
-  def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+  def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources]
 
@@ -147,7 +149,8 @@ final case class CreateVmRequestData(name: RuntimeName,
 )
 
 final case class WsmVMMetadata(resourceId: WsmControlledResourceId)
-final case class WsmVm(metadata: WsmVMMetadata)
+final case class WsmVMAttributes(region: RegionName)
+final case class WsmVm(metadata: WsmVMMetadata, attributes: WsmVMAttributes)
 
 final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
                                           resourceId: WsmControlledResourceId,
@@ -308,10 +311,17 @@ object WsmDecoders {
     } yield WsmVMMetadata(WsmControlledResourceId(id))
   }
 
+  implicit val vmAttributesDecoder: Decoder[WsmVMAttributes] = Decoder.instance { a =>
+    for {
+      region <- a.downField("region").as[RegionName]
+    } yield WsmVMAttributes(region)
+  }
+
   implicit val createVmResponseDecoder: Decoder[WsmVm] = Decoder.instance { c =>
     for {
       m <- c.downField("metadata").as[WsmVMMetadata]
-    } yield WsmVm(m)
+      a <- c.downField("attributes").as[WsmVMAttributes]
+    } yield WsmVm(m, a)
   }
 
   implicit val createStorageContainerResultDecoder: Decoder[CreateStorageContainerResult] =
