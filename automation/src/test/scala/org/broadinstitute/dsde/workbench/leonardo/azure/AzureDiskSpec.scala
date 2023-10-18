@@ -15,9 +15,9 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries, TestSuite}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoConfig, LeonardoTestUtils, RuntimeName, SSH}
 
 import scala.concurrent.duration._
 
@@ -95,7 +95,25 @@ class AzureDiskSpec
           )
           _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
-          // TODO: https://broadworkbench.atlassian.net/browse/IA-4524, ssh into vm and add a file to disk
+          _ <- loggerIO.info("SSHing into first vm to add a file to the disk")
+          (output1, output2) <- SSH.startBastionTunnel(RuntimeName(monitorCreateResult.getRuntimeName())).use { t =>
+            for {
+              _ <- loggerIO.info("executing first command to create file for first runtime")
+              output1 <- SSH.makeSSHSession(t.hostName, t.port).use { session =>
+                SSH.executeCommand(
+                  session.makeSession,
+                  s"echo ${LeonardoConfig.Leonardo.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\""
+                )
+              }
+              _ <- loggerIO.info("executing second command to get file contents for first runtime")
+              output2 <- SSH.makeSSHSession(t.hostName, t.port).use { session =>
+                SSH.executeCommand(session.makeSession, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
+              }
+            } yield (output1, output2)
+          }
+
+          _ <- loggerIO.info(s"command result 1 and 2: \n\t1: ${output1}, \n\t2: ${output2}")
+          _ = output2.outputLines.mkString shouldBe "{}"
 
           _ <- loggerIO.info(
             s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
@@ -180,13 +198,21 @@ class AzureDiskSpec
           )
           _ = monitorCreateResult2.getStatus() shouldBe ClusterStatus.RUNNING
 
-          // TODO: https://broadworkbench.atlassian.net/browse/IA-4524, ssh into vm and verify disk contents
           disk2 <- getDisk2
           _ = disk2.getStatus() shouldBe DiskStatus.READY
           _ = disk2.getId() shouldBe monitorGetDisk.getId()
 
+          _ <- loggerIO.info("SSHing into second vm to verify disk contents")
+          output <- SSH.startBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
+            for {
+              output <- SSH.makeSSHSession(t.hostName, t.port).use { session =>
+                SSH.executeCommand(session.makeSession, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
+              }
+            } yield output
+          }
+
+          _ = output.outputLines.mkString shouldBe "{}"
         } yield ()
       res.unsafeRunSync()
   }
-
 }
