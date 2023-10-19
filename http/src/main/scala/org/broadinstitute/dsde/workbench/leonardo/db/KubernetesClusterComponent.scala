@@ -213,6 +213,11 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
         .update((destroyedDate, KubernetesClusterStatus.Deleted))
     } yield nodepool + cluster
 
+  def updateRegion(id: KubernetesClusterLeoId, regionName: RegionName): DBIO[Int] =
+    findByIdQuery(id)
+      .map(c => c.region)
+      .update(regionName)
+
   private[db] def joinMinimalClusterAndUnmarshal(
     clusterQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],
     nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq]

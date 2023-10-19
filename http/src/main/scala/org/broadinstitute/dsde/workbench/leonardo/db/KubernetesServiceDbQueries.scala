@@ -139,7 +139,7 @@ object KubernetesServiceDbQueries {
                   None
                 )
               )
-            case _ => DBIO.successful(ClusterExists(cluster))
+            case _ => DBIO.successful(ClusterExists(cluster, DefaultNodepool.fromNodepool(cluster.nodepools.head)))
           }
         case _ =>
           kubernetesClusterQuery
@@ -455,12 +455,14 @@ object KubernetesServiceDbQueries {
 //minimal cluster has the nodepools, but no namespaces or apps
 sealed trait SaveClusterResult {
   def minimalCluster: KubernetesCluster
+  def defaultNodepool: DefaultNodepool
 }
 
 final case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool)
     extends SaveClusterResult
 
-final case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
+final case class ClusterExists(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool)
+    extends SaveClusterResult
 
 final case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError, traceId = None)
 
