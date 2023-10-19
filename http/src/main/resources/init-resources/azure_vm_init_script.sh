@@ -167,6 +167,14 @@ echo "VALID_HOSTS = ${VALID_HOSTS}"
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn==0.13.0
 
+# Wait for lock to resolve before apt install
+
+while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
+  do
+    echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
+    sleep 5
+  done
+
 # Update rbase
 
 echo "Y"|sudo apt install --no-install-recommends r-base=4.3.1-4.2004.0
