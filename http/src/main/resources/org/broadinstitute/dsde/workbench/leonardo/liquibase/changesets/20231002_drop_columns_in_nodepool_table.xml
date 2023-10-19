@@ -8,10 +8,14 @@
             </column>
         </addColumn>
 
+        <dropForeignKeyConstraint baseTableName="APP" constraintName="FK_APP_NAMESPACE_ID" />
+        <dropNotNullConstraint tableName="APP" columnName="namespaceId" columnDataType="BIGINT" />
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" id="qi_update_app_namespace" author="qi">
         <sql>
-            UPDATE APP
-                JOIN NAMESPACE ns ON ns.id = APP.namespaceId
-                SET APP.namespace = ns.namespace
+            UPDATE APP LEFT JOIN NAMESPACE ns ON ns.id = APP.namespaceId
+                SET APP.namespace = ns.namespaceName
         </sql>
     </changeSet>
 </databaseChangeLog>
