@@ -93,7 +93,7 @@ sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
 
 # Read script arguments
 echo $# arguments
-if [ $# -ne 13 ] ;
+if [ $# -ne 13 ];
     then echo "illegal number of parameters"
 fi
 
