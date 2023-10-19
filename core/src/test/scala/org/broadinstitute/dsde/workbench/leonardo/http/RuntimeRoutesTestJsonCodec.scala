@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,
@@ -21,10 +22,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import java.net.URL
 import java.time.Instant
-
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 object RuntimeRoutesTestJsonCodec {
   implicit val dataprocConfigRequestEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct11(

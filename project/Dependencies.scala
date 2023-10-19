@@ -11,13 +11,13 @@ object Dependencies {
   val scalaTestV = "3.2.17"
   val http4sVersion = "1.0.0-M38" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
   val slickV = "3.4.1"
-  val guavaV = "32.1.2-jre"
+  val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "7362eef"
+  private val workbenchLibsHash = "f31b537"
   val serviceTestV = s"4.1-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.29-$workbenchLibsHash"
@@ -127,7 +127,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.3" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.5" % Test // brought in for FakeStorageInterpreter
 
   // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
@@ -140,9 +140,9 @@ object Dependencies {
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
-  val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.11.0"
+  val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val workSpaceManagerV = "0.254.916-SNAPSHOT"
+  val workSpaceManagerV = "0.254.926-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
@@ -222,10 +222,10 @@ object Dependencies {
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
-  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-8366c9f-SNAP"
+  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-a02f2fe-SNAP"
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.2" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.3" % "test",
     logbackClassic % "test",
     leonardoClient,
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,

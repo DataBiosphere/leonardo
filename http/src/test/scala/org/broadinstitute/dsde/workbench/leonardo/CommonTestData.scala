@@ -533,6 +533,7 @@ object CommonTestData {
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
+  val billingProfileId = BillingProfileId("spend-profile")
 
   val testCommonControlledResourceFields = ControlledResourceCommonFields(
     ControlledResourceName("name"),

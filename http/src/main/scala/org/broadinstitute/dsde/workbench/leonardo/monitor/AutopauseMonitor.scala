@@ -40,6 +40,9 @@ class AutopauseMonitor[F[_]](
 
   private[monitor] val autoPauseCheck: F[Unit] =
     for {
+      _ <- logger.info(
+        s"[logAlert/autopauseHeartbeat] Executing autopause check at interval of ${config.autoFreezeCheckInterval}"
+      )
       clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
       now <- F.realTimeInstant
       pauseableClusters <- clusters.toList.filterA { cluster =>
@@ -82,6 +85,7 @@ class AutopauseMonitor[F[_]](
         val traceId = TraceId(s"fromAutopause_${UUID.randomUUID().toString}")
         for {
           _ <- clusterQuery.updateClusterStatus(cl.id, RuntimeStatus.PreStopping, now).transaction
+          _ <- metrics.incrementCounter("autoPause/pauseRuntimeCounter")
           _ <- logger.info(Map("traceId" -> traceId.asString))(s"Auto freezing runtime ${cl.projectNameString}")
           _ <- publisherQueue.offer(LeoPubsubMessage.StopRuntimeMessage(cl.id, Some(traceId)))
         } yield ()
