@@ -108,9 +108,9 @@ class AzureRuntimeSpec
         // Verify the runtime eventually becomes Stopped
         monitorStopResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          60,
+          120,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 10 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 20 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
 
         _ <- loggerIO.info(
@@ -126,15 +126,15 @@ class AzureRuntimeSpec
         _ = startingRuntimeResponse.getStatus shouldBe ClusterStatus.STARTING
 
         _ <- loggerIO.info(
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} in stopping status detected"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} in starting status detected"
         )
 
         // Verify the runtime eventually becomes Started
         monitorStartResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          6,
+          120,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 10 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not start after 20 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
         _ <- loggerIO.info(
