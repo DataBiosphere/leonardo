@@ -41,7 +41,6 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "workloadIdentity.enabled=true," +
       "workloadIdentity.serviceAccountName=ksa-1," +
       "fullnameOverride=wds-rel-1," +
-      "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "provenance.sourceWorkspaceId=," +
       "postgres.podLocalDatabaseEnabled=false," +
@@ -72,7 +71,6 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "workloadIdentity.enabled=true," +
       "workloadIdentity.serviceAccountName=ksa-1," +
       "fullnameOverride=wds-rel-1," +
-      "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}," +
       "postgres.podLocalDatabaseEnabled=false," +
