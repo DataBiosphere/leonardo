@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 /**
  * This monitor periodically sweeps the Leo database and auto pause clusters that have been running for too long.
@@ -33,7 +34,7 @@ class AutopauseMonitor[F[_]](
 ) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.autoFreezeCheckInterval) ++ Stream.eval(
+    (Stream.sleep[F](config.autoFreezeCheckInterval) ++ Stream.sleep[F](30 minutes) ++ Stream.eval(
       autoPauseCheck
         .handleErrorWith(e => logger.error(e)("Unexpected error occurred during auto-pause monitoring"))
     )).repeat
