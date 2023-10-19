@@ -108,7 +108,7 @@ class AzureRuntimeSpec
         // Verify the runtime eventually becomes Stopped
         monitorStopResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          6,
+          60,
           10 seconds,
           s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 10 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
