@@ -93,7 +93,7 @@ sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
 
 # Read script arguments
 echo $# arguments
-if [$# -ne 13];
+if [ $# -ne 13 ] ;
     then echo "illegal number of parameters"
 fi
 
@@ -166,6 +166,14 @@ echo "VALID_HOSTS = ${VALID_HOSTS}"
 /anaconda/envs/py38_default/bin/pip3 install igv-jupyter==2.0.1
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn==0.13.0
+
+# Wait for lock to resolve before apt install
+
+while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
+  do
+    echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
+    sleep 5
+  done
 
 # Update rbase
 
