@@ -167,7 +167,7 @@ echo "VALID_HOSTS = ${VALID_HOSTS}"
 
 /anaconda/envs/py38_default/bin/pip3 install seaborn==0.13.0
 
-# Wait for lock to resolve before apt install
+# Wait for lock to resolve before apt install, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
 
 while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
   do
