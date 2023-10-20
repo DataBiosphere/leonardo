@@ -149,12 +149,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             )
           ),
           instrumentationEnabled = false,
-          enabled = false,
+          enabled = true,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.58.0"),
+          ChartVersion("0.63.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -166,7 +166,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             )
           ),
           instrumentationEnabled = false,
-          enabled = false,
+          enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           chartVersionsToExcludeFromUpdates = List.empty
         ),
