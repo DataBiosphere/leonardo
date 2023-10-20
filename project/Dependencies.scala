@@ -17,11 +17,11 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "7362eef"
+  private val workbenchLibsHash = "efc3402"
   val serviceTestV = s"4.1-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.29-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.33-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.30-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.34-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.7-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
   val workbenchAzureV = s"0.6-$workbenchLibsHash"
@@ -222,12 +222,17 @@ object Dependencies {
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
-  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-a02f2fe-SNAP"
+  val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-35973f1-SNAP"
+  // You should not be using SSH functionality outside of the tests according to security team's guidance
+  val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.36.0" % "test"
+
+  val automationOverrides = List(guava)
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.2" % "test",
     logbackClassic % "test",
     leonardoClient,
+    ssh,
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,

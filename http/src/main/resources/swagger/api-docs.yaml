@@ -1829,6 +1829,12 @@ paths:
           required: false
           schema:
             type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of apps
@@ -3894,7 +3900,6 @@ components:
           required:
             - machineType
             - persistentDiskId
-            - region
           properties:
             machineType:
               type: string

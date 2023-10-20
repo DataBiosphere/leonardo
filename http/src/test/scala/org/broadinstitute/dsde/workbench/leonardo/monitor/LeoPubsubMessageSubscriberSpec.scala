@@ -16,7 +16,7 @@ import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
@@ -32,10 +32,9 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, _}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeApp,
   makeKubeCluster,
@@ -44,7 +43,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.BootSource
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, Config}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -1865,7 +1864,7 @@ class LeoPubsubMessageSubscriberSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -1876,12 +1875,10 @@ class LeoPubsubMessageSubscriberSpec
         jobId <- IO.delay(UUID.randomUUID())
         msg = CreateAzureRuntimeMessage(runtime.id,
                                         workspaceId,
-                                        storageContainerResourceId,
-                                        landingZoneResources,
                                         false,
                                         None,
                                         "WorkspaceName",
-                                        ContainerName("dummy")
+                                        BillingProfileId("spend-profile")
         )
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
@@ -1919,7 +1916,7 @@ class LeoPubsubMessageSubscriberSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
-                                                       azureRegion
+                                                       None
         )
         runtime = makeCluster(1)
           .copy(
@@ -1932,7 +1929,7 @@ class LeoPubsubMessageSubscriberSpec
                                         Some(disk.id),
                                         workspaceId,
                                         Some(vmResourceId),
-                                        landingZoneResources,
+                                        BillingProfileId("spend-profile"),
                                         None
         )
 
@@ -1961,7 +1958,7 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime <- IO(
         makeCluster(1)
@@ -1986,7 +1983,7 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
-                                                     azureRegion
+                                                     None
       )
       runtime <- IO(
         makeCluster(1)

@@ -13,14 +13,15 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.flatspec.AnyFlatSpec
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
+
 class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val wsmDao = new MockWsmDAO
 
@@ -178,7 +179,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       _ <- diskV2Service.deleteDisk(userInfo, disk.id)
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), azureRegion)
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), None)
         )
       )
       err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
@@ -235,7 +236,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), azureRegion)
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), None)
         )
       )
       err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
@@ -260,7 +261,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), azureRegion)
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), None)
         )
       )
       err <- diskV2service2.deleteDisk(userInfo, disk.id).attempt

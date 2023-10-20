@@ -55,7 +55,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
         )
       )
     )
-    _ <- F.delay(credentials.refreshIfExpired())
+    _ <- F.blocking(credentials.refreshIfExpired())
     token = credentials.getAccessToken.getTokenValue
     client <- createClientInternal(token, cluster.getMasterAuth.getClusterCaCertificate, cluster.getEndpoint)
   } yield client
