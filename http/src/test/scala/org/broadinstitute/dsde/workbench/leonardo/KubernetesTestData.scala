@@ -2,14 +2,24 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  ServiceAccountName,
+  ServiceName
+}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateAppRequest,
+  GetAppResponse,
+  GetAppResult,
+  ListAppResponse,
+  PersistentDiskRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
