@@ -3,8 +3,11 @@ Quickstart: running integration tests locally on Mac/Docker
 ## Set Up
 
 For Azure tests:
-	Create a new [BEE](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE) with the `rawls-e2e-azure-tests` template
-
+- Create a new [BEE](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE) with the `swatomation` template
+- Create a new billing project on you BEE
+- Create a new workspace 
+- Find the appropriate comment in `beforeAll` within `AzureBillingBeforeAndAfter` to override the billing project
+- Find the appropriate comment in `withRawlsWorkspace` to override the workspace
 
 Run this command on the VPN to generate you `application.conf` file
 ```bash
@@ -87,11 +90,6 @@ final class LeonardoAzureSuite
 		new AzureAutopauseSpec
 	)
 ```
-
-To save time developing, you will likely want to reference the billing project and rawls workspace created in the first run of the tests.
-To do so:
-- Find the appropriate comment in `beforeAll` within `AzureBillingBeforeAndAfter` to override the billing project
-- Find the appropriate comment in `withRawlsWorkspace` to override the workspace
 
 If the test fails with some intermediate resources remaining:
 - Be sure to check the `staticTestingMrg` in the [azure portal](https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview) periodically to ensure you are not leaking resources when testing
