@@ -183,7 +183,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           enabled = true,
           databaseEnabled = false,
           environment = "dev",
-          beeName = "",
+          environmentBase = "live",
           chartVersionsToExcludeFromUpdates = List(
             ChartVersion("0.3.0"),
             ChartVersion("0.7.0"),

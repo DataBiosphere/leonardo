@@ -23,7 +23,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
     mockAzureApplicationInsightsService
   )
 
-  it should "build wds override values" in {
+  it should "build wds override values for live env" in {
     val params = buildHelmOverrideValuesParams(List("wds1"))
 
     val overrides = wdsAppInstall.buildHelmOverrideValues(params)
