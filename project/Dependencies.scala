@@ -17,12 +17,11 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-
   private val workbenchLibsHash = "2eac218"
   val serviceTestV = s"4.1-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.29-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.33-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.30-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.34-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.7-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
   val workbenchAzureV = s"0.6-$workbenchLibsHash"
@@ -143,7 +142,7 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val workSpaceManagerV = "0.254.926-SNAPSHOT"
+  val workSpaceManagerV = "0.254.916-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
