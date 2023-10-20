@@ -33,7 +33,7 @@ class AzureRuntimeSpec
     labelMap: java.util.HashMap[String, String],
     runtimeName: RuntimeName,
     runtimeClient: RuntimesApi,
-    diskClient: DisksApi): IO[RuntimesApi] = {
+    diskClient: DisksApi): Unit = {
     
     for {
 
@@ -86,13 +86,13 @@ class AzureRuntimeSpec
         s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} create monitor result: $monitorCreateResult"
       )
       _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
-    } yield(runtimeClient: RuntimesApi)
+    } yield()
   }
 
   def deleteWorkspace(workspaceId: String,
     runtimeName: RuntimeName,
     runtimeClient: RuntimesApi,
-    diskClient: DisksApi): IO[RuntimesApi] = {
+    diskClient: DisksApi): Unit = {
     
     for {
 
@@ -128,10 +128,10 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
         )
-    } yield(runtimeClient: RuntimesApi)
+    } yield()
   }
       
-  "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
+  "stop, start azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
@@ -146,7 +146,7 @@ class AzureRuntimeSpec
 
         _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
 
-        runtimeClient: RuntimesApi <- createRuntime(workspaceId, labelMap, runtimeName, runtimeClient, diskClient)
+        _ = createRuntime(workspaceId, labelMap, runtimeName, runtimeClient, diskClient)
 
         // now that the runtime is running, stop it
         _ <- IO(runtimeClient.stopRuntimeV2(workspaceId, runtimeName.asString))
@@ -206,10 +206,34 @@ class AzureRuntimeSpec
           GeneratedLeonardoClient.testProxyUrl(monitorStartResult)
         }
 
-        _ <- deleteWorkspace(workspaceId, runtimeName, runtimeClient, diskClient)
+        _ = deleteWorkspace(workspaceId, runtimeName, runtimeClient, diskClient)
 
         _ <- IO.sleep(1 minute) // sleep for a minute before cleaning up workspace
       } yield ()
     res.unsafeRunSync()
   }
+
+  "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
+    val workspaceId = workspaceDetails.workspace.workspaceId
+
+    val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
+    labelMap.put("automation", "true")
+
+    val runtimeName = randomClusterName
+    val res =
+      for {
+        _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
+
+        runtimeClient <- GeneratedLeonardoClient.generateRuntimesApi
+        diskClient <- GeneratedLeonardoClient.generateDisksApi
+
+        _ = createRuntime(workspaceId, labelMap, runtimeName, runtimeClient, diskClient)
+
+        _ = deleteWorkspace(workspaceId, runtimeName, runtimeClient, diskClient)
+
+        _ <- IO.sleep(1 minute) // sleep for a minute before cleaning up workspace
+      } yield ()
+    res.unsafeRunSync()
+  }
+
 }
