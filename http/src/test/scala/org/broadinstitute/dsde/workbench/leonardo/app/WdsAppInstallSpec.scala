@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, l
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.WorkspaceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.WdsDAO
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.mockito.ArgumentMatchers.any
