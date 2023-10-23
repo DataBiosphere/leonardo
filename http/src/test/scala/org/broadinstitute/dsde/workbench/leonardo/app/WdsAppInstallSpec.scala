@@ -10,9 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.leonardo.{
-  NamespaceNameSuffix,
   KsaName,
   KubernetesServiceKindName,
+  NamespaceNameSuffix,
   ReleaseNameSuffix,
   ServiceConfig,
   ServicePath
