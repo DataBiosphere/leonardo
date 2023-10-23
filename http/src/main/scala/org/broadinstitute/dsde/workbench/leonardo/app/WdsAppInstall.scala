@@ -63,7 +63,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
       valuesList =
         List(
           // environment config - if env is a BEE, we use env Base and pass bee name separately
-          raw"wds.environment=${if(config.environmentBase!="bee") config.environment else config.environmentBase }",
+          raw"wds.environment=${if(config.environmentBase=="live") config.environment else config.environmentBase }",
           raw"beeName=${if(config.environmentBase=="bee") config.environment else ""}",
 
           // azure resources configs
