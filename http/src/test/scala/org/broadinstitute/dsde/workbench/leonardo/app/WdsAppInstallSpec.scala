@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.WdsDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import org.broadinstitute.dsp._
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 
