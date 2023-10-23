@@ -95,8 +95,7 @@ class AzureRuntimeSpec
         )
         _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
-
-        org.broadinstitute.dsde.workbench.leonardo.azure
+        // Now stop the runtime
         _ <- IO(runtimeClient.stopRuntimeV2(workspaceId, runtimeName.asString))
 
         callGetRuntime = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
@@ -144,7 +143,6 @@ class AzureRuntimeSpec
           s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} start monitor result: $monitorStartResult"
         )
         _ = monitorStartResult.getStatus shouldBe ClusterStatus.RUNNING
-package org.broadinstitute.dsde.workbench.leonardo.azure
 
 
         _ <- loggerIO.info(
