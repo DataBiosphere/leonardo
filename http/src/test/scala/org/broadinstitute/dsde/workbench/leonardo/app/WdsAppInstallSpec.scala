@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.WorkspaceId
@@ -8,7 +9,15 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.WdsDAO
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
-import org.broadinstitute.dsp._
+import org.broadinstitute.dsde.workbench.leonardo.{
+  NamespaceNameSuffix,
+  KsaName,
+  KubernetesServiceKindName,
+  ReleaseNameSuffix,
+  ServiceConfig,
+  ServicePath
+}
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 
