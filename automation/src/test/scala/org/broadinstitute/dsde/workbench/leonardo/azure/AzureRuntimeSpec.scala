@@ -144,7 +144,6 @@ class AzureRuntimeSpec
         )
         _ = monitorStartResult.getStatus shouldBe ClusterStatus.RUNNING
 
-
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
         )
