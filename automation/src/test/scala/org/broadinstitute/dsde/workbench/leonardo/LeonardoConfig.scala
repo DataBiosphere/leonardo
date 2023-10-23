@@ -4,8 +4,6 @@ import com.google.pubsub.v1.ProjectTopicName
 import org.broadinstitute.dsde.workbench.config.CommonConfig
 import org.broadinstitute.dsde.workbench.google2.{Location, PublisherConfig}
 
-import java.util.UUID
-
 object LeonardoConfig extends CommonConfig {
   private val leonardo = config.getConfig("leonardo")
   private val azure = config.getConfig("azure")

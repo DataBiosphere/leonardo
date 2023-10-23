@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   CreateAppRequest,
@@ -135,7 +136,7 @@ object KubernetesTestData {
       clusterId,
       name,
       status,
-      auditInfo,
+      auditInfo.copy(dateAccessed = dummyDate),
       MachineTypeName("n1-standard-4"),
       NumNodes(if (isDefault) 1 else 2),
       !isDefault,
@@ -161,7 +162,6 @@ object KubernetesTestData {
       ingressChart,
       auditInfo,
       None,
-      List(),
       List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
     )
   }
@@ -187,15 +187,11 @@ object KubernetesTestData {
       ingressChart,
       auditInfo,
       None,
-      List(),
       List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
     )
   }
 
-  def makeNamespace(index: Int, prefix: String = ""): Namespace = {
-    val name = NamespaceName(prefix + "namespace" + index)
-    Namespace(NamespaceId(-1), name)
-  }
+  def makeNamespace(index: Int, prefix: String = ""): NamespaceName = NamespaceName(prefix + "namespace" + index)
 
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,

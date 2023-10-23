@@ -1120,7 +1120,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               googleDiskService.getDisk(
                 msg.project,
                 zone,
-                getOldStyleGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name,
+                getOldStyleGalaxyPostgresDiskName(dbApp.app.appResources.namespace,
                                                   config.galaxyDiskConfig.postgresDiskNameSuffix
                 )
               )
@@ -1214,7 +1214,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
                                                      zone,
                                                      msg.appName,
-                                                     dbApp.app.appResources.namespace.name,
+                                                     dbApp.app.appResources.namespace,
                                                      dbApp.app.appResources.disk.get.name
                 )
                   .adaptError { case e =>

@@ -170,7 +170,7 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
     for {
       clusterId <- kubernetesClusterQuery returning kubernetesClusterQuery.map(_.id) += clusterRecord
       nodepool <- nodepoolQuery.saveForCluster(saveCluster.defaultNodepool.copy(clusterId = clusterId).toNodepool())
-    } yield unmarshalKubernetesCluster(clusterRecord.copy(id = clusterId), List(nodepool), List())
+    } yield unmarshalKubernetesCluster(clusterRecord.copy(id = clusterId), List(nodepool))
   }
 
   private[db] def save(
@@ -178,7 +178,7 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
   )(implicit ec: ExecutionContext): DBIO[KubernetesCluster] =
     for {
       clusterId <- kubernetesClusterQuery returning kubernetesClusterQuery.map(_.id) += kubernetesClusterRecord
-    } yield unmarshalKubernetesCluster(kubernetesClusterRecord.copy(id = clusterId), List(), List())
+    } yield unmarshalKubernetesCluster(kubernetesClusterRecord.copy(id = clusterId), List())
 
   def updateStatus(id: KubernetesClusterLeoId, status: KubernetesClusterStatus): DBIO[Int] =
     findByIdQuery(id)
@@ -228,30 +228,27 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
                                      nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq]
   ) =
     for {
-      ((cluster, nodepoolOpt), namespaceOpt) <- clusterQuery joinLeft
-        nodepoolQuery on (_.id === _.clusterId) joinLeft
-        namespaceQuery on (_._1.id === _.clusterId)
-    } yield (cluster, nodepoolOpt, namespaceOpt)
+      ((cluster, nodepoolOpt)) <- clusterQuery joinLeft
+        nodepoolQuery on (_.id === _.clusterId)
+    } yield (cluster, nodepoolOpt)
 
   private[db] def aggregateJoinedCluster(
-    records: Seq[(KubernetesClusterRecord, Option[NodepoolRecord], Option[NamespaceRecord])]
+    records: Seq[(KubernetesClusterRecord, Option[NodepoolRecord])]
   ): Seq[KubernetesCluster] = {
-    val map = records.toList.foldMap { case (clusterRecord, nodepoolRecordOpt, clusterNamespaceRecordOpt) =>
-      Map(clusterRecord -> (nodepoolRecordOpt.toList, clusterNamespaceRecordOpt.toList))
+    val map = records.toList.foldMap { case (clusterRecord, nodepoolRecordOpt) =>
+      Map(clusterRecord -> (nodepoolRecordOpt.toList))
     }
 
-    map.map { case (clusterRec, (nodepools, clusterNamespaces)) =>
+    map.map { case (clusterRec, nodepools) =>
       unmarshalKubernetesCluster(
         clusterRec,
-        nodepools.toSet.map(rec => unmarshalNodepool(rec, List.empty)).toList,
-        clusterNamespaces.toSet[NamespaceRecord].map(rec => Namespace(rec.id, rec.namespaceName)).toList
+        nodepools.toSet.map(rec => unmarshalNodepool(rec, List.empty)).toList
       )
     }.toSeq
   }
 
   private[db] def unmarshalKubernetesCluster(cr: KubernetesClusterRecord,
-                                             nodepools: List[Nodepool],
-                                             namespaces: List[Namespace]
+                                             nodepools: List[Nodepool]
   ): KubernetesCluster =
     KubernetesCluster(
       cr.id,
@@ -272,7 +269,6 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
           Some(KubernetesClusterAsyncFields(externalIp, apiServerIp, networkFields))
         case _ => None
       },
-      namespaces,
       nodepools
     )
 
