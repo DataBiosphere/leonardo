@@ -23,10 +23,64 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
     mockAzureApplicationInsightsService
   )
 
+  val beeWdsAppConfig = WdsAppConfig(
+    ChartName("/leonardo/wds"),
+    ChartVersion("0.46.0"),
+    ReleaseNameSuffix("wds-rls"),
+    NamespaceNameSuffix("wds-ns"),
+    KsaName("wds-ksa"),
+    List(
+      ServiceConfig(ServiceName("wds"), KubernetesServiceKindName("ClusterIP"), Some(ServicePath("/")))
+    ),
+    instrumentationEnabled = false,
+    enabled = true,
+    databaseEnabled = false,
+    environment = "bee-test-name",
+    environmentBase = "bee",
+    chartVersionsToExcludeFromUpdates = List(
+      ChartVersion("0.3.0")
+    )
+  )
+
+  val wdsAppInstallBee = new WdsAppInstall[IO](
+    beeWdsAppConfig,
+    ConfigReader.appConfig.azure.tdr,
+    mockSamDAO,
+    mockWdsDAO,
+    mockAzureApplicationInsightsService
+  )
+
   it should "build wds override values for live env" in {
     val params = buildHelmOverrideValuesParams(List("wds1"))
 
     val overrides = wdsAppInstall.buildHelmOverrideValues(params)
+
+    overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe
+      "wds.environment=dev," +
+      "beeName=," +
+      "config.resourceGroup=mrg," +
+      "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.subscriptionId=sub," +
+      s"config.region=${azureRegion}," +
+      "general.leoAppInstanceName=app1," +
+      s"general.workspaceManager.workspaceId=${workspaceId.value}," +
+      "identity.enabled=false," +
+      "workloadIdentity.enabled=true," +
+      "workloadIdentity.serviceAccountName=ksa-1," +
+      "fullnameOverride=wds-rel-1," +
+      s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
+      "provenance.sourceWorkspaceId=," +
+      "postgres.podLocalDatabaseEnabled=false," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      "postgres.pgbouncer.enabled=true," +
+      "postgres.dbname=wds1," +
+      "postgres.user=ksa-1"
+  }
+
+  it should "build wds override values for bee env" in {
+    val params = buildHelmOverrideValuesParams(List("wds1"))
+
+    val overrides = wdsAppInstallBee.buildHelmOverrideValues(params)
 
     overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe
       "wds.environment=dev," +
