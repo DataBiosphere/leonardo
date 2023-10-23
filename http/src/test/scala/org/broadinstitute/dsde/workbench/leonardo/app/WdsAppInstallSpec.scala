@@ -81,9 +81,6 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +
       s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
-      "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
-      "leonardo.url=https://leo-dummy-url.org," +
-      s"workspacemanager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       "fullnameOverride=wds-rel-1," +
       "instrumentationEnabled=false," +
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
