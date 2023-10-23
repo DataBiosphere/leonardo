@@ -149,7 +149,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             )
           ),
           instrumentationEnabled = false,
-          enabled = false,
+          enabled = true,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
@@ -166,7 +166,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             )
           ),
           instrumentationEnabled = false,
-          enabled = false,
+          enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           chartVersionsToExcludeFromUpdates = List.empty
         ),
