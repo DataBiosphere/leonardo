@@ -103,6 +103,7 @@ object ListAppResponse {
 object GetAppResponse {
   def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
+      appResult.app.workspaceId,
       appResult.app.appName,
       appResult.cluster.cloudContext,
       appResult.cluster.region,
