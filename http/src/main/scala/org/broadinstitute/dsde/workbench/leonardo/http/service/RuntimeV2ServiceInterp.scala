@@ -510,6 +510,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
+      maybeWorkspaceSamId = workspaceId.map(WorkspaceResourceSamResourceId)
 
       // Authorize: user has an active account and has accepted terms of service
       _ <- authProvider.checkUserEnabled(userInfo)
@@ -552,12 +553,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // v2 runtimes are readable by users with read access to both runtime and workspace
       readerV2WsmIds: Set[WsmResourceSamResourceId] <- authProvider
         .listResourceIds[WsmResourceSamResourceId](hasOwnerRole = false, userInfo)
-      readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- authProvider
-        .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
+      readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- maybeWorkspaceSamId match {
+        case Some(workspaceSamId) => for {
+          isWorkspaceReader <- authProvider.isUserWorkspaceReader(workspaceSamId, userInfo)
+          workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceReader) Set(workspaceSamId) else Set.empty
+        } yield workspaceIds
+        case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
+      }
 
       // v2 runtimes are discoverable by owners on the corresponding Workspace
-      ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- authProvider
-        .listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
+      ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- maybeWorkspaceSamId match {
+        case Some(workspaceSamId) => for {
+          isWorkspaceOwner <- authProvider.isUserWorkspaceOwner(workspaceSamId, userInfo)
+          workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceOwner) Set(workspaceSamId) else Set.empty
+        } yield workspaceIds
+        case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
+      }
 
       // combine: to read a runtime, user needs to be at least one of:
       // - creator of a v1 runtime (Sam-authenticated)

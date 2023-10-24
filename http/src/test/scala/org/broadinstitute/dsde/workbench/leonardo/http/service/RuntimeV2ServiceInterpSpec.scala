@@ -50,7 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers.{any, eq => isEq}
+import org.mockito.ArgumentMatchers.{any, argThat, eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
@@ -170,6 +170,89 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     )
       .thenReturn(IO.pure(ownerWorkspaceSamIds))
     when(
+      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(ownerProjectSamIds))
+
+    mockAuthProvider
+  }
+
+  /**
+   * Generate a mocked AuthProvider which will permit action on the given resource IDs by the given user,
+   * when the list request is restricted to one workspace. Expects isUserWorkspace* instead of listResourceIds.
+   * TODO: cover actions beside `checkUserEnabled` and `listResourceIds`
+   *
+   * @param userInfo
+   * @param readerRuntimeSamIds
+   * @param readerWorkspaceSamIds
+   * @param readerProjectSamIds
+   * @param ownerWorkspaceSamIds
+   * @param ownerProjectSamIds
+   * @return
+   */
+  def mockAuthorizeForOneWorkspace(userInfo: UserInfo,
+                    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+                    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
+                    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
+                    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
+                   ): AllowlistAuthProvider = {
+    val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
+
+    when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
+    when(
+      mockAuthProvider.listResourceIds[RuntimeSamResourceId](isEq(true), isEq(userInfo))(
+        any(runtimeSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[RuntimeSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerRuntimeSamIds))
+    when(
+      mockAuthProvider.listResourceIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
+        any(wsmResourceSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[WsmResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerWsmSamIds))
+    when(
+      mockAuthProvider.isUserWorkspaceReader(any, isEq(userInfo))(
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(false))
+    when(
+      mockAuthProvider.isUserWorkspaceReader(argThat(readerWorkspaceSamIds.contains(_)), isEq(userInfo))(
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(true))
+    when(
+      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(readerProjectSamIds))
+    when(
+      mockAuthProvider.isUserWorkspaceOwner(any, isEq(userInfo))(
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(false))
+    when(
+      mockAuthProvider.isUserWorkspaceOwner(argThat(ownerWorkspaceSamIds.contains(_)), isEq(userInfo))(
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(true))
+    when(
+
       mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
         any(projectSamResourceAction.getClass),
         any(AppSamResourceAction.getClass),
@@ -1833,7 +1916,26 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       // user owns project 1
       Set(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
     )
+    val mockAuthProviderForOneWorkspace = mockAuthorizeForOneWorkspace(
+      userInfo,
+      // user can read runtimes 3, 4, and 5
+      Set(RuntimeSamResourceId(runtimeId3), RuntimeSamResourceId(runtimeId4), RuntimeSamResourceId(runtimeId5)),
+      Set.empty,
+      // user can read all workspaces
+      Set(
+        WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1))),
+        WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId2))),
+        WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId3)))
+      ),
+      // user can read all projects
+      Set(ProjectSamResourceId(GoogleProject(projectIdGcp1)), ProjectSamResourceId(GoogleProject(projectIdGcp2))),
+      // user owns workspace 1
+      Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceId1)))),
+      // user owns project 1
+      Set(ProjectSamResourceId(GoogleProject(projectIdGcp1)))
+    )
     val testService = makeInterp(authProvider = mockAuthProvider)
+    val testServiceForOneWorkspace = makeInterp(authProvider = mockAuthProviderForOneWorkspace)
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(runtimeId1))
@@ -1905,10 +2007,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                       workspaceId: Option[WorkspaceId],
                       cloudProvider: Option[CloudProvider],
                       params: Map[String, String]
-      ) =>
-        testService
+      ) => {
+        val service = if (workspaceId.isEmpty) testService else testServiceForOneWorkspace
+        service
           .listRuntimes(userInfo, workspaceId, cloudProvider, params)
           .flatMap(result => IO(result.map(_.samResource).toSet))
+      }
 
       responseIdsWorkspace1 <- getResultIds(userInfo, Some(workspace1), None, Map.empty)
       responseIdsWorkspace2 <- getResultIds(userInfo, Some(workspace2), None, Map.empty)
