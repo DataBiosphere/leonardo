@@ -62,17 +62,6 @@ object TestUtils extends Matchers {
         }
     }
 
-  implicit val namespaceEq: Equality[Namespace] =
-    new Equality[Namespace] {
-      private val FixedId = NamespaceId(0)
-
-      def areEqual(a: Namespace, b: Any): Boolean =
-        b match {
-          case c: Namespace => a.copy(id = FixedId) == c.copy(id = FixedId)
-          case _            => false
-        }
-    }
-
   implicit val nodepoolEq: Equality[Nodepool] =
     new Equality[Nodepool] {
       private val FixedId = NodepoolLeoId(0)
@@ -87,7 +76,6 @@ object TestUtils extends Matchers {
   implicit val appEq: Equality[App] =
     new Equality[App] {
       private val FixedId = AppId(0)
-      private val FixedNamespaceId = NamespaceId(0)
       private val FixedDiskId = DiskId(0)
 
       def areEqual(a: App, b: Any): Boolean =
@@ -96,7 +84,7 @@ object TestUtils extends Matchers {
             a.copy(
               id = FixedId,
               appResources = a.appResources.copy(
-                namespace = a.appResources.namespace.copy(id = FixedNamespaceId),
+                namespace = a.appResources.namespace,
                 services = fixIdsForServices(a.appResources.services),
                 disk = a.appResources.disk.map(d => d.copy(id = FixedDiskId))
               )
@@ -104,7 +92,7 @@ object TestUtils extends Matchers {
               c.copy(
                 id = FixedId,
                 appResources = c.appResources.copy(
-                  namespace = c.appResources.namespace.copy(id = FixedNamespaceId),
+                  namespace = c.appResources.namespace,
                   services = fixIdsForServices(c.appResources.services),
                   disk = c.appResources.disk.map(d => d.copy(id = FixedDiskId))
                 )
@@ -130,22 +118,6 @@ object TestUtils extends Matchers {
         case c: KubernetesService => fixIdForService(a) == fixIdForService(c)
         case _                    => false
       }
-
-  implicit val namespaceListEq: Equality[List[Namespace]] =
-    (as: List[Namespace], bs: Any) =>
-      bs match {
-        case cs: List[_] => isNamespaceListEquivalent(as, cs)
-        case _           => false
-      }
-
-  private def isNamespaceListEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
-    val dummyId = NamespaceId(0)
-
-    val fcs1 = cs1 map { case c: Namespace => c.copy(id = dummyId) }
-    val fcs2 = cs2 map { case c: Namespace => c.copy(id = dummyId) }
-
-    fcs1 == fcs2
-  }
 
   implicit val clusterSeqEq: Equality[Seq[Runtime]] =
     (as: Seq[Runtime], bs: Any) =>

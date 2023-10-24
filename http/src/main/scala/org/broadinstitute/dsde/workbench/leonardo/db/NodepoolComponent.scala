@@ -32,7 +32,6 @@ case class NodepoolRecord(
   creator: WorkbenchEmail,
   createdDate: Instant,
   destroyedDate: Instant,
-  dateAccessed: Instant,
   machineType: MachineTypeName,
   numNodes: NumNodes,
   autoscalingEnabled: Boolean,
@@ -49,7 +48,6 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
-  def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def machineType = column[MachineTypeName]("machineType", O.Length(254))
   def numNodes = column[NumNodes]("numNodes", O.Length(254))
   def autoscalingEnabled = column[Boolean]("autoscalingEnabled")
@@ -66,7 +64,6 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
      creator,
      createdDate,
      destroyedDate,
-     dateAccessed,
      machineType,
      numNodes,
      autoscalingEnabled,
@@ -110,7 +107,6 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     n.auditInfo.creator,
     n.auditInfo.createdDate,
     n.auditInfo.destroyedDate.getOrElse(dummyDate),
-    n.auditInfo.dateAccessed,
     n.machineType,
     n.numNodes,
     n.autoscalingEnabled,
@@ -200,7 +196,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
         rec.creator,
         rec.createdDate,
         unmarshalDestroyedDate(rec.destroyedDate),
-        rec.dateAccessed
+        dummyDate
       ),
       rec.machineType,
       rec.numNodes,

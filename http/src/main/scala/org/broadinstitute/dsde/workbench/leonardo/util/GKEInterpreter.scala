@@ -341,7 +341,7 @@ class GKEInterpreter[F[_]](
       )
 
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
+      namespaceName = app.appResources.namespace
       dbCluster = dbApp.cluster
       gkeClusterId = dbCluster.getClusterId
       googleProject = params.googleProject
@@ -506,7 +506,7 @@ class GKEInterpreter[F[_]](
           else
             for {
               pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
-                                                             KubernetesNamespace(app.appResources.namespace.name)
+                                                             KubernetesNamespace(app.appResources.namespace)
               )
 
               _ <- pvcs
@@ -578,7 +578,7 @@ class GKEInterpreter[F[_]](
       gkeClusterId = dbCluster.getClusterId
 
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
+      namespaceName = app.appResources.namespace
       gsa = app.googleServiceAccount
       nfsDisk <- F.fromOption(
         dbApp.app.appResources.disk,
@@ -906,7 +906,7 @@ class GKEInterpreter[F[_]](
       )
 
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
+      namespaceName = app.appResources.namespace
       dbCluster = dbApp.cluster
       gkeClusterId = dbCluster.getClusterId
 
@@ -959,11 +959,11 @@ class GKEInterpreter[F[_]](
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
-                                       KubernetesNamespace(dbApp.app.appResources.namespace.name)
+                                       KubernetesNamespace(dbApp.app.appResources.namespace)
       )
 
       fa = kubeService
-        .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace.name))
+        .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace))
         .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
 
       _ <- streamUntilDoneOrTimeout(fa, 30, 5 seconds, "delete namespace timed out")

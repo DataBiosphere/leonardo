@@ -205,7 +205,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                     diskIdOpt,
                     app.customEnvironmentVariables,
                     app.appType,
-                    app.appResources.namespace.name,
+                    app.appResources.namespace,
                     Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
                     Some(appContext.traceId),
                     enableIntraNodeVisibility

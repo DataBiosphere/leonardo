@@ -263,7 +263,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
         req.customEnvironmentVariables,
         req.appType,
-        app.appResources.namespace.name,
+        app.appResources.namespace,
         appMachineType,
         Some(ctx.traceId),
         enableIntraNodeVisibility
@@ -1193,9 +1193,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       //
       // There are DB constraints to handle potential name collisions.
       uid = s"${RandomStringUtils.randomAlphabetic(1)}${RandomStringUtils.randomAlphanumeric(5)}".toLowerCase
-      namespaceId = lastUsedApp.fold(
-        NamespaceId(-1)
-      )(app => app.namespaceId)
       namespaceName <- lastUsedApp.fold(
         KubernetesName.withValidation(
           s"${uid}-${gkeAppConfig.namespaceNameSuffix.value}",
@@ -1256,10 +1253,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         auditInfo,
         labels,
         AppResources(
-          Namespace(
-            namespaceId,
-            namespaceName
-          ),
+          namespaceName,
           diskOpt,
           services,
           Option(gkeAppConfig.serviceAccountName)
