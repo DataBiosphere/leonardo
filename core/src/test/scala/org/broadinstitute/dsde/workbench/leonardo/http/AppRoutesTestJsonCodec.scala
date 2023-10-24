@@ -40,7 +40,7 @@ object AppRoutesTestJsonCodec {
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
   implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct14(
+    Decoder.forProduct15(
       "appName",
       "cloudContext",
       "region",
@@ -54,6 +54,7 @@ object AppRoutesTestJsonCodec {
       "appType",
       "chartName",
       "accessScope",
+      "workspaceId",
       "labels"
     )(GetAppResponse.apply)
 

@@ -4110,6 +4110,9 @@ components:
           $ref: '#/components/schemas/AppType'
         accessScope:
           $ref: '#/components/schemas/AppAccessScope'
+        workspaceId:
+          type: string
+          description: 'The Terra workspace id for the app. This is not present for apps created with V1 endpoints.'
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]

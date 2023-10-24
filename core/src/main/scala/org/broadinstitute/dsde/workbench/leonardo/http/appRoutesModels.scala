@@ -36,20 +36,22 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   sourceWorkspaceId: Option[WorkspaceId]
 )
 
-final case class GetAppResponse(appName: AppName,
-                                cloudContext: CloudContext,
-                                region: RegionName,
-                                kubernetesRuntimeConfig: KubernetesRuntimeConfig,
-                                errors: List[AppError],
-                                status: AppStatus, // TODO: do we need some sort of aggregate status?
-                                proxyUrls: Map[ServiceName, URL],
-                                diskName: Option[DiskName],
-                                customEnvironmentVariables: Map[String, String],
-                                auditInfo: AuditInfo,
-                                appType: AppType,
-                                chartName: ChartName,
-                                accessScope: Option[AppAccessScope],
-                                labels: LabelMap
+final case class GetAppResponse(
+  workspaceId: Option[WorkspaceId],
+  appName: AppName,
+  cloudContext: CloudContext,
+  region: RegionName,
+  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+  errors: List[AppError],
+  status: AppStatus, // TODO: do we need some sort of aggregate status?
+  proxyUrls: Map[ServiceName, URL],
+  diskName: Option[DiskName],
+  customEnvironmentVariables: Map[String, String],
+  auditInfo: AuditInfo,
+  appType: AppType,
+  chartName: ChartName,
+  accessScope: Option[AppAccessScope],
+  labels: LabelMap
 )
 
 final case class ListAppResponse(workspaceId: Option[WorkspaceId],
@@ -101,6 +103,7 @@ object ListAppResponse {
 object GetAppResponse {
   def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
+      appResult.app.workspaceId,
       appResult.app.appName,
       appResult.cluster.cloudContext,
       appResult.cluster.region,
