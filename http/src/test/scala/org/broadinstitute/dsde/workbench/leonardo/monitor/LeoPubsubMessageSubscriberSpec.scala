@@ -896,7 +896,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(disk.id),
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
           false
@@ -950,7 +950,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(disk.id),
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           None,
           Some(tr),
           false
@@ -1047,7 +1047,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(disk1.id),
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
           false
@@ -1060,7 +1060,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(disk2.id),
           Map.empty,
           AppType.Galaxy,
-          savedApp2.appResources.namespace.name,
+          savedApp2.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
           false
@@ -1103,7 +1103,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(DiskId(-1)),
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           None,
           Some(tr),
           false
@@ -1327,7 +1327,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(disk.id),
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
           false
@@ -1435,7 +1435,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(disk.id),
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           None,
           Some(tr),
           false
@@ -1501,7 +1501,7 @@ class LeoPubsubMessageSubscriberSpec
           None,
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           None,
           Some(tr),
           false
@@ -1582,7 +1582,7 @@ class LeoPubsubMessageSubscriberSpec
           None,
           Map.empty,
           AppType.Galaxy,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           None,
           Some(tr),
           false
@@ -1759,7 +1759,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(disk.id),
           Map.empty,
           savedApp1.appType,
-          savedApp1.appResources.namespace.name,
+          savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
           false

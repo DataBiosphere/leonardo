@@ -37,7 +37,6 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              ingressChart: Chart,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
-                             namespaces: List[Namespace],
                              nodepools: List[Nodepool]
 ) {
 
@@ -166,8 +165,6 @@ object NodepoolStatus {
 }
 
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
-final case class NamespaceId(id: Long) extends AnyVal
-final case class Namespace(id: NamespaceId, name: NamespaceName)
 
 final case class Nodepool(id: NodepoolLeoId,
                           clusterId: KubernetesClusterLeoId,
@@ -389,7 +386,7 @@ object AppType {
 final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal
 //These are async from the perspective of Front Leo saving the app record, but both must exist before the helm command is executed
-final case class AppResources(namespace: Namespace,
+final case class AppResources(namespace: NamespaceName,
                               disk: Option[PersistentDisk],
                               services: List[KubernetesService],
                               kubernetesServiceAccountName: Option[ServiceAccountName]
