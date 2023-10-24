@@ -439,7 +439,7 @@ final class LeonardoAzureSuite
         IO(sys.props.put(azureProjectKey, projectName))
       }
       // hardcode this if you want to use a static billing project
-      //_ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-ad759ba39e"))
+      // _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-ad759ba39e"))
     } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
