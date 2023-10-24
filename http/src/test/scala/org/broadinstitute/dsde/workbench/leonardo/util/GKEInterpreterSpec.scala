@@ -70,7 +70,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       FakeGoogleComputeService
     )
 
-  "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
+  it should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val minNodes = 0
     val maxNodes = 2
@@ -143,6 +143,30 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       _ <- gkeInterp.deleteAndPollNodepool(m)
       nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
     } yield nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  "deleteAndPollApp" should "trigger helm unstall only for Galaxy app" in isolatedDbTest {
+    val res = for {
+      savedCluster <- IO(makeKubeCluster(1).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      savedApp <- IO(makeApp(1, savedNodepool.id).save())
+      m = DeleteAppParams(savedApp.id, savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value, AppName("app1"), false)
+      r <- gkeInterp.deleteAndPollApp(m).attempt
+    } yield r.isLeft shouldBe(true)
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not trigger helm unstall only for non-Galaxy app" in isolatedDbTest {
+    val res = for {
+      savedCluster <- IO(makeKubeCluster(1).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      savedApp <- IO(makeApp(1, savedNodepool.id, appType = AppType.Allowed).save())
+      m = DeleteAppParams(savedApp.id, savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value, AppName("app1"), false)
+      r <- gkeInterp.deleteAndPollApp(m).attempt
+    } yield r.isRight shouldBe(true)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

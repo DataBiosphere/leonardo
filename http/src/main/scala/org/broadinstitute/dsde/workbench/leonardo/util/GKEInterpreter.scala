@@ -917,45 +917,48 @@ class GKEInterpreter[F[_]](
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
 
-      _ <- googleClusterOpt.traverse(googleCluster =>
-        for {
-          helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+      needHelmUninstall = app.appType == AppType.Galaxy
+      _ <- googleClusterOpt
+        .traverse(googleCluster =>
+          for {
+            helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
-          _ <- logger.info(ctx.loggingCtx)(
-            s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
-          )
-
-          // helm uninstall the app chart and wait
-          _ <- helmClient
-            .uninstall(app.release, config.galaxyAppConfig.uninstallKeepHistory)
-            .run(helmAuthContext)
-
-          last <- streamFUntilDone(
-            kubeService.listPodStatus(dbCluster.getClusterId, KubernetesNamespace(namespaceName)),
-            config.monitorConfig.deleteApp.maxAttempts,
-            config.monitorConfig.deleteApp.interval
-          ).compile.lastOrError
-
-          _ <-
-            if (!podDoneCheckable.isDone(last)) {
-              val msg =
-                s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
-                    .filterNot(isPodDone)
-                    .map(_.name.value)
-                    .mkString(", ")}"
-              logger.error(ctx.loggingCtx)(msg) >>
-                F.raiseError[Unit](AppDeletionException(msg))
-            } else F.unit
-
-          // helm uninstall the setup chart
-          _ <- helmClient
-            .uninstall(
-              getTerraAppSetupChartReleaseName(app.release),
-              config.galaxyAppConfig.uninstallKeepHistory
+            _ <- logger.info(ctx.loggingCtx)(
+              s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
             )
-            .run(helmAuthContext)
-        } yield ()
-      )
+
+            // helm uninstall the app chart and wait
+            _ <- helmClient
+              .uninstall(app.release, config.galaxyAppConfig.uninstallKeepHistory)
+              .run(helmAuthContext)
+
+            last <- streamFUntilDone(
+              kubeService.listPodStatus(dbCluster.getClusterId, KubernetesNamespace(namespaceName)),
+              config.monitorConfig.deleteApp.maxAttempts,
+              config.monitorConfig.deleteApp.interval
+            ).compile.lastOrError
+
+            _ <-
+              if (!podDoneCheckable.isDone(last)) {
+                val msg =
+                  s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
+                      .filterNot(isPodDone)
+                      .map(_.name.value)
+                      .mkString(", ")}"
+                logger.error(ctx.loggingCtx)(msg) >>
+                  F.raiseError[Unit](AppDeletionException(msg))
+              } else F.unit
+
+            // helm uninstall the setup chart
+            _ <- helmClient
+              .uninstall(
+                getTerraAppSetupChartReleaseName(app.release),
+                config.galaxyAppConfig.uninstallKeepHistory
+              )
+              .run(helmAuthContext)
+          } yield ()
+        )
+        .whenA(needHelmUninstall)
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
@@ -966,7 +969,7 @@ class GKEInterpreter[F[_]](
         .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace))
         .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
 
-      _ <- streamUntilDoneOrTimeout(fa, 30, 5 seconds, "delete namespace timed out")
+      _ <- streamUntilDoneOrTimeout(fa, 60, 5 seconds, "delete namespace timed out")
       _ <- logger.info(ctx.loggingCtx)(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
