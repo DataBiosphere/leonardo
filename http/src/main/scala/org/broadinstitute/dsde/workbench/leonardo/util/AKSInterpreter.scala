@@ -92,7 +92,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                             )
       )
       app = dbApp.app
-      namespacePrefix = app.appResources.namespace.name.value
+      namespacePrefix = app.appResources.namespace.value
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin app creation for app ${params.appName.value} in cloud context ${params.cloudContext.asString}"
@@ -540,7 +540,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           for {
             client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
 
-            kubernetesNamespace = KubernetesNamespace(app.appResources.namespace.name)
+            kubernetesNamespace = KubernetesNamespace(app.appResources.namespace)
 
             // Delete the namespace which should delete all resources in it
             _ <- kubeAlg.deleteNamespace(client, kubernetesNamespace)

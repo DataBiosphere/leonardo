@@ -136,7 +136,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Some(disk.id),
         customEnvironmentVariables,
         AppType.Galaxy,
-        savedApp.appResources.namespace.name,
+        savedApp.appResources.namespace,
         Some(defaultFakeAppMachineType),
         None,
         false
@@ -188,7 +188,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Some(disk.id),
         customEnvironmentVariables,
         AppType.Galaxy,
-        savedApp.appResources.namespace.name,
+        savedApp.appResources.namespace,
         Some(defaultFakeAppMachineType),
         None,
         false
@@ -240,7 +240,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Some(disk.id),
         customEnvironmentVariables,
         AppType.Galaxy,
-        savedApp.appResources.namespace.name,
+        savedApp.appResources.namespace,
         Some(defaultFakeAppMachineType),
         None,
         false

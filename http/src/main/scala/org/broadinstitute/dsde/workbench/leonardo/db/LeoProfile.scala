@@ -198,8 +198,6 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val ipRange: BaseColumnType[IpRange] =
       MappedColumnType.base[IpRange, String](_.value, IpRange.apply)
 
-    implicit val kubernetesNamespaceIdColumnType: BaseColumnType[NamespaceId] =
-      MappedColumnType.base[NamespaceId, Long](_.id, NamespaceId.apply)
     implicit val namespaceNameColumnType: BaseColumnType[NamespaceName] =
       MappedColumnType.base[NamespaceName, String](_.value, NamespaceName.apply)
     implicit val kubernetesServiceAccountColumnType: BaseColumnType[ServiceAccountName] =

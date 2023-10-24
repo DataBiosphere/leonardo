@@ -120,10 +120,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app = makeApp(1, nodepool.id).copy(
           appType = AppType.Cromwell,
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -165,10 +162,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           status = AppStatus.Updating,
           chart = Chart(ChartName("myapp"), ChartVersion("0.0.1")),
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -214,10 +208,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           appType = AppType.Cromwell,
           status = AppStatus.Running,
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -245,10 +236,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -284,10 +272,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -331,10 +316,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -380,10 +362,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
