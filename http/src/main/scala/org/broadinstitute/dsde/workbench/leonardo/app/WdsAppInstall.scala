@@ -62,7 +62,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
       valuesList =
         List(
-          // pass enviiroment information to wds so it can properly pick its config 
+          // pass enviiroment information to wds so it can properly pick its config
           raw"wds.environment=${config.environment}",
           raw"wds.environmentBase=${config.environmentBase}",
 
