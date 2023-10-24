@@ -196,13 +196,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
    * @return
    */
   def mockAuthorizeForOneWorkspace(userInfo: UserInfo,
-                    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
-                    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
-                    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
-                    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
-                   ): AllowlistAuthProvider = {
+                                   readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+                                   readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
+                                   readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                                   readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
+                                   ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                                   ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
+  ): AllowlistAuthProvider = {
     val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
 
     when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
@@ -252,7 +252,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
     ).thenReturn(IO.pure(true))
     when(
-
       mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
         any(projectSamResourceAction.getClass),
         any(AppSamResourceAction.getClass),

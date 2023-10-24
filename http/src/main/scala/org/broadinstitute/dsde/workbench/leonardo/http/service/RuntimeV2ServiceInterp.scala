@@ -554,19 +554,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       readerV2WsmIds: Set[WsmResourceSamResourceId] <- authProvider
         .listResourceIds[WsmResourceSamResourceId](hasOwnerRole = false, userInfo)
       readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- maybeWorkspaceSamId match {
-        case Some(workspaceSamId) => for {
-          isWorkspaceReader <- authProvider.isUserWorkspaceReader(workspaceSamId, userInfo)
-          workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceReader) Set(workspaceSamId) else Set.empty
-        } yield workspaceIds
+        case Some(workspaceSamId) =>
+          for {
+            isWorkspaceReader <- authProvider.isUserWorkspaceReader(workspaceSamId, userInfo)
+            workspaceIds: Set[WorkspaceResourceSamResourceId] =
+              if (isWorkspaceReader) Set(workspaceSamId) else Set.empty
+          } yield workspaceIds
         case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
       }
 
       // v2 runtimes are discoverable by owners on the corresponding Workspace
       ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- maybeWorkspaceSamId match {
-        case Some(workspaceSamId) => for {
-          isWorkspaceOwner <- authProvider.isUserWorkspaceOwner(workspaceSamId, userInfo)
-          workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceOwner) Set(workspaceSamId) else Set.empty
-        } yield workspaceIds
+        case Some(workspaceSamId) =>
+          for {
+            isWorkspaceOwner <- authProvider.isUserWorkspaceOwner(workspaceSamId, userInfo)
+            workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceOwner) Set(workspaceSamId) else Set.empty
+          } yield workspaceIds
         case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
       }
 
