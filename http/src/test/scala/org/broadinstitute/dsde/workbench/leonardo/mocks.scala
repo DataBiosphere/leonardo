@@ -26,7 +26,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesModels,
   PvName
 }
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
   SamResource,
@@ -110,6 +110,16 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[(List[A], List[ProjectAction])] = ???
+
+  override def listResourceIds[R <: SamResourceId](
+    hasOwnerRole: Boolean,
+    userInfo: UserInfo
+  )(implicit
+    resourceDefinition: SamResource[R],
+    appDefinition: SamResource[AppSamResourceId],
+    resourceIdDecoder: Decoder[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Set[R]] = ???
 
   override def filterUserVisible[R](
     resources: NonEmptyList[R],

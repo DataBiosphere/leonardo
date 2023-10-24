@@ -22,7 +22,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read LeoPubsubMessageSubscriberConfig properly" in {
     val expectedResult = LeoPubsubMessageSubscriberConfig(
       100,
-      295 seconds,
+      595 seconds,
       PersistentDiskMonitorConfig(
         CreateDiskTimeout(5, 20),
         PollMonitorConfig(2 seconds, 5, 3 seconds),
@@ -83,7 +83,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "69.173.127.240/28",
         "69.173.112.0/21"
       ).map(CidrIP),
-      KubernetesClusterVersion("1.24"),
+      KubernetesClusterVersion("1.25"),
       1 hour,
       200
     )

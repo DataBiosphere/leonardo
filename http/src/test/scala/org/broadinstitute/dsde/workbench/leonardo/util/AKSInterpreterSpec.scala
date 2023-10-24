@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, workspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall
@@ -32,7 +32,7 @@ import org.scalatestplus.mockito.MockitoSugar
 
 import java.net.URL
 import java.nio.file.Files
-import java.util.{Base64, UUID}
+import java.util.{ArrayList, Base64, UUID}
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
@@ -53,7 +53,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureRelayService = setUpMockAzureRelayService
   val mockKube = setUpMockKube
-  val (mockWsm, mockControlledResourceApi) = setUpMockWsmApiClientProvider
+  val (mockWsm, mockControlledResourceApi, mockResourceApi) = setUpMockWsmApiClientProvider
 
   implicit val appTypeToAppInstall: AppType => AppInstall[IO] = _ => setUpMockAppInstall
   def newAksInterp(configuration: AKSInterpreterConfig) = new AKSInterpreter[IO](
@@ -64,7 +64,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockSamDAO,
     mockWsmDAO,
     mockKube,
-    mockWsm
+    mockWsm,
+    mockWsmDAO
   )
 
   val aksInterp = newAksInterp(config)
@@ -119,10 +120,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app = makeApp(1, nodepool.id).copy(
           appType = AppType.Cromwell,
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -136,13 +134,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appId = saveApp.id
         appName = saveApp.appName
 
-        params = CreateAKSAppParams(appId,
-                                    appName,
-                                    workspaceId,
-                                    cloudContext,
-                                    landingZoneResources,
-                                    Some(storageContainer)
-        )
+        params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, billingProfileId)
         _ <- aksInterp.createAndPollApp(params)
 
         app <- KubernetesServiceDbQueries
@@ -170,10 +162,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           status = AppStatus.Updating,
           chart = Chart(ChartName("myapp"), ChartVersion("0.0.1")),
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -219,10 +208,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           appType = AppType.Cromwell,
           status = AppStatus.Running,
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -232,7 +218,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
         appName = saveApp.appName
 
-        _ <- aksInterp.deleteApp(DeleteAKSAppParams(appName, workspaceId, landingZoneResources, cloudContext))
+        _ <- aksInterp.deleteApp(DeleteAKSAppParams(appName, workspaceId, cloudContext, billingProfileId))
         app <- KubernetesServiceDbQueries
           .getActiveFullAppByName(CloudContext.Azure(cloudContext), appName)
           .transaction
@@ -250,10 +236,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -289,10 +272,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -336,10 +316,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -385,10 +362,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -540,7 +514,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     sam
   }
 
-  private def setUpMockWsmApiClientProvider: (WsmApiClientProvider[IO], ControlledAzureResourceApi) = {
+  private def setUpMockWsmApiClientProvider: (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi) = {
     val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
@@ -665,7 +639,27 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       wsm.getControlledAzureResourceApi(any)(any)
     } thenReturn IO.pure(api)
-    (wsm, api)
+
+    // enumerate workspace resources
+    when {
+      resourceApi.enumerateResources(any, any, any, any, any)
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata"))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
+        )
+      )
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
+    when {
+      wsm.getResourceApi(any)(any)
+    } thenReturn IO.pure(resourceApi)
+    (wsm, api, resourceApi)
+
   }
 
   private def setUpMockAppInstall: AppInstall[IO] = {

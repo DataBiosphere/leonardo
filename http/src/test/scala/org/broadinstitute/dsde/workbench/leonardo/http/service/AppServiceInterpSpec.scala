@@ -20,9 +20,9 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO, WorkspaceDescription, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
   CreateAppV2Message,
@@ -51,7 +51,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   val wsmDao = new MockWsmDAO
-  val samDao = new MockSamDAO
 
   val gcpWsmDao = new MockWsmDAO {
     override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
@@ -71,7 +70,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
-  val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), allowlistAuthProvider = allowListAuthProvider2)
+  val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), authProvider = allowListAuthProvider2)
   val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
@@ -118,8 +117,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       passComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -129,8 +127,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughMemoryComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -140,8 +137,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughCpuComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
 
     for {
@@ -165,15 +161,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(None)
     }
     val interp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       FakeGoogleComputeService,
       noLabelsGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -203,8 +198,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -796,6 +790,36 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.diskId shouldBe None
   }
 
+  it should "delete an app and record AppUsage stopTime" in isolatedDbTest {
+    val res = for {
+      publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      kubeServiceInterp = makeInterp(publisherQueue)
+
+      savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
+      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      savedApp <- IO(
+        makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
+          .copy(status = AppStatus.Running)
+          .save()
+      )
+
+      _ <- appUsageQuery.recordStart(savedApp.id, Instant.now())
+      gcpContext = savedCluster.cloudContext match {
+        case g @ CloudContext.Gcp(_) => g
+        case _                       => fail("expected GCP context")
+      }
+      _ <- kubeServiceInterp.deleteApp(userInfo, gcpContext, savedApp.appName, false)
+      _ <- withLeoPublisher(publisherQueue) {
+        for {
+          appUsage <- getAllAppUsage.transaction
+        } yield appUsage.headOption.map(_.stopTime).isDefined shouldBe true
+      }
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "error on delete if app is in a status that cannot be deleted" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
@@ -1153,8 +1177,14 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Running).save())
+      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      savedApp <- IO(
+        makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
+          .copy(status = AppStatus.Running)
+          .save()
+      )
 
+      _ <- appUsageQuery.recordStart(savedApp.id, Instant.now())
       gcpContext = savedCluster.cloudContext match {
         case g @ CloudContext.Gcp(_) => g
         case _                       => fail("expected GCP context")
@@ -1166,6 +1196,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
             .getActiveFullAppByName(savedCluster.cloudContext, savedApp.appName)
             .transaction
           msg <- publisherQueue.tryTake
+          appUsage <- getAllAppUsage.transaction
         } yield {
           dbAppOpt.isDefined shouldBe true
           dbAppOpt.get.app.status shouldBe AppStatus.Stopping
@@ -1175,6 +1206,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           dbAppOpt.get.cluster.status shouldBe KubernetesClusterStatus.Running
 
           msg shouldBe None
+
+          appUsage.headOption.map(_.stopTime).isDefined shouldBe true
         }
       }
     } yield ()
@@ -1224,7 +1257,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1240,8 +1273,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1256,48 +1288,113 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "reject create SAS app if user is not in SAS user group" in isolatedDbTest {
-    val appName = AppName("sas_app")
+  it should "reject create SAS app request if it's not from AoU UI and user is not in the sas_app_users group" in {
+    val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customApplicationAllowList =
-      CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
     val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
       override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
-    val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
-      authProvider,
-      serviceAccountProvider,
-      QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
-      CustomAppConfig(
-        ChartName(""),
-        ChartVersion(""),
-        ReleaseNameSuffix(""),
-        NamespaceNameSuffix(""),
-        ServiceAccountName(""),
-        customApplicationAllowList,
-        true,
-        List()
-      ),
-      wsmDao,
-      samDao
-    )
-    val appReq = createAppRequest.copy(
-      diskConfig = Some(createDiskConfig),
-      appType = AppType.Allowed,
-      allowedChartName = Some(AllowedChartName.Sas),
-      descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
-    )
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas)
+      )
 
-    val res = testInterp
+    val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), authProvider = authProvider)
+    val res = appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe (Left(
+      AuthenticationError(Some(userInfo.userEmail), "You need to obtain a license in order to create a SAS App")
+    ))
+  }
 
-    res.isLeft shouldBe true
+  it should "reject create SAS app request if it's not for an AoU project" in {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val grs = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map.from(List("security-group" -> "low"))))
+    }
+    val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), googleResourceService = grs)
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas),
+        labels = Map.from(List("all-of-us" -> "true"))
+      )
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      res <- appServiceInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .attempt
+    } yield res shouldBe (Left(ForbiddenError(userInfo.userEmail, Some(ctx.traceId))))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "reject create SAS app request if SAS is disabled" in {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val grs = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map.from(List("security-group" -> "low"))))
+    }
+    val appServiceInterp =
+      makeInterp(QueueFactory.makePublisherQueue(), googleResourceService = grs, enableSasApp = false)
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas),
+        labels = Map.from(List("all-of-us" -> "true"))
+      )
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      res <- appServiceInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .attempt
+    } yield res shouldBe (Left(
+      AuthenticationError(Some(userInfo.userEmail), "SAS is not enabled. Please contact your administrator.")
+    ))
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "create SAS app successfully for AoU even if user is not in sas_app_users group" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val grs = new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+        IO.pure(Some(Map.from(List("security-group" -> "high"))))
+    }
+
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+      override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val queue = QueueFactory.makePublisherQueue()
+    val appServiceInterp = makeInterp(queue, googleResourceService = grs, authProvider = authProvider)
+    val appReq =
+      createAppRequest.copy(
+        diskConfig = Some(createDiskConfig),
+        appType = AppType.Allowed,
+        allowedChartName = Some(AllowedChartName.Sas),
+        labels = Map.from(List("all-of-us" -> "true"))
+      )
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      res <- appServiceInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .attempt
+      msg <- queue.take
+    } yield msg.isInstanceOf[CreateAppMessage] shouldBe true
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "create a custom app with default security" in isolatedDbTest {
@@ -1310,7 +1407,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(true)
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1326,8 +1423,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1354,7 +1450,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1370,8 +1466,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1397,7 +1492,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1413,8 +1508,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1437,7 +1531,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("security-group" -> "high")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1453,8 +1547,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1483,7 +1576,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1499,8 +1592,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1529,7 +1621,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO(Some(Map("not-security-group" -> "any-val")))
     }
     val testInterp = new LeoAppServiceInterp[IO](
-      AppServiceConfig(enableCustomAppCheck = true, enableSasAppGroupCheck = true, leoKubernetesConfig),
+      AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
@@ -1545,8 +1637,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao,
-      samDao
+      wsmDao
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1578,11 +1669,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val cluster = clusters.head
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
 
+    clusters.flatMap(_.nodepools).size shouldBe 1
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual appReq.kubernetesRuntimeConfig.get.machineType
-    nodepool.numNodes shouldEqual appReq.kubernetesRuntimeConfig.get.numNodes
-    nodepool.autoscalingEnabled shouldEqual appReq.kubernetesRuntimeConfig.get.autoscalingEnabled
-    nodepool.auditInfo.creator shouldEqual userInfo.userEmail
+    nodepool.isDefault shouldBe true
 
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
@@ -1622,12 +1711,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     cluster.auditInfo.creator shouldEqual userInfo.userEmail
     cluster.status shouldEqual KubernetesClusterStatus.Running
 
+    clusters.flatMap(_.nodepools).size shouldBe 1
     val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.machineType shouldEqual MachineTypeName("Standard_A2_v2")
-    nodepool.numNodes shouldEqual NumNodes(1)
-    nodepool.autoscalingEnabled shouldEqual false
-    nodepool.auditInfo.creator shouldEqual userInfo.userEmail
-    nodepool.status shouldEqual NodepoolStatus.Running
+    nodepool.isDefault shouldBe true
 
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
@@ -2388,24 +2474,24 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   // used when we care about queue state
   private def makeInterp(queue: Queue[IO, LeoPubsubMessage],
-                         allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
+                         authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
                          wsmDao: WsmDao[IO] = wsmDao,
                          enableCustomAppCheckFlag: Boolean = true,
+                         enableSasApp: Boolean = true,
                          googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                          customAppConfig: CustomAppConfig = gkeCustomAppConfig
   ) = {
-    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag)
+    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
 
     new LeoAppServiceInterp[IO](
       appConfig,
-      allowlistAuthProvider,
+      authProvider,
       serviceAccountProvider,
       queue,
       FakeGoogleComputeService,
       googleResourceService,
       customAppConfig,
-      wsmDao,
-      samDao
+      wsmDao
     )
   }
 }

@@ -50,6 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
 import org.http4s.Uri
 
@@ -78,6 +79,7 @@ class GKEInterpreter[F[_]](
   val executionContext: ExecutionContext,
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
+  metrics: OpenTelemetryMetrics[F],
   F: Async[F],
   files: Files[F]
 ) extends GKEAlgebra[F] {
@@ -339,7 +341,7 @@ class GKEInterpreter[F[_]](
       )
 
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
+      namespaceName = app.appResources.namespace
       dbCluster = dbApp.cluster
       gkeClusterId = dbCluster.getClusterId
       googleProject = params.googleProject
@@ -354,7 +356,7 @@ class GKEInterpreter[F[_]](
       )
 
       // Create KSA
-      ksaName: ServiceAccountName <- F.fromOption(
+      ksaName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
         AppCreationException(
           s"Kubernetes Service Account not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}"
@@ -462,6 +464,7 @@ class GKEInterpreter[F[_]](
         case AppType.Allowed =>
           installAllowedApp(
             helmAuthContext,
+            app.id,
             app.appName,
             app.release,
             app.chart,
@@ -503,7 +506,7 @@ class GKEInterpreter[F[_]](
           else
             for {
               pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
-                                                             KubernetesNamespace(app.appResources.namespace.name)
+                                                             KubernetesNamespace(app.appResources.namespace)
               )
 
               _ <- pvcs
@@ -575,7 +578,7 @@ class GKEInterpreter[F[_]](
       gkeClusterId = dbCluster.getClusterId
 
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
+      namespaceName = app.appResources.namespace
       gsa = app.googleServiceAccount
       nfsDisk <- F.fromOption(
         dbApp.app.appResources.disk,
@@ -903,7 +906,7 @@ class GKEInterpreter[F[_]](
       )
 
       app = dbApp.app
-      namespaceName = app.appResources.namespace.name
+      namespaceName = app.appResources.namespace
       dbCluster = dbApp.cluster
       gkeClusterId = dbCluster.getClusterId
 
@@ -956,11 +959,11 @@ class GKEInterpreter[F[_]](
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
-                                       KubernetesNamespace(dbApp.app.appResources.namespace.name)
+                                       KubernetesNamespace(dbApp.app.appResources.namespace)
       )
 
       fa = kubeService
-        .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace.name))
+        .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace))
         .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
 
       _ <- streamUntilDoneOrTimeout(fa, 30, 5 seconds, "delete namespace timed out")
@@ -1215,8 +1218,11 @@ class GKEInterpreter[F[_]](
           } yield ()
         } else {
           for {
-            // The app is Running at this point and Galaxy can be used
-            _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+            startTime <- F.realTimeInstant
+            // The app is Running at this point and can be used
+            _ <- appQuery.updateStatus(dbApp.app.id, AppStatus.Running).transaction
+            trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
+            _ <- appUsageQuery.recordStart(dbApp.app.id, startTime).whenA(trackUsage)
 
             // If autoscaling should be enabled, enable it now. Galaxy can still be used while this is in progress
             _ <-
@@ -1514,6 +1520,7 @@ class GKEInterpreter[F[_]](
 
   private[util] def installAllowedApp(
     helmAuthContext: AuthContext,
+    appId: AppId,
     appName: AppName,
     release: Release,
     chart: Chart,
@@ -1593,13 +1600,14 @@ class GKEInterpreter[F[_]](
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
 
+      readyTime <- F.realTimeInstant
       _ <-
         if (!last.isDone) {
           val msg =
             s"AoU app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
-        } else F.unit
+        } else appUsageQuery.recordStart(appId, readyTime).whenA(allowedChart.trackUsage)
 
     } yield ()
 

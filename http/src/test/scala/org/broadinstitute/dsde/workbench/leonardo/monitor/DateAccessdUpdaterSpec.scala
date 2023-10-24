@@ -19,22 +19,22 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
-  it should "sort UpdateDateAccessMessage properly" in {
-    val msg1 = UpdateDateAccessMessage(RuntimeName("r1"),
-                                       CloudContext.Gcp(GoogleProject("p1")),
-                                       Instant.ofEpochMilli(1588264615480L)
+  it should "sort UpdateDateAccessedMessage properly" in {
+    val msg1 = UpdateDateAccessedMessage(UpdateTarget.Runtime(RuntimeName("r1")),
+                                         CloudContext.Gcp(GoogleProject("p1")),
+                                         Instant.ofEpochMilli(1588264615480L)
     )
-    val msg2 = UpdateDateAccessMessage(RuntimeName("r1"),
-                                       CloudContext.Gcp(GoogleProject("p1")),
-                                       Instant.ofEpochMilli(1588264615490L)
+    val msg2 = UpdateDateAccessedMessage(UpdateTarget.Runtime(RuntimeName("r1")),
+                                         CloudContext.Gcp(GoogleProject("p1")),
+                                         Instant.ofEpochMilli(1588264615490L)
     )
-    val msg3 = UpdateDateAccessMessage(RuntimeName("r2"),
-                                       CloudContext.Gcp(GoogleProject("p1")),
-                                       Instant.ofEpochMilli(1588264615480L)
+    val msg3 = UpdateDateAccessedMessage(UpdateTarget.Runtime(RuntimeName("r2")),
+                                         CloudContext.Gcp(GoogleProject("p1")),
+                                         Instant.ofEpochMilli(1588264615480L)
     )
-    val msg4 = UpdateDateAccessMessage(RuntimeName("r1"),
-                                       CloudContext.Gcp(GoogleProject("p2")),
-                                       Instant.ofEpochMilli(1588264615480L)
+    val msg4 = UpdateDateAccessedMessage(UpdateTarget.Runtime(RuntimeName("r1")),
+                                         CloudContext.Gcp(GoogleProject("p2")),
+                                         Instant.ofEpochMilli(1588264615480L)
     )
 
     val messages = Chain(
@@ -58,13 +58,22 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     val runtime2 = makeCluster(2).save()
 
     val messagesToEnqueue = Stream(
-      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.cloudContext, Instant.ofEpochMilli(1588264615480L)),
-      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.cloudContext, Instant.ofEpochMilli(1588264615490L)),
-      UpdateDateAccessMessage(runtime2.runtimeName, runtime2.cloudContext, Instant.ofEpochMilli(1588264615480L))
+      UpdateDateAccessedMessage(UpdateTarget.Runtime(runtime1.runtimeName),
+                                runtime1.cloudContext,
+                                Instant.ofEpochMilli(1588264615480L)
+      ),
+      UpdateDateAccessedMessage(UpdateTarget.Runtime(runtime1.runtimeName),
+                                runtime1.cloudContext,
+                                Instant.ofEpochMilli(1588264615490L)
+      ),
+      UpdateDateAccessedMessage(UpdateTarget.Runtime(runtime2.runtimeName),
+                                runtime2.cloudContext,
+                                Instant.ofEpochMilli(1588264615480L)
+      )
     ).covary[IO]
 
     for {
-      queue <- Queue.bounded[IO, UpdateDateAccessMessage](10)
+      queue <- Queue.bounded[IO, UpdateDateAccessedMessage](10)
       _ <- (messagesToEnqueue through (in => in.evalMap(m => queue.offer(m)))).compile.drain
       _ <- monitor(queue)(5 seconds)
       updatedRuntime1 <- clusterQuery.getClusterById(runtime1.id).transaction
@@ -76,7 +85,7 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   }
 
   private def monitor(
-    queue: Queue[IO, UpdateDateAccessMessage]
+    queue: Queue[IO, UpdateDateAccessedMessage]
   )(waitDuration: FiniteDuration): IO[Unit] = {
     val monitor = new DateAccessedUpdater[IO](Config.dateAccessUpdaterConfig, queue)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>

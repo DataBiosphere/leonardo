@@ -26,11 +26,11 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType.appTypeToFormattedByTy
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AppNotFoundException,
   AppTypeNotSupportedOnCloudException
 }
-import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
@@ -356,17 +356,34 @@ class LeoPubsubMessageSubscriber[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      now <- F.realTimeInstant
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: About to get the cluster by id, [runtimeId = ${msg.runtimeId}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+      )
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(F.pure)
+      now <- F.realTimeInstant
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Got the cluster, [runtime = ${runtime.runtimeName.asString}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+      )
+
       _ <-
         if (!Set(RuntimeStatus.Stopping, RuntimeStatus.PreStopping).contains(runtime.status))
           F.raiseError[Unit](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
+      now <- F.realTimeInstant
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: About to get the runtimeConfig, [runtime = ${runtime.runtimeName.asString}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+      )
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      now <- F.realTimeInstant
+      _ <- logger.info(
+        s"StopRuntimeMessage timing: Got the runtimeConfig, [runtime = ${runtime.runtimeName.asString}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+      )
       _ <- runtime.cloudContext match {
         case CloudContext.Gcp(_) =>
           for {
@@ -387,14 +404,19 @@ class LeoPubsubMessageSubscriber[F[_]](
               case None =>
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
             }
+            now <- F.realTimeInstant
+            _ <- logger.info(
+              s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+            )
             _ <- asyncTasks.offer(
               Task(
                 ctx.traceId,
                 poll,
                 Some(
-                  handleRuntimeMessageError(msg.runtimeId,
-                                            ctx.now,
-                                            s"stopping runtime ${runtime.projectNameString} failed"
+                  handleRuntimeMessageError(
+                    msg.runtimeId,
+                    ctx.now,
+                    s"stopping runtime ${runtime.projectNameString}/${runtime.runtimeName.toString} failed"
                   )
                 ),
                 ctx.now,
@@ -1098,7 +1120,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               googleDiskService.getDisk(
                 msg.project,
                 zone,
-                getOldStyleGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name,
+                getOldStyleGalaxyPostgresDiskName(dbApp.app.appResources.namespace,
                                                   config.galaxyDiskConfig.postgresDiskNameSuffix
                 )
               )
@@ -1192,7 +1214,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
                                                      zone,
                                                      msg.appName,
-                                                     dbApp.app.appResources.namespace.name,
+                                                     dbApp.app.appResources.namespace,
                                                      dbApp.app.appResources.disk.get.name
                 )
                   .adaptError { case e =>
@@ -1575,35 +1597,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(c) =>
-          for {
-            landingZoneResources <- F.fromOption(
-              msg.landingZoneResources,
-              PubsubKubernetesError(
-                AppError(s"Landing zone required for Azure apps",
-                         ctx.now,
-                         ErrorAction.CreateApp,
-                         ErrorSource.App,
-                         None,
-                         Some(ctx.traceId)
-                ),
-                Some(msg.appId),
-                false,
-                None,
-                None,
-                None
-              )
-            )
-            task = azurePubsubHandler.createAndPollApp(msg.appId,
-                                                       msg.appName,
-                                                       msg.workspaceId,
-                                                       c,
-                                                       landingZoneResources,
-                                                       msg.storageContainer
-            )
-            _ <- asyncTasks.offer(
-              Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2")
-            )
-          } yield ()
+          val task =
+            azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, c, msg.billingProfileId)
+          asyncTasks.offer(Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createAppV2"))
         case CloudContext.Gcp(c) =>
           F.raiseError(
             PubsubKubernetesError(
@@ -1632,30 +1628,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- msg.cloudContext match {
         case CloudContext.Azure(c) =>
-          for {
-            landingZoneResources <- F.fromOption(
-              msg.landingZoneResourcesOpt,
-              PubsubKubernetesError(
-                AppError(s"Landing zone required for Azure apps",
-                         ctx.now,
-                         ErrorAction.CreateApp,
-                         ErrorSource.App,
-                         None,
-                         Some(ctx.traceId)
-                ),
-                Some(msg.appId),
-                false,
-                None,
-                None,
-                None
-              )
-            )
-            task =
-              azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, landingZoneResources, c)
-            _ <- asyncTasks.offer(
-              Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2")
-            )
-          } yield ()
+          val task =
+            azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, c, msg.billingProfileId)
+          asyncTasks.offer(Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteAppV2"))
 
         case CloudContext.Gcp(c) =>
           F.raiseError(

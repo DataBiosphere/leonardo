@@ -198,15 +198,13 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO,
-          appDependencies.samDAO
+          appDependencies.wsmDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
         runtimeServiceConfig,
         appDependencies.authProvider,
         appDependencies.wsmDAO,
-        appDependencies.samDAO,
         appDependencies.publisherQueue,
         appDependencies.dateAccessedUpdaterQueue,
         appDependencies.wsmClientProvider
@@ -522,7 +520,7 @@ object Boot extends IOApp {
       publisherQueue <- Resource.eval(Queue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
       dataAccessedUpdater <- Resource.eval(
-        Queue.bounded[F, UpdateDateAccessMessage](dateAccessUpdaterConfig.queueSize)
+        Queue.bounded[F, UpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
       )
       subscriberQueue <- Resource.eval(Queue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
@@ -734,7 +732,8 @@ object Boot extends IOApp {
         samDao,
         wsmDao,
         kubeAlg,
-        wsmClientProvider
+        wsmClientProvider,
+        wsmDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -869,6 +868,7 @@ object Boot extends IOApp {
         .withConnectTimeout(30 seconds)
         .withRequestTimeout(60 seconds)
         .withMaxTotalConnections(100)
+        .withMaxWaitQueueLimit(1024)
         .withMaxIdleDuration(30 seconds)
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
@@ -926,7 +926,7 @@ final case class AppDependencies[F[_]](
   authProvider: SamAuthProvider[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
-  dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessMessage],
+  dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   nonLeoMessageGoogleSubscriber: GoogleSubscriber[F, NonLeoMessage],
   asyncTasksQueue: Queue[F, Task[F]],

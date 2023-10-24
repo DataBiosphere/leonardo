@@ -1829,6 +1829,12 @@ paths:
           required: false
           schema:
             type: string
+        - in: query
+          name: role
+          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: List of apps
@@ -2833,6 +2839,7 @@ components:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
+            autopauseThreshold: 15
     UpdateAppsRequest:
       content:
         application/json:
@@ -2995,7 +3002,7 @@ components:
         - proxyUrl
         - status
         - labels
-        - erors
+        - errors
         - autopauseThreshold
         - runtimeImages
         - scopes
@@ -3021,7 +3028,7 @@ components:
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         runtimeConfig:
-          $ref: "#/components/schemas/OneOfRuntimeConfig"
+          $ref: "#/components/schemas/OneOfRuntimeConfigInResponse"
         proxyUrl:
           type: string
           description: The URL to access a tool on the runtime
@@ -3121,7 +3128,7 @@ components:
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
         runtimeConfig:
-          $ref: "#/components/schemas/OneOfRuntimeConfig"
+          $ref: "#/components/schemas/OneOfRuntimeConfigInResponse"
         proxyUrl:
           type: string
           description: The URL to access a tool on the runtime
@@ -3447,6 +3454,9 @@ components:
           description: an optional set of key value pairs for environment variables to be injected into the VM
         disk:
           $ref: "#/components/schemas/AzureDiskConfig"
+        autopauseThreshold:
+          type: int
+          description: an optional number to determine when a runtime should autopause
 
     AzureDiskConfig:
       description: The config for creating an azure disk
@@ -3596,6 +3606,10 @@ components:
           description: The block size in bytes that the persistent disk is to be updated to.
     ClusterError:
       description: Errors encountered on cluster create
+      required:
+        - errorMessage
+        - errorCode
+        - timestamp
       properties:
         errorMessage:
           type: string
@@ -3606,6 +3620,9 @@ components:
         timestamp:
           type: string
           description: timestamp for error in ISO 8601 format
+        traceId:
+          type: string
+          description: trace for error
     AsyncRuntimeFields:
       description: Fields populated asynchronously to the runtime's creation
       type: object
@@ -3661,7 +3678,7 @@ components:
           enum: [GCE, DATAPROC, AZURE_VM]
         configType:
           type: string
-          enum: [Dataproc, GceConfig, GceWithPdCConfig, AzureVmConfig]
+          enum: [Dataproc, GceConfig, GceWithPdConfig, AzureVmConfig]
     OneOfRuntimeConfig:
       oneOf:
         - $ref: "#/components/schemas/GceConfig"
@@ -3674,6 +3691,17 @@ components:
           gce: "#/components/schemas/GceWithPdConfig"
           dataproc: "#/components/schemas/DataprocConfig"
           azure_vm: "#/components/schemas/AzureConfig"
+    OneOfRuntimeConfigInResponse:
+      oneOf:
+        - $ref: "#/components/schemas/GceWithPdConfigInResponse"
+        - $ref: "#/components/schemas/DataprocConfig"
+        - $ref: "#/components/schemas/AzureConfig"
+      discriminator:
+        propertyName: cloudService
+        mapping:
+          GCE: "#/components/schemas/GceWithPdConfigInResponse"
+          DATAPROC: "#/components/schemas/DataprocConfig"
+          AZURE_VM: "#/components/schemas/AzureConfig"
     RuntimeImage:
       type: object
       required:
@@ -3750,11 +3778,45 @@ components:
                 Defaults to us-central1-a.
             gpuConfig:
               $ref: "#/components/schemas/GpuConfig"
+    GceWithPdConfigInResponse:
+      description: Configuration for Google Compute Engine instances.
+      allOf:
+        - $ref: '#/components/schemas/RuntimeConfig'
+        - type: object
+          required:
+            - machineType
+            - bootDiskSize
+            - zone
+          properties:
+            persistentDiskId:
+              type: integer
+            bootDiskSize:
+              type: integer
+              description: size for boot disk
+            machineType:
+              type: string
+              description: >
+                Optional, the machine type determines the number of CPUs and memory
+                for the master node. For example "n1-standard-16"
+
+                or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+
+                see https://cloud.google.com/compute/docs/machine-types
+            zone:
+              type: string
+              description: >
+                Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
+                Defaults to us-central1-a.
+            gpuConfig:
+              $ref: "#/components/schemas/GpuConfig"
     DataprocConfig:
       description: Configuration for a single Dataproc cluster.
       allOf:
         - $ref: '#/components/schemas/RuntimeConfig'
         - type: object
+          required:
+            - numberOfWorkers
+            - masterMachineType
           properties:
             numberOfWorkers:
               type: integer
@@ -3835,6 +3897,9 @@ components:
       allOf:
         - $ref: '#/components/schemas/RuntimeConfig'
         - type: object
+          required:
+            - machineType
+            - persistentDiskId
           properties:
             machineType:
               type: string
@@ -4016,6 +4081,9 @@ components:
           description: the name of the app
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
+        region:
+          type: string
+          description: region of app
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         errors:
@@ -4059,6 +4127,9 @@ components:
           description: workspaceId
         cloudContext:
           $ref: '#/components/schemas/CloudContext'
+        region:
+          type: string
+          description: region of app
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         errors:
