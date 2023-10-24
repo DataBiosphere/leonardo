@@ -100,7 +100,6 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
 
           // database configs
-          raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
           raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
           raw"postgres.dbname=$dbName",
