@@ -36,7 +36,9 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   sourceWorkspaceId: Option[WorkspaceId]
 )
 
-final case class GetAppResponse(appName: AppName,
+final case class GetAppResponse(
+                               workspaceId: Option[WorkspaceId],
+                               appName: AppName,
                                 cloudContext: CloudContext,
                                 region: RegionName,
                                 kubernetesRuntimeConfig: KubernetesRuntimeConfig,
