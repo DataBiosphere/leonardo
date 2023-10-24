@@ -1,23 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.WorkspaceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.WdsDAO
-import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
-import org.broadinstitute.dsde.workbench.leonardo.{
-  KsaName,
-  KubernetesServiceKindName,
-  NamespaceNameSuffix,
-  ReleaseNameSuffix,
-  ServiceConfig,
-  ServicePath
-}
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 
@@ -41,7 +30,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
 
     overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe
       "wds.environment=dev," +
-      "beeName=," +
+      "wds.environmentBase=live," +
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "config.subscriptionId=sub," +
@@ -76,7 +65,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
 
     overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe
       "wds.environment=dev," +
-      "beeName=," +
+      "wds.environmentBase=live," +
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "config.subscriptionId=sub," +
