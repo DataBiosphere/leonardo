@@ -37,6 +37,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
 )
 
 final case class GetAppResponse(
+  workspaceId: Option[WorkspaceId],
   appName: AppName,
   cloudContext: CloudContext,
   region: RegionName,
@@ -50,7 +51,6 @@ final case class GetAppResponse(
   appType: AppType,
   chartName: ChartName,
   accessScope: Option[AppAccessScope],
-  workspaceId: Option[WorkspaceId],
   labels: LabelMap
 )
 
@@ -103,6 +103,7 @@ object ListAppResponse {
 object GetAppResponse {
   def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
+      appResult.app.workspaceId,
       appResult.app.appName,
       appResult.cluster.cloudContext,
       appResult.cluster.region,
@@ -120,7 +121,6 @@ object GetAppResponse {
       appResult.app.appType,
       appResult.app.chart.name,
       appResult.app.appAccessScope,
-      appResult.app.workspaceId,
       appResult.app.labels
     )
 }
