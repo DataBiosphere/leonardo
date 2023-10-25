@@ -124,6 +124,23 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.pure(None)
       }
 
+      /*
+      * Saloni's thoughts:
+      * For WORKFLOWS app (and maybe possible CROMWELL_RUNNER app?) we first check if a cloned db exists
+      *   - check using enumerateResources from WSM (similar to reference dbs)
+      * If cloned CBAS db exists, attach to it - pass the db name in the helm chart values
+      * If not, continue with normal flow
+      * */
+
+      // TODO: Refactor this into a more general check instead of just being for Workflows App
+
+      wsmResourceApi <- buildWsmResourceApiClient
+
+      clonedDbInWorkflowsApp <- if(app.appType == AppType.WorkflowsApp) {
+        // check if CBAS db already exists
+        retrieveWsmDatabases(wsmResourceApi, Set(CreateDatabase("cbas")), params.workspaceId.value)
+      } else F.pure(List.empty)
+
       // Create WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
         createWsmDatabaseResources(
@@ -132,16 +149,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           params.workspaceId,
           namespacePrefix,
           wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName),
-          landingZoneResources
+          landingZoneResources,
+          clonedDbInWorkflowsApp
         )
       }
 
       // get ReferenceDatabases from WSM
-      wsmResourceApi <- buildWsmResourceApiClient
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       referenceDatabases <-
         if (referenceDatabaseNames.nonEmpty) {
-          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, params.workspaceId.value)
+          retrieveWsmDatabases(wsmResourceApi, referenceDatabaseNames, params.workspaceId.value)
         } else F.pure(List.empty)
 
       // Create WSM kubernetes namespace
@@ -370,7 +387,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       referenceDatabases <-
         if (referenceDatabaseNames.nonEmpty) {
-          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, workspaceId.value)
+          retrieveWsmDatabases(wsmResourceApi, referenceDatabaseNames, workspaceId.value)
         } else F.pure(List.empty)
 
       // Call WSM to get the Kubernetes namespace (required)
@@ -751,13 +768,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                workspaceId: WorkspaceId,
                                                namespacePrefix: String,
                                                owner: Option[String],
-                                               landingZoneResources: LandingZoneResources
+                                               landingZoneResources: LandingZoneResources,
+                                               existingDbNames: Set[String] // TODO: please find a better name
   )(implicit ev: Ask[F, AppContext]): F[List[CreatedControlledAzureDatabaseResult]] =
     if (landingZoneResources.postgresServer.isDefined) {
       for {
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
-        res <- appInstall.databases.collect { case d @ CreateDatabase(_, _) => d }.traverse { database =>
+        res <- appInstall.databases.collect { case d @CreateDatabase(_, _) if !existingDbNames.exists(dbName => dbName.startsWith(d.prefix)) => d }.traverse { database =>
           createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
         }
       } yield res
@@ -854,9 +872,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield result
   }
 
-  private def retrieveWsmReferenceDatabases(resourceApi: ResourceApi,
-                                            referenceDatabaseNames: Set[String],
-                                            workspaceId: UUID
+  private def retrieveWsmDatabases(resourceApi: ResourceApi,
+                                   databaseNames: Set[String],
+                                   workspaceId: UUID
   ): F[List[String]] = {
     val wsmResourceDatabases = F.blocking(
       resourceApi
@@ -867,7 +885,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     )
     wsmResourceDatabases.map { dbs =>
       dbs
-        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
+        .filter(r => databaseNames.contains(r.getMetadata().getName()))
         .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
     }
   }
