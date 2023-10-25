@@ -12,8 +12,8 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.http4s.headers.Authorization
 import org.scalatest.prop.TableDrivenPropertyChecks
@@ -30,10 +30,9 @@ class AzureRuntimeSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
-  implicit val authorization: IO[Authorization] = Hermione.authorization()
-
   "create, get, delete azure runtime" taggedAs ExcludeFromJenkins in { workspaceDetails =>
+    implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+    implicit val authorization: IO[Authorization] = Hermione.authorization()
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()

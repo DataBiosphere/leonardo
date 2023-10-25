@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   CreateAzureRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
+import org.broadinstitute.dsde.workbench.pipeline.TestUser.Hermione
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
@@ -28,9 +28,9 @@ class AzureAutopauseSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
-
   "azure runtime autopauses" taggedAs ExcludeFromJenkins in { workspaceDetails =>
+    implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+
     val workspaceId = workspaceDetails.workspace.workspaceId
 
     val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
