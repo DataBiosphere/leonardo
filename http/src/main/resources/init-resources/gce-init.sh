@@ -495,7 +495,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 #       && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
 #       && mkdir -p $JUPYTER_HOME/nbconfig"
 
-  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
        && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
