@@ -30,10 +30,10 @@ class AzureDiskSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
-
   "create a disk, keep it on runtime delete, and then attach it to a new runtime" taggedAs ExcludeFromJenkins in {
     workspaceDetails =>
+      implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+
       val workspaceId = workspaceDetails.workspace.workspaceId
 
       val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()
