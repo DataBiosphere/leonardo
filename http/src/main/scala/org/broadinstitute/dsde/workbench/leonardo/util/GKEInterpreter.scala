@@ -917,7 +917,6 @@ class GKEInterpreter[F[_]](
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
 
-      needHelmUninstall = app.appType == AppType.Galaxy
       _ <- googleClusterOpt
         .traverse(googleCluster =>
           for {
@@ -958,7 +957,6 @@ class GKEInterpreter[F[_]](
               .run(helmAuthContext)
           } yield ()
         )
-        .whenA(needHelmUninstall)
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,

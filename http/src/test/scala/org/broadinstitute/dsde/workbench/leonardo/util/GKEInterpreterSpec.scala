@@ -147,30 +147,6 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "deleteAndPollApp" should "trigger helm unstall only for Galaxy app" in isolatedDbTest {
-    val res = for {
-      savedCluster <- IO(makeKubeCluster(1).save())
-      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
-      savedApp <- IO(makeApp(1, savedNodepool.id).save())
-      m = DeleteAppParams(savedApp.id, savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value, AppName("app1"), false)
-      r <- gkeInterp.deleteAndPollApp(m).attempt
-    } yield r.isLeft shouldBe(true)
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "not trigger helm unstall only for non-Galaxy app" in isolatedDbTest {
-    val res = for {
-      savedCluster <- IO(makeKubeCluster(1).save())
-      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
-      savedApp <- IO(makeApp(1, savedNodepool.id, appType = AppType.Allowed).save())
-      m = DeleteAppParams(savedApp.id, savedCluster.cloudContext.asInstanceOf[CloudContext.Gcp].value, AppName("app1"), false)
-      r <- gkeInterp.deleteAndPollApp(m).attempt
-    } yield r.isRight shouldBe(true)
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "mark a nodepool as Deleted in DB when it doesn't exist in Google" in isolatedDbTest {
     val mockGKEService = new MockGKEService {
       override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(implicit
