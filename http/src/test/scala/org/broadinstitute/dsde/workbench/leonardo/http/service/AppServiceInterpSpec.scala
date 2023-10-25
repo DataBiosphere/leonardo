@@ -799,8 +799,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       (AppType.Galaxy, AppStatus.Unspecified),
       (AppType.Allowed, AppStatus.Running),
       (AppType.Allowed, AppStatus.Starting),
-      (AppType.Allowed, AppStatus.Stopped),
-      (AppType.Allowed, AppStatus.Stopping)
+      (AppType.Allowed, AppStatus.Stopped)
     )
 
     forAll(deletableCombos) { (appType, status) =>
@@ -816,7 +815,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       (AppType.Galaxy, AppStatus.Stopping),
       (AppType.Galaxy, AppStatus.Stopped),
       (AppType.Galaxy, AppStatus.Updating),
-      (AppType.Allowed, AppStatus.Provisioning)
+      (AppType.Allowed, AppStatus.Provisioning),
+      (AppType.Allowed, AppStatus.Stopping)
     )
 
     forAll(nonDeletableCombos) { (appType, status) =>

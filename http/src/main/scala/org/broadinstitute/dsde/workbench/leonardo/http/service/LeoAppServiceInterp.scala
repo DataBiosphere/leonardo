@@ -1399,7 +1399,7 @@ object LeoAppServiceInterp {
         case AppType.Galaxy =>
           AppStatus.deletableStatuses.contains(appStatus)
         case _ =>
-          appStatus != AppStatus.Provisioning
+          !(AppStatus.Provisioning, AppStatus.Stopping).contains_(appStatus)
       }
     if (deletable) Right(())
     else Left(s"${appType} can not be deleted in ${appStatus} status.")

@@ -366,12 +366,17 @@ class GKEInterpreter[F[_]](
 
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
-      googleCluster <- F.fromOption(
-        googleClusterOpt,
-        ClusterCreationException(ctx.traceId,
-                                 s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}"
-        )
-      )
+      googleCluster <- googleClusterOpt match {
+        case Some(value) => F.pure(value)
+        case None =>
+          kubernetesClusterQuery.markAsDeleted(dbCluster.id, ctx.now).transaction >>
+            F.raiseError[Cluster](
+              ClusterCreationException(
+                ctx.traceId,
+                s"Cluster not found in Google: ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+              )
+            )
+      }
 
       nfsDisk <- F.fromOption(
         dbApp.app.appResources.disk,
@@ -918,8 +923,8 @@ class GKEInterpreter[F[_]](
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
 
       _ <- googleClusterOpt
-        .traverse(googleCluster =>
-          for {
+        .traverse { googleCluster =>
+          val uninstallCharts = for {
             helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
             _ <- logger.info(ctx.loggingCtx)(
@@ -940,10 +945,12 @@ class GKEInterpreter[F[_]](
             _ <-
               if (!podDoneCheckable.isDone(last)) {
                 val msg =
-                  s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
+                  s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${
+                    last
                       .filterNot(isPodDone)
                       .map(_.name.value)
-                      .mkString(", ")}"
+                      .mkString(", ")
+                  }"
                 logger.error(ctx.loggingCtx)(msg) >>
                   F.raiseError[Unit](AppDeletionException(msg))
               } else F.unit
@@ -956,7 +963,13 @@ class GKEInterpreter[F[_]](
               )
               .run(helmAuthContext)
           } yield ()
-        )
+
+          uninstallCharts.handleErrorWith { e =>
+            logger.info(ctx.loggingCtx)(
+              s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString} failed with error ${e.getMessage}"
+            )
+          }
+        }
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
