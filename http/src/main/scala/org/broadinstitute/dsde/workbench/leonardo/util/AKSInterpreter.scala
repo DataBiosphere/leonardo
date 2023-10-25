@@ -125,21 +125,22 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       /*
-      * Saloni's thoughts:
-      * For WORKFLOWS app (and maybe possible CROMWELL_RUNNER app?) we first check if a cloned db exists
-      *   - check using enumerateResources from WSM (similar to reference dbs)
-      * If cloned CBAS db exists, attach to it - pass the db name in the helm chart values
-      * If not, continue with normal flow
-      * */
+       * Saloni's thoughts:
+       * For WORKFLOWS app (and maybe possible CROMWELL_RUNNER app?) we first check if a cloned db exists
+       *   - check using enumerateResources from WSM (similar to reference dbs)
+       * If cloned CBAS db exists, attach to it - pass the db name in the helm chart values
+       * If not, continue with normal flow
+       * */
 
       // TODO: Refactor this into a more general check instead of just being for Workflows App
 
       wsmResourceApi <- buildWsmResourceApiClient
 
-      clonedDbInWorkflowsApp <- if(app.appType == AppType.WorkflowsApp) {
-        // check if CBAS db already exists
-        retrieveWsmDatabases(wsmResourceApi, Set(CreateDatabase("cbas")), params.workspaceId.value)
-      } else F.pure(List.empty)
+      clonedDbInWorkflowsApp <-
+        if (app.appType == AppType.WorkflowsApp) {
+          // check if CBAS db already exists
+          retrieveWsmDatabases(wsmResourceApi, Set("cbas"), params.workspaceId.value)
+        } else F.pure(List.empty)
 
       // Create WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
@@ -769,15 +770,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                namespacePrefix: String,
                                                owner: Option[String],
                                                landingZoneResources: LandingZoneResources,
-                                               existingDbNames: Set[String] // TODO: please find a better name
+                                               existingDbNames: List[String] // TODO: please find a better name
   )(implicit ev: Ask[F, AppContext]): F[List[CreatedControlledAzureDatabaseResult]] =
     if (landingZoneResources.postgresServer.isDefined) {
       for {
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
-        res <- appInstall.databases.collect { case d @CreateDatabase(_, _) if !existingDbNames.exists(dbName => dbName.startsWith(d.prefix)) => d }.traverse { database =>
-          createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
-        }
+        res <- appInstall.databases
+          .collect {
+            case d @ CreateDatabase(_, _) if !existingDbNames.exists(dbName => dbName.startsWith(d.prefix)) => d
+          }
+          .traverse { database =>
+            createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
+          }
       } yield res
     } else {
       ev.ask.flatMap(ctx =>
