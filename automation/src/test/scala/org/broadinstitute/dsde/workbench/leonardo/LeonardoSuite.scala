@@ -273,28 +273,3 @@ final class LeonardoTerraDockerSuite
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
-
-final class LeonardoAzureSuite
-    extends Suites(
-      new AzureRuntimeSpec,
-      new AzureDiskSpec,
-      new AzureAutopauseSpec
-    )
-    with TestSuite
-    with AzureBilling
-    with ParallelTestExecution
-    with BeforeAndAfterAll {
-  override def beforeAll(): Unit = {
-    implicit val accessToken = Hermione.authToken().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val res = for {
-      _ <- IO(println("in beforeAll for AzureBillingBeforeAndAfter"))
-      _ <- IO(super.beforeAll())
-      _ <- withTemporaryAzureBillingProject(azureManagedAppCoordinates, shouldCleanup = false) { projectName =>
-        IO(sys.props.put(azureProjectKey, projectName))
-      }
-      // hardcode this if you want to use a static billing project
-      // _ <- IO(sys.props.put(azureProjectKey, "tmp-billing-project-ad759ba39e"))
-    } yield ()
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-}
