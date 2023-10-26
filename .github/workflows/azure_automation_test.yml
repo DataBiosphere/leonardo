@@ -161,7 +161,7 @@ jobs:
   attach-billing-project-to-landing-zone-workflow:
     runs-on: ubuntu-latest
     needs: [ init-github-context, create-bee-workflow, params-gen ]
-    uses: broadinstitute/terra-github-workflow/.github/workflows/attach-billing-project-to-landing-zone.yaml@QA-2154
+    uses: broadinstitute/terra-github-workflows/.github/workflows/attach-billing-project-to-landing-zone.yaml@QA-2154
     with:
       run-name: "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
       mrg-id: "staticTestingMrg"
