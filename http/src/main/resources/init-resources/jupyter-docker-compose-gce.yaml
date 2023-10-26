@@ -33,8 +33,9 @@ services:
       R_LIBS: "${NOTEBOOKS_DIR}/packages"
       # The next two lines aren't great. But they're for updating PYTHONPATH, PATH in older than (inclusive) us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.2
       # We should remove the two lines once we no longer support older images. In the meantime, we need to be careful updating Jupyter base images.
-#      PYTHONPATH: "/etc/jupyter/custom:/usr/lib/spark/python:${NOTEBOOKS_DIR}/packages"
+      PYTHONPATH: "/etc/jupyter/custom:/usr/lib/spark/python:${NOTEBOOKS_DIR}/packages"
 #      PATH: "/opt/conda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${NOTEBOOKS_DIR}/.local/bin:${NOTEBOOKS_DIR}/packages/bin"
+      PATH: "/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/poetry/bin:/opt/conda/bin:${NOTEBOOKS_DIR}/.local/bin:${NOTEBOOKS_DIR}/packages/bin"
     env_file:
       - /var/google_application_credentials.env
       - /var/custom_env_vars.env

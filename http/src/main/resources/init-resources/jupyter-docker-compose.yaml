@@ -51,8 +51,9 @@ services:
       # The next two lines aren't great. But they're for updating PYTHONPATH, PATH in older than (inclusive) us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.2.
       # We should remove the two lines once we no longer support older images.
       # When we update base image in terra-docker next time, we should verify the paths are still valid
-#      PYTHONPATH: "/etc/jupyter/custom:/usr/lib/spark/python:${NOTEBOOKS_DIR}/packages"
+      PYTHONPATH: "/etc/jupyter/custom:/usr/lib/spark/python:${NOTEBOOKS_DIR}/packages"
 #      PATH: "/opt/conda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${HOME}/.local/bin:${NOTEBOOKS_DIR}/packages/bin"
+      PATH: "/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/poetry/bin:/opt/conda/bin:${HOME}/.local/bin:${NOTEBOOKS_DIR}/packages/bin"
     env_file:
       - /var/google_application_credentials.env
       - /var/custom_env_vars.env
