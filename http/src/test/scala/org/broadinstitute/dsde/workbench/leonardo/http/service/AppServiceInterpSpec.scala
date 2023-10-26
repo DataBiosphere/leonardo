@@ -791,15 +791,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.diskId shouldBe None
   }
 
-  it should "determine if an app is deletable properly" in isolatedDbTest {
+  it should "determine if an app is deletable properly" in {
     val deletableCombos = Table(
       ("appType", "status"),
       (AppType.Galaxy, AppStatus.Running),
       (AppType.Galaxy, AppStatus.Error),
       (AppType.Galaxy, AppStatus.Unspecified),
-      (AppType.Allowed, AppStatus.Running),
-      (AppType.Allowed, AppStatus.Starting),
-      (AppType.Allowed, AppStatus.Stopped)
+      (AppType.Allowed, AppStatus.Running)
     )
 
     forAll(deletableCombos) { (appType, status) =>
@@ -816,7 +814,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       (AppType.Galaxy, AppStatus.Stopped),
       (AppType.Galaxy, AppStatus.Updating),
       (AppType.Allowed, AppStatus.Provisioning),
-      (AppType.Allowed, AppStatus.Stopping)
+      (AppType.Allowed, AppStatus.Stopping),
+      (AppType.Allowed, AppStatus.Stopped),
+      (AppType.Allowed, AppStatus.Starting)
     )
 
     forAll(nonDeletableCombos) { (appType, status) =>

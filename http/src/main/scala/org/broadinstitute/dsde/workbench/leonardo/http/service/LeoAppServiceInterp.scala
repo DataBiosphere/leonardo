@@ -1399,12 +1399,18 @@ object LeoAppServiceInterp {
         case AppType.Galaxy =>
           AppStatus.deletableStatuses.contains(appStatus)
         case _ =>
-          !(AppStatus.Provisioning, AppStatus.Stopping).contains_(appStatus)
+          // As of 10/26/2023.
+          // Right now, this is the exact same as Galaxy.
+          // But hopefully we can relax this in the future for non-Galaxy apps
+          // If this code is still here in 6 months.
+          // We should just abandon the attempt to relax AppStatus requirement for deleteApp.
+          AppStatus.deletableStatuses.contains(appStatus)
       }
     if (deletable) Right(())
     else Left(s"${appType} can not be deleted in ${appStatus} status.")
   }
 }
+
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
     extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
