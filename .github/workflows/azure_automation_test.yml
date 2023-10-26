@@ -170,6 +170,7 @@ jobs:
       billing-project: "${{ needs.params-gen.outputs.project-name }}"
       billing-project-creator: "${{ needs.init-github-context.outputs.owner-subject }}"
       service-account: "${{ needs.init-github-context.outputs.service-account }}"
+    secrets: inherit
 
   get-azure-coordinates-job:
     runs-on: ubuntu-latest
