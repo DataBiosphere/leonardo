@@ -74,8 +74,7 @@ jobs:
           echo "test-context=azure-e2e" >> $GITHUB_OUTPUT
 
   test-workflow-call-job:
-    uses: broadinstitute/terra-github-workflows/.github/workflows/tst-wkf-call.yaml@main
-    secrets:
+    uses: broadinstitute/terra-github-workflows/.github/workflows/tst-wkf-call.yaml
 
   leo-build-tag-publish-job:
     runs-on: ubuntu-latest
