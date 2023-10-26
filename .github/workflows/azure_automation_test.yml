@@ -161,24 +161,15 @@ jobs:
   attach-billing-project-to-landing-zone-workflow:
     runs-on: ubuntu-latest
     needs: [ init-github-context, create-bee-workflow, params-gen ]
-    steps:
-      - name: dispatch to terra-github-workflows
-        uses: broadinstitute/terra-github-workflow/.github/workflows/attach-billing-project-to-landing-zone.yam@QA-2154
-        with:
-          run-name: "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
-          workflow: attach-billing-project-to-landing-zone.yaml
-          repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
-          token: ${{ env.TOKEN }}
-          inputs: '{
-            "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}",
-            "mrg-id": "staticTestingMrg",
-            "landing-zone-id": "f41c1a97-179b-4a18-9615-5214d79ba600",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "billing-project": "${{ needs.params-gen.outputs.project-name }}",
-            "billing-project-creator": "${{ needs.init-github-context.outputs.owner-subject }}",
-            "service-account": "${{ needs.init-github-context.outputs.service-account }}"
-          }'
+    uses: broadinstitute/terra-github-workflow/.github/workflows/attach-billing-project-to-landing-zone.yam@QA-2154
+    with:
+      run-name: "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
+      mrg-id: "staticTestingMrg"
+      landing-zone-id: "f41c1a97-179b-4a18-9615-5214d79ba600"
+      bee-name: "${{ env.BEE_NAME }}"
+      billing-project: "${{ needs.params-gen.outputs.project-name }}"
+      billing-project-creator: "${{ needs.init-github-context.outputs.owner-subject }}"
+      service-account: "${{ needs.init-github-context.outputs.service-account }}"
 
   get-azure-coordinates-job:
     runs-on: ubuntu-latest
