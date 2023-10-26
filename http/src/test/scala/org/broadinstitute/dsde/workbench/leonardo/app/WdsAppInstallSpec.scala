@@ -29,6 +29,8 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
     val overrides = wdsAppInstall.buildHelmOverrideValues(params)
 
     overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe
+      "wds.environment=dev," +
+      "wds.environmentBase=live," +
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "config.subscriptionId=sub," +
@@ -61,6 +63,8 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
     val overrides = wdsAppInstall.buildHelmOverrideValues(params)
 
     overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe
+      "wds.environment=dev," +
+      "wds.environmentBase=live," +
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "config.subscriptionId=sub," +
