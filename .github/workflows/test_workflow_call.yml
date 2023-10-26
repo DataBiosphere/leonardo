@@ -1,0 +1,10 @@
+name: Test workflow call
+
+on:
+  push:
+    branches:
+      - QA-2154
+
+jobs:
+  test-workflow-actions:
+    uses: broadinstitute/terra-github-workflows/.github/workflows/tst-wkf-call.yaml@main
