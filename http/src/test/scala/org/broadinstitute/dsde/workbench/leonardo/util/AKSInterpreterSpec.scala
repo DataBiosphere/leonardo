@@ -332,6 +332,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                          workspaceId,
                                                                          "ns",
                                                                          databases,
+                                                                         List.empty,
                                                                          Some(identity)
       )
 
