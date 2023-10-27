@@ -62,6 +62,10 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
       valuesList =
         List(
+          // pass enviiroment information to wds so it can properly pick its config
+          raw"wds.environment=${config.environment}",
+          raw"wds.environmentBase=${config.environmentBase}",
+
           // azure resources configs
           raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",

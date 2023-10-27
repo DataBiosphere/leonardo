@@ -172,7 +172,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.46.0"),
+          ChartVersion("0.48.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -182,6 +182,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           databaseEnabled = false,
+          environment = "dev",
+          environmentBase = "live",
           chartVersionsToExcludeFromUpdates = List(
             ChartVersion("0.3.0"),
             ChartVersion("0.7.0"),
