@@ -169,6 +169,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           params.workspaceId,
           namespacePrefix,
           wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
+          clonedDbInWorkflowsApp,
           wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
         )
       }
@@ -242,7 +243,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName) ++ referenceDatabases,
+        wsmDatabases.map(
+          _.getAzureDatabase.getAttributes.getDatabaseName
+        ) ++ referenceDatabases ++ clonedDbInWorkflowsApp,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -899,6 +902,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                          workspaceId: WorkspaceId,
                                                          namespacePrefix: String,
                                                          databases: List[String],
+                                                         clonedDbs: List[String],
                                                          identity: Option[String]
   )(implicit ev: Ask[F, AppContext]): F[CreatedControlledAzureKubernetesNamespaceResult] =
     for {
@@ -928,9 +932,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Build createNamespace fields
       appExternalDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
+      clonedDbNames = clonedDbs.map(_ => "cbas").toSet // TODO: make it generalized
       createNamespaceParams = new AzureKubernetesNamespaceCreationParameters()
         .namespacePrefix(namespacePrefix)
-        .databases((databases ++ appExternalDatabaseNames).asJava)
+        .databases((databases ++ appExternalDatabaseNames ++ clonedDbNames).asJava)
       _ = identity.foreach(createNamespaceParams.setManagedIdentity)
 
       // Build request
