@@ -213,6 +213,10 @@ jobs:
               "billing_project": {
                 "description": "Billing Project",
                 "val": "${{ needs.params-gen.outputs.project-name }}"
+              },
+              "azure_coordinates_artifact": {
+                "description": "The name field of an artifact that reference the Azure coordinates employed by the workflow",
+                "val": "azure-cooridinates-cache-${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
               }
             }'
           E2E_INFRASTRUCTURE=$(echo "$E2E_INFRASTRUCTURE" |
@@ -249,7 +253,7 @@ jobs:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
           workflow: .github/workflows/leonardo-swat-tests.yaml
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: refs/heads/QA-2154
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
