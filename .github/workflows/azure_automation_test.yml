@@ -216,7 +216,7 @@ jobs:
               },
               "azure_coordinates_artifact": {
                 "description": "The name field of an artifact that reference the Azure coordinates employed by the workflow",
-                "val": "azure-cooridinates-cache-${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
+                "val": "azure-coordinates-cache-${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
               }
             }'
           E2E_INFRASTRUCTURE=$(echo "$E2E_INFRASTRUCTURE" |
