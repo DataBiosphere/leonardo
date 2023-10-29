@@ -177,7 +177,8 @@ jobs:
             "bee-name": "${{ env.BEE_NAME }}",
             "billing-project": "${{ needs.params-gen.outputs.project-name }}",
             "billing-project-creator": "${{ needs.init-github-context.outputs.owner-subject }}",
-            "service-account": "${{ needs.init-github-context.outputs.service-account }}"
+            "service-account": "${{ needs.init-github-context.outputs.service-account }}",
+            "export-environment-variables": "true"
           }'
 
   leo-automation-test-job:
@@ -213,10 +214,6 @@ jobs:
               "billing_project": {
                 "description": "Billing Project",
                 "val": "${{ needs.params-gen.outputs.project-name }}"
-              },
-              "azure_coordinates_artifact": {
-                "description": "The name field of an artifact that reference the Azure coordinates employed by the workflow",
-                "val": "azure-coordinates-cache-${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
               }
             }'
           E2E_INFRASTRUCTURE=$(echo "$E2E_INFRASTRUCTURE" |
