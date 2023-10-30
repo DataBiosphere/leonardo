@@ -945,12 +945,10 @@ class GKEInterpreter[F[_]](
             _ <-
               if (!podDoneCheckable.isDone(last)) {
                 val msg =
-                  s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${
-                    last
+                  s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
                       .filterNot(isPodDone)
                       .map(_.name.value)
-                      .mkString(", ")
-                  }"
+                      .mkString(", ")}"
                 logger.error(ctx.loggingCtx)(msg) >>
                   F.raiseError[Unit](AppDeletionException(msg))
               } else F.unit
