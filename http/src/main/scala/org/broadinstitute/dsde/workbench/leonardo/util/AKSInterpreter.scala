@@ -142,6 +142,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           retrieveWsmDatabases(wsmResourceApi, Set("cbas"), params.workspaceId.value)
         } else F.pure(List.empty)
 
+      _ <- logger.info(ctx.loggingCtx)(
+        s"*** Cloned database in ${app.appType} - ${clonedDbInWorkflowsApp} ***"
+      )
+
       // Create WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
         createWsmDatabaseResources(
