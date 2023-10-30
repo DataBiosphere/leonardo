@@ -235,7 +235,8 @@ object KubernetesTestData {
       customEnvironmentVariables,
       None,
       List.empty,
-      None
+      None,
+      Some(1)
     )
   }
 

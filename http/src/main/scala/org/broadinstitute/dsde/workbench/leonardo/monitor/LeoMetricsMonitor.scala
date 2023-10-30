@@ -375,6 +375,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                                              null,
                                              null,
                                              null,
+                                             null,
                                              null
                     )
                   )
