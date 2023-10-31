@@ -58,17 +58,11 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
   it should "aggregate all sub tables on get, and clean up all tables on delete" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(2, savedCluster1.id).save()
-    val namespaceNames = List(namespace0, namespace1)
-    dbFutureValue(namespaceQuery.saveAllForCluster(savedCluster1.id, namespaceNames))
-    val namespaces = dbFutureValue(namespaceQuery.getAllForCluster(savedCluster1.id))
-    namespaces.map(_.name) shouldEqual namespaceNames
 
     val getCluster = dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id))
     getCluster.map(c => c.copy(nodepools = c.nodepools.sortBy(_.nodepoolName.value))) shouldEqual Some(
       savedCluster1
-        .copy(namespaces = namespaces,
-              nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value)
-        )
+        .copy(nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value))
     )
 
     // we expect 3 records to be affected by the delete: 2 nodepools, 1 cluster

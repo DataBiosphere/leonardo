@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
   CreateAppV2Message,
@@ -20,8 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials}
+import org.http4s.AuthScheme
 import org.typelevel.log4cats.Logger
 
 import java.util.UUID
@@ -206,7 +205,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                     diskIdOpt,
                     app.customEnvironmentVariables,
                     app.appType,
-                    app.appResources.namespace.name,
+                    app.appResources.namespace,
                     Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
                     Some(appContext.traceId),
                     enableIntraNodeVisibility
@@ -215,14 +214,6 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
 
               case CloudContext.Azure(_) =>
                 for {
-                  tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                  userToken <- F.fromOption(
-                    tokenOpt,
-                    MonitorAtBootException(
-                      s"Unable to get pet token for ${app.auditInfo.creator} for app ${app.id} in Provisioning status",
-                      appContext.traceId
-                    )
-                  )
                   workspaceId <- F.fromOption(
                     app.workspaceId,
                     MonitorAtBootException(
@@ -230,25 +221,23 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                       appContext.traceId
                     )
                   )
-
-                  bearerAuth = org.http4s.headers.Authorization(
-                    org.http4s.Credentials.Token(AuthScheme.Bearer, userToken)
-                  )
-                  workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, bearerAuth)
+                  tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+                  workspaceDescOpt <- tokenOpt.flatTraverse { token =>
+                    wsmDao.getWorkspace(
+                      workspaceId,
+                      org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
+                    )
+                  }
                   workspaceDesc <- F.fromOption(workspaceDescOpt,
                                                 WorkspaceNotFoundException(workspaceId, appContext.traceId)
                   )
-
-                  landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
-                  storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, bearerAuth)
 
                   msg = CreateAppV2Message(
                     app.id,
                     app.appName,
                     workspaceId,
                     cluster.cloudContext,
-                    Some(landingZoneResources),
-                    storageContainer,
+                    BillingProfileId(workspaceDesc.spendProfile),
                     Some(appContext.traceId)
                   )
                 } yield msg
@@ -271,35 +260,29 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
               )
             case CloudContext.Azure(_) =>
               for {
+                workspaceId <- F.fromOption(app.workspaceId,
+                                            MonitorAtBootException(
+                                              s"WorkspaceId not found for app ${app.id} in Provisioning status",
+                                              appContext.traceId
+                                            )
+                )
                 tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                userToken <- F.fromOption(
-                  tokenOpt,
-                  MonitorAtBootException(
-                    s"Unable to get pet token for ${app.auditInfo.creator} for app ${app.id} in Provisioning status",
-                    appContext.traceId
+                workspaceDescOpt <- tokenOpt.flatTraverse { token =>
+                  wsmDao.getWorkspace(
+                    workspaceId,
+                    org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
                   )
-                )
-                workspaceId: WorkspaceId = app.workspaceId.getOrElse(
-                  throw MonitorAtBootException(
-                    s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                    appContext.traceId
-                  )
-                )
-                bearerAuth = org.http4s.headers.Authorization(
-                  org.http4s.Credentials.Token(AuthScheme.Bearer, userToken)
-                )
-                workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, bearerAuth)
+                }
                 workspaceDesc <- F.fromOption(workspaceDescOpt,
                                               WorkspaceNotFoundException(workspaceId, appContext.traceId)
                 )
 
-                landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, bearerAuth)
                 diskOpt <- appQuery.getDiskId(app.id).transaction
-                workspaceId = app.workspaceId.getOrElse(
-                  throw MonitorAtBootException(
-                    s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                    appContext.traceId
-                  )
+                workspaceId <- F.fromOption(app.workspaceId,
+                                            MonitorAtBootException(
+                                              s"WorkspaceId not found for app ${app.id} in Provisioning status",
+                                              appContext.traceId
+                                            )
                 )
                 msg = DeleteAppV2Message(
                   app.id,
@@ -307,7 +290,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   workspaceId,
                   cluster.cloudContext,
                   diskOpt,
-                  Some(landingZoneResources),
+                  BillingProfileId(workspaceDesc.spendProfile),
                   Some(appContext.traceId)
                 )
               } yield msg
@@ -416,16 +399,20 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
           controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
-          leoAuth <- samDAO.getLeoAuthToken
-          workspaceDescOpt <- wsmDao.getWorkspace(wid, leoAuth)
+          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+          workspaceDescOpt <- tokenOpt.flatTraverse { token =>
+            wsmDao.getWorkspace(
+              wid,
+              org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
+            )
+          }
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
-          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
           runtimeId = runtime.id,
           None,
           workspaceId = wid,
           wsmResourceId = Some(controlledResourceOpt),
-          landingZoneResources,
+          BillingProfileId(workspaceDesc.spendProfile),
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
@@ -433,43 +420,25 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       case RuntimeStatus.Creating =>
         for {
           now <- F.realTimeInstant
+          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
           wid <- F.fromOption(runtime.workspaceId,
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
-          leoAuth <- samDAO.getLeoAuthToken
-          azureRuntimeConfig <- runtime.runtimeConfig match {
-            case x: RuntimeConfig.AzureConfig => F.pure(x)
-            case _ =>
-              F.raiseError(MonitorAtBootException("Azure runtime shouldn't have non Azure runtime config", traceId))
-          }
-          petTokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-          petToken <- F.fromOption(
-            petTokenOpt,
-            MonitorAtBootException(s"Failed to get pet access token for ${runtime.auditInfo.creator}", traceId)
-          )
-          petAuth = Authorization(Credentials.Token(AuthScheme.Bearer, petToken))
-          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
-          storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(wid, leoAuth)
-          storageContainer <- F.fromOption(
-            storageContainerOpt,
-            BadRequestException(s"Workspace ${wid} doesn't have storage container provisioned appropriately",
-                                Some(traceId)
+          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+          workspaceDescOpt <- tokenOpt.flatTraverse { token =>
+            wsmDao.getWorkspace(
+              wid,
+              org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
             )
-          )
-          workspaceDescOpt <- wsmDao.getWorkspace(wid, leoAuth)
+          }
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
-
-          // Get the Landing Zone Resources for the app for Azure
-          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,
           wid,
-          storageContainer.resourceId,
-          landingZoneResources,
           false,
           Some(traceId),
           workspaceDesc.displayName,
-          storageContainer.name
+          BillingProfileId(workspaceDesc.spendProfile)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }

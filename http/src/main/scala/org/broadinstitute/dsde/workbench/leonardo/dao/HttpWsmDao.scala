@@ -125,7 +125,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def getLandingZoneResources(billingProfileId: String, userToken: Authorization)(implicit
+  override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources] =
     for {
@@ -297,7 +297,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         )
     } yield id
 
-  private def getLandingZone(billingProfileId: String, authorization: Authorization)(implicit
+  private def getLandingZone(billingProfileId: BillingProfileId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[LandingZone]] =
     for {
@@ -307,7 +307,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
           method = Method.GET,
           uri = config.uri
             .withPath(Uri.Path.unsafeFromString("/api/landingzones/v1/azure"))
-            .withQueryParam("billingProfileId", billingProfileId),
+            .withQueryParam("billingProfileId", billingProfileId.value),
           headers = headers(authorization, ctx.traceId, withBody = false)
         )
       )(onError)

@@ -65,7 +65,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/deb703b05ae13e10d62bc4f9b20a7c8368ee0b0b/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/270bd6aad916344fadc06d1a51629c432da663a8/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:39641f8",
@@ -76,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.368"),
+          ChartVersion("0.2.373"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -149,12 +149,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             )
           ),
           instrumentationEnabled = false,
-          enabled = false,
+          enabled = true,
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
           ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.58.0"),
+          ChartVersion("0.66.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -166,13 +166,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             )
           ),
           instrumentationEnabled = false,
-          enabled = false,
+          enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WdsAppConfig(
           ChartName("/leonardo/wds"),
-          ChartVersion("0.46.0"),
+          ChartVersion("0.51.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -182,6 +182,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           databaseEnabled = false,
+          environment = "dev",
+          environmentBase = "live",
           chartVersionsToExcludeFromUpdates = List(
             ChartVersion("0.3.0"),
             ChartVersion("0.7.0"),

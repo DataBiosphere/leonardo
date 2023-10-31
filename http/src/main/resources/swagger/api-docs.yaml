@@ -3900,7 +3900,6 @@ components:
           required:
             - machineType
             - persistentDiskId
-            - region
           properties:
             machineType:
               type: string
@@ -4077,6 +4076,9 @@ components:
         - auditInfo
       type: object
       properties:
+        workspaceId:
+          type: string
+          description: 'The Terra workspace id for the app. This is not present for apps created with V1 endpoints.'
         appName:
           type: string
           description: the name of the app
