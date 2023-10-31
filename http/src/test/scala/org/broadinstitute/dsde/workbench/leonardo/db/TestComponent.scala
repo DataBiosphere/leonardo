@@ -86,6 +86,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       .get
 
   // clean up after tests
+  // Only use this if the test involves DB access
   def isolatedDbTest[T](testCode: => T): T =
     try {
       dbFutureValue(testDbRef.dataAccess.truncateAll)
