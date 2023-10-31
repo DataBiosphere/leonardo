@@ -4,6 +4,7 @@ package dao
 import _root_.io.circe.syntax._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.parser._
+import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
@@ -238,7 +239,8 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
     val expected = GetCreateVmJobResult(
       Some(
         WsmVm(
-          WsmVMMetadata(WsmControlledResourceId(UUID.fromString("dcfa6fa4-ab46-465e-a8dd-76705cbdb4ec")))
+          WsmVMMetadata(WsmControlledResourceId(UUID.fromString("dcfa6fa4-ab46-465e-a8dd-76705cbdb4ec"))),
+          WsmVMAttributes(RegionName("westcentralus"))
         )
       ),
       WsmJobReport(

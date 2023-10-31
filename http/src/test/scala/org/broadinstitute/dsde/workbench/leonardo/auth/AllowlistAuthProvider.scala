@@ -10,8 +10,8 @@ import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.AuthProviderException
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, SamResourceId, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -53,6 +53,17 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       case true  => (sr.allActions, ProjectAction.allActions.toList)
       case false => (List.empty, List.empty)
     }
+
+  def listResourceIds[R <: SamResourceId](
+    hasOwnerRole: Boolean,
+    userInfo: UserInfo
+  )(implicit
+    resourceDefinition: SamResource[R],
+    appDefinition: SamResource[AppSamResourceId],
+    resourceIdDecoder: Decoder[R],
+    ev: Ask[IO, TraceId]
+  ): IO[Set[R]] =
+    checkAllowlist(userInfo).map(_ => Set.empty)
 
   def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
     sr: SamResource[R],

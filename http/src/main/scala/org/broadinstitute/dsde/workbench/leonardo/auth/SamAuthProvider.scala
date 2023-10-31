@@ -127,6 +127,61 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield (callerActions, projectCallerActions)
   }
 
+  /**
+   * Get all Sam resource IDs of the given type on which the user is granted permission to `discover`. Returns ids with explicitly
+   * granted roles only; users with workspace `owner` role, for example, can see all runtimes in the workspace, but
+   * `listResourceIds[SamRuntimeResourceId]` is not guaranteed to return all runtimes in that workspace. Works for any
+   * Sam resource type except SharedApp and similar alternative app types; these require a specific Sam resource object
+   * to determine permissions, as these are stored on the individual records.
+   * @param hasOwnerRole whether to return only resources that the user is granted ownership on (has role = `ownerRoleName`)
+   * @param userInfo the current user
+   * @param resourceDefinition the resource archetype (App, Runtime, etc)
+   * @param resourceIdDecoder converts Json -> SamResourceId, needed by SamDao
+   * @param ev the request context
+   * @tparam R SamResourceId
+   * @return List[SamResourceId] of all resources of type R which are discoverable (or owned, if `hasOwnerRole`) by the user
+   */
+  override def listResourceIds[R <: SamResourceId](
+    hasOwnerRole: Boolean,
+    userInfo: UserInfo
+  )(implicit
+    resourceDefinition: SamResource[R],
+    appDefinition: SamResource[AppSamResourceId],
+    resourceIdDecoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[Set[R]] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+
+    // TODO model these permissions in Sam, so we can just get the ids on which user is granted Discover action
+    val ownerRole: SamRole = resourceDefinition.ownerRoleName
+
+    for {
+      traceId <- ev.ask
+      _ <- F.raiseWhen(
+        resourceDefinition == appDefinition
+      )(
+        AuthProviderException(
+          traceId,
+          s"SamAuthProvider.listResourceIds should not be called for App resources",
+          StatusCodes.BadRequest
+        )
+      )
+
+      resourcesWithRole: List[(R, SamRole)] <- samDao
+        .listResourceIdsWithRole[R](authHeader)
+
+      discoverableIds: Set[R] = resourcesWithRole
+        .filter {
+          case (_, role) if hasOwnerRole => role == ownerRole
+          case _                         => true
+        }
+        .map { case (samResourceId, _) =>
+          samResourceId
+        }
+        .toSet
+    } yield discoverableIds
+  }
+
   override def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
     sr: SamResource[R],
     decoder: Decoder[R],

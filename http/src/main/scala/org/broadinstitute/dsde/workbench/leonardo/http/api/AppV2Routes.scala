@@ -242,7 +242,8 @@ object AppV2Routes {
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct14(
+    Encoder.forProduct15(
+      "workspaceId",
       "appName",
       "cloudContext",
       "region",
