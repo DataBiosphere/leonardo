@@ -63,6 +63,8 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add aou-sas-chart https://storage.googleapis.com/terra-app-helm/aou-sas-chart && \
     helm repo update
 
+COPY ./wds-1.51.0.tgz /leonardo
+RUN tar -xvf /leonardo/wds-1.51.0.tgz -C /leonardo
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
@@ -76,7 +78,6 @@ RUN cd /leonardo && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
-    helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
     helm pull terra-helm/workflows-app --version $WORKFLOWS_APP_VERSION --untar && \
     helm pull terra-helm/cromwell-runner-app --version $CROMWELL_RUNNER_APP_VERSION --untar && \
     helm pull aou-rstudio-chart/aou-rstudio-chart --version $RSTUDIO_CHART_VERSION --untar && \
