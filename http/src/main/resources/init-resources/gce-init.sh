@@ -486,7 +486,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         && nbstripout --install --global \
         && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_custom_nbextensions.sh \
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
