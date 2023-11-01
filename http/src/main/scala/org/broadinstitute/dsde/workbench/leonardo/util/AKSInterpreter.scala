@@ -115,11 +115,39 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
       }
 
+      wsmResourceApi <- buildWsmResourceApiClient
+
+      // Check if shared app (WORKFLOWS app0 already has "cloned" managed identity
+
       // Create WSM managed identity if shared app
-      wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
+      wsmManagedIdentityOpt: Option[WsmManagedAzureIdentity] <- app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp if app.appType == AppType.WorkflowsApp =>
+          retrieveWsmManagedIdentity(wsmResourceApi, app.appType, params.workspaceId.value).flatMap {
+            case Some(v) =>
+              logger.info(ctx.loggingCtx)(
+                s"*** Cloned managed identity found for ${app.appType} - wsmResourceName: ${v.wsmResourceName} managedIdentityName: ${v.managedIdentityName} ***"
+              )
+              F.pure(Option(v))
+            case None =>
+              childSpan("createWsmIdentityResource").use { implicit ev =>
+                createWsmIdentityResource(app, namespacePrefix, params.workspaceId)
+                  .map(i =>
+                    WsmManagedAzureIdentity(i.getAzureManagedIdentity.getMetadata.getName,
+                                            i.getAzureManagedIdentity.getAttributes.getManagedIdentityName
+                    )
+                  )
+                  .map(_.some)
+              }
+          }
         case SamResourceType.SharedApp =>
           childSpan("createWsmIdentityResource").use { implicit ev =>
-            createWsmIdentityResource(app, namespacePrefix, params.workspaceId).map(_.some)
+            createWsmIdentityResource(app, namespacePrefix, params.workspaceId)
+              .map(i =>
+                WsmManagedAzureIdentity(i.getAzureManagedIdentity.getMetadata.getName,
+                                        i.getAzureManagedIdentity.getAttributes.getManagedIdentityName
+                )
+              )
+              .map(_.some)
           }
         case _ => F.pure(None)
       }
@@ -134,8 +162,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // TODO: Refactor this into a more general check instead of just being for Workflows App
 
-      wsmResourceApi <- buildWsmResourceApiClient
-
       clonedDbInWorkflowsApp <-
         if (app.appType == AppType.WorkflowsApp) {
           // check if CBAS db already exists
@@ -143,7 +169,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         } else F.pure(List.empty)
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"*** Cloned database in ${app.appType} - ${clonedDbInWorkflowsApp} ***"
+        s"*** Cloned database in ${app.appType} - $clonedDbInWorkflowsApp ***"
       )
 
       // Create WSM databases
@@ -153,7 +179,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           app.appType,
           params.workspaceId,
           namespacePrefix,
-          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName),
+          wsmManagedIdentityOpt.map(_.wsmResourceName),
           landingZoneResources,
           clonedDbInWorkflowsApp
         )
@@ -174,7 +200,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           namespacePrefix,
           wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
           clonedDbInWorkflowsApp,
-          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
+          wsmManagedIdentityOpt.map(_.wsmResourceName)
         )
       }
 
@@ -187,7 +213,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // 'googleServiceAccount' column in the APP table.
       managedIdentityName = ManagedIdentityName(
         wsmManagedIdentityOpt
-          .map(_.getAzureManagedIdentity.getAttributes.getManagedIdentityName)
+          .map(_.managedIdentityName)
           .getOrElse(app.googleServiceAccount.value.split('/').last)
       )
 
@@ -882,6 +908,30 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .transaction
     } yield result
+  }
+
+  private def retrieveWsmManagedIdentity(resourceApi: ResourceApi,
+                                         appType: AppType,
+                                         workspaceId: UUID
+  ): F[Option[WsmManagedAzureIdentity]] = {
+    val wsmManagedIdentities = F.blocking(
+      resourceApi
+        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_MANAGED_IDENTITY, StewardshipType.CONTROLLED)
+        .getResources
+        .asScala
+        .toList
+    )
+    val wsmResourceName = s"id${appType.toString.toLowerCase}"
+    // there should be only 1 managed identity per app
+    wsmManagedIdentities.map { identities =>
+      identities
+        .find(r => wsmResourceName == r.getMetadata().getName())
+        .map(r =>
+          WsmManagedAzureIdentity(r.getMetadata.getName,
+                                  r.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
+          )
+        )
+    }
   }
 
   private def retrieveWsmDatabases(resourceApi: ResourceApi,
