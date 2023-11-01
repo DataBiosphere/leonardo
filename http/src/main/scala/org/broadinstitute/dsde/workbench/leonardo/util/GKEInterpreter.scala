@@ -366,12 +366,17 @@ class GKEInterpreter[F[_]](
 
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
-      googleCluster <- F.fromOption(
-        googleClusterOpt,
-        ClusterCreationException(ctx.traceId,
-                                 s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}"
-        )
-      )
+      googleCluster <- googleClusterOpt match {
+        case Some(value) => F.pure(value)
+        case None =>
+          kubernetesClusterQuery.markAsDeleted(dbCluster.id, ctx.now).transaction >>
+            F.raiseError[Cluster](
+              ClusterCreationException(
+                ctx.traceId,
+                s"Cluster not found in Google: ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+              )
+            )
+      }
 
       nfsDisk <- F.fromOption(
         dbApp.app.appResources.disk,
@@ -917,45 +922,52 @@ class GKEInterpreter[F[_]](
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
 
-      _ <- googleClusterOpt.traverse(googleCluster =>
-        for {
-          helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+      _ <- googleClusterOpt
+        .traverse { googleCluster =>
+          val uninstallCharts = for {
+            helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
-          _ <- logger.info(ctx.loggingCtx)(
-            s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
-          )
-
-          // helm uninstall the app chart and wait
-          _ <- helmClient
-            .uninstall(app.release, config.galaxyAppConfig.uninstallKeepHistory)
-            .run(helmAuthContext)
-
-          last <- streamFUntilDone(
-            kubeService.listPodStatus(dbCluster.getClusterId, KubernetesNamespace(namespaceName)),
-            config.monitorConfig.deleteApp.maxAttempts,
-            config.monitorConfig.deleteApp.interval
-          ).compile.lastOrError
-
-          _ <-
-            if (!podDoneCheckable.isDone(last)) {
-              val msg =
-                s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
-                    .filterNot(isPodDone)
-                    .map(_.name.value)
-                    .mkString(", ")}"
-              logger.error(ctx.loggingCtx)(msg) >>
-                F.raiseError[Unit](AppDeletionException(msg))
-            } else F.unit
-
-          // helm uninstall the setup chart
-          _ <- helmClient
-            .uninstall(
-              getTerraAppSetupChartReleaseName(app.release),
-              config.galaxyAppConfig.uninstallKeepHistory
+            _ <- logger.info(ctx.loggingCtx)(
+              s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
             )
-            .run(helmAuthContext)
-        } yield ()
-      )
+
+            // helm uninstall the app chart and wait
+            _ <- helmClient
+              .uninstall(app.release, config.galaxyAppConfig.uninstallKeepHistory)
+              .run(helmAuthContext)
+
+            last <- streamFUntilDone(
+              kubeService.listPodStatus(dbCluster.getClusterId, KubernetesNamespace(namespaceName)),
+              config.monitorConfig.deleteApp.maxAttempts,
+              config.monitorConfig.deleteApp.interval
+            ).compile.lastOrError
+
+            _ <-
+              if (!podDoneCheckable.isDone(last)) {
+                val msg =
+                  s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
+                      .filterNot(isPodDone)
+                      .map(_.name.value)
+                      .mkString(", ")}"
+                logger.error(ctx.loggingCtx)(msg) >>
+                  F.raiseError[Unit](AppDeletionException(msg))
+              } else F.unit
+
+            // helm uninstall the setup chart
+            _ <- helmClient
+              .uninstall(
+                getTerraAppSetupChartReleaseName(app.release),
+                config.galaxyAppConfig.uninstallKeepHistory
+              )
+              .run(helmAuthContext)
+          } yield ()
+
+          uninstallCharts.handleErrorWith { e =>
+            logger.info(ctx.loggingCtx)(
+              s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString} failed with error ${e.getMessage}"
+            )
+          }
+        }
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
@@ -966,7 +978,7 @@ class GKEInterpreter[F[_]](
         .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace))
         .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
 
-      _ <- streamUntilDoneOrTimeout(fa, 30, 5 seconds, "delete namespace timed out")
+      _ <- streamUntilDoneOrTimeout(fa, 60, 5 seconds, "delete namespace timed out")
       _ <- logger.info(ctx.loggingCtx)(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )

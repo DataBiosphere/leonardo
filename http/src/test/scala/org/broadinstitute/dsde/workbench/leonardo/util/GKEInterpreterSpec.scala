@@ -70,7 +70,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       FakeGoogleComputeService
     )
 
-  "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
+  it should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val minNodes = 0
     val maxNodes = 2
