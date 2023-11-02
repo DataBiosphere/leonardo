@@ -355,7 +355,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.path.sas=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
       """ingress.path.welder=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.proxyPath=/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
-      """ingress.referer=https://leo/,""" +
+      """ingress.referer=https://leo,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://1455694897.jupyter.firecloud.org,""" +
       """imageCredentials.username=sasUserName,""" +
       """imageCredentials.password=sasPassword,""" +
