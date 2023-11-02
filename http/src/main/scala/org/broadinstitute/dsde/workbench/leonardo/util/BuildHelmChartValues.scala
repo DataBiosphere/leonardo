@@ -333,7 +333,7 @@ private[leonardo] object BuildHelmChartValues {
           raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
           raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
           raw"""ingress.proxyPath=${ingressPath}""",
-          raw"""ingress.referer=${config.leoUrlBase}""",
+          raw"""ingress.referer=${config.proxyConfig.proxyUrlBase.dropRight(6)}""",
           raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost
               .address()}""",
           raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
