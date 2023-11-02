@@ -60,7 +60,19 @@ class LeonardoClient(leonardoBasePath: String) {
 
 ## Building and running `leonardo` locally
 
+To run `leonardo` locally, you are going to need the following:
+
+- The `leonardo` codebase
+- The necessary dependencies installed
+- A connection to a `leonardo` database
+
+The following sections take you through those steps in a logical order.
+
 ### Clone the repo and submodules
+
+The first step is to get the code.
+This will allow you to not only follow [this README](README.md) locally, you will also be able to install setup
+the environmental dependencies as well as build `leonardo` locally.
 
 ```sh
 git clone https://github.com/databiosphere/leonardo.git
@@ -73,7 +85,7 @@ And as an aside, this repository uses git submodules. You will need to execute t
 git submodule update --init --recursive
 ```
 
-### Install `leonardo` dependencies
+### Install `leonardo`'s dependencies
 
 The following tools are required to run `leonardo`:
 
@@ -113,14 +125,20 @@ across environments thanks to the `Brewfile.lock.json`
 
   - git
   - vault
+  - mysql-client
   - docker
+  - azure-cli
   - google-cloud-sdk
   - cloud-sql-proxy
   - sdkman (to support `java` and `sbt` environment management)
   - go
 
   **NOTE:** Please note that we lean on `sdkman` to manage our java-based SDKs - specifically `java` and `sbt`.
-  If you are managing your own java-based environments in another manner, please feel free to
+  If you are managing your own java-based environments in another manner, please feel free to comment out `sdkman`
+  before executing the command above.
+
+  **NOTE:** Ensure that you are running go>=1.20 by running. This is needed to compile `helm`
+
 
 - Following the `brew bundle` update, you need to do some environment updating of your dot-files.
   The default MacOS shell uses `zsh` ([short explanation here](https://discussions.apple.com/thread/250722978)).
@@ -131,6 +149,7 @@ across environments thanks to the `Brewfile.lock.json`
   echo '
   # make sure the google-cloud-sdk cli is on your path
   export PATH=$(brew --prefix)/share/google-cloud-sdk/bin:$PATH
+  export PATH=$(brew --prefix)/opt/mysql-client/bin:$PATH
 
   # https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2848063491/Dev+Environment+Setup
   export SBT_OPTS="-Xmx2G -Xms1G -Dmysql.host=localhost -Dmysql.port=3311 -Duser.timezone=GMT"
@@ -143,11 +162,11 @@ across environments thanks to the `Brewfile.lock.json`
 
   # cloud-sql-proxy environment variables
   # feel free to override the defaults
-  #export GOOGLE_PROJECT=broad-dsde-dev
-  #export CLOUDSQL_ZONE=us-central1
+  export GOOGLE_PROJECT=broad-dsde-dev
+  export CLOUDSQL_ZONE=us-central1
   #
   # also used by `leonardo`
-  export CLOUDSQL_INSTANCE=[INSERT-YOUR-GOOGLE-CLOUD-CLONE-ID-HERE]
+  export CLOUDSQL_INSTANCE=[INSERT-YOUR-CLOUD-SQL-CONNECTION-NAME-HERE]
 
   # `leonardo`-specific environment variables
   export DB_USER=leonardo
@@ -171,9 +190,11 @@ across environments thanks to the `Brewfile.lock.json`
   ```
 
   At this point, `sdkman` will have set up your `JAVA_HOME` and `SBT_HOME` environment variables accordingly.
-  To always use the correct `JAVA_HOME` and `SBT_HOME` every time you drop into the `leonardo` directory, it is
-  recommended to turn on `sdkman_auto_env`. To do so, please execute `sdk config` and change the configured value of
+  You will have to run `sdk env` each time your current working directory is `leonardo/`.
+  To always use the correct `JAVA_HOME` and `SBT_HOME` every time you drop into the `leonardo/` directory,
+  you can turn on `sdkman_auto_env`. To do so, please execute `sdk config` and change the configured value of
   `sdkman_auto_env` from `false` to `true`.
+
 
 - We need to install one more thing - `gke-gcloud-auth-plugin`.  
   This will also validate that our `gcloud`-cli is installed and running appropriately.
@@ -193,6 +214,187 @@ At this point all the third party dependencies have been installed, and the envi
 those tools have been set up. 
 
 Next up, interacting with the `leonardo`-repository! - :nerd_face: 
+
+### Identify and Set up your MySQL database
+
+#### Establish a local proxy to the Cloud SQL remote instance
+
+1. Run the following command to setup your `gcloud`-cli to work with ``
+
+   ```sh
+   gcloud auth application-default login
+   ```
+
+   **NOTE:** You may need to run `gcloud config set project <PROJECT_ID>` if your environment is setup to use 
+   a different Google Cloud Project
+
+
+2. Navigate your browser to the [Cloud SQL dashboard](https://console.cloud.google.com/sql/instances),
+   - Select your database's _Instance Overview_ screen by clicking on it's `Instance ID`, and then
+   - In the `Connect to this instance`-section, copy the `Connection name`
+
+
+3. In the [Cloud SQL dashboard](https://console.cloud.google.com/sql/instances) for your instance, 
+   Reset the passwords for the users () 
+   - Select your database's _Instance Overview_ screen by clicking on it's `Instance ID`, 
+   - Select the `Users` option from the menu on the left,
+   - Select the three vertical dots for the user, and then
+   - `Change password`
+
+   **NOTE**: You will want to update your environment (.zprofile - see above or locally) 
+   with the correct `username` and `password`
+
+   ```shell
+   export CLOUDSQL_INSTANCE=<your cloned db name> # for Leo and CloudSQL proxy
+   export DB_USER=<db username> # for Leo only, not CloudSQL proxy
+   export DB_PASSWORD=<db password> # for Leo only, not CloudSQL proxy
+   ```
+
+3. Execute the following command in a terminal window to establish a local connection to the database.
+   Mind that you will need to be connected to the VPN.
+
+   ```sh
+   cloud-sql-proxy [CLOUD-SQL-CONNECTION-NAME-HERE]
+   ```
+
+#### Other database info ...
+
+You can add more vars for the CloudSQL proxy container by editing `./local/sqlproxy.env`.
+
+### Building and running `leonardo` locally
+
+#### VPN
+
+You must be connected to the VPN to complete the rest of this process.
+
+#### Building local dependencies
+
+Leo needs a copy of the Go Helm library and secrets, files, and env vars stored in k8s.
+
+- To build the Go Helm library and get k8s resources, run:
+
+  ```sh
+  ./local/depends.sh -y
+  ```
+
+- To only build the Go Helm library, run:
+
+  ```sh
+  ./local/depends.sh helm
+  ```
+
+- To only get k8s resources, run:
+
+  ```sh
+  ./local/depends.sh configs
+  ```
+
+#### Overrides
+
+By adding entries to `./local/overrides.env`, you can override the value of any variable from k8s for Leo.
+
+#### Unsetting
+
+By adding entries to `./local/unset.env`, you can remove variables from k8s for Leo. Applied after retrieving
+variables from k8s and before applying overrides.
+
+#### Host alias
+
+If you haven't already, add `127.0.0.1       local.dsde-dev.broadinstitute.org` to `/etc/hosts`:
+
+```shell
+sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hosts"
+```
+
+#### Run proxies
+
+- To run the CloudSQL and Apache proxies, run:
+
+  ```shell
+  ./local/proxies.sh start
+  ```
+
+- You can also stop them:
+
+  ```shell
+  ./local/proxies.sh stop
+  ```
+
+- Or restart them:
+
+  ```shell
+  ./local/proxies.sh restart
+  ```
+
+- If the CloudSQL proxy fails to start with an error like:
+
+  ```shell
+  Bind for 0.0.0.0:3306 failed: port is already allocated
+  ```
+
+  Run this to find the PID of the process using that port:
+
+  ```shell
+  sudo lsof -i tcp:3306
+  ```
+
+  And then kill that process:
+
+  ```shell
+  sudo kill -TERM <pid>
+  ```
+
+#### Run `leonardo`
+
+- Export required env vars as created by `./local/depends.sh`
+
+  ```sh
+  . ./http/src/main/resources/rendered/sbt.env.sh
+  ```
+
+- Call the sbt `http/run` target:
+
+  ```sh
+  sbt http/run
+  ```
+
+  ... or start an sbt shell and go from there:
+
+  ```
+  sbt
+  ```
+
+
+
+
+
+Building `leonardo` requires that you set up a local terminal environment that enables you to connect
+to the necessary remote resources.
+
+If these values were not set in your dot-file (see above), you will need to set them before running the following command.
+
+Also, running the `depends.sh` script requires that you be on the VPN.
+
+```sh
+export GOOGLE_PROJECT=broad-dsde-dev
+export CLOUDSQL_ZONE=us-central1
+export CLOUDSQL_INSTANCE=[CLOUD-SQL-CONNECTION-NAME-HERE]
+./local/depends.sh -y
+```
+
+This will produce local configuration variables as well as building the [./local/helm-scala-sdk](./local/helm-scala-sdk).
+**Please pay attention to the output of `depends.sh` command to make sure it completes successfully!**
+
+At this point, you should be ready to build `leonardo`!
+
+```shell
+sbt http/run
+```
+
+
+### IDE install and setup
+
+
 
 ### Build `leonardo`
 
@@ -216,96 +418,6 @@ go version
 ```
 
 
-#### VPN
-You must be connected to the VPN if working remotely.
-
-#### CloudSQL proxy settings
-The CloudSQL proxy container uses a few environment variables. The following vars are pulled from Leo in dev in kubernetes:
-* GOOGLE_PROJECT (e.g. "broad-dsde-dev")
-* CLOUDSQL_ZONE (e.g. "us-central1")
-* DB_USER (e.g. "leonardo")
-If you are ok with these defaults, do nothing, otherwise run:
-```
-export GOOGLE_PROJECT=my-project-name
-```
-And change the var name and value as desired.
-
-In order to develop locally, you *must* make a copy of the dev database and run
-```
-export CLOUDSQL_INSTANCE=<your cloned db name> # for Leo and CloudSQL proxy
-export DB_USER=<db username> # for Leo only, not CloudSQL proxy
-export DB_PASSWORD=<db password> # for Leo only, not CloudSQL proxy
-```
-You can add more vars for the CloudSQL proxy container by editing `./local/sqlproxy.env`.
-
-#### Dependencies
-Leo needs a copy of the Go Helm library and secrets, files, and env vars stored in k8s.
-
-To build the Go Helm library and get k8s resources, run:
-```
-./local/depends.sh -y
-```
-To only build the Go Helm library, run:
-```
-./local/depends.sh helm
-```
-To only get k8s resources, run:
-```
-./local/depends.sh configs
-```
-
-#### Overrides
-By adding entries to `./local/overrides.env`, you can override the value of any variable from k8s for Leo.
-
-#### Unsetting
-By adding entries to `./local/unset.env`, you can remove variables from k8s for Leo. Applied after retrieving
-variables from k8s and before applying overrides.
-
-#### Host alias
-If you haven't already, add `127.0.0.1       local.dsde-dev.broadinstitute.org` to `/etc/hosts`:
-```
-sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hosts"
-```
-
-#### Run proxies
-To run the CloudSQL and Apache proxies, run:
-```
-./local/proxies.sh start
-```
-You can also stop them:
-```
-./local/proxies.sh stop
-```
-Or restart them:
-```
-./local/proxies.sh restart
-```
-If the CloudSQL proxy fails to start with an error like:
-```
-Bind for 0.0.0.0:3306 failed: port is already allocated
-```
-Run this to find the PID of the process using that port:
-```
-sudo lsof -i tcp:3306
-```
-And then kill that process:
-```
-sudo kill -TERM <pid>
-```
-
-#### Run Leo
-Export required env vars as created by `./local/depends.sh`:
-```
-. ./http/src/main/resources/rendered/sbt.env.sh
-```
-Call the sbt `http/run` target:
-```
-sbt http/run
-```
-Or start an sbt shell and go from there:
-```
-sbt
-```
 
 #### Architecture issues
 If you get an error like
