@@ -178,7 +178,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      machineConfig = req.kubernetesRuntimeConfig.getOrElse(
+      machineConfigFromReqAndConfig = req.kubernetesRuntimeConfig.getOrElse(
         KubernetesRuntimeConfig(
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
@@ -186,6 +186,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
       )
 
+      // Always allow autoScaling for ALLOWED appType
+      machineConfig =
+        if (AppType.Allowed == req.appType) machineConfigFromReqAndConfig.copy(autoscalingEnabled = true)
+        else machineConfigFromReqAndConfig
       // We want to know if the user already has a nodepool with the requested config that can be re-used
       userNodepoolOpt <- nodepoolQuery
         .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
