@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, b
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -285,7 +285,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       createdDatabase <- aksInterp.createWsmDatabaseResource(saveApp,
                                                              workspaceId,
-                                                             CreateDatabase("test", false),
+                                                             ControlledDatabase("test", false),
                                                              "wds",
                                                              Some(owner),
                                                              mockControlledResourceApi
@@ -667,7 +667,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val appInstall = mock[AppInstall[IO]]
     when {
       appInstall.databases
-    } thenReturn List(CreateDatabase("db1", false))
+    } thenReturn List(ControlledDatabase("db1", false))
     when {
       appInstall.buildHelmOverrideValues(any)(any)
     } thenReturn IO.pure(Values("values"))

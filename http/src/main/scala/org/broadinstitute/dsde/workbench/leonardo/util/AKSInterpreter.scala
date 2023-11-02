@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNam
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{RegionName, streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.doesAppTypeSupportCloning
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -796,7 +796,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         wsmApi <- buildWsmControlledResourceApiClient
         res <- appInstall.databases
           .collect {
-            case d @ CreateDatabase(_, _) if !existingDbNames.exists(dbName => dbName.startsWith(d.prefix)) => d
+            case d @ ControlledDatabase(_, _) if !existingDbNames.exists(dbName => dbName.startsWith(d.prefix)) => d
           }
           .traverse { database =>
             createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
@@ -810,7 +810,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def createWsmDatabaseResource(app: App,
                                               workspaceId: WorkspaceId,
-                                              database: CreateDatabase,
+                                              database: ControlledDatabase,
                                               namespacePrefix: String,
                                               owner: Option[String],
                                               wsmApi: ControlledAzureResourceApi

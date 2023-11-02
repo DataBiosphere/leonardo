@@ -53,10 +53,11 @@ object AppInstall {
 sealed trait Database
 object Database {
 
-  /** A database to be created as part of app creation. */
-  final case class CreateDatabase(prefix: String, allowAccessForAllWorkspaceUsers: Boolean = false) extends Database
+  /** A database attached to the lifecycle of app. */
+  final case class ControlledDatabase(prefix: String, allowAccessForAllWorkspaceUsers: Boolean = false) extends Database
 
-  /** A database that should _not_ be created as part of app creation, but referenced in k8s namespace creation. */
+  /** A database that should _not_ be created as part of app creation, but referenced in k8s namespace creation.
+   * It is not tied to the lifecycle of app. */
   final case class ReferenceDatabase(name: String) extends Database
 }
 
