@@ -381,6 +381,11 @@ object AppType {
       case Allowed                                                       => FormattedBy.Allowed
       case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp => FormattedBy.Cromwell
     }
+
+  def doesAppTypeSupportCloning(appType: AppType): Boolean = appType match {
+    case WorkflowsApp => true
+    case _ => false
+  }
 }
 
 final case class AppId(id: Long) extends AnyVal

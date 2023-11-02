@@ -15,7 +15,8 @@ import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{RegionName, streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.doesAppTypeSupportCloning
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
@@ -25,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import org.broadinstitute.dsp.{Release, _}
+import org.broadinstitute.dsp._
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
@@ -117,53 +118,23 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       wsmResourceApi <- buildWsmResourceApiClient
 
-      // Check if shared app (WORKFLOWS app0 already has "cloned" managed identity
-
-      // Create WSM managed identity if shared app
-      wsmManagedIdentityOpt: Option[WsmManagedAzureIdentity] <- app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp if app.appType == AppType.WorkflowsApp =>
+      // Create or fetch WSM managed identity if shared app
+      wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
+        // for apps that support cloning, if a managed identity has already been created in the workspace
+        // use that otherwise create a new managed identity
+        case SamResourceType.SharedApp if doesAppTypeSupportCloning(app.appType) =>
           retrieveWsmManagedIdentity(wsmResourceApi, app.appType, params.workspaceId.value).flatMap {
-            case Some(v) =>
-              logger.info(
-                s"*** Cloned managed identity found for ${app.appType} - wsmResourceName: ${v.wsmResourceName} managedIdentityName: ${v.managedIdentityName} ***"
-              )
-              F.pure(Option(v))
-            case None =>
-              childSpan("createWsmIdentityResource").use { implicit ev =>
-                createWsmIdentityResource(app, namespacePrefix, params.workspaceId)
-                  .map(i =>
-                    WsmManagedAzureIdentity(i.getAzureManagedIdentity.getMetadata.getName,
-                                            i.getAzureManagedIdentity.getAttributes.getManagedIdentityName
-                    )
-                  )
-                  .map(_.some)
-              }
+            case Some(v) => F.pure(Option(v))
+            case None => createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
           }
-        case SamResourceType.SharedApp =>
-          childSpan("createWsmIdentityResource").use { implicit ev =>
-            createWsmIdentityResource(app, namespacePrefix, params.workspaceId)
-              .map(i =>
-                WsmManagedAzureIdentity(i.getAzureManagedIdentity.getMetadata.getName,
-                                        i.getAzureManagedIdentity.getAttributes.getManagedIdentityName
-                )
-              )
-              .map(_.some)
-          }
+        case SamResourceType.SharedApp => createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
         case _ => F.pure(None)
       }
-
-      /*
-       * Saloni's thoughts:
-       * For WORKFLOWS app (and maybe possible CROMWELL_RUNNER app?) we first check if a cloned db exists
-       *   - check using enumerateResources from WSM (similar to reference dbs)
-       * If cloned CBAS db exists, attach to it - pass the db name in the helm chart values
-       * If not, continue with normal flow
-       * */
 
       // TODO: Refactor this into a more general check instead of just being for Workflows App
 
       clonedDbInWorkflowsApp <-
-        if (app.appType == AppType.WorkflowsApp) {
+        if (doesAppTypeSupportCloning(app.appType)) {
           // check if CBAS db already exists
           retrieveWsmDatabases(wsmResourceApi, Set("cbas"), params.workspaceId.value)
         } else F.pure(List.empty)
@@ -743,6 +714,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               .userName(app.auditInfo.creator.value)
               .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
           )
+    }
+  }
+
+  private[util] def createAzureManagedIdentity(app: App, namespacePrefix: String, workspaceId: WorkspaceId)(implicit
+                                                                                                            ev: Ask[F, AppContext]
+  ): F[Option[WsmManagedAzureIdentity]] = {
+    childSpan("createWsmIdentityResource").use { implicit ev =>
+      createWsmIdentityResource(app, namespacePrefix, workspaceId)
+        .map(i =>
+          WsmManagedAzureIdentity(i.getAzureManagedIdentity.getMetadata.getName,
+            i.getAzureManagedIdentity.getAttributes.getManagedIdentityName
+          )
+        )
+        .map(_.some)
     }
   }
 
