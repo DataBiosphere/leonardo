@@ -48,7 +48,6 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "provenance.sourceWorkspaceId=," +
-      "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.dbname=wds1," +
@@ -83,7 +82,6 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "import.dataRepoUrl=https://jade.datarepo-dev.broadinstitute.org," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}," +
-      "postgres.podLocalDatabaseEnabled=false," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.dbname=wds1," +

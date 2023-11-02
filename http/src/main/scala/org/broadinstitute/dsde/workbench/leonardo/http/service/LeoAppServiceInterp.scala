@@ -30,7 +30,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
+  checkIfCanBeDeleted,
+  isPatchVersionDifference
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -373,13 +376,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-      canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
-      _ <-
-        if (canDelete) F.unit
-        else
-          F.raiseError[Unit](
-            AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId)
-          )
+      // Galaxy is the only app that has custom deletion logic that requires `helm uninstall`. For all other apps, we'll
+      // delete namespace during app deletion instead, which doesn't require app to be `RUNNING` in order to delete
+      canDelete = checkIfCanBeDeleted(appResult.app.appType, appResult.app.status)
+      _ <- F.fromEither(
+        canDelete.leftMap(s => AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId, s))
+      )
 
       // Get the disk to delete if specified
       diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
@@ -1390,7 +1392,25 @@ object LeoAppServiceInterp {
     val bSplited = b.asString.split("\\.")
     aSplited(0) == bSplited(0) && aSplited(1) == bSplited(1)
   }
+
+  private[http] def checkIfCanBeDeleted(appType: AppType, appStatus: AppStatus): Either[String, Unit] = {
+    val deletable =
+      appType match {
+        case AppType.Galaxy =>
+          AppStatus.deletableStatuses.contains(appStatus)
+        case _ =>
+          // As of 10/26/2023.
+          // Right now, this is the exact same as Galaxy.
+          // But hopefully we can relax this in the future for non-Galaxy apps
+          // If this code is still here in 6 months.
+          // We should just abandon the attempt to relax AppStatus requirement for deleteApp.
+          AppStatus.deletableStatuses.contains(appStatus)
+      }
+    if (deletable) Right(())
+    else Left(s"${appType} can not be deleted in ${appStatus} status.")
+  }
 }
+
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
     extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
@@ -1432,12 +1452,14 @@ case class AppAlreadyExistsException(cloudContext: CloudContext, appName: AppNam
 case class AppCannotBeDeletedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
-                                       traceId: TraceId
+                                       traceId: TraceId,
+                                       extraMsg: String = ""
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
-      traceId = Some(traceId)
+      traceId = Some(traceId),
+      extraMessageInLogging = extraMsg
     )
 
 case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
