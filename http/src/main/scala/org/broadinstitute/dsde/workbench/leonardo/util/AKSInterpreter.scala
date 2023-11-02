@@ -124,7 +124,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case SamResourceType.SharedApp if app.appType == AppType.WorkflowsApp =>
           retrieveWsmManagedIdentity(wsmResourceApi, app.appType, params.workspaceId.value).flatMap {
             case Some(v) =>
-              logger.info(ctx.loggingCtx)(
+              logger.info(
                 s"*** Cloned managed identity found for ${app.appType} - wsmResourceName: ${v.wsmResourceName} managedIdentityName: ${v.managedIdentityName} ***"
               )
               F.pure(Option(v))
