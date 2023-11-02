@@ -73,14 +73,11 @@ export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 GPU_ENABLED=$(gpuEnabled)
-#if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-#  export SHOULD_BACKGROUND_SYNC="true"
-#else
-#  export SHOULD_BACKGROUND_SYNC="false"
-#fi
-
-# We want to always enable background sync, and welder will omit `.ipynb` files
-export SHOULD_BACKGROUND_SYNC="true"
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export SHOULD_BACKGROUND_SYNC="true"
+else
+  export SHOULD_BACKGROUND_SYNC="false"
+fi
 
 # Overwrite old cert on restart
 SERVER_CRT=$(proxyServerCrt)
@@ -348,7 +345,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # This is to make it so that older images will still work after we change notebooks location to home dir
     docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
-    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter-nbclassic)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
         # fix for https://broadworkbench.atlassian.net/browse/IA-1453

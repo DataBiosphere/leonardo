@@ -142,15 +142,11 @@ WORK_DIRECTORY='/mnt/disks/work'
 GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gsutil'
 GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gcloud'
 
-#if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-#  export SHOULD_BACKGROUND_SYNC="true"
-#else
-#  export SHOULD_BACKGROUND_SYNC="false"
-#fi
-#
-
-# We want to always enable background sync, and welder will omit `.ipynb` files
-export SHOULD_BACKGROUND_SYNC="true"
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export SHOULD_BACKGROUND_SYNC="true"
+else
+  export SHOULD_BACKGROUND_SYNC="false"
+fi
 
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
   log 'Authorizing GCR...'
