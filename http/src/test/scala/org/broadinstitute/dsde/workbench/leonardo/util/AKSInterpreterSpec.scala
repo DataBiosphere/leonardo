@@ -710,7 +710,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
     // enumerate workspace database resources
     when {
-      resourceApi.enumerateResources(any, any, any, ArgumentMatchers.eq(ResourceType.AZURE_DATABASE), any)
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
+                                     any
+      )
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
