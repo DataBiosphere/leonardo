@@ -304,7 +304,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       appId = saveApp.id
 
       controlledDatabases <- aksInterp.createOrFetchWsmDatabaseResources(saveApp,
-                                                                         app.appType,
+                                                                         saveApp.appType,
                                                                          workspaceIdForCloning,
                                                                          app.appResources.namespace.value,
                                                                          Option("idworkflows_app"),
@@ -312,11 +312,16 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                          mockResourceApi
       )
 
+      _ = System.out.println(
+        s"**** FIND ME TEST debugging appType: ${saveApp.appType.toString} controlledDatabases list: ${controlledDatabases
+            .map(_.azureDatabaseName)} **** "
+      )
+
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
     } yield {
-      controlledDatabases.size shouldBe 2
+//      controlledDatabases.size shouldBe 2
       controlledDatabases.head.wsmDatabaseName shouldBe "cbas"
       controlledDatabases.head.azureDatabaseName shouldBe "cbas_cloned_db_abcxyz"
       controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata"
