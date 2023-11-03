@@ -384,7 +384,7 @@ object AppType {
 
   def doesAppTypeSupportCloning(appType: AppType): Boolean = appType match {
     case WorkflowsApp => true
-    case _ => false
+    case _            => false
   }
 }
 
