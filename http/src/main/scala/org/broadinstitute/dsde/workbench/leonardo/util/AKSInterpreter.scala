@@ -791,12 +791,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               existingControlledDbsInWorkspace
                 .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
             ) {
+              val abc = existingControlledDbsInWorkspace
+                .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
+                .get
+              logger.info(
+                s"*** Found cloned database for app ${app.appType} - wsmDatabaseName: ${abc.wsmDatabaseName} azureDatabaseName: ${abc.azureDatabaseName}"
+              )
               F.pure(
                 existingControlledDbsInWorkspace
                   .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
                   .get
               )
             } else {
+              logger.info(
+                s"*** Creating database for ${app.appType} - database: ${controlledDbForApp.prefix}"
+              )
               createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                 db =>
                   WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
