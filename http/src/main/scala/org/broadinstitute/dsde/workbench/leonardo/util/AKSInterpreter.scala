@@ -781,31 +781,24 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
         controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _) => d }
+        // retrieve databases that are already existing in the workspace for app that support cloning
         existingControlledDbsInWorkspace <-
           if (doesAppTypeSupportCloning(app.appType))
             retrieveWsmDatabases(wsmResourceApi, controlledDbsForApp.map(_.prefix).toSet, workspaceId.value)
           else F.pure(List.empty)
         wsmControlledDBResources <- controlledDbsForApp
           .map { controlledDbForApp =>
+            // if a database already exists (because of workspace cloning) use that otherwise create a new one
             if (
               existingControlledDbsInWorkspace
                 .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
             ) {
-              val abc = existingControlledDbsInWorkspace
-                .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
-                .get
-              logger.info(
-                s"*** Found cloned database for app ${app.appType} - wsmDatabaseName: ${abc.wsmDatabaseName} azureDatabaseName: ${abc.azureDatabaseName}"
-              )
               F.pure(
                 existingControlledDbsInWorkspace
                   .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
                   .get
               )
             } else {
-              logger.info(
-                s"*** Creating database for ${app.appType} - database: ${controlledDbForApp.prefix}"
-              )
               createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                 db =>
                   WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
@@ -909,9 +902,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield result
   }
 
-  private def retrieveWsmManagedIdentity(resourceApi: ResourceApi,
-                                         appType: AppType,
-                                         workspaceId: UUID
+  private[util] def retrieveWsmManagedIdentity(resourceApi: ResourceApi,
+                                               appType: AppType,
+                                               workspaceId: UUID
   ): F[Option[WsmManagedAzureIdentity]] = {
     val wsmManagedIdentities = F.blocking(
       resourceApi
