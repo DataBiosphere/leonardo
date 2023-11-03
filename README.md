@@ -378,7 +378,7 @@ sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hos
 - If you receive the following error while starting up `leonardo`
 
   ```shell
-  Caused by: com.typesafe.config.ConfigException$Missing: merge of leo.conf @ jar:file:/Users/.../leonardo/target/bg-jobs/sbt_10c9d98e/job-1/target/ae6bfc74/85357ed8/http_2.13-da789a092.jar!/leo.conf: 13,reference.conf @ jar:file:/Users/.../leonardo/target/bg-jobs/sbt_10c9d98e/job-1/target/ae6bfc74/85357ed8/http_2.13-da789a092.jar!/reference.conf: 606: No configuration setting found for key 'subEmail'  
+  Caused by: com.typesafe.config.ConfigException$Missing: merge of leo.conf @ jar:file:/Users/.../leonardo/target/bg-jobs/sbt_10c9d98e/job-1/target/ae6bfc74/85357ed8/http_2.13-da789a092.jar!/leo.conf: 13,reference.conf @ jar:file:/Users/.../leonardo/target/bg-jobs/sbt_10c9d98e/job-1/target/ae6bfc74/85357ed8/http_2.13-da789a092.jar!/reference.conf: 606: No configuration setting found for key 'subEmail'
   ```
 
   Then you need to make sure your environment is setup with the necessary
@@ -389,59 +389,6 @@ sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hos
   ```shell
   . ./http/src/main/resources/rendered/sbt.env.sh
   ```
-
-
-
-Building `leonardo` requires that you set up a local terminal environment that enables you to connect
-to the necessary remote resources.
-
-If these values were not set in your dot-file (see above), you will need to set them before running the following command.
-
-Also, running the `depends.sh` script requires that you be on the VPN.
-
-```sh
-export GOOGLE_PROJECT=broad-dsde-dev
-export CLOUDSQL_ZONE=us-central1
-export CLOUDSQL_INSTANCE=[CLOUD-SQL-CONNECTION-NAME-HERE]
-./local/depends.sh -y
-```
-
-This will produce local configuration variables as well as building the [./local/helm-scala-sdk](./local/helm-scala-sdk).
-**Please pay attention to the output of `depends.sh` command to make sure it completes successfully!**
-
-At this point, you should be ready to build `leonardo`!
-
-```shell
-sbt http/run
-```
-
-
-### IDE install and setup
-
-
-
-### Build `leonardo`
-
-- WIP ... TBD
-
-
-### Running Leo Locally
-
-#### Setup
-Install gcloud using Homebrew:
-```
-brew install --cask google-cloud-sdk
-```
-Install Go using Homebrew:
-```
-brew install go
-```
-Note: Ensure that you are running go>=1.20 by running
-```
-go version
-```
-
-
 
 #### Architecture issues
 If you get an error like
