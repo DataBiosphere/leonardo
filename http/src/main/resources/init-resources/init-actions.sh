@@ -183,12 +183,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
     PROXY_SITE_CONF=$(proxySiteConf)
     export HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
-    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-      export SHOULD_BACKGROUND_SYNC="true"
-    else
-      export SHOULD_BACKGROUND_SYNC="false"
-    fi
+#    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+#      export SHOULD_BACKGROUND_SYNC="true"
+#    else
+#      export SHOULD_BACKGROUND_SYNC="false"
+#    fi
 
+    # We want to always enable background sync, and welder will omit `.ipynb` files
+    export SHOULD_BACKGROUND_SYNC="true"
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)
@@ -512,7 +514,7 @@ END
             && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
 
-      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
            && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
            && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
            && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \

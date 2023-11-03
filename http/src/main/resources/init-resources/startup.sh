@@ -73,11 +73,14 @@ export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 GPU_ENABLED=$(gpuEnabled)
-if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  export SHOULD_BACKGROUND_SYNC="true"
-else
-  export SHOULD_BACKGROUND_SYNC="false"
-fi
+#if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+#  export SHOULD_BACKGROUND_SYNC="true"
+#else
+#  export SHOULD_BACKGROUND_SYNC="false"
+#fi
+
+# We want to always enable background sync, and welder will omit `.ipynb` files
+export SHOULD_BACKGROUND_SYNC="true"
 
 # Overwrite old cert on restart
 SERVER_CRT=$(proxyServerCrt)
