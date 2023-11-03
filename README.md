@@ -118,9 +118,11 @@ across environments thanks to the `Brewfile.lock.json`
   ```
 
 - Following the `brew`-install, you should be able to install the necessary tools to setup the remaining dependencies.
+
   ```shell
   brew bundle
   ```
+
   This will install the following resources for you:
 
   - git
@@ -132,6 +134,13 @@ across environments thanks to the `Brewfile.lock.json`
   - cloud-sql-proxy
   - sdkman (to support `java` and `sbt` environment management)
   - go
+
+  **NOTE:** If you already have `docker Desktop` installed, you may run into some collisions. You have a couple
+  of options:
+
+  - Uninstall docker. The instructions are here.
+  - Accept the failure and the fact that `docker Desktop` will not be managed through `brew`
+  - Both are fully acceptable - :slightly_smiling_face:
 
   **NOTE:** Please note that we lean on `sdkman` to manage our java-based SDKs - specifically `java` and `sbt`.
   If you are managing your own java-based environments in another manner, please feel free to comment out `sdkman`
