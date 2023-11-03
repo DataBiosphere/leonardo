@@ -192,7 +192,7 @@ across environments thanks to the `Brewfile.lock.json`
   If you have `java` and `sbt` installed already, you can skip this step.
   Otherwise, run the following commands to install the version of java and sbt we are currently supporting
 
-  (see `.sdkmanrc` for version info).
+  (see `.sdkmanrc` in the `leonardo/`-directory for version info).
 
   ```sh
   sdk env install
