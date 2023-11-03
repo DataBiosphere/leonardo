@@ -31,7 +31,7 @@ import org.broadinstitute.dsp.{ChartName, ChartVersion, Values}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.ArgumentMatchers
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, startsWith}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -236,27 +236,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   // retrieve wsm identity
   it should "retrieve a WSM controlled identity if it exists in workspace" in isolatedDbTest {
     val res = for {
-//      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
-//      nodepool <- IO(makeNodepool(1, cluster.id).save())
-//      app = makeApp(1, nodepool.id).copy(
-//        appType = AppType.WorkflowsApp,
-//        status = AppStatus.Running,
-//        appResources = AppResources(
-//          namespace = NamespaceName("ns-1"),
-//          disk = None,
-//          services = List.empty,
-//          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
-//        )
-//      )
-//      saveApp <- IO(app.save())
-
       retrievedIdentity <- aksInterp.retrieveWsmManagedIdentity(mockResourceApi,
                                                                 AppType.WorkflowsApp,
                                                                 workspaceIdForCloning.value
       )
     } yield {
       retrievedIdentity.get.wsmResourceName shouldBe "idworkflows_app"
-      retrievedIdentity.get.managedIdentityName shouldBe "abcxyz"
+      retrievedIdentity.get.managedIdentityName shouldBe "cloned_abcxyz"
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -291,6 +277,53 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledResources.size shouldBe 1
       controlledResources.head.resourceId.value shouldBe createdIdentity.getResourceId
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureManagedIdentity
+      controlledResources.head.status shouldBe AppControlledResourceStatus.Created
+      controlledResources.head.appId shouldBe appId.id
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  // fetch wsm database or create if it doesn't exists
+  it should "retrieve cbas database and create cromwellmetadata database for WORKFLOWS app" in isolatedDbTest {
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.WorkflowsApp,
+        status = AppStatus.Running,
+        appResources = AppResources(
+          namespace = NamespaceName("ns-1"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+
+      appId = saveApp.id
+
+      controlledDatabases <- aksInterp.createOrFetchWsmDatabaseResources(saveApp,
+                                                                         app.appType,
+                                                                         workspaceIdForCloning,
+                                                                         app.appResources.namespace.value,
+                                                                         "idworkflows_app",
+                                                                         lzResources,
+                                                                         mockResourceApi
+      )
+
+      controlledResources <- appControlledResourceQuery
+        .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
+        .transaction
+    } yield {
+      controlledDatabases.size shouldBe 2
+      controlledDatabases.head.wsmDatabaseName shouldBe "cbas"
+      controlledDatabases.head.azureDatabaseName shouldBe "cbas_cloned_db_abcxyz"
+      controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata"
+      controlledDatabases.head.azureDatabaseName should startsWith("cromwellmetadata_")
+
+      controlledResources.size shouldBe 1
+      controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
       controlledResources.head.appId shouldBe appId.id
     }
@@ -690,6 +723,26 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceList.add(resourceDesc)
       new ResourceList().resources(resourceList)
     }
+    // enumerate workspace database resources for a workspace with cloned db
+    when {
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForCloning.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
+                                     any
+      )
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("cbas"))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cbas_cloned_db_abcxyz")
+        )
+      )
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
     // enumerate workspace managed identity resources
     when {
       resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForCloning.value),
@@ -704,7 +757,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app"))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureManagedIdentity(
-          new AzureManagedIdentityAttributes().managedIdentityName("abcxyz")
+          new AzureManagedIdentityAttributes().managedIdentityName("cloned_abcxyz")
         )
       )
       resourceList.add(resourceDesc)
