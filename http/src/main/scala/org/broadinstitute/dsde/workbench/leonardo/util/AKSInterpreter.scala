@@ -781,7 +781,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
         controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _) => d }
-        // retrieve databases that are already existing in the workspace for app that support cloning
+        // for apps that support cloning, retrieve databases that are might already be created in workspace
         existingControlledDbsInWorkspace <-
           if (doesAppTypeSupportCloning(app.appType))
             retrieveWsmDatabases(wsmResourceApi, controlledDbsForApp.map(_.prefix).toSet, workspaceId.value)
@@ -914,8 +914,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .toList
     )
     val wsmResourceName = s"id${appType.toString.toLowerCase}"
-    // there should be only 1 managed identity per app
     wsmManagedIdentities.map { identities =>
+      // there should be only 1 Azure managed identity per app
       identities
         .find(r => wsmResourceName == r.getMetadata().getName())
         .map(r =>

@@ -307,7 +307,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                          app.appType,
                                                                          workspaceIdForCloning,
                                                                          app.appResources.namespace.value,
-                                                                         "idworkflows_app",
+                                                                         Option("idworkflows_app"),
                                                                          lzResources,
                                                                          mockResourceApi
       )
@@ -320,7 +320,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledDatabases.head.wsmDatabaseName shouldBe "cbas"
       controlledDatabases.head.azureDatabaseName shouldBe "cbas_cloned_db_abcxyz"
       controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata"
-      controlledDatabases.head.azureDatabaseName should startsWith("cromwellmetadata_")
+      controlledDatabases(1).azureDatabaseName should startsWith("cromwellmetadata_")
 
       controlledResources.size shouldBe 1
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
