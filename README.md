@@ -357,7 +357,7 @@ sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hos
 
 - Export required env vars as created by `./local/depends.sh`
 
-  ```sh
+  ```shell
   . ./http/src/main/resources/rendered/sbt.env.sh
   ```
 
@@ -373,7 +373,22 @@ sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hos
   sbt
   ```
 
+#### Troubleshooting `leonardo`
 
+- If you receive the following error while starting up `leonardo`
+
+  ```shell
+  Caused by: com.typesafe.config.ConfigException$Missing: merge of leo.conf @ jar:file:/Users/.../leonardo/target/bg-jobs/sbt_10c9d98e/job-1/target/ae6bfc74/85357ed8/http_2.13-da789a092.jar!/leo.conf: 13,reference.conf @ jar:file:/Users/.../leonardo/target/bg-jobs/sbt_10c9d98e/job-1/target/ae6bfc74/85357ed8/http_2.13-da789a092.jar!/reference.conf: 606: No configuration setting found for key 'subEmail'  
+  ```
+
+  Then you need to make sure your environment is setup with the necessary
+  `leonardo` environment variables.
+  Please be sure that you have run the following command in your current
+  terminal session and retry your `leonardo`-startup.
+
+  ```shell
+  . ./http/src/main/resources/rendered/sbt.env.sh
+  ```
 
 
 
