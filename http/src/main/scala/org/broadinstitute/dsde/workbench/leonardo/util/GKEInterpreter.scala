@@ -1036,7 +1036,7 @@ class GKEInterpreter[F[_]](
             // Update nodepool status to Running and app status to Stopped
             _ <- attemptToStop match {
               case Left(e) =>
-                // This updates the APP back to `RUNNNING` status instead of putting it into `ERROR` status. This
+                // This updates the APP back to `RUNNING` status instead of putting it into `ERROR` status. This
                 // can be confusing to users since they will notice the APP is not stoppable.
                 // Currently, Leo doesn't have a good way to inform users about "an error happened during Stopping",
                 // which I think we should spend some effort design this out.
