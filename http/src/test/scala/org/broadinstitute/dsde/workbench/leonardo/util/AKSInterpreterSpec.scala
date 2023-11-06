@@ -61,7 +61,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockKube = setUpMockKube
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = setUpMockWsmApiClientProvider
 
-  implicit val appTypeToAppInstall: AppType => AppInstall[IO] = _ => setUpMockAppInstall
+  implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
+    case AppType.WorkflowsApp => setUpMockWorkflowAppInstall
+    case _                    => setUpMockAppInstall
+  }
   def newAksInterp(configuration: AKSInterpreterConfig) = new AKSInterpreter[IO](
     configuration,
     MockHelm,
@@ -321,11 +324,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
     } yield {
-//      controlledDatabases.size shouldBe 2
+      controlledDatabases.size shouldBe 2
       controlledDatabases.head.wsmDatabaseName shouldBe "cbas"
       controlledDatabases.head.azureDatabaseName shouldBe "cbas_cloned_db_abcxyz"
-      controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata"
-      controlledDatabases(1).azureDatabaseName should startsWith("cromwellmetadata_")
+      controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata_ns"
+      controlledDatabases(1).azureDatabaseName shouldBe "cromwellmetadata_ns"
 
       controlledResources.size shouldBe 1
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
@@ -782,25 +785,31 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   private def setUpMockAppInstall: AppInstall[IO] = {
     val appInstall = mock[AppInstall[IO]]
+    val mockWorkflowsAppInstall = mock[WorkflowsAppInstall[IO]]
 //    when(appInstall.isInstanceOf[WorkflowsAppInstall]) thenAnswer { invocation =>
 //      invocation.getMethod
 //    }
-    when(appInstall.databases) thenAnswer { invocation =>
-      System.out.println(
-        s"**** FIND ME invocation.getMock: ${invocation.getMock} invocation.getMock.isInstanceOf[WorkflowsAppInstall[IO]]: ${invocation.getMock
-            .isInstanceOf[WorkflowsAppInstall[IO]]} invocation.isInstanceOf[WorkflowsAppInstall[IO]]: ${invocation
-            .isInstanceOf[WorkflowsAppInstall[IO]]} invocation.getMethod: ${invocation.getMethod}  ***"
-      )
 
-      if (appInstall.isInstanceOf[WorkflowsAppInstall[IO]]) {
-        List(
-          ControlledDatabase("cbas"),
-          ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
-        )
-      } else {
-        List(ControlledDatabase("db1"))
-      }
-    }
+//    when(appInstall.databases) thenAnswer { _ =>
+//      if (appInstall.isInstanceOf[WorkflowsAppInstall[IO]]) {
+//        List(
+//          ControlledDatabase("cbas"),
+//          ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+//        )
+//      } else {
+//        List(ControlledDatabase("db1"))
+//      }
+//    }
+//    when(mockWorkflowsAppInstall.databases) thenReturn {
+//      System.out.println(s"IN HERE!!!!!!!!!!!!!!")
+//      List(
+//        ControlledDatabase("cbas"),
+//        ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+//      )
+//    }
+    when {
+      appInstall.databases
+    } thenReturn List(ControlledDatabase("db1"))
     when {
       appInstall.buildHelmOverrideValues(any)(any)
     } thenReturn IO.pure(Values("values"))
@@ -810,4 +819,21 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     appInstall
   }
 
+  private def setUpMockWorkflowAppInstall(): AppInstall[IO] = {
+    val mockWorkflowsAppInstall = mock[WorkflowsAppInstall[IO]]
+
+    when(mockWorkflowsAppInstall.databases) thenReturn
+      List(
+        ControlledDatabase("cbas"),
+        ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+      )
+    when {
+      mockWorkflowsAppInstall.buildHelmOverrideValues(any)(any)
+    } thenReturn IO.pure(Values("values"))
+    when {
+      mockWorkflowsAppInstall.checkStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+
+    mockWorkflowsAppInstall
+  }
 }
