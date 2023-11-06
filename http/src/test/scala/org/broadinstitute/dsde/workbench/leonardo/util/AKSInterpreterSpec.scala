@@ -786,7 +786,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 //      invocation.getMethod
 //    }
     when(appInstall.databases) thenAnswer { invocation =>
-      if (invocation.getMock.isInstanceOf[WorkflowsAppInstall]) {
+      if (invocation.getMock.isInstanceOf[WorkflowsAppInstall[IO]]) {
         List(
           ControlledDatabase("cbas"),
           ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
