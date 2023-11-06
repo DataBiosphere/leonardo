@@ -785,7 +785,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 //    when(appInstall.isInstanceOf[WorkflowsAppInstall]) thenAnswer { invocation =>
 //      invocation.getMethod
 //    }
-    when(appInstall.databases) thenAnswer { _ =>
+    when(appInstall.databases) thenAnswer { invocation =>
+      System.out.println(
+        s"**** FIND ME invocation.getMock: ${invocation.getMock} invocation.getMock.isInstanceOf[WorkflowsAppInstall[IO]]: ${invocation.getMock
+            .isInstanceOf[WorkflowsAppInstall[IO]]} invocation.isInstanceOf[WorkflowsAppInstall[IO]]: ${invocation
+            .isInstanceOf[WorkflowsAppInstall[IO]]} invocation.getMethod: ${invocation.getMethod}  ***"
+      )
       if (appInstall.isInstanceOf[WorkflowsAppInstall[IO]]) {
         List(
           ControlledDatabase("cbas"),
