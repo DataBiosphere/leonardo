@@ -89,7 +89,19 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       ctx <- ev.ask
       call =
         F.blocking(
-          client.listNamespacedPod(namespace.name.value, "true", null, null, null, null, null, null, null, null, null)
+          client.listNamespacedPod(namespace.name.value,
+                                   "true",
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null
+          )
         )
 
       response <- withLogging(
@@ -177,7 +189,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       call =
         recoverF(
           F.blocking(
-            client.listNamespace("true", false, null, null, null, null, null, null, null, false)
+            client.listNamespace("true", false, null, null, null, null, null, null, null, null, false)
           ),
           whenStatusCode(409)
         )
