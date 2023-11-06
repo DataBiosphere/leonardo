@@ -4224,7 +4224,7 @@ components:
           example: n1-standard-1
         autoscalingEnabled:
           type: boolean
-          description: whether or not the nodes autoscale up and down for this app
+          description: whether or not the nodes autoscale up and down for this app. This is always `true` for ALLOWED apps.
 
     PersistentDiskRequest:
       description: configuration to create a disk

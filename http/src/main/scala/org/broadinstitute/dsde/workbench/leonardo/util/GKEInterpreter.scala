@@ -1014,101 +1014,47 @@ class GKEInterpreter[F[_]](
                                                  "No active app found in DB"
                             )
       )
-      dbNodepool = dbApp.nodepool
-      dbCluster = dbApp.cluster
-      nodepoolId = NodepoolId(dbCluster.getClusterId, dbNodepool.nodepoolName)
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Stopping app ${dbApp.app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
+        s"Stopping app ${dbApp.app.appName.value} in cluster ${dbApp.cluster.getClusterId.toString}"
       )
 
-      _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Provisioning).transaction
-
-      // If autoscaling is enabled, disable it first
-      _ <-
-        if (dbNodepool.autoscalingEnabled) {
-          nodepoolLock.withKeyLock(dbCluster.getClusterId) {
-            for {
-              opOrError <- gkeService
-                .setNodepoolAutoscaling(
-                  nodepoolId,
-                  NodePoolAutoscaling.newBuilder().setEnabled(false).build()
-                )
-                .attempt
-              _ <- opOrError match {
-                case Left(e: com.google.api.gax.rpc.NotFoundException) =>
-                  // Mark the app as `DELETED` instead of bubbling this error up to generic error handler
-                  for {
-                    _ <- appErrorQuery
-                      .save(
-                        dbApp.app.id,
-                        AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
-                      )
-                      .transaction
-                    _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
-                    _ <-
-                      nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now).transaction
-                  } yield ()
-                case Left(e) => F.raiseError(e)
-                case Right(op) =>
-                  for {
-                    _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
-                    lastOp <- gkeService
-                      .pollOperation(
-                        KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                        config.monitorConfig.scalingDownNodepool.interval,
-                        config.monitorConfig.scalingDownNodepool.maxAttempts
-                      )
-                      .compile
-                      .lastOrError
-                    _ <-
-                      if (lastOp.isDone)
-                        logger.info(ctx.loggingCtx)(
-                          s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
-                        )
-                      else
-                        logger.error(ctx.loggingCtx)(
-                          s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
-                        ) >>
-                          F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
-
-                  } yield ()
-              }
-            } yield ()
-          }
-        } else F.unit
-
-      // Scale the nodepool to zero nodes
-      _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
-        for {
-          op <- gkeService.setNodepoolSize(nodepoolId, 0)
-          _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
-          lastOp <- gkeService
-            .pollOperation(
-              KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-              config.monitorConfig.scalingDownNodepool.interval,
-              config.monitorConfig.scalingDownNodepool.maxAttempts
-            )
-            .compile
-            .lastOrError
-          _ <-
-            if (lastOp.isDone)
-              logger.info(ctx.loggingCtx)(
-                s"setNodepoolSize operation has finished for nodepool ${dbNodepool.id}"
+      _ <- dbApp.app.numOfReplicas match {
+        case Some(_) =>
+          // If the app has a numOfReplicas field, we'll stop it by scaling down replicas to 0
+          for {
+            // Scale the nodepool to zero nodes
+            attemptToStop <- kubeService
+              .patchReplicas(
+                dbApp.cluster.getClusterId,
+                KubernetesNamespace(dbApp.app.appResources.namespace),
+                KubernetesDeployment(dbApp.app.appName.value), // appNames are the same as deployments
+                0
               )
-            else
-              logger.error(ctx.loggingCtx)(
-                s"setNodepoolSize operation has failed or timed out for nodepool ${dbNodepool.id}"
-              ) >>
-                F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
-        } yield ()
+              .attempt
+
+            // Update nodepool status to Running and app status to Stopped
+            _ <- attemptToStop match {
+              case Left(e) =>
+                // This updates the APP back to `RUNNING` status instead of putting it into `ERROR` status. This
+                // can be confusing to users since they will notice the APP is not stoppable.
+                // Currently, Leo doesn't have a good way to inform users about "an error happened during Stopping",
+                // which I think we should spend some effort design this out.
+                // For now, I think this is better behavior than putting the APP into ERROR status, which will make the APP
+                // unusable.
+                // TODO: think about update appUsage
+                logger.info(ctx.loggingCtx, e)("Failed to stop app") >> appQuery
+                  .updateStatus(params.appId, AppStatus.Running)
+                  .transaction
+              case Right(_) => F.unit
+            }
+          } yield ()
+        case None =>
+          // If the app does not a numOfReplicas field, we'll stop it by scaling down nodepool
+          scaleDownNodepool(dbApp.app.id, params.googleProject, dbApp.nodepool, dbApp.cluster)
       }
 
-      // Update nodepool status to Running and app status to Stopped
-      _ <- dbRef.inTransaction {
-        nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running) >>
-          appQuery.updateStatus(params.appId, AppStatus.Stopped)
-      }
+      _ <- appQuery.updateStatus(params.appId, AppStatus.Stopped).transaction
     } yield F.unit
 
   override def startAndPollApp(params: StartAppParams)(implicit
@@ -1127,54 +1073,46 @@ class GKEInterpreter[F[_]](
                                                  "No active app found in DB"
                             )
       )
-      dbNodepool = dbApp.nodepool
       dbCluster = dbApp.cluster
-      nodepoolId = NodepoolId(dbCluster.getClusterId, dbNodepool.nodepoolName)
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Starting app ${dbApp.app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
-      _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Provisioning).transaction
-
-      // First scale the node pool to > 0 nodes
-      _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
-        for {
-          op <- gkeService.setNodepoolSize(
-            nodepoolId,
-            dbNodepool.numNodes.amount
-          )
-          _ <- F.sleep(config.monitorConfig.scalingUpNodepool.initialDelay)
-          lastOp <- gkeService
-            .pollOperation(
-              KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-              config.monitorConfig.scalingUpNodepool.interval,
-              config.monitorConfig.scalingUpNodepool.maxAttempts
-            )
-            .compile
-            .lastOrError
-          _ <-
-            if (lastOp.isDone)
-              logger.info(ctx.loggingCtx)(
-                s"setNodepoolSize operation has finished for nodepool ${dbNodepool.id}"
+      _ <- dbApp.app.numOfReplicas match {
+        case Some(count) =>
+          for {
+            attemptToStart <- kubeService
+              .patchReplicas(
+                dbApp.cluster.getClusterId,
+                KubernetesNamespace(dbApp.app.appResources.namespace),
+                KubernetesDeployment(dbApp.app.appName.value), // appNames are the same as deployments
+                count
               )
-            else
-              logger.error(ctx.loggingCtx)(
-                s"setNodepoolSize operation has failed or timed out for nodepool ${dbNodepool.id}"
-              ) >>
-                F.raiseError[Unit](NodepoolStartException(dbNodepool.id))
-        } yield ()
-      }
+              .attempt
 
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
-        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
-      )
+            // Update nodepool status to Running and app status to Stopped
+            _ <- attemptToStart match {
+              case Left(e) =>
+                // This updates the APP back to `RUNNNING` status instead of putting it into `ERROR` status. This
+                // can be confusing to users since they will notice the APP is not stoppable.
+                // Currently, Leo doesn't have a good way to inform users about "an error happened during Stopping",
+                // which I think we should spend some effort design this out.
+                // For now, I think this is better behavior than putting the APP into ERROR status, which will make the APP
+                // unusable.
+                logger.info(ctx.loggingCtx, e)("Failed to start app") >> appQuery
+                  .updateStatus(params.appId, AppStatus.Stopped)
+                  .transaction
+              case Right(_) => F.unit
+            }
+          } yield ()
+        case None => scaleUpNodepool(params.googleProject, dbApp.nodepool, dbApp.cluster)
+      }
 
       isUp <- dbApp.app.appType match {
         case AppType.Galaxy =>
           streamFUntilDone(
-            appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy")),
+            appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, ServiceName("galaxy")),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
@@ -1182,7 +1120,7 @@ class GKEInterpreter[F[_]](
           streamFUntilDone(
             config.cromwellAppConfig.services
               .map(_.name)
-              .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+              .traverse(s => appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, s)),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
@@ -1190,7 +1128,7 @@ class GKEInterpreter[F[_]](
           streamFUntilDone(
             config.allowedAppConfig.services
               .map(_.name)
-              .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+              .traverse(s => appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, s)),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
@@ -1204,7 +1142,7 @@ class GKEInterpreter[F[_]](
             }
             last <- streamFUntilDone(
               descriptor.services.keys.toList.traverse(s =>
-                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
+                appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, ServiceName(s))
               ),
               config.monitorConfig.startApp.maxAttempts,
               config.monitorConfig.startApp.interval
@@ -1235,15 +1173,14 @@ class GKEInterpreter[F[_]](
             _ <- appQuery.updateStatus(dbApp.app.id, AppStatus.Running).transaction
             trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
             _ <- appUsageQuery.recordStart(dbApp.app.id, startTime).whenA(trackUsage)
-
             // If autoscaling should be enabled, enable it now. Galaxy can still be used while this is in progress
             _ <-
-              if (dbNodepool.autoscalingEnabled) {
-                dbNodepool.autoscalingConfig.traverse_ { autoscalingConfig =>
+              if (dbApp.app.numOfReplicas.isEmpty && dbApp.nodepool.autoscalingEnabled) {
+                dbApp.nodepool.autoscalingConfig.traverse_ { autoscalingConfig =>
                   nodepoolLock.withKeyLock(dbCluster.getClusterId) {
                     for {
                       op <- gkeService.setNodepoolAutoscaling(
-                        nodepoolId,
+                        nodepoolId = NodepoolId(dbCluster.getClusterId, dbApp.nodepool.nodepoolName),
                         NodePoolAutoscaling
                           .newBuilder()
                           .setEnabled(true)
@@ -1251,7 +1188,6 @@ class GKEInterpreter[F[_]](
                           .setMaxNodeCount(autoscalingConfig.autoscalingMax.amount)
                           .build
                       )
-
                       _ <- F.sleep(config.monitorConfig.scalingUpNodepool.initialDelay)
                       lastOp <- gkeService
                         .pollOperation(
@@ -1264,20 +1200,17 @@ class GKEInterpreter[F[_]](
                       _ <-
                         if (lastOp.isDone)
                           logger.info(ctx.loggingCtx)(
-                            s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
+                            s"setNodepoolAutoscaling operation has finished for nodepool ${dbApp.nodepool.id}"
                           )
                         else
                           logger.error(ctx.loggingCtx)(
-                            s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
+                            s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbApp.nodepool.id}"
                           ) >>
-                            F.raiseError[Unit](NodepoolStartException(dbNodepool.id))
+                            F.raiseError[Unit](NodepoolStartException(dbApp.nodepool.id))
                     } yield ()
                   }
                 }
               } else F.unit
-
-            // Finally update the nodepool status to Running
-            _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running).transaction
           } yield ()
         }
     } yield ()
@@ -1874,6 +1807,134 @@ class GKEInterpreter[F[_]](
       }
     )
   }
+
+  private def scaleDownNodepool(appId: AppId,
+                                googleProject: GoogleProject,
+                                nodepool: Nodepool,
+                                dbCluster: KubernetesCluster
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    _ <- nodepoolQuery.updateStatus(nodepool.id, NodepoolStatus.Provisioning).transaction
+    nodepoolId = NodepoolId(dbCluster.getClusterId, nodepool.nodepoolName)
+    // If autoscaling is enabled, disable it first
+    _ <-
+      if (nodepool.autoscalingEnabled) {
+        nodepoolLock.withKeyLock(dbCluster.getClusterId) {
+          for {
+            opOrError <- gkeService
+              .setNodepoolAutoscaling(
+                nodepoolId,
+                NodePoolAutoscaling.newBuilder().setEnabled(false).build()
+              )
+              .attempt
+            _ <- opOrError match {
+              case Left(e: com.google.api.gax.rpc.NotFoundException) =>
+                // Mark the app as `DELETED` instead of bubbling this error up to generic error handler
+                for {
+                  _ <- appErrorQuery
+                    .save(
+                      appId,
+                      AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
+                    )
+                    .transaction
+                  _ <- appQuery.markAsDeleted(appId, ctx.now).transaction
+                  _ <-
+                    nodepoolQuery.markAsDeleted(nodepool.id, ctx.now).transaction
+                } yield ()
+              case Left(e) => F.raiseError(e)
+              case Right(op) =>
+                for {
+                  _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
+                  lastOp <- gkeService
+                    .pollOperation(
+                      KubernetesOperationId(googleProject, dbCluster.location, op.getName),
+                      config.monitorConfig.scalingDownNodepool.interval,
+                      config.monitorConfig.scalingDownNodepool.maxAttempts
+                    )
+                    .compile
+                    .lastOrError
+                  _ <-
+                    if (lastOp.isDone)
+                      logger.info(ctx.loggingCtx)(
+                        s"setNodepoolAutoscaling operation has finished for nodepool ${nodepool.id}"
+                      )
+                    else
+                      logger.error(ctx.loggingCtx)(
+                        s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${nodepool.id}"
+                      ) >>
+                        F.raiseError[Unit](NodepoolStopException(nodepool.id))
+                } yield ()
+            }
+          } yield ()
+        }
+      } else F.unit
+    _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
+      for {
+        op <- gkeService.setNodepoolSize(nodepoolId, 0)
+        _ <- F.sleep(config.monitorConfig.scalingDownNodepool.initialDelay)
+        lastOp <- gkeService
+          .pollOperation(
+            KubernetesOperationId(googleProject, dbCluster.location, op.getName),
+            config.monitorConfig.scalingDownNodepool.interval,
+            config.monitorConfig.scalingDownNodepool.maxAttempts
+          )
+          .compile
+          .lastOrError
+        _ <-
+          if (lastOp.isDone)
+            logger.info(ctx.loggingCtx)(
+              s"setNodepoolSize operation has finished for nodepool ${nodepool.id}"
+            )
+          else
+            logger.error(ctx.loggingCtx)(
+              s"setNodepoolSize operation has failed or timed out for nodepool ${nodepool.id}"
+            ) >>
+              F.raiseError[Unit](NodepoolStopException(nodepool.id))
+      } yield ()
+    }
+    _ <- nodepoolQuery.updateStatus(nodepool.id, NodepoolStatus.Running).transaction
+  } yield ()
+
+  private def scaleUpNodepool(googleProject: GoogleProject, nodepool: Nodepool, dbCluster: KubernetesCluster)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    _ <- nodepoolQuery.updateStatus(nodepool.id, NodepoolStatus.Provisioning).transaction
+    nodepoolId = NodepoolId(dbCluster.getClusterId, nodepool.nodepoolName)
+    // First scale the node pool to > 0 nodes
+    _ <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
+      for {
+        op <- gkeService.setNodepoolSize(
+          nodepoolId,
+          nodepool.numNodes.amount
+        )
+        _ <- F.sleep(config.monitorConfig.scalingUpNodepool.initialDelay)
+        lastOp <- gkeService
+          .pollOperation(
+            KubernetesOperationId(googleProject, dbCluster.location, op.getName),
+            config.monitorConfig.scalingUpNodepool.interval,
+            config.monitorConfig.scalingUpNodepool.maxAttempts
+          )
+          .compile
+          .lastOrError
+        _ <-
+          if (lastOp.isDone)
+            logger.info(ctx.loggingCtx)(
+              s"setNodepoolSize operation has finished for nodepool ${nodepool.id}"
+            )
+          else
+            logger.error(ctx.loggingCtx)(
+              s"setNodepoolSize operation has failed or timed out for nodepool ${nodepool.id}"
+            ) >>
+              F.raiseError[Unit](NodepoolStartException(nodepool.id))
+      } yield ()
+    }
+
+    // Finally update the nodepool status to Running
+    _ <- nodepoolQuery.updateStatus(nodepool.id, NodepoolStatus.Running).transaction
+  } yield ()
 
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-setup-rls")
