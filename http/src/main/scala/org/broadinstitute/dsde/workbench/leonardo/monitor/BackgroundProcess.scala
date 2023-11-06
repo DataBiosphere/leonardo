@@ -23,14 +23,30 @@ trait BackgroundProcess[F[_], A] {
   def monitorType: String
   def interval: FiniteDuration
 
+  /**
+   * Given a candidate, determine whether it should be filtered out.
+   * true: keep the candidate
+   * false: filter out the candidate
+   */
   def filterCriteria(a: A, now: Instant)(implicit
     F: Async[F],
     metrics: OpenTelemetryMetrics[F],
     logger: StructuredLogger[F]
   ): F[Boolean]
+
+  /**
+   * Get a collection of candidates from the database
+   */
   def dbSource(): F[Seq[A]]
+
+  /**
+   * Perform some action on the candidate
+   */
   def action(a: A, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit]
 
+  /**
+   * The main logic of the background process at each interval
+   */
   private def check(implicit
     showA: Show[A],
     F: Async[F],
