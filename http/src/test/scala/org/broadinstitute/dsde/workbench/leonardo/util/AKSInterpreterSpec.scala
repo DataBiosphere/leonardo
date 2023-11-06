@@ -791,6 +791,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
             .isInstanceOf[WorkflowsAppInstall[IO]]} invocation.isInstanceOf[WorkflowsAppInstall[IO]]: ${invocation
             .isInstanceOf[WorkflowsAppInstall[IO]]} invocation.getMethod: ${invocation.getMethod}  ***"
       )
+
       if (appInstall.isInstanceOf[WorkflowsAppInstall[IO]]) {
         List(
           ControlledDatabase("cbas"),
