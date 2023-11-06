@@ -8,7 +8,6 @@ import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures.withTemporaryAzureBillingProject
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec

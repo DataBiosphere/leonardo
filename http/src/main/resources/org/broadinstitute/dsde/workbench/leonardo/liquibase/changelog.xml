@@ -109,4 +109,5 @@
     <include file="changesets/20230927_add_cluster_table_index_on_internal_id.xml" relativeToChangelogFile="true" />
     <include file="changesets/20231002_drop_columns_in_nodepool_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20231002_drop_namespace_table.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20231030_add_replica_to_app_table.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

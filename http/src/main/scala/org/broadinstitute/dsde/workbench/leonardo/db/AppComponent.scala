@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -32,16 +32,14 @@ final case class AppRecord(id: AppId,
                            samResourceId: AppSamResourceId,
                            googleServiceAccount: WorkbenchEmail,
                            kubernetesServiceAccount: Option[ServiceAccountName],
-                           creator: WorkbenchEmail,
-                           createdDate: Instant,
-                           destroyedDate: Instant,
-                           dateAccessed: Instant,
+                           auditInfo: AuditInfo,
                            namespaceName: NamespaceName,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
                            descriptorPath: Option[Uri],
                            extraArgs: Option[List[String]],
-                           sourceWorkspaceId: Option[WorkspaceId]
+                           sourceWorkspaceId: Option[WorkspaceId],
+                           numOfReplicas: Option[Int]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -68,6 +66,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def extraArgs = column[Option[List[String]]]("extraArgs")
   def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
   def namespaceName = column[NamespaceName]("namespace", O.Length(254))
+  def numOfReplicas = column[Option[Int]]("numOfReplicas", O.SqlType("SMALLINT"))
 
   def * =
     (
@@ -83,17 +82,94 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       samResourceId,
       googleServiceAccount,
       kubernetesServiceAccount,
-      creator,
-      createdDate,
-      destroyedDate,
-      dateAccessed,
+      (creator, createdDate, destroyedDate, dateAccessed),
       namespaceName,
       diskId,
       customEnvironmentVariables,
       descriptorPath,
       extraArgs,
-      sourceWorkspaceId
-    ) <> (AppRecord.tupled, AppRecord.unapply)
+      sourceWorkspaceId,
+      numOfReplicas
+    ) <> ({
+      case (
+            id,
+            nodepoolId,
+            appType,
+            appName,
+            appAccessScope,
+            workspaceId,
+            status,
+            chart,
+            release,
+            samResourceId,
+            googleServiceAccount,
+            kubernetesServiceAccount,
+            auditInfoRaw,
+            namespaceName,
+            diskId,
+            customEnvironmentVariables,
+            descriptorPath,
+            extraArgs,
+            sourceWorkspaceId,
+            numOfReplicas
+          ) =>
+        AppRecord(
+          id,
+          nodepoolId,
+          appType,
+          appName,
+          appAccessScope,
+          workspaceId,
+          status,
+          chart,
+          release,
+          samResourceId,
+          googleServiceAccount,
+          kubernetesServiceAccount,
+          AuditInfo(
+            auditInfoRaw._1,
+            auditInfoRaw._2,
+            LeoProfile.unmarshalDestroyedDate(auditInfoRaw._3),
+            auditInfoRaw._4
+          ),
+          namespaceName,
+          diskId,
+          customEnvironmentVariables,
+          descriptorPath,
+          extraArgs,
+          sourceWorkspaceId,
+          numOfReplicas
+        )
+    }, { r: AppRecord =>
+      Some(
+        (
+          r.id,
+          r.nodepoolId,
+          r.appType,
+          r.appName,
+          r.appAccessScope,
+          r.workspaceId,
+          r.status,
+          r.chart,
+          r.release,
+          r.samResourceId,
+          r.googleServiceAccount,
+          r.kubernetesServiceAccount,
+          (r.auditInfo.creator,
+           r.auditInfo.createdDate,
+           r.auditInfo.destroyedDate.getOrElse(dummyDate),
+           r.auditInfo.dateAccessed
+          ),
+          r.namespaceName,
+          r.diskId,
+          r.customEnvironmentVariables,
+          r.descriptorPath,
+          r.extraArgs,
+          r.sourceWorkspaceId,
+          r.numOfReplicas
+        )
+      )
+    })
 }
 
 object appQuery extends TableQuery(new AppTable(_)) {
@@ -116,12 +192,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.release,
       AppSamResourceId(app.samResourceId.resourceId, app.appAccessScope),
       app.googleServiceAccount,
-      AuditInfo(
-        app.creator,
-        app.createdDate,
-        unmarshalDestroyedDate(app.destroyedDate),
-        app.dateAccessed
-      ),
+      app.auditInfo,
       labels,
       AppResources(
         namespace,
@@ -133,7 +204,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.customEnvironmentVariables.getOrElse(Map.empty),
       app.descriptorPath,
       app.extraArgs.getOrElse(List.empty),
-      app.sourceWorkspaceId
+      app.sourceWorkspaceId,
+      app.numOfReplicas
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -193,16 +265,14 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.samResourceId,
         saveApp.app.googleServiceAccount,
         ksaOpt,
-        saveApp.app.auditInfo.creator,
-        saveApp.app.auditInfo.createdDate,
-        saveApp.app.auditInfo.destroyedDate.getOrElse(dummyDate),
-        saveApp.app.auditInfo.dateAccessed,
+        saveApp.app.auditInfo,
         namespaceName,
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
-        saveApp.app.sourceWorkspaceId
+        saveApp.app.sourceWorkspaceId,
+        saveApp.app.numOfReplicas
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
