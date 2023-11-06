@@ -782,9 +782,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   private def setUpMockAppInstall: AppInstall[IO] = {
     val appInstall = mock[AppInstall[IO]]
-    when {
-      appInstall.databases
-    } thenReturn List(ControlledDatabase("db1", false))
+//    when(appInstall.databases & appInstall.isInstanceOf[WorkflowsAppInstall]) thenAnswer { invocation =>
+//      invocation.
+//    }
+//    when {
+//      appInstall.databases
+//    } thenReturn List(ControlledDatabase("db1", false))
     when {
       appInstall.buildHelmOverrideValues(any)(any)
     } thenReturn IO.pure(Values("values"))
