@@ -429,7 +429,8 @@ final case class App(id: AppId,
                      customEnvironmentVariables: Map[String, String],
                      descriptorPath: Option[Uri],
                      extraArgs: List[String],
-                     sourceWorkspaceId: Option[WorkspaceId]
+                     sourceWorkspaceId: Option[WorkspaceId],
+                     numOfReplicas: Option[Int]
 ) {
 
   def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =

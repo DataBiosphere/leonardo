@@ -363,7 +363,8 @@ private[leonardo] object BuildHelmChartValues {
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
       List(
         raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].value=$v"""
+        raw"""extraEnv[$i].value=$v""",
+        raw"""replicaCount=${config.allowedAppConfig.numOfReplicas.toString}"""
       )
     }
 
