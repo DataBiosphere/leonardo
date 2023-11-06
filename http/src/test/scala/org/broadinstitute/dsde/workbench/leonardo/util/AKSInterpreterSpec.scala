@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall
+import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppInstall}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
@@ -782,12 +782,19 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   private def setUpMockAppInstall: AppInstall[IO] = {
     val appInstall = mock[AppInstall[IO]]
-//    when(appInstall.databases & appInstall.isInstanceOf[WorkflowsAppInstall]) thenAnswer { invocation =>
-//      invocation.
+//    when(appInstall.isInstanceOf[WorkflowsAppInstall]) thenAnswer { invocation =>
+//      invocation.getMethod
 //    }
-//    when {
-//      appInstall.databases
-//    } thenReturn List(ControlledDatabase("db1", false))
+    when(appInstall.databases) thenAnswer { invocation =>
+      if (invocation.getMock.isInstanceOf[WorkflowsAppInstall]) {
+        List(
+          ControlledDatabase("cbas"),
+          ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+        )
+      } else {
+        List(ControlledDatabase("db1", false))
+      }
+    }
     when {
       appInstall.buildHelmOverrideValues(any)(any)
     } thenReturn IO.pure(Values("values"))
