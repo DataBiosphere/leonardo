@@ -353,6 +353,20 @@ sudo sh -c "echo '127.0.0.1       local.dsde-dev.broadinstitute.org' >> /etc/hos
   sudo kill -TERM <pid>
   ```
 
+- If the CloudSQL proxy starts but keeps restarting with an error like:
+  ```googleapi: Error 404: The Cloud SQL instance does not exist., instanceDoesNotExist```
+  then add the environment variables directly to local/xqlproxy.env like this:
+
+  ```shell
+  GOOGLE_PROJECT=broad-dsde-dev
+  CLOUDSQL_ZONE=us-central1
+  CLOUDSQL_INSTANCE=leonardo-mysql-101-0f6e882310af57ac-clone-XXX
+  DB_USER=leonardo
+  DB_PASSWORD=<db password>
+  ```
+
+  Or, figure out why the docker container is not picking up the environment variables from .zprofile
+
 #### Run `leonardo`
 
 - Export required env vars as created by `./local/depends.sh`
