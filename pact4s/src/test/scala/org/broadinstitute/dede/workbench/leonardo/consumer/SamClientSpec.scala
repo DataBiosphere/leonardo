@@ -146,10 +146,10 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   }.build()
 
   val consumerPactBuilder: ConsumerPactBuilder = ConsumerPactBuilder
-    .consumer("leo-consumer")
+    .consumer("leonardo")
 
   val pactProvider: PactDslWithProvider = consumerPactBuilder
-    .hasPactWith("sam-provider")
+    .hasPactWith("sam")
 
   // stateParams provides the desired subsystem states
   // for Sam provider to generate the expected response
