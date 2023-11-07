@@ -356,7 +356,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedRuntimeImage = Set(
         RuntimeImage(
           RuntimeImageType.Azure,
-          "microsoft-dsvm, ubuntu-2004, 2004-gen2, 23.01.06",
+          "microsoft-dsvm, ubuntu-2004, 2004-gen2, 23.06.25",
           None,
           context.now
         ),
