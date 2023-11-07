@@ -786,10 +786,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           if (doesAppTypeSupportCloning(app.appType))
             retrieveWsmDatabases(wsmResourceApi, controlledDbsForApp.map(_.prefix).toSet, workspaceId.value)
           else F.pure(List.empty)
-        _ = System.out.println(
-          s"**** FIND ME appType: ${app.appType.toString} existingControlledDbsInWorkspace: ${existingControlledDbsInWorkspace
-              .map(_.azureDatabaseName)} **** "
-        )
         wsmControlledDBResources <- controlledDbsForApp
           .map { controlledDbForApp =>
             // if a database already exists (because of workspace cloning) use that otherwise create a new one
@@ -797,18 +793,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               existingControlledDbsInWorkspace
                 .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
             ) {
-              System.out.println(
-                s"**** FIND ME appType: ${app.appType.toString} controlledDbForApp ${controlledDbForApp.prefix} already exists in workspace **** "
-              )
               F.pure(
                 existingControlledDbsInWorkspace
                   .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
                   .get
               )
             } else {
-              System.out.println(
-                s"**** FIND ME appType: ${app.appType.toString} creating new database resource for ${controlledDbForApp.prefix} **** "
-              )
               createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                 db =>
                   WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,

@@ -312,11 +312,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                          mockResourceApi
       )
 
-      _ = System.out.println(
-        s"**** FIND ME TEST debugging appType: ${saveApp.appType.toString} controlledDatabases list: ${controlledDatabases
-            .map(_.azureDatabaseName)} **** "
-      )
-
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
@@ -783,30 +778,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   }
 
-  private def setUpMockAppInstall: AppInstall[IO] = {
+  private def setUpMockAppInstall(): AppInstall[IO] = {
     val appInstall = mock[AppInstall[IO]]
-    val mockWorkflowsAppInstall = mock[WorkflowsAppInstall[IO]]
-//    when(appInstall.isInstanceOf[WorkflowsAppInstall]) thenAnswer { invocation =>
-//      invocation.getMethod
-//    }
-
-//    when(appInstall.databases) thenAnswer { _ =>
-//      if (appInstall.isInstanceOf[WorkflowsAppInstall[IO]]) {
-//        List(
-//          ControlledDatabase("cbas"),
-//          ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
-//        )
-//      } else {
-//        List(ControlledDatabase("db1"))
-//      }
-//    }
-//    when(mockWorkflowsAppInstall.databases) thenReturn {
-//      System.out.println(s"IN HERE!!!!!!!!!!!!!!")
-//      List(
-//        ControlledDatabase("cbas"),
-//        ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
-//      )
-//    }
     when {
       appInstall.databases
     } thenReturn List(ControlledDatabase("db1"))
