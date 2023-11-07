@@ -7,6 +7,7 @@ object Merging {
     // [error]   Jar name = auto-value-1.10.1.jar, jar org = com.google.auto.value, entry target = META-INF/kotlin-stdlib.kotlin_module
     // [error]   Jar name = kotlin-stdlib-1.6.20.jar, jar org = org.jetbrains.kotlin, entry target = META-INF/kotlin-stdlib.kotlin_module
     case PathList("META-INF", "kotlin-stdlib.kotlin_module") => MergeStrategy.preferProject
+    case PathList("META-INF", "okio.kotlin_module")          => MergeStrategy.first
     // For the following error:
     // [error] Deduplicate found different file contents in the following:
     // [error]   Jar name = auto-value-1.10.1.jar, jar org = com.google.auto.value, entry target = META-INF/kotlin-stdlib-common.kotlin_module

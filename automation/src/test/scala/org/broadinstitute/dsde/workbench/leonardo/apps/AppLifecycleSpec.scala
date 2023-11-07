@@ -65,7 +65,7 @@ class AppLifecycleSpec
     googleProject =>
       test(googleProject,
            createAppRequest(AppType.Allowed, "rstudio-test-workspace", None, Some(AllowedChartName.RStudio)),
-           false,
+           true,
            true
       )
   }
