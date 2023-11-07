@@ -30,7 +30,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
+  checkIfCanBeDeleted,
+  isPatchVersionDifference
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -175,7 +178,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      machineConfig = req.kubernetesRuntimeConfig.getOrElse(
+      machineConfigFromReqAndConfig = req.kubernetesRuntimeConfig.getOrElse(
         KubernetesRuntimeConfig(
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
@@ -183,6 +186,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
       )
 
+      // Always allow autoScaling for ALLOWED appType
+      machineConfig =
+        if (AppType.Allowed == req.appType) machineConfigFromReqAndConfig.copy(autoscalingEnabled = true)
+        else machineConfigFromReqAndConfig
       // We want to know if the user already has a nodepool with the requested config that can be re-used
       userNodepoolOpt <- nodepoolQuery
         .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
@@ -263,7 +270,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
         req.customEnvironmentVariables,
         req.appType,
-        app.appResources.namespace.name,
+        app.appResources.namespace,
         appMachineType,
         Some(ctx.traceId),
         enableIntraNodeVisibility
@@ -373,13 +380,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-      canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
-      _ <-
-        if (canDelete) F.unit
-        else
-          F.raiseError[Unit](
-            AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId)
-          )
+      // Galaxy is the only app that has custom deletion logic that requires `helm uninstall`. For all other apps, we'll
+      // delete namespace during app deletion instead, which doesn't require app to be `RUNNING` in order to delete
+      canDelete = checkIfCanBeDeleted(appResult.app.appType, appResult.app.status)
+      _ <- F.fromEither(
+        canDelete.leftMap(s => AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId, s))
+      )
 
       // Get the disk to delete if specified
       diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
@@ -1193,9 +1199,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       //
       // There are DB constraints to handle potential name collisions.
       uid = s"${RandomStringUtils.randomAlphabetic(1)}${RandomStringUtils.randomAlphanumeric(5)}".toLowerCase
-      namespaceId = lastUsedApp.fold(
-        NamespaceId(-1)
-      )(app => app.namespaceId)
       namespaceName <- lastUsedApp.fold(
         KubernetesName.withValidation(
           s"${uid}-${gkeAppConfig.namespaceNameSuffix.value}",
@@ -1240,6 +1243,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (cloudContext.cloudProvider == CloudProvider.Azure) {
           gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
         } else gkeAppConfig.kubernetesServices
+
+      numOfReplicas =
+        if (req.appType == AppType.Allowed)
+          Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
+        else None
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1256,10 +1264,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         auditInfo,
         labels,
         AppResources(
-          Namespace(
-            namespaceId,
-            namespaceName
-          ),
+          namespaceName,
           diskOpt,
           services,
           Option(gkeAppConfig.serviceAccountName)
@@ -1268,7 +1273,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         customEnvironmentVariables,
         req.descriptorPath,
         req.extraArgs,
-        req.sourceWorkspaceId
+        req.sourceWorkspaceId,
+        numOfReplicas
       )
     )
   }
@@ -1396,7 +1402,25 @@ object LeoAppServiceInterp {
     val bSplited = b.asString.split("\\.")
     aSplited(0) == bSplited(0) && aSplited(1) == bSplited(1)
   }
+
+  private[http] def checkIfCanBeDeleted(appType: AppType, appStatus: AppStatus): Either[String, Unit] = {
+    val deletable =
+      appType match {
+        case AppType.Galaxy =>
+          AppStatus.deletableStatuses.contains(appStatus)
+        case _ =>
+          // As of 10/26/2023.
+          // Right now, this is the exact same as Galaxy.
+          // But hopefully we can relax this in the future for non-Galaxy apps
+          // If this code is still here in 6 months.
+          // We should just abandon the attempt to relax AppStatus requirement for deleteApp.
+          AppStatus.deletableStatuses.contains(appStatus)
+      }
+    if (deletable) Right(())
+    else Left(s"${appType} can not be deleted in ${appStatus} status.")
+  }
 }
+
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
     extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
@@ -1438,12 +1462,14 @@ case class AppAlreadyExistsException(cloudContext: CloudContext, appName: AppNam
 case class AppCannotBeDeletedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
-                                       traceId: TraceId
+                                       traceId: TraceId,
+                                       extraMsg: String = ""
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
-      traceId = Some(traceId)
+      traceId = Some(traceId),
+      extraMessageInLogging = extraMsg
     )
 
 case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,

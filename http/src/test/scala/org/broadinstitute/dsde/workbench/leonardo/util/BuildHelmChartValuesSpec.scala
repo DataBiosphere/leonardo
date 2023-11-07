@@ -330,7 +330,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[5].name=WSM_URL,""" +
       """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
-      """extraEnv[0].value=test-workspace-name"""
+      """extraEnv[0].value=test-workspace-name,""" +
+      """replicaCount=1"""
   }
 
   it should "build SAS override values string" in {
@@ -355,7 +356,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.path.sas=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
       """ingress.path.welder=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.proxyPath=/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
-      """ingress.referer=https://replace_me,""" +
+      """ingress.referer=https://leo,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://1455694897.jupyter.firecloud.org,""" +
       """imageCredentials.username=sasUserName,""" +
       """imageCredentials.password=sasPassword,""" +
@@ -385,7 +386,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[5].name=WSM_URL,""" +
       """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
-      """extraEnv[0].value=test-workspace-name"""
+      """extraEnv[0].value=test-workspace-name,""" +
+      """replicaCount=1"""
   }
 
   it should "build relay listener override values string" in {

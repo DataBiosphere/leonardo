@@ -4076,6 +4076,9 @@ components:
         - auditInfo
       type: object
       properties:
+        workspaceId:
+          type: string
+          description: 'The Terra workspace id for the app. This is not present for apps created with V1 endpoints.'
         appName:
           type: string
           description: the name of the app
@@ -4221,7 +4224,7 @@ components:
           example: n1-standard-1
         autoscalingEnabled:
           type: boolean
-          description: whether or not the nodes autoscale up and down for this app
+          description: whether or not the nodes autoscale up and down for this app. This is always `true` for ALLOWED apps.
 
     PersistentDiskRequest:
       description: configuration to create a disk

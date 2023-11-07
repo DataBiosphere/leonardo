@@ -62,6 +62,10 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
       valuesList =
         List(
+          // pass enviiroment information to wds so it can properly pick its config
+          raw"wds.environment=${config.environment}",
+          raw"wds.environmentBase=${config.environmentBase}",
+
           // azure resources configs
           raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
@@ -100,7 +104,6 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
 
           // database configs
-          raw"postgres.podLocalDatabaseEnabled=false",
           raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
           raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
           raw"postgres.dbname=$dbName",

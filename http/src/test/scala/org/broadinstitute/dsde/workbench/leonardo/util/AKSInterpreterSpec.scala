@@ -4,12 +4,13 @@ package util
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, _}
 import cats.effect.IO
+import cats.mtl.Ask
 import com.azure.resourcemanager.containerservice.models.KubernetesCluster
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -120,10 +121,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         app = makeApp(1, nodepool.id).copy(
           appType = AppType.Cromwell,
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -165,10 +163,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           status = AppStatus.Updating,
           chart = Chart(ChartName("myapp"), ChartVersion("0.0.1")),
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -214,10 +209,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           appType = AppType.Cromwell,
           status = AppStatus.Running,
           appResources = AppResources(
-            namespace = Namespace(
-              NamespaceId(-1),
-              NamespaceName("ns-1")
-            ),
+            namespace = NamespaceName("ns-1"),
             disk = None,
             services = List.empty,
             kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -245,10 +237,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -284,10 +273,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -331,10 +317,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -380,10 +363,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
-          namespace = Namespace(
-            NamespaceId(-1),
-            NamespaceName("ns-1")
-          ),
+          namespace = NamespaceName("ns-1"),
           disk = None,
           services = List.empty,
           kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
@@ -500,25 +480,28 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockAzureRelayService
   }
 
-  private def setUpMockKube: KubernetesAlgebra[IO] = {
-    val kube = mock[KubernetesAlgebra[IO]]
+  private def setUpMockKube(): KubernetesAlgebra[IO] = {
     val coreV1Api = mock[CoreV1Api]
-    when {
-      kube.createAzureClient(any, any[String].asInstanceOf[AKSClusterName])(any)
-    } thenReturn IO.pure(coreV1Api)
-    when {
-      kube.listPodStatus(any, any)(any)
-    } thenReturn IO.pure(List(PodStatus.Failed))
-    when {
-      kube.deleteNamespace(any, any)(any)
-    } thenReturn IO.unit
-    when {
-      kube.namespaceExists(any, any)(any)
-    } thenReturn IO.pure(false)
-    when {
-      kube.createNamespace(any, any)(any)
-    } thenReturn IO.unit
-    kube
+    new KubernetesAlgebra[IO] {
+      override def createAzureClient(cloudContext: AzureCloudContext, clusterName: AKSClusterName)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[CoreV1Api] = IO.pure(coreV1Api)
+      override def createGcpClient(clusterId: GKEModels.KubernetesClusterId)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[CoreV1Api] = IO.pure(coreV1Api)
+      override def listPodStatus(clusterId: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[List[PodStatus]] = IO.pure(List(PodStatus.Failed))
+      override def createNamespace(client: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Unit] = IO.unit
+      override def deleteNamespace(client: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Unit] = IO.unit
+      override def namespaceExists(client: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Boolean] = IO.pure(false)
+    }
   }
 
   private def setUpMockSamDAO: SamDAO[IO] = {

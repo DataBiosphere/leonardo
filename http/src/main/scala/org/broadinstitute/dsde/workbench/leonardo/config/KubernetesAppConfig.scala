@@ -169,6 +169,8 @@ final case class WdsAppConfig(chartName: ChartName,
                               instrumentationEnabled: Boolean,
                               enabled: Boolean,
                               databaseEnabled: Boolean,
+                              environment: String,
+                              environmentBase: String,
                               chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
@@ -205,7 +207,8 @@ final case class AllowedAppConfig(chartName: ChartName,
                                   services: List[ServiceConfig],
                                   serviceAccountName: ServiceAccountName,
                                   sasContainerRegistryCredentials: ContainerRegistryCredentials,
-                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                  chartVersionsToExcludeFromUpdates: List[ChartVersion],
+                                  numOfReplicas: Int
 ) extends KubernetesAppConfig {
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Allowed

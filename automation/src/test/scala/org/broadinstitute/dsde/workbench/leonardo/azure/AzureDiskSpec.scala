@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries, TestSuite}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoConfig, LeonardoTestUtils, RuntimeName, SSH}
 
@@ -30,10 +30,10 @@ class AzureDiskSpec
     with Retries
     with CleanUp {
 
-  implicit val accessToken: IO[AuthToken] = Hermione.authToken()
-
   "create a disk, keep it on runtime delete, and then attach it to a new runtime" taggedAs ExcludeFromJenkins in {
     workspaceDetails =>
+      implicit val accessToken: IO[AuthToken] = Hermione.authToken()
+
       val workspaceId = workspaceDetails.workspace.workspaceId
 
       val labelMap: java.util.HashMap[String, String] = new java.util.HashMap[String, String]()

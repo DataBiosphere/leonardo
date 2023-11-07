@@ -42,6 +42,7 @@ import org.http4s.Uri
 import org.http4s.headers.Authorization
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.prop.TableDrivenPropertyChecks._
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -788,6 +789,41 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     deleteAppMessage.appId shouldBe app.id
     deleteAppMessage.project shouldBe project
     deleteAppMessage.diskId shouldBe None
+  }
+
+  it should "determine if an app is deletable properly" in {
+    val deletableCombos = Table(
+      ("appType", "status"),
+      (AppType.Galaxy, AppStatus.Running),
+      (AppType.Galaxy, AppStatus.Error),
+      (AppType.Galaxy, AppStatus.Unspecified),
+      (AppType.Allowed, AppStatus.Running)
+    )
+
+    forAll(deletableCombos) { (appType, status) =>
+      LeoAppServiceInterp.checkIfCanBeDeleted(appType, status) shouldBe (Right(()))
+    }
+
+    val nonDeletableCombos = Table(
+      ("appType", "status"),
+      (AppType.Galaxy, AppStatus.Precreating),
+      (AppType.Galaxy, AppStatus.Starting),
+      (AppType.Galaxy, AppStatus.Predeleting),
+      (AppType.Galaxy, AppStatus.Deleting),
+      (AppType.Galaxy, AppStatus.Stopping),
+      (AppType.Galaxy, AppStatus.Stopped),
+      (AppType.Galaxy, AppStatus.Updating),
+      (AppType.Allowed, AppStatus.Provisioning),
+      (AppType.Allowed, AppStatus.Stopping),
+      (AppType.Allowed, AppStatus.Stopped),
+      (AppType.Allowed, AppStatus.Starting)
+    )
+
+    forAll(nonDeletableCombos) { (appType, status) =>
+      LeoAppServiceInterp.checkIfCanBeDeleted(appType, status) shouldBe (Left(
+        s"${appType} can not be deleted in ${status} status."
+      ))
+    }
   }
 
   it should "delete an app and record AppUsage stopTime" in isolatedDbTest {
@@ -2256,7 +2292,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteAppV2, LeoPubsubMessageType.DeleteAppV2)
     val deleteAppMessages = messages.map(_.asInstanceOf[DeleteAppV2Message])
-    deleteAppMessages.map(_.appId) shouldBe apps.map(_.id)
+    deleteAppMessages.map(_.appId) should contain theSameElementsAs apps.map(_.id)
     deleteAppMessages.map(_.workspaceId) shouldBe List(workspaceId, workspaceId)
     deleteAppMessages.map(_.diskId) shouldBe List(None, None)
   }
