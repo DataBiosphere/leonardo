@@ -207,7 +207,8 @@ final case class AllowedAppConfig(chartName: ChartName,
                                   services: List[ServiceConfig],
                                   serviceAccountName: ServiceAccountName,
                                   sasContainerRegistryCredentials: ContainerRegistryCredentials,
-                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                  chartVersionsToExcludeFromUpdates: List[ChartVersion],
+                                  numOfReplicas: Int
 ) extends KubernetesAppConfig {
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Allowed
