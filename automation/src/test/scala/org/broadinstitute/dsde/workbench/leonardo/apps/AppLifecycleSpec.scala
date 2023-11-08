@@ -58,7 +58,7 @@ class AppLifecycleSpec
 
   "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
-      test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
+      test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), true, true)
   }
 
   "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {

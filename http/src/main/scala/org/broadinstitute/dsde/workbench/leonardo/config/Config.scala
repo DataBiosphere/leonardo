@@ -681,7 +681,8 @@ object Config {
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
       dbPassword = config.as[DbPassword]("dbPassword"),
       enabled = config.as[Boolean]("enabled"),
-      chartVersionsToExcludeFromUpdates = config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
+      chartVersionsToExcludeFromUpdates = config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates"),
+      numOfReplicas = config.as[Option[Int]]("numOfReplicas")
     )
   }
 
@@ -717,7 +718,7 @@ object Config {
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[ContainerRegistryCredentials]("sasContainerRegistry"),
       config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates"),
-      config.as[Int]("numOfReplicas")
+      config.as[Option[Int]]("numOfReplicas")
     )
   }
 

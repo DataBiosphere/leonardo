@@ -1244,10 +1244,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
         } else gkeAppConfig.kubernetesServices
 
-      numOfReplicas =
-        if (req.appType == AppType.Allowed)
-          Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
-        else None
+      numOfReplicas = KubernetesAppConfig
+        .configForTypeAndCloud(req.appType, cloudContext.cloudProvider)
+        .flatMap(_.numOfReplicas)
     } yield SaveApp(
       App(
         AppId(-1),

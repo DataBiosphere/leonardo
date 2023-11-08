@@ -3,6 +3,7 @@ package util
 
 import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.effect.Async
+import cats.effect.implicits._
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
@@ -1023,18 +1024,23 @@ class GKEInterpreter[F[_]](
         case Some(_) =>
           // If the app has a numOfReplicas field, we'll stop it by scaling down replicas to 0
           for {
+            deployments <- kubeService.listDeployments(dbApp.cluster.getClusterId,
+                                                       KubernetesNamespace(dbApp.app.appResources.namespace)
+            )
             // Scale the nodepool to zero nodes
-            attemptToStop <- kubeService
-              .patchReplicas(
-                dbApp.cluster.getClusterId,
-                KubernetesNamespace(dbApp.app.appResources.namespace),
-                KubernetesDeployment(dbApp.app.appName.value), // appNames are the same as deployments
-                0
-              )
-              .attempt
+            attemptToStopResults <- deployments.parTraverse { deployment =>
+              kubeService
+                .patchReplicas(
+                  dbApp.cluster.getClusterId,
+                  KubernetesNamespace(dbApp.app.appResources.namespace),
+                  deployment,
+                  0
+                )
+                .attempt
+            }
 
-            // Update nodepool status to Running and app status to Stopped
-            _ <- attemptToStop match {
+            // combineAll will collect the first error
+            _ <- attemptToStopResults.combineAll match {
               case Left(e) =>
                 // This updates the APP back to `RUNNING` status instead of putting it into `ERROR` status. This
                 // can be confusing to users since they will notice the APP is not stoppable.
@@ -1082,17 +1088,22 @@ class GKEInterpreter[F[_]](
       _ <- dbApp.app.numOfReplicas match {
         case Some(count) =>
           for {
-            attemptToStart <- kubeService
-              .patchReplicas(
-                dbApp.cluster.getClusterId,
-                KubernetesNamespace(dbApp.app.appResources.namespace),
-                KubernetesDeployment(dbApp.app.appName.value), // appNames are the same as deployments
-                count
-              )
-              .attempt
+            deployments <- kubeService.listDeployments(dbApp.cluster.getClusterId,
+                                                       KubernetesNamespace(dbApp.app.appResources.namespace)
+            )
+            attemptToStopResults <- deployments.parTraverse { deployment =>
+              kubeService
+                .patchReplicas(
+                  dbApp.cluster.getClusterId,
+                  KubernetesNamespace(dbApp.app.appResources.namespace),
+                  deployment,
+                  count
+                )
+                .attempt
+            }
 
-            // Update nodepool status to Running and app status to Stopped
-            _ <- attemptToStart match {
+            // combineAll will collect the first error
+            _ <- attemptToStopResults.combineAll match {
               case Left(e) =>
                 // This updates the APP back to `RUNNNING` status instead of putting it into `ERROR` status. This
                 // can be confusing to users since they will notice the APP is not stoppable.

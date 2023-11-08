@@ -33,6 +33,9 @@ sealed trait KubernetesAppConfig extends Product with Serializable {
   // corresponds to a specific app type and cloud provider.
   def cloudProvider: CloudProvider
   def appType: AppType
+
+  // Only CROMWELL, ALLOWED appTypes have replicas defined properly and used for pause/resume.
+  def numOfReplicas: Option[Int]
 }
 
 object KubernetesAppConfig {
@@ -70,6 +73,8 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Galaxy
+
+  def numOfReplicas: Option[Int] = None
 }
 
 final case class CromwellAppConfig(chartName: ChartName,
@@ -80,7 +85,8 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    serviceAccountName: ServiceAccountName,
                                    dbPassword: DbPassword,
                                    enabled: Boolean,
-                                   chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                   chartVersionsToExcludeFromUpdates: List[ChartVersion],
+                                   numOfReplicas: Option[Int]
 ) extends KubernetesAppConfig {
   override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 
@@ -104,6 +110,8 @@ final case class CustomAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Custom
+
+  def numOfReplicas: Option[Int] = None
 }
 
 final case class CoaAppConfig(chartName: ChartName,
@@ -124,6 +132,9 @@ final case class CoaAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.Cromwell
+
+  def numOfReplicas: Option[Int] = None
+
 }
 
 final case class WorkflowsAppConfig(chartName: ChartName,
@@ -142,6 +153,8 @@ final case class WorkflowsAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.WorkflowsApp
+
+  def numOfReplicas: Option[Int] = None
 }
 
 final case class CromwellRunnerAppConfig(chartName: ChartName,
@@ -158,6 +171,8 @@ final case class CromwellRunnerAppConfig(chartName: ChartName,
   override val serviceAccountName = ServiceAccountName(ksaName.value)
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.CromwellRunnerApp
+
+  def numOfReplicas: Option[Int] = None
 }
 
 final case class WdsAppConfig(chartName: ChartName,
@@ -178,6 +193,8 @@ final case class WdsAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.Wds
+
+  def numOfReplicas: Option[Int] = None
 }
 
 final case class HailBatchAppConfig(chartName: ChartName,
@@ -194,6 +211,9 @@ final case class HailBatchAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.HailBatch
+
+  def numOfReplicas: Option[Int] = None
+
 }
 
 final case class ContainerRegistryUsername(asString: String) extends AnyVal
@@ -208,7 +228,7 @@ final case class AllowedAppConfig(chartName: ChartName,
                                   serviceAccountName: ServiceAccountName,
                                   sasContainerRegistryCredentials: ContainerRegistryCredentials,
                                   chartVersionsToExcludeFromUpdates: List[ChartVersion],
-                                  numOfReplicas: Int
+                                  numOfReplicas: Option[Int]
 ) extends KubernetesAppConfig {
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Allowed
