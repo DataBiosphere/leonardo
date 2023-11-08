@@ -130,7 +130,7 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.5" % Test // brought in for FakeStorageInterpreter
 
   // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
-  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.1"
+  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
