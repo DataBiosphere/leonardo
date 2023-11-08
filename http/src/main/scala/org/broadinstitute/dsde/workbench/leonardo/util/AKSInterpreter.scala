@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.AppType.doesAppTypeSupportCloning
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
@@ -120,15 +119,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Create or fetch WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
-        // for apps that support cloning, if a managed identity has already been created in the workspace
-        // use that otherwise create a new managed identity
-        case SamResourceType.SharedApp if doesAppTypeSupportCloning(app.appType) =>
+        case SamResourceType.SharedApp =>
+          // if a managed identity has already been created in the workspace use that otherwise create a new managed identity
           retrieveWsmManagedIdentity(wsmResourceApi, app.appType, params.workspaceId.value).flatMap {
             case Some(v) => F.pure(Option(v))
             case None    => createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
           }
-        case SamResourceType.SharedApp => createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
-        case _                         => F.pure(None)
+        case _ => F.pure(None)
       }
 
       // Create WSM databases
@@ -781,11 +778,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
         controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _) => d }
-        // for apps that support cloning, retrieve databases that are might already be created in workspace
-        existingControlledDbsInWorkspace <-
-          if (doesAppTypeSupportCloning(app.appType))
-            retrieveWsmDatabases(wsmResourceApi, controlledDbsForApp.map(_.prefix).toSet, workspaceId.value)
-          else F.pure(List.empty)
+        // retrieve databases that might already be created in workspace
+        existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
+                                                                 controlledDbsForApp.map(_.prefix).toSet,
+                                                                 workspaceId.value
+        )
         wsmControlledDBResources <- controlledDbsForApp
           .map { controlledDbForApp =>
             // if a database already exists (because of workspace cloning) use that otherwise create a new one
