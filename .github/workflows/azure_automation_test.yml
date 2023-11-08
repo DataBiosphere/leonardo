@@ -1,7 +1,5 @@
 # if you want to debug this and trigger it on PRs against dev
-# - add `github.head_ref` to the `branch=` line in `init-github-context` job
-#   branch=${{ github.head_ref || inputs.branch }} >> "$GITHUB_OUTPUT"
-# - uncomment the 2 pull_request lines below
+# uncomment the 2 pull_request lines below
 
 name: Azure automation tests
 
