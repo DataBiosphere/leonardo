@@ -1,13 +1,11 @@
 # if you want to debug this and trigger it on PRs against dev
-# - add `github.head_ref` to the `branch=` line in `init-github-context` job
-#   branch=${{ github.head_ref || inputs.branch }} >> "$GITHUB_OUTPUT"
-# - uncomment the 2 pull_request lines below
+# uncomment the 2 pull_request lines below
 
 name: Azure automation tests
 
 on:
-  pull_request:
-    branches: [ develop ]
+#  pull_request:
+#    branches: [ develop ]
   schedule:
     # run twice a day at 10:00 and 22:00 UTC every day of the week
     - cron: "0 10/12 * * *"
