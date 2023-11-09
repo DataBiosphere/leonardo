@@ -701,6 +701,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
+  private def generateWsmNameForIdentity(appType: AppType): String = s"id${appType.toString.toLowerCase}"
+
   private[util] def createAzureManagedIdentity(app: App, namespacePrefix: String, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[WsmManagedAzureIdentity]] =
@@ -734,7 +736,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // There can only be at most 1 shared app type per workspace anyway.
       // For private apps, use managed identity name to ensure uniqueness.
       wsmResourceName = app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => s"id${app.appType.toString.toLowerCase}"
+        case SamResourceType.SharedApp => generateWsmNameForIdentity(app.appType)
         case _                         => identityName
       }
 
@@ -910,7 +912,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .asScala
         .toList
     )
-    val wsmResourceName = s"id${appType.toString.toLowerCase}"
+    val wsmResourceName = generateWsmNameForIdentity(appType)
     wsmManagedIdentities.map { identities =>
       // there should be only 1 Azure managed identity per app
       identities
