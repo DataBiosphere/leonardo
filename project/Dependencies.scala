@@ -17,7 +17,7 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "59e30fb"
+  private val workbenchLibsHash = "9e8bb8d"
   val serviceTestV = s"4.2-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.30-$workbenchLibsHash"
@@ -127,10 +127,9 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.6" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.7" % Test // brought in for FakeStorageInterpreter
 
-  // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
-  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
+  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
