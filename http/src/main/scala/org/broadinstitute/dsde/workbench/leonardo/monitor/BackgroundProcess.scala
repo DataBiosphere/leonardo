@@ -85,11 +85,8 @@ trait BackgroundProcess[F[_], A] {
   ): Stream[F, Unit] =
     (Stream.sleep[F](interval) ++ Stream.eval(
       check
-        .handleErrorWith {
-          case e: java.sql.SQLTransientConnectionException =>
-            logger.error(e)("DB connection failed transiently") >> F.raiseError[Unit](e)
-          case e =>
-            logger.error(e)("Unexpected error occurred during auto-pause monitoring. Recovering...")
+        .handleErrorWith { case e =>
+          logger.error(e)("Unexpected error occurred during auto-pause monitoring. Recovering...")
         }
     )).repeat
 }
