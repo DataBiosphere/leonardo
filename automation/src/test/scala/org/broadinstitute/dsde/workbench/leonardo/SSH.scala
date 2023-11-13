@@ -1,13 +1,22 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{IO, Resource}
+import com.google.cloud.oslogin.common.OsLoginProto.SshPublicKey
+import com.google.cloud.oslogin.v1.{GetLoginProfileRequest, ImportSshPublicKeyRequest, OsLoginServiceClient}
+import liquibase.util.FileUtil
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
+import net.schmizz.sshj.userauth.password.{ConsolePasswordFinder, PasswordFinder}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import java.io.File
+import java.nio.file.{Files, Path, Paths}
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import scala.sys.process._
 
@@ -22,7 +31,9 @@ object SSH {
   val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
   // TODO: If multiple tests need to ssh into an azure VM: add a lock of sorts, only one tunnel at a time with same port
-  def startBastionTunnel(runtimeName: RuntimeName, port: Int = LeonardoConfig.Leonardo.defaultBastionPort)(implicit
+  // A bastion tunnel is needed to tunnel to an azure vm
+  // See: https://learn.microsoft.com/en-us/azure/bastion/native-client
+  def startAzureBastionTunnel(runtimeName: RuntimeName, port: Int = LeonardoConfig.Azure.defaultBastionPort)(implicit
     staticTestCoordinates: AzureManagedAppCoordinates
   ): Resource[IO, Tunnel] = {
     val targetResourceId =
@@ -33,7 +44,7 @@ object SSH {
       process = Process(
         scriptPath,
         None,
-        "BASTION_NAME" -> LeonardoConfig.Leonardo.bastionName,
+        "BASTION_NAME" -> LeonardoConfig.Azure.bastionName,
         "RESOURCE_GROUP" -> staticTestCoordinates.managedResourceGroupId,
         "RESOURCE_ID" -> targetResourceId,
         "PORT" -> port.toString
@@ -46,38 +57,110 @@ object SSH {
     Resource.make(makeTunnel)(tunnel => loggerIO.info("Closing tunnel") >> closeTunnel(tunnel))
   }
 
-  final case class SessionAndClient(makeSession: Session, client: SSHClient)
+  final case class SSHSession(session: Session, client: SSHClient)
   // Note that a session is a one time use resource, and only supports one command execution
-  def makeSSHSession(hostName: String, port: Int): Resource[IO, SessionAndClient] = {
+  // This method starts an ssh session to either an azure or google runtime.
+  // However, it is currently only used for azure ssh due to system limitations
+  // Specifically, azure can use username/password auth to ssh to the vm (which is specified in WSM at creation time and in vault)
+  // For google, this method generates public/private keys and uploads the public key to the qa service account's OSlogin registry in the test project
+  // This works when you can connect directly to the vm, but the tests do not necessarily run on broad internal IP space
+  // As such, we use `executeGoogleCommand` for interacting with google VMs typically.
+  private def startSSHConnection(hostName: String, port: Int, sshConfig: SSHRuntimeInfo): Resource[IO, SSHSession] = {
     val sessionAndClient = for {
-      _ <- loggerIO.info(
-        s"Making ssh client u ${LeonardoConfig.Leonardo.vmUser} p ${LeonardoConfig.Leonardo.vmPassword}"
-      )
       client <- IO(new SSHClient)
       _ <- loggerIO.info(s"Adding host key verifier for shh client}")
       _ <- IO(client.addHostKeyVerifier(new PromiscuousVerifier()))
-      _ <- loggerIO.info("Connecting via ssh client")
+
+      _ <- loggerIO.info(s"Connecting via ssh client hostname ${hostName} port $port")
       _ <- IO(client.connect(hostName, port))
-      _ <- loggerIO.info("Authenticating ssh client via password")
-      _ <- IO(client.authPassword(LeonardoConfig.Leonardo.vmUser, LeonardoConfig.Leonardo.vmPassword))
+
+      _ <- loggerIO.info("Authenticating ssh client ")
+      _ <-
+        if (sshConfig.cloudProvider == CloudProvider.Azure)
+          IO(client.authPassword(LeonardoConfig.Azure.vmUser, LeonardoConfig.Azure.vmPassword))
+        else {
+          for {
+            keyConfig <- createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail),
+                                       sshConfig.googleProject.get
+            )
+            _ <- IO(client.authPublickey(keyConfig.username, keyConfig.privateKey.toAbsolutePath.toString))
+          } yield ()
+        }
+
       _ <- loggerIO.info("Starting ssh session")
       session <- IO(client.startSession())
-    } yield SessionAndClient(session, client)
+    } yield SSHSession(session, client)
 
     Resource.make(sessionAndClient)(sessionAndClient =>
-      loggerIO.info(s"cleaning up tunnel and session for port ${port}") >> IO(
-        sessionAndClient.makeSession.close()
+      loggerIO.info(s"cleaning up session for port ${port}") >> IO(
+        sessionAndClient.session.close()
       ) >> IO(
         sessionAndClient.client.disconnect()
       )
     )
   }
 
-  def closeTunnel(tunnel: Tunnel): IO[Unit] =
+  final case class SSHKeyConfig(username: String, publicKey: String, privateKey: Path)
+  private def createSSHKeys(serviceAccount: WorkbenchEmail, googleProject: GoogleProject): IO[SSHKeyConfig] = {
+    val privateKeyFileName = s"/tmp/key-${UUID.randomUUID().toString.take(8)}"
+    val createKeysCmd =
+      s"ssh-keygen -t rsa -N '' -f $privateKeyFileName"
+    for {
+      output <- IO(createKeysCmd !!)
+      publicKey: String = Files.readString(Paths.get(s"$privateKeyFileName.pub")).strip()
+      privateKey: Path = Paths.get(privateKeyFileName)
+      account = s"users/${serviceAccount.value}"
+
+      _ <- loggerIO.info(s"about to import public key for user ${account}")
+
+      request = ImportSshPublicKeyRequest
+        .newBuilder()
+        .setParent(account)
+        .setSshPublicKey(SshPublicKey.newBuilder().setKey(publicKey))
+        .setProjectId(googleProject.value)
+        .build()
+
+      client = OsLoginServiceClient
+        .create()
+
+      settings = client.getSettings()
+      _ <- loggerIO.info(s"settings ${settings}")
+
+      _ <- loggerIO.info("importing ssh public key")
+      _ <- IO(client.importSshPublicKey(request))
+
+    } yield SSHKeyConfig(LeonardoConfig.GCS.leonardoServiceAccountUsername, publicKey, privateKey)
+  }
+
+  final case class SSHRuntimeInfo(googleProject: Option[GoogleProject], cloudProvider: CloudProvider)
+  def startSessionAndExecuteCommand(hostName: String,
+                                    port: Int,
+                                    command: String,
+                                    sshConfig: SSHRuntimeInfo
+  ): IO[CommandResult] =
+    for {
+      output <- SSH.startSSHConnection(hostName, port, sshConfig).use { connection =>
+        executeCommand(connection.session, command)
+      }
+    } yield output
+
+  // This method is the main one for any interaction with GCP VMs
+  def executeGoogleCommand(project: GoogleProject, zone: String, runtimeName: RuntimeName, cmd: String): IO[String] = {
+    val sshCommand =
+      s"gcloud compute ssh --zone '${zone}' '${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap --command=\"$cmd\" -- -tt"
+
+    for {
+      _ <- loggerIO.info(s"executing command: \n\t$sshCommand")
+      output <- IO(sshCommand !!)
+      _ <- loggerIO.info(s"cmd output: $output")
+    } yield output
+  }
+
+  private def closeTunnel(tunnel: Tunnel): IO[Unit] =
     loggerIO.info(s"Killing tunnel via pid ${tunnel.pid}") >> IO(s"kill ${tunnel.pid}" !!)
 
   // Exec docs/examples: https://www.tabnine.com/code/java/methods/net.schmizz.sshj.connection.channel.direct.Session/exec
-  def executeCommand(session: Session, cmd: String): IO[CommandResult] =
+  private def executeCommand(session: Session, cmd: String): IO[CommandResult] =
     for {
       _ <- loggerIO.info("beginning to execute command")
       _ <- IO(session.allocateDefaultPTY())

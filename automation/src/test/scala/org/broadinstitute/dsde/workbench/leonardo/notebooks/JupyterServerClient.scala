@@ -20,7 +20,7 @@ import java.io.File
 /**
  * Leonardo API service client.
  */
-object Notebook extends RestClient with LazyLogging {
+object JupyterServerClient extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
@@ -79,15 +79,6 @@ object Notebook extends RestClient with LazyLogging {
     logger.info(s"Get notebook tree: GET /$path")
     val referer = Referer(Uri(refererUrl))
     parseResponse(getRequest(url + path, httpHeaders = List(referer)))
-  }
-
-  def getApiHeaders(googleProject: GoogleProject, clusterName: RuntimeName)(implicit
-    token: AuthToken
-  ): Seq[HttpHeader] = {
-    val path = notebooksTreePath(googleProject, clusterName)
-    val referer = Referer(Uri(refererUrl))
-    logger.info(s"Get notebook: GET /$path")
-    getRequest(url + path, httpHeaders = List(referer)).headers
   }
 
   def localize(googleProject: GoogleProject,

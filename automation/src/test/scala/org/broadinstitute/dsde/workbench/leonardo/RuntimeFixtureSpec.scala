@@ -142,7 +142,9 @@ abstract class RuntimeFixtureSpec
 }
 
 object RuntimeFixtureSpec {
+  // TODO: can we delete this? why are our automation tests simulating env vars used by terra UI? I hope none of our tests depend on this?
   // Simulate custom environment variables set by Terra UI
+  val runtimeFixtureZone = ZoneName("us-east1-c")
   def getCustomEnvironmentVariables: Map[String, String] =
     Map(
       "WORKSPACE_NAME" -> sys.props.getOrElse(workspaceNameKey, "workspace"),
@@ -160,7 +162,7 @@ object RuntimeFixtureSpec {
         RuntimeConfigRequest.GceConfig(
           machineType = Some(MachineTypeName("n1-standard-4")),
           diskSize = Some(DiskSize(100)),
-          Some(ZoneName("us-east1-c")),
+          Some(runtimeFixtureZone),
           None
         )
       case CloudService.Dataproc =>

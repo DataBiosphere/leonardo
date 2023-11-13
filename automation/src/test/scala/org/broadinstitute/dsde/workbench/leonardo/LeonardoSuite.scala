@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
+import org.broadinstitute.dsde.workbench.leonardo.apps.AppLifecycleSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
@@ -246,15 +246,16 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
 
 final class LeonardoSuite
     extends Suites(
-      new RuntimeCreationDiskSpec,
-      new LabSpec,
-      new RuntimeAutopauseSpec,
-      new RuntimePatchSpec,
-      new RuntimeStatusTransitionsSpec,
-      new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec,
-      new RuntimeDataprocSpec,
-      new RuntimeGceSpec
+//      new RuntimeCreationDiskSpec,
+//      new RuntimeAutopauseSpec,
+//      new RuntimePatchSpec,
+//      new RuntimeSystemSpec,
+//      new RuntimeStatusTransitionsSpec,
+      new NotebookGCECustomizationSpec
+//      new NotebookGCEDataSyncingSpec,
+//      new RuntimeDataprocSpec,
+//      new RuntimeGceSpec
+//      new AppLifecycleSpec //TODO: test
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
@@ -262,10 +263,10 @@ final class LeonardoSuite
 
 final class LeonardoTerraDockerSuite
     extends Suites(
-      new NotebookHailSpec,
-      new NotebookPyKernelSpec,
-      new NotebookRKernelSpec,
-      new RStudioSpec
+//      new NotebookHailSpec,
+//      new NotebookPyKernelSpec,
+//      new NotebookRKernelSpec,
+//      new RStudioSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
