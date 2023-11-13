@@ -46,9 +46,9 @@ object SSH {
     Resource.make(makeTunnel)(tunnel => loggerIO.info("Closing tunnel") >> closeTunnel(tunnel))
   }
 
-  final case class SessionAndClient(makeSession: Session, client: SSHClient)
+  final case class SSHConnection(session: Session, client: SSHClient)
   // Note that a session is a one time use resource, and only supports one command execution
-  def makeSSHSession(hostName: String, port: Int): Resource[IO, SessionAndClient] = {
+  def startSSHConnection(hostName: String, port: Int): Resource[IO, SSHConnection] = {
     val sessionAndClient = for {
       _ <- loggerIO.info(
         s"Making ssh client u ${LeonardoConfig.Leonardo.vmUser} p ${LeonardoConfig.Leonardo.vmPassword}"
@@ -62,11 +62,11 @@ object SSH {
       _ <- IO(client.authPassword(LeonardoConfig.Leonardo.vmUser, LeonardoConfig.Leonardo.vmPassword))
       _ <- loggerIO.info("Starting ssh session")
       session <- IO(client.startSession())
-    } yield SessionAndClient(session, client)
+    } yield SSHConnection(session, client)
 
     Resource.make(sessionAndClient)(sessionAndClient =>
       loggerIO.info(s"cleaning up tunnel and session for port ${port}") >> IO(
-        sessionAndClient.makeSession.close()
+        sessionAndClient.session.close()
       ) >> IO(
         sessionAndClient.client.disconnect()
       )

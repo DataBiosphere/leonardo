@@ -5,9 +5,11 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
 import org.broadinstitute.dsde.workbench.leonardo.{
   BillingProjectFixtureSpec,
   LeonardoApiClient,
+  SSH,
   UserJupyterExtensionConfig
 }
 import org.http4s.headers.Authorization
@@ -26,6 +28,12 @@ final class NotebookGCECustomizationSpec
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
+  val dependencies = for {
+    storage <- google2StorageResource
+    httpClient <- LeonardoApiClient.client
+  } yield RuntimeGceSpecDependencies(httpClient, storage)
+
+  // TODO : is this needed?
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
@@ -68,16 +76,19 @@ final class NotebookGCECustomizationSpec
       val runtimeRequest =
         LeonardoApiClient.defaultCreateRuntime2Request.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 
-      withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
-        withWebDriver { implicit driver =>
-          withNewNotebook(cluster, Python3) { notebookPage =>
-            notebookPage.executeCell("import os")
-
-            val envVar = notebookPage.executeCell("os.getenv('KEY')")
-            envVar shouldBe Some("'value'")
-          }
+      val res = dependencies.use { deps =>
+        implicit val httpClient = deps.httpClient
+        withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
+          for {
+            runtime <- LeonardoApiClient.getRuntime(cluster.googleProject, cluster.clusterName)
+            output <- SSH.startSSHConnection(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22).use { connection =>
+              SSH.executeCommand(connection.session, "echo $KEY")
+            }
+          } yield output.outputLines.mkString shouldBe "value"
         }
       }
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
+
   }
 }
