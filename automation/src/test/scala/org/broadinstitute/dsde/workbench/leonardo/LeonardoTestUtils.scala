@@ -7,17 +7,11 @@ import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.client.leonardo.model.GetRuntimeResponse
 import org.broadinstitute.dsde.workbench.config.{Credentials => WorkbenchCredentials}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  GoogleComputeService,
-  GoogleDataprocService,
-  GoogleDiskService,
-  GoogleStorageService,
-  RegionName
-}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GoogleStorageService, RegionName}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -178,7 +172,7 @@ trait LeonardoTestUtils
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
 
-  def gceLabelCheck(seen: LabelMap,
+  def gceLabelCheck(seen: Object,
                     runtimeName: RuntimeName,
                     googleProject: GoogleProject,
                     creator: WorkbenchEmail,
@@ -190,6 +184,7 @@ trait LeonardoTestUtils
                     cloudContext: CloudContext
   ): Unit = {
 
+    seen.g
     // the SAs can vary here depending on which ServiceAccountProvider is used
     // set dummy values here and then remove them from the comparison
     // TODO: check for these values after tests are agnostic to ServiceAccountProvider ?
@@ -245,10 +240,10 @@ trait LeonardoTestUtils
     cluster
   }
 
-  def verifyRuntime(runtime: GetRuntimeResponseCopy,
+  def verifyRuntime(runtime: GetRuntimeResponse,
                     expectedProject: GoogleProject,
                     expectedName: RuntimeName,
-                    expectedStatuses: List[ClusterStatus],
+                    expectedStatuses: List[org.broadinstitute.dsde.workbench.client.leonardo.model.ClusterStatus],
                     labels: Map[String, String],
                     userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                     jupyterUserScriptUri: Option[UserScriptPath],
@@ -258,34 +253,34 @@ trait LeonardoTestUtils
   ): GetRuntimeResponseCopy = {
     // Always log cluster errors
 
-    if (runtime.errors.nonEmpty) {
+    if (!runtime.getErrors().isEmpty) {
       logger.warn(
-        s"ClusterCopy ${runtime.googleProject}/${runtime.runtimeName} returned the following errors: ${runtime.errors}"
+        s"ClusterCopy ${runtime.getGoogleProject()}/${runtime.getRuntimeName} returned the following errors: ${runtime.getErrors()}"
       )
     }
-    withClue(s"ClusterCopy ${runtime.googleProject}/${runtime.runtimeName}: ") {
-      expectedStatuses should contain(runtime.status)
+    withClue(s"ClusterCopy ${runtime.getGoogleProject}/${runtime.getGoogleProject}: ") {
+      expectedStatuses should contain(runtime.getStatus())
     }
 
     runtime.googleProject shouldBe expectedProject
     runtime.runtimeName shouldBe expectedName
 
     gceLabelCheck(
-      runtime.labels,
+      runtime.getLabels.,
       expectedName,
       expectedProject,
-      runtime.auditInfo.creator,
+      runtime.getAuditInfo.getCreator,
       labels,
       userJupyterExtensionConfig,
       jupyterUserScriptUri,
       jupyterStartUserScriptUri,
       toolDockerImage,
-      CloudContext.Gcp(runtime.googleProject)
+      CloudContext.Gcp(GoogleProject(runtime.getGoogleProject()))
     )
 
     if (bucketCheck) {
       implicit val patienceConfig: PatienceConfig = storagePatience
-      googleStorageDAO.bucketExists(runtime.asyncRuntimeFields.get.stagingBucket).futureValue shouldBe true
+      googleStorageDAO.bucketExists(GcsBucketName(runtime.getAsyncRuntimeFields.getStagingBucket)).futureValue shouldBe true
     }
 
     runtime
@@ -328,7 +323,7 @@ trait LeonardoTestUtils
   )(implicit token: AuthToken): GetRuntimeResponseCopy = {
     // wait for "Running", "Stopped", or error (fail fast)
     val expectedStatuses =
-      List(ClusterStatus.Running, ClusterStatus.Error)
+      List(org.broadinstitute.dsde.workbench.client.leonardo.model.ClusterStatus.RUNNING, org.broadinstitute.dsde.workbench.client.leonardo.model.ClusterStatus.ERROR)
 
     implicit val patienceConfig: PatienceConfig = clusterPatience
 

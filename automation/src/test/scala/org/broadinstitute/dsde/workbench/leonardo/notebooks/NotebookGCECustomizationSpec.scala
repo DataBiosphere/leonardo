@@ -4,12 +4,8 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  BillingProjectFixtureSpec,
-  LeonardoApiClient,
-  UserJupyterExtensionConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Ron, getAuthTokenAndAuthorization}
+import org.broadinstitute.dsde.workbench.leonardo.{BillingProjectFixtureSpec, LeonardoApiClient, SSH, UserJupyterExtensionConfig}
 import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -69,14 +65,7 @@ final class NotebookGCECustomizationSpec
         LeonardoApiClient.defaultCreateRuntime2Request.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 
       withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
-        withWebDriver { implicit driver =>
-          withNewNotebook(cluster, Python3) { notebookPage =>
-            notebookPage.executeCell("import os")
-
-            val envVar = notebookPage.executeCell("os.getenv('KEY')")
-            envVar shouldBe Some("'value'")
-          }
-        }
+        SSH.makeSSHSession(cluster.)
       }
     }
   }

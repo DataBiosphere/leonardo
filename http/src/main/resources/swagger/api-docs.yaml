@@ -3092,6 +3092,8 @@ components:
           description: The scopes for the runtime.
         customEnvironmentVariables:
           type: object
+          additionalProperties:
+            type: string
           description: Optional environment variables to be set on the runtime.
         diskConfig:
           $ref: "#/components/schemas/DiskConfig"
@@ -3137,6 +3139,8 @@ components:
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
+          additionalProperties:
+            type: string
         patchInProgress:
           type: boolean
           description: Whether there is a patch in progress on the runtime. Is used to indicate updates that require status transitions.
@@ -3179,6 +3183,8 @@ components:
           description: Block size of persistent disk in bytes
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels of each persistent disk in the response whose key is in includeLabels in the request. Of type Map[String,String]
 
     GetPersistentDiskResponse:
@@ -3229,6 +3235,8 @@ components:
           description: Block size of persistent disk in bytes
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the persistent disk. Of type Map[String,String]
         formattedBy:
           type: string
@@ -3287,6 +3295,8 @@ components:
           description: Block size of persistent disk in bytes
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the persistent disk. Of type Map[String,String]
         workspaceId:
           type: string
@@ -3347,6 +3357,8 @@ components:
       properties:
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the runtime. Of type Map[String,String]
         userJupyterExtensionConfig:
           $ref: "#/components/schemas/UserJupyterExtensionConfig"
@@ -3432,6 +3444,8 @@ components:
             - https://www.googleapis.com/auth/source.read_only
         customEnvironmentVariables:
           type: object
+          additionalProperties:
+            type: string
           description: Optional environment variables to be set on the cluster.
     CreateAzureRuntimeRequest:
       description: Creates a new runtime
@@ -3442,6 +3456,8 @@ components:
       properties:
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the runtime. Of type Map[String,String]
         machineSize:
           type: string
@@ -3451,6 +3467,8 @@ components:
           description: The azure identifier for the vm image uri. Optional, there is an intelligent default. Note this must be in the same region specified in the request Ex, /subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0
         customEnvironmentVariables:
           type: object
+          additionalProperties:
+            type: string
           description: an optional set of key value pairs for environment variables to be injected into the VM
         disk:
           $ref: "#/components/schemas/AzureDiskConfig"
@@ -3466,6 +3484,8 @@ components:
       properties:
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the runtime. Of type Map[String,String]
         name:
           type: string
@@ -3566,6 +3586,8 @@ components:
       properties:
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the persistent disk. Of type Map[String,String]
         size:
           type: integer
@@ -3595,6 +3617,8 @@ components:
       properties:
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be added or updated on the persistent disk. Of type Map[String,String]
         size:
           type: integer
@@ -4016,9 +4040,13 @@ components:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the cluster. Of type Map[String,String]
         customEnvironmentVariables:
           type: object
+          additionalProperties:
+            type: string
           description: Optional environment variables to be set on the app
         descriptorPath:
           type: string
@@ -4106,6 +4134,8 @@ components:
           description: the name of the disk associated with this app
         customEnvironmentVariables:
           type: object
+          additionalProperties:
+            type: string
           description: Optional environment variables to be set on the app
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
@@ -4115,6 +4145,8 @@ components:
           $ref: '#/components/schemas/AppAccessScope'
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
 
     ListAppResponse:
@@ -4161,6 +4193,8 @@ components:
           $ref: '#/components/schemas/AppAccessScope'
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
 
     ListUpdateableAppResponse:
@@ -4191,6 +4225,8 @@ components:
           $ref: '#/components/schemas/AppAccessScope'
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
 
 
@@ -4242,6 +4278,8 @@ components:
           $ref: "#/components/schemas/DiskType"
         labels:
           type: object
+          additionalProperties:
+            type: string
           description: The labels to be placed on the cluster. Of type Map[String,String]
 
     KubernetesError:

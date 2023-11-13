@@ -11,13 +11,6 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier
 import java.util.concurrent.TimeUnit
 import scala.sys.process._
 
-case class TunnelName(value: String) extends AnyVal
-case class ResourceGroup(value: String)
-
-case class Tunnel(pid: String, port: Int) {
-  val hostName = "127.0.0.1"
-}
-
 object SSH {
   val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
@@ -46,7 +39,6 @@ object SSH {
     Resource.make(makeTunnel)(tunnel => loggerIO.info("Closing tunnel") >> closeTunnel(tunnel))
   }
 
-  final case class SessionAndClient(makeSession: Session, client: SSHClient)
   // Note that a session is a one time use resource, and only supports one command execution
   def makeSSHSession(hostName: String, port: Int): Resource[IO, SessionAndClient] = {
     val sessionAndClient = for {
@@ -73,7 +65,7 @@ object SSH {
     )
   }
 
-  def closeTunnel(tunnel: Tunnel): IO[Unit] =
+  private def closeTunnel(tunnel: Tunnel): IO[Unit] =
     loggerIO.info(s"Killing tunnel via pid ${tunnel.pid}") >> IO(s"kill ${tunnel.pid}" !!)
 
   // Exec docs/examples: https://www.tabnine.com/code/java/methods/net.schmizz.sshj.connection.channel.direct.Session/exec
@@ -91,3 +83,11 @@ object SSH {
 }
 
 final case class CommandResult(exitCode: Int, outputLines: List[String])
+
+final case class SessionAndClient(makeSession: Session, client: SSHClient)
+
+case class TunnelName(value: String) extends AnyVal
+
+case class Tunnel(pid: String, port: Int) {
+  val hostName = "127.0.0.1"
+}

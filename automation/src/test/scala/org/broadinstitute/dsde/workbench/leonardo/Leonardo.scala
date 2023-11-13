@@ -1,10 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 
+import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.Decoder
+import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.client.leonardo.model.GetRuntimeResponse
 import org.broadinstitute.dsde.workbench.leonardo.AutomationTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -73,24 +77,17 @@ object Leonardo extends RestClient with LazyLogging {
       handleListRuntimeResponse(parsedRequest)
     }
 
+    //TODO: delete this and have tests use new api client
     def getRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
       token: AuthToken
-    ): GetRuntimeResponseCopy = {
-      val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
-
-      val responseString = parseResponse(getRequest(url + path))
+    ): GetRuntimeResponse = {
+      implicit val t = IO(token)
 
       val res = for {
-        json <- io.circe.parser.parse(responseString)
-        r <- json.as[GetRuntimeResponseCopy]
-      } yield r
-
-      res.fold(e => throw e,
-               resp => {
-                 logger.info(s"Get runtime: GET /$path. Status = ${resp.status}")
-                 resp
-               }
-      )
+        api <- GeneratedLeonardoClient.generateRuntimesApi
+        resp <- IO(api.getRuntime(googleProject.value, runtimeName.asString))
+      } yield resp
+      res.unsafeRunSync()
     }
 
     def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
