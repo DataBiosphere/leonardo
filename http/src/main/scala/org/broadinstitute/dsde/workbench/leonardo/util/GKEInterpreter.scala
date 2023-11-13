@@ -199,7 +199,9 @@ class GKEInterpreter[F[_]](
         s"Polling cluster creation for cluster ${dbCluster.getClusterId.toString}"
       )
 
-      _ <- F.fromOption(dbCluster.nodepools.find(_.isDefault), DefaultNodepoolNotFoundException(dbCluster.id))
+      defaultNodepool <- F.fromOption(dbCluster.nodepools.find(_.isDefault),
+                                      DefaultNodepoolNotFoundException(dbCluster.id)
+      )
       // Poll GKE until completion
       lastOp <- gkeService
         .pollOperation(
@@ -244,7 +246,7 @@ class GKEInterpreter[F[_]](
       // TODO: Handle the case where currently, if ingress installation fails, the cluster is marked as `Error`ed
       // and users can no longer create apps in the cluster's project
       // helm install nginx
-      loadBalancerIp <- installNginx(dbCluster, googleCluster)
+      loadBalancerIp <- installNginx(dbCluster, googleCluster, defaultNodepool)
       ipRange <- F.fromOption(Config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
                               new RegionNotSupportedException(dbCluster.region, ctx.traceId)
       )
@@ -925,7 +927,7 @@ class GKEInterpreter[F[_]](
 
       _ <- googleClusterOpt
         .traverse { googleCluster =>
-          val uninstallCharts = for {
+          val cleanupResources = for {
             helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
             _ <- logger.info(ctx.loggingCtx)(
@@ -961,43 +963,44 @@ class GKEInterpreter[F[_]](
                 config.galaxyAppConfig.uninstallKeepHistory
               )
               .run(helmAuthContext)
+
+            // delete the namespace only after the helm uninstall completes
+            _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
+                                             KubernetesNamespace(dbApp.app.appResources.namespace)
+            )
+
+            fa = kubeService
+              .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace))
+              .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
+
+            _ <- streamUntilDoneOrTimeout(fa, 60, 5 seconds, "delete namespace timed out")
+            _ <- logger.info(ctx.loggingCtx)(
+              s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
+            )
+
+            appRestore: Option[AppRestore.GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
+              case a: AppRestore.GalaxyRestore => Some(a)
+              case _: AppRestore.Other         => None
+            }
+            _ <- appRestore.traverse { restore =>
+              for {
+                _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
+              } yield ()
+            }
           } yield ()
 
-          uninstallCharts.handleErrorWith { e =>
-            logger.info(ctx.loggingCtx)(
-              s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString} failed with error ${e.getMessage}"
+          cleanupResources.handleErrorWith { e =>
+            logger.error(ctx.loggingCtx, e)(
+              s"Deleting app failed with error ${e.getMessage}"
             )
           }
         }
 
-      // delete the namespace only after the helm uninstall completes
-      _ <- kubeService.deleteNamespace(dbApp.cluster.getClusterId,
-                                       KubernetesNamespace(dbApp.app.appResources.namespace)
-      )
-
-      fa = kubeService
-        .namespaceExists(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace))
-        .map(!_) // mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
-
-      _ <- streamUntilDoneOrTimeout(fa, 60, 5 seconds, "delete namespace timed out")
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
-      )
-
-      appRestore: Option[AppRestore.GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
-        case a: AppRestore.GalaxyRestore => Some(a)
-        case _: AppRestore.Other         => None
-      }
-      _ <- appRestore.traverse { restore =>
-        for {
-          _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
-        } yield ()
-      }
       _ <-
         if (!params.errorAfterDelete) {
           F.unit
         } else {
-          appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction.void
+          appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction
         }
     } yield ()
 
@@ -1249,8 +1252,8 @@ class GKEInterpreter[F[_]](
       }
     } yield res
 
-  private[util] def installNginx(dbCluster: KubernetesCluster, googleCluster: Cluster)(implicit
-    ev: Ask[F, AppContext]
+  private[util] def installNginx(dbCluster: KubernetesCluster, googleCluster: Cluster, defaultNodepool: Nodepool)(
+    implicit ev: Ask[F, AppContext]
   ): F[IP] =
     for {
       ctx <- ev.ask
@@ -1261,13 +1264,18 @@ class GKEInterpreter[F[_]](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, config.ingressConfig.namespace)
 
+      helmChartValues =
+        raw"""controller.nodeSelector.cloud\.google\.com/gke-nodepool=${defaultNodepool.nodepoolName.value}""" :: config.ingressConfig.values
+          .map(
+            _.value
+          )
       // Invoke helm
       _ <- helmClient
         .installChart(
           config.ingressConfig.release,
           config.ingressConfig.chartName,
           config.ingressConfig.chartVersion,
-          org.broadinstitute.dsp.Values(config.ingressConfig.values.map(_.value).mkString(",")),
+          org.broadinstitute.dsp.Values(helmChartValues.mkString(",")),
           true
         )
         .run(helmAuthContext)

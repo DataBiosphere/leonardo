@@ -178,18 +178,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      machineConfigFromReqAndConfig = req.kubernetesRuntimeConfig.getOrElse(
+      numOfReplicas = KubernetesAppConfig
+        .configForTypeAndCloud(req.appType, cloudContext.cloudProvider)
+        .flatMap(_.numOfReplicas)
+      machineConfig = req.kubernetesRuntimeConfig.getOrElse(
         KubernetesRuntimeConfig(
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+          numOfReplicas.fold(config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled)(_ =>
+            true
+          ) // if numOfReplicas is defined, then autoscaling has to be enabled because we scale up/down replicas to pause/resume apps.
+          // Otherwise default to what Galaxy config uses (this is probably not the best default, but won't introduce too many changes to existing code for now
         )
       )
-
-      // Always allow autoScaling for ALLOWED appType
-      machineConfig =
-        if (AppType.Allowed == req.appType) machineConfigFromReqAndConfig.copy(autoscalingEnabled = true)
-        else machineConfigFromReqAndConfig
       // We want to know if the user already has a nodepool with the requested config that can be re-used
       userNodepoolOpt <- nodepoolQuery
         .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
@@ -251,6 +252,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       petSA,
                       nodepool.id,
                       None,
+                      numOfReplicas,
                       ctx
         )
       )
@@ -702,6 +704,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           petSA,
           nodepool.id,
           Some(workspaceId),
+          None, // numOfReplicas is not supported for V2 endpoint
           ctx
         )
       )
@@ -1139,6 +1142,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
                                      workspaceId: Option[WorkspaceId],
+                                     numOfReplicas: Option[Int],
                                      ctx: AppContext
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
@@ -1243,10 +1247,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (cloudContext.cloudProvider == CloudProvider.Azure) {
           gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
         } else gkeAppConfig.kubernetesServices
-
-      numOfReplicas = KubernetesAppConfig
-        .configForTypeAndCloud(req.appType, cloudContext.cloudProvider)
-        .flatMap(_.numOfReplicas)
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1413,7 +1413,8 @@ object LeoAppServiceInterp {
           // But hopefully we can relax this in the future for non-Galaxy apps
           // If this code is still here in 6 months.
           // We should just abandon the attempt to relax AppStatus requirement for deleteApp.
-          AppStatus.deletableStatuses.contains(appStatus)
+          val deletableStatuses = AppStatus.deletableStatuses + AppStatus.Stopped
+          deletableStatuses.contains(appStatus)
       }
     if (deletable) Right(())
     else Left(s"${appType} can not be deleted in ${appStatus} status.")

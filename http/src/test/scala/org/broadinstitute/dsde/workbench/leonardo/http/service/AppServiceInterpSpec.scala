@@ -251,6 +251,39 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
+  it should "create an app with correct numOfReplicas and autoscaling setting" in isolatedDbTest {
+    val appTypeAndExpectations = Table(
+      ("appType", "autoscalingEnabled", "numOfReplicas"),
+      (AppType.Galaxy, false, None),
+      (AppType.Allowed, true, Some(1)),
+      (AppType.Cromwell, true, Some(1)),
+      (AppType.Custom, false, Some(1))
+    )
+
+    forAll(appTypeAndExpectations) { (appType, expectedAutoScaling, expectedNumOfReplicas) =>
+      val appName = AppName(s"app1${appType}")
+      val diskName = DiskName(s"disk_${appType}")
+      val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+      val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), appType = appType)
+
+      appServiceInterp
+        .createApp(userInfo, cloudContextGcp, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+      val getAppResult = dbFutureValue {
+        KubernetesServiceDbQueries.getActiveFullAppByName(cloudContextGcp, appName)
+      }
+
+      getAppResult.get.app.numOfReplicas shouldBe expectedNumOfReplicas
+
+      val nodepool = dbFutureValue {
+        nodepoolQuery.getMinimalById(getAppResult.get.nodepool.id)
+      }
+
+      nodepool.get.autoscalingEnabled shouldEqual expectedAutoScaling
+    }
+  }
+
   it should "create an app in a user's existing nodepool" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
@@ -797,7 +830,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       (AppType.Galaxy, AppStatus.Running),
       (AppType.Galaxy, AppStatus.Error),
       (AppType.Galaxy, AppStatus.Unspecified),
-      (AppType.Allowed, AppStatus.Running)
+      (AppType.Allowed, AppStatus.Running),
+      (AppType.Allowed, AppStatus.Stopped)
     )
 
     forAll(deletableCombos) { (appType, status) =>
@@ -815,7 +849,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       (AppType.Galaxy, AppStatus.Updating),
       (AppType.Allowed, AppStatus.Provisioning),
       (AppType.Allowed, AppStatus.Stopping),
-      (AppType.Allowed, AppStatus.Stopped),
       (AppType.Allowed, AppStatus.Starting)
     )
 
