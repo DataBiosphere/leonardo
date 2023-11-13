@@ -229,8 +229,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit
+  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
     token: AuthToken,
     authorization: IO[Authorization]
   ): Unit = {

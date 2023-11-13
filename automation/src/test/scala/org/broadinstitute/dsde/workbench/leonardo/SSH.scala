@@ -80,7 +80,6 @@ object SSH {
       }
     } yield output
 
-
   def closeTunnel(tunnel: Tunnel): IO[Unit] =
     loggerIO.info(s"Killing tunnel via pid ${tunnel.pid}") >> IO(s"kill ${tunnel.pid}" !!)
 

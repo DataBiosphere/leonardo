@@ -17,8 +17,7 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
 
   "RStudioSpec" - {
 
-    "should launch RStudio" in { _ =>
-    }
+    "should launch RStudio" in { _ => }
 
     "environment variables should be available in RStudio" in { runtimeFixture =>
       withWebDriver { implicit driver =>

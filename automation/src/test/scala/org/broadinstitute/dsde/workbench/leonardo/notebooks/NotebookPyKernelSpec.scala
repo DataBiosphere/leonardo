@@ -8,6 +8,7 @@ import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration.DurationLong
 import cats.effect.unsafe.implicits.global
+
 /**
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
  */
@@ -42,22 +43,20 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { runtimeFixture =>
       withWebDriver { implicit driver =>
-
         val expectedEVs =
           RuntimeFixtureSpec.getCustomEnvironmentVariables ++
             // variables implicitly set by Leo -
-             Map(
-            "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
-            "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
-            "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
-             // TODO: remove when PPW is rolled out to all workspaces - // and Leo removes the kernel_bootstrap logic.
-               // See https://broadworkbench.atlassian.net/browse/IA-2936
+            Map(
+              "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
+              "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
+              "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
+              // TODO: remove when PPW is rolled out to all workspaces - // and Leo removes the kernel_bootstrap logic.
+              // See https://broadworkbench.atlassian.net/browse/IA-2936
               "WORKSPACE_NAME" -> "home"
-              )
+            )
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")
           expectedEVs.foreach { case (k, v) =>
-
             val res = notebookPage.executeCell(s"os.getenv('$k')")
             res shouldBe defined
             res.get shouldBe s"'$v'"
@@ -67,10 +66,10 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         }
       }
 
+      // TODO: [discuss] it does not seem like automation tests should be verifying security policies
 
-    //TODO: [discuss] it does not seem like automation tests should be verifying security policies
-
-    //TODO: [discuss] This is an expensive test that waited on the command for 5min+ to complete...
-    //seems like a smell to be waiting on an unreliable ssh connection/selenium socket for any longer than 10 seconds
+      // TODO: [discuss] This is an expensive test that waited on the command for 5min+ to complete...
+      // seems like a smell to be waiting on an unreliable ssh connection/selenium socket for any longer than 10 seconds
+    }
   }
 }
