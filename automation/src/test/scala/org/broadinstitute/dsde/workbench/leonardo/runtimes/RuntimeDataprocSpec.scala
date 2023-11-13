@@ -97,6 +97,7 @@ class RuntimeDataprocSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  // TODO: separate out user script testing!
   "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
@@ -203,12 +204,10 @@ class RuntimeDataprocSpec
         )
 
         // start the cluster
-        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName, true))
+        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be added in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
-
-        // TODO PR comment: we probably dont want to use selenium to verify the cluster/node status
 
         // startup script should have run again
         startScriptOutputs <- dep.storage

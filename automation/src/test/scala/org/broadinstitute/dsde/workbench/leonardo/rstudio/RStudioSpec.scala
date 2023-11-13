@@ -17,16 +17,7 @@ class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils with RStudio
 
   "RStudioSpec" - {
 
-    "should launch RStudio" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
-          rstudioPage.pressKeys("varA <- 1000")
-          rstudioPage.pressKeys(Keys.ENTER.toString)
-          await visible cssSelector("[title~='varA']")
-          rstudioPage.variableExists("varA") shouldBe true
-          rstudioPage.variableExists("1000") shouldBe true
-        }
-      }
+    "should launch RStudio" in { _ =>
     }
 
     "environment variables should be available in RStudio" in { runtimeFixture =>

@@ -142,6 +142,7 @@ abstract class RuntimeFixtureSpec
 }
 
 object RuntimeFixtureSpec {
+  // TODO: can we delete this? why are our automation tests simulating env vars used by terra UI? I hope none of our tests depend on this?
   // Simulate custom environment variables set by Terra UI
   def getCustomEnvironmentVariables: Map[String, String] =
     Map(

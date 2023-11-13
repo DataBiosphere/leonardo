@@ -36,7 +36,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       case CloudContext.Gcp(v)   => v
       case CloudContext.Azure(_) => throw new NotImplementedException("Azure runtime is not supported yet")
     }
-    val notebooksListPage = Notebook.get(googleProject, runtimeProjectAndName.runtimeName)
+    val notebooksListPage = JupyterServerClient.get(googleProject, runtimeProjectAndName.runtimeName)
     testCode(notebooksListPage.open)
   }
 
@@ -138,52 +138,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
         notebooksListPage.withOpenNotebook(notebookPath, timeout)(notebookPage => testCode(notebookPage))
     }
 
-  def uploadDownloadTest(cluster: ClusterCopy, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(
-    assertion: (File, File) => Any
-  )(implicit webDriver: WebDriver, token: AuthToken): Any = {
-    cluster.status shouldBe ClusterStatus.Running
-    uploadFile.exists() shouldBe true
-
-    withNotebookUpload(cluster, uploadFile) { notebook =>
-      notebook.runAllCells(timeout)
-      notebook.downloadAsIpynb()
-    }
-
-    // sanity check the file downloaded correctly
-    val downloadFile = new File(fileDownloadDir, uploadFile.getName)
-    downloadFile.exists() shouldBe true
-    downloadFile.isFile() shouldBe true
-    downloadFile.deleteOnExit()
-  }
-
-  def pipInstall(notebookPage: NotebookPage, kernel: NotebookKernel, packageName: String): Unit = {
-    val pip = kernel match {
-      case Python2 | PySpark2 => "pip2"
-      case Python3 | PySpark3 => "pip3"
-      case _                  => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
-    }
-
-    val installOutput = notebookPage.executeCell(s"!$pip install $packageName")
-    installOutput shouldBe defined
-    installOutput.get should include(s"Collecting $packageName")
-    installOutput.get should include("Installing collected packages:")
-    installOutput.get should include("Successfully installed")
-    installOutput.get should not include "Exception:"
-  }
-
-  // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
-  def verifyTensorFlow(notebookPage: NotebookPage, kernel: NotebookKernel): Unit = {
-    notebookPage.executeCell("import tensorflow as tf")
-    notebookPage.executeCell("hello = tf.constant('Hello, TensorFlow!')") shouldBe None
-    notebookPage.executeCell("sess = tf.Session()") shouldBe None
-    val helloOutput = notebookPage.executeCell("print(sess.run(hello))")
-    kernel match {
-      case Python2 => helloOutput shouldBe Some("Hello, TensorFlow!")
-      case Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
-      case other   => fail(s"Unexpected kernel: $other")
-    }
-  }
-
   // initializes storageLinks/ and localizes the file to the passed gcsPath
   def withWelderInitialized[T](cluster: ClusterCopy,
                                gcsPath: GcsPath,
@@ -275,25 +229,15 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, checkJupyterSetup: Boolean)(
+  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit
     token: AuthToken,
     authorization: IO[Authorization]
   ): Unit = {
-    // verify with get()
     val waitForRunning = LeonardoApiClient.client.use { implicit c =>
       LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
     }
-
     waitForRunning.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    // TODO: PR comment: we probably don't need to hit the proxy every time we monitor starting, only one test around life cycle should handle
-    logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
-    val getResult = Try(Notebook.getApi(googleProject, runtimeName))
-    getResult.isSuccess shouldBe true
-    getResult.get should not include "ProxyException"
-
-    // TODO: PR comment, we don't want to be using selenium to run notebook code as part of verifying a runtime is started, the proxy check should be sufficient
 
     // Grab the jupyter.log and welder.log files for debugging.
     saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")

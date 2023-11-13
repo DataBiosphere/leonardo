@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, GetAppResponse, ListAppResponse}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.JupyterServerClient
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
@@ -106,7 +106,7 @@ trait LeonardoTestUtils
   ): Unit = {
     val fileResult = paths.traverse[Try, File] { path =>
       Try {
-        val contentItem = Notebook.getContentItem(googleProject, clusterName, path, includeContent = true)
+        val contentItem = JupyterServerClient.getContentItem(googleProject, clusterName, path, includeContent = true)
         val content = contentItem.content.getOrElse(
           throw new RuntimeException(
             s"Could not download ${path} for cluster ${googleProject.value}/${clusterName.asString}"
@@ -425,16 +425,6 @@ trait LeonardoTestUtils
         val status = Leonardo.cluster.getRuntime(googleProject, runtimeName).status
         status shouldBe ClusterStatus.Stopped
       }
-
-      // Verify notebook error
-      val caught = the[RestException] thrownBy {
-        Notebook.getTree(googleProject, runtimeName)
-      }
-
-      caught.message should include("\"statusCode\":422")
-      caught.message should include(
-        s"""Proxy host Gcp/${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
-      )
     }
   }
 

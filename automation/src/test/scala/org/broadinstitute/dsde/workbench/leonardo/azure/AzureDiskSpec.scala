@@ -99,16 +99,13 @@ class AzureDiskSpec
           (output1, output2) <- SSH.startBastionTunnel(RuntimeName(monitorCreateResult.getRuntimeName())).use { t =>
             for {
               _ <- loggerIO.info("executing first command to create file for first runtime")
-              output1 <- SSH.startSSHConnection(t.hostName, t.port).use { session =>
-                SSH.executeCommand(
-                  session.session,
-                  s"echo ${LeonardoConfig.Leonardo.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\""
-                )
-              }
+              output1 <- SSH.executeCommand(
+                t.hostName,
+                t.port,
+                s"echo ${LeonardoConfig.Leonardo.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\""
+              )
               _ <- loggerIO.info("executing second command to get file contents for first runtime")
-              output2 <- SSH.startSSHConnection(t.hostName, t.port).use { session =>
-                SSH.executeCommand(session.session, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
-              }
+              output2 <- SSH.executeCommand(t.hostName, t.port, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
             } yield (output1, output2)
           }
 
@@ -205,9 +202,7 @@ class AzureDiskSpec
           _ <- loggerIO.info("SSHing into second vm to verify disk contents")
           output <- SSH.startBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
             for {
-              output <- SSH.startSSHConnection(t.hostName, t.port).use { session =>
-                SSH.executeCommand(session.session, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
-              }
+              output <- SSH.executeCommand(t.hostName, t.port, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
             } yield output
           }
 

@@ -73,11 +73,19 @@ object SSH {
     )
   }
 
+  def executeCommand(hostName: String, port: Int, command: String): IO[CommandResult] =
+    for {
+      output <- SSH.startSSHConnection(hostName, port).use { connection =>
+        executeCommand(connection.session, command)
+      }
+    } yield output
+
+
   def closeTunnel(tunnel: Tunnel): IO[Unit] =
     loggerIO.info(s"Killing tunnel via pid ${tunnel.pid}") >> IO(s"kill ${tunnel.pid}" !!)
 
   // Exec docs/examples: https://www.tabnine.com/code/java/methods/net.schmizz.sshj.connection.channel.direct.Session/exec
-  def executeCommand(session: Session, cmd: String): IO[CommandResult] =
+  private def executeCommand(session: Session, cmd: String): IO[CommandResult] =
     for {
       _ <- loggerIO.info("beginning to execute command")
       _ <- IO(session.allocateDefaultPTY())

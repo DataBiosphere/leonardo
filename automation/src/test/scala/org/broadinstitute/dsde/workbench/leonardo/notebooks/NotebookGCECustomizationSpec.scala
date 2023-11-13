@@ -33,7 +33,7 @@ final class NotebookGCECustomizationSpec
     httpClient <- LeonardoApiClient.client
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
-  // TODO : is this needed?
+  // TODO: add user start up script test?
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
@@ -81,14 +81,11 @@ final class NotebookGCECustomizationSpec
         withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
           for {
             runtime <- LeonardoApiClient.getRuntime(cluster.googleProject, cluster.clusterName)
-            output <- SSH.startSSHConnection(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22).use { connection =>
-              SSH.executeCommand(connection.session, "echo $KEY")
-            }
+            output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22, "echo $KEY")
           } yield output.outputLines.mkString shouldBe "value"
         }
       }
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
-
   }
 }
