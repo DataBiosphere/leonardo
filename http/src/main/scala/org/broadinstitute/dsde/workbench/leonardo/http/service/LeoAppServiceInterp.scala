@@ -160,8 +160,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           ) >> F.raiseError[Unit](t)
         }
 
+      numOfReplicas = KubernetesAppConfig
+        .configForTypeAndCloud(req.appType, cloudContext.cloudProvider)
+        .flatMap(_.numOfReplicas)
+
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
+        getSavableCluster(originatingUserEmail, cloudContext, numOfReplicas.isDefined, ctx.now)
       )
 
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
@@ -178,14 +182,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      numOfReplicas = KubernetesAppConfig
-        .configForTypeAndCloud(req.appType, cloudContext.cloudProvider)
-        .flatMap(_.numOfReplicas)
       machineConfig = req.kubernetesRuntimeConfig.getOrElse(
         KubernetesRuntimeConfig(
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-          numOfReplicas.fold(config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled)(_ =>
+          numOfReplicas.fold(
+            config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+          )(_ =>
             true
           ) // if numOfReplicas is defined, then autoscaling has to be enabled because we scale up/down replicas to pause/resume apps.
           // Otherwise default to what Galaxy config uses (this is probably not the best default, but won't introduce too many changes to existing code for now
@@ -824,10 +827,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
+    scalingReplicas: Boolean, // Whether or not we use replicas for pause/resume apps
     now: Instant
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
+    val defaultNodepoolMachineConfig =
+      if (scalingReplicas)
+        config.leoKubernetesConfig.nodepoolConfig.defaultAutoScalingNodepoolConfig
+      else config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig
     val defaultNodepool = for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
     } yield DefaultNodepool(
@@ -837,9 +845,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       status =
         if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
-      machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
-      numNodes = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes,
-      autoscalingEnabled = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.autoscalingEnabled,
+      machineType = defaultNodepoolMachineConfig.machineType,
+      numNodes = defaultNodepoolMachineConfig.numNodes,
+      autoscalingEnabled = defaultNodepoolMachineConfig.autoscalingEnabled,
       autoscalingConfig = None
     )
 

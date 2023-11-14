@@ -756,13 +756,15 @@ object Config {
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
+  val gkeAutoScalingDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultAutoScalingNodepool")
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
   val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeAllowedAppConfig = config.as[AllowedAppConfig]("gke.allowedApp")
-  val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
+  val gkeNodepoolConfig =
+    NodepoolConfig(gkeDefaultNodepoolConfig, gkeAutoScalingDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
 
   implicit private val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =

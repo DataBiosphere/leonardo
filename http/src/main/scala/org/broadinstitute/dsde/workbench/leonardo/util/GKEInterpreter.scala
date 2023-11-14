@@ -6,6 +6,7 @@ import cats.effect.Async
 import cats.effect.implicits._
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.services.container.model
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
