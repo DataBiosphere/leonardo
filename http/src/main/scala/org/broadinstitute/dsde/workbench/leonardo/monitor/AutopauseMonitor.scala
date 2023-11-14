@@ -27,11 +27,11 @@ class AutopauseMonitor[F[_]](
   dbRef: DbReference[F],
   ec: ExecutionContext
 ) extends BackgroundProcess[F, RuntimeToAutoPause] {
-  override def monitorType: String =
+  override def name: String =
     "autopause" // autopauseRuntime is more accurate. But keep the current name so that existing metrics won't break
   override def interval: scala.concurrent.duration.FiniteDuration = config.autoFreezeCheckInterval
 
-  override def filterCriteria(cluster: RuntimeToAutoPause, now: Instant)(implicit
+  def filterCriteria(cluster: RuntimeToAutoPause, now: Instant)(implicit
     F: Async[F],
     metrics: OpenTelemetryMetrics[F],
     logger: StructuredLogger[F]
@@ -70,8 +70,16 @@ class AutopauseMonitor[F[_]](
         } else F.pure(isIdle)
     }
 
-  override def dbSource(): F[Seq[RuntimeToAutoPause]] =
-    clusterQuery.getClustersReadyToAutoFreeze.transaction
+  override def getCandidates(now: Instant)(implicit
+    F: Async[F],
+    metrics: OpenTelemetryMetrics[F],
+    logger: StructuredLogger[F]
+  ): F[Seq[RuntimeToAutoPause]] = for {
+    candidates <- clusterQuery.getClustersReadyToAutoFreeze.transaction
+    filtered <- candidates.toList.filterA { a =>
+      filterCriteria(a, now)
+    }
+  } yield filtered
 
   override def action(a: RuntimeToAutoPause, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit] =
     for {

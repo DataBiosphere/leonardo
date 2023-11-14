@@ -20,24 +20,21 @@ import scala.concurrent.duration.FiniteDuration
  * 3. Perform some action on the filtered candidates
  */
 trait BackgroundProcess[F[_], A] {
-  def monitorType: String
-  def interval: FiniteDuration
 
   /**
-   * Given a candidate, determine whether it should be filtered out.
-   * true: keep the candidate
-   * false: filter out the candidate
+   * The name of the background process. This is used mostly for log messages and metrics 
    */
-  def filterCriteria(a: A, now: Instant)(implicit
-    F: Async[F],
-    metrics: OpenTelemetryMetrics[F],
-    logger: StructuredLogger[F]
-  ): F[Boolean]
+  def name: String
+  def interval: FiniteDuration
 
   /**
    * Get a collection of candidates from the database
    */
-  def dbSource(): F[Seq[A]]
+  def getCandidates(now: Instant)(implicit
+    F: Async[F],
+    metrics: OpenTelemetryMetrics[F],
+    logger: StructuredLogger[F]
+  ): F[Seq[A]]
 
   /**
    * Perform some action on the candidate
@@ -55,23 +52,18 @@ trait BackgroundProcess[F[_], A] {
   ): F[Unit] = for {
     now <- F.realTimeInstant
     _ <- logger.info(
-      s"[logAlert/${monitorType}Heartbeat] Executing ${monitorType} check at interval of ${interval}"
+      s"[logAlert/${name}Heartbeat] Executing ${name} check at interval of ${interval}"
     )
-    candidates <- dbSource()
-    filteredA <- candidates.toList.filterA { a =>
-      filterCriteria(a, now)
-    }
-    _ <- metrics.gauge(s"${monitorType}/numOfRuntimes",
-                       filteredA.length
-    ) // TODO: update metrics once we add more monitors
-    _ <- filteredA.traverse_ { a =>
+    candidates <- getCandidates(now)
+    _ <- metrics.gauge(s"${name}/numOfRuntimes", candidates.length) // TODO: update metrics once we add more monitors
+    _ <- candidates.traverse_ { a =>
       for {
         uuid <- F.delay(UUID.randomUUID())
-        traceId = TraceId(s"${monitorType}_${uuid.toString}")
+        traceId = TraceId(s"${name}_${uuid.toString}")
         _ <- metrics.incrementCounter(
-          s"${monitorType}/pauseRuntimeCounter"
+          s"${name}/pauseRuntimeCounter"
         ) // TODO: update metrics once we add more monitors
-        _ <- logger.info(Map("traceId" -> traceId.asString))(s"${monitorType} | runtime ${a.show}")
+        _ <- logger.info(Map("traceId" -> traceId.asString))(s"${name} | runtime ${a.show}")
         _ <- action(a, traceId, now)
       } yield ()
     }
@@ -86,7 +78,7 @@ trait BackgroundProcess[F[_], A] {
     (Stream.sleep[F](interval) ++ Stream.eval(
       check
         .handleErrorWith { case e =>
-          logger.error(e)("Unexpected error occurred during auto-pause monitoring. Recovering...")
+          logger.error(e)(s"Unexpected error occurred during ${name} monitoring. Recovering...")
         }
     )).repeat
 }
