@@ -97,12 +97,13 @@ object SSH {
       publicKey: String = Files.readString(Paths.get(s"$privateKeyFileName.pub"))
       privateKey: Path = Paths.get(privateKeyFileName)
       account = s"users/${serviceAccount.value}"
-      request = new ImportSshPublicKeyRequest().toBuilder
+      request = ImportSshPublicKeyRequest
+        .newBuilder()
         .setParent(account)
         .setSshPublicKey(SshPublicKey.newBuilder().setKey(publicKey))
         .build()
 
-      client = new OsLoginServiceClient()
+      client = OsLoginServiceClient.create()
       _ <- IO(client.importSshPublicKey(request))
 
       profile <- IO(client.getLoginProfile(account))
