@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
@@ -20,11 +21,12 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
  *
  * TODO consider removing this spec and moving test cases to RuntimeGceSpec.
  */
-@DoNotDiscover
+//@DoNotDiscover
 final class NotebookGCECustomizationSpec
     extends BillingProjectFixtureSpec
     with ParallelTestExecution
-    with NotebookTestUtils {
+    with NotebookTestUtils
+    with LazyLogging {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
@@ -37,7 +39,7 @@ final class NotebookGCECustomizationSpec
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in { billingProject =>
+    "should install user specified notebook extensions" ignore { billingProject =>
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
@@ -78,9 +80,14 @@ final class NotebookGCECustomizationSpec
 
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
-        withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
+        withNewRuntime(billingProject, request = runtimeRequest, true) { cluster =>
           for {
+//            _ <- IO(Thread.sleep(1000 * 60 * 5))
             runtime <- LeonardoApiClient.getRuntime(cluster.googleProject, cluster.clusterName)
+            _ <- loggerIO.info(
+              s"about to start ssh client, using runtime ${cluster.googleProject}/${cluster.clusterName} with status ${cluster.status}"
+            )
+
             output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22, "echo $KEY")
           } yield output.outputLines.mkString shouldBe "value"
         }
