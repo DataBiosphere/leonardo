@@ -31,7 +31,7 @@ class AutopauseMonitor[F[_]](
     "autopause" // autopauseRuntime is more accurate. But keep the current name so that existing metrics won't break
   override def interval: scala.concurrent.duration.FiniteDuration = config.autoFreezeCheckInterval
 
-  def filterCriteria(cluster: RuntimeToAutoPause, now: Instant)(implicit
+  def isAutopauseable(cluster: RuntimeToAutoPause, now: Instant)(implicit
     F: Async[F],
     metrics: OpenTelemetryMetrics[F],
     logger: StructuredLogger[F]
@@ -77,11 +77,11 @@ class AutopauseMonitor[F[_]](
   ): F[Seq[RuntimeToAutoPause]] = for {
     candidates <- clusterQuery.getClustersReadyToAutoFreeze.transaction
     filtered <- candidates.toList.filterA { a =>
-      filterCriteria(a, now)
+      isAutopauseable(a, now)
     }
   } yield filtered
 
-  override def action(a: RuntimeToAutoPause, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit] =
+  override def doAction(a: RuntimeToAutoPause, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit] =
     for {
       _ <- clusterQuery.updateClusterStatus(a.id, RuntimeStatus.PreStopping, now).transaction
       _ <- publisherQueue.offer(LeoPubsubMessage.StopRuntimeMessage(a.id, Some(traceId)))
