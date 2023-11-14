@@ -114,14 +114,13 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
 
-    val appName = AppName("test")
     val workspaceId = WorkspaceId(UUID.randomUUID)
-    val app1 = makeApp(1, savedNodepool1.id).copy(appName = appName, workspaceId = Some(workspaceId)).save()
-    val app2 = makeApp(2, savedNodepool1.id).copy(appName = appName, workspaceId = Some(workspaceId)).save()
-    makeApp(3, savedNodepool2.id).copy(appName = appName, workspaceId = Some(workspaceId)).save()
+    val app1 = makeApp(1, savedNodepool1.id).copy(workspaceId = Some(workspaceId)).save()
+    val app2 = makeApp(2, savedNodepool1.id).copy(workspaceId = Some(workspaceId)).save()
+    makeApp(3, savedNodepool2.id).copy(workspaceId = Some(workspaceId)).save()
 
     val res = dbFutureValue(appQuery.getAppsByNodepool(savedNodepool1.id))
-    res.map(_.samResourceId) should contain theSameElementsAs (List(
+    res should contain theSameElementsAs (List(
       GetAppsByNodepoolResult(app1.samResourceId, app1.auditInfo.creator),
       GetAppsByNodepoolResult(app2.samResourceId, app2.auditInfo.creator)
     ))
