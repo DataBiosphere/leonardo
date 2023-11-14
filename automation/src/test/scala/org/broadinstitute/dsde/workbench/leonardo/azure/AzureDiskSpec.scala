@@ -17,7 +17,14 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJe
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoConfig, LeonardoTestUtils, RuntimeName, SSH}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AzureBilling,
+  CloudProvider,
+  LeonardoConfig,
+  LeonardoTestUtils,
+  RuntimeName,
+  SSH
+}
 
 import scala.concurrent.duration._
 
@@ -102,10 +109,15 @@ class AzureDiskSpec
               output1 <- SSH.executeCommand(
                 t.hostName,
                 t.port,
-                s"echo ${LeonardoConfig.Leonardo.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\""
+                s"echo ${LeonardoConfig.Azure.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\"",
+                CloudProvider.Azure
               )
               _ <- loggerIO.info("executing second command to get file contents for first runtime")
-              output2 <- SSH.executeCommand(t.hostName, t.port, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
+              output2 <- SSH.executeCommand(t.hostName,
+                                            t.port,
+                                            s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
+                                            CloudProvider.Azure
+              )
             } yield (output1, output2)
           }
 
@@ -202,7 +214,11 @@ class AzureDiskSpec
           _ <- loggerIO.info("SSHing into second vm to verify disk contents")
           output <- SSH.startBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
             for {
-              output <- SSH.executeCommand(t.hostName, t.port, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
+              output <- SSH.executeCommand(t.hostName,
+                                           t.port,
+                                           s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
+                                           CloudProvider.Azure
+              )
             } yield output
           }
 

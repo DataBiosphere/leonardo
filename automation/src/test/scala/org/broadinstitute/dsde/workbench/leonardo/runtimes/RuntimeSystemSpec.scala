@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{
   BillingProjectFixtureSpec,
+  CloudProvider,
   LeonardoApiClient,
   LeonardoConfig,
   RuntimeFixtureSpec,
@@ -42,7 +43,11 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
                                                   runtimeFixture.runtime.clusterName
           )
           outputs <- expectedEnvironment.keys.toList.traverse(envVar =>
-            SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22, s"echo $envVar")
+            SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
+                               22,
+                               s"echo $envVar",
+                               CloudProvider.Gcp
+            )
           )
         } yield outputs.map(_.outputLines.mkString).sorted shouldBe expectedEnvironment.values.toList.sorted
       }
@@ -56,7 +61,11 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
           runtime <- LeonardoApiClient.getRuntime(runtimeFixture.runtime.googleProject,
                                                   runtimeFixture.runtime.clusterName
           )
-          output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22, s"java --version")
+          output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
+                                       22,
+                                       s"java --version",
+                                       CloudProvider.Gcp
+          )
         } yield output.outputLines.mkString should include("OpenJDK Runtime Environment")
       }
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -75,9 +84,14 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
             )
             gsUtilCommand <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
                                                 22,
-                                                s"gsutil cp ${gcsPath.toUri} /tmp/gcsFile.ipynb"
+                                                s"gsutil cp ${gcsPath.toUri} /tmp/gcsFile.ipynb",
+                                                CloudProvider.Gcp
             )
-            cat <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22, s"cat /tmp/gcsFile.ipynb")
+            cat <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
+                                      22,
+                                      s"cat /tmp/gcsFile.ipynb",
+                                      CloudProvider.Gcp
+            )
           } yield {
             gsUtilCommand.exitCode shouldBe 0
             cat.exitCode shouldBe 0

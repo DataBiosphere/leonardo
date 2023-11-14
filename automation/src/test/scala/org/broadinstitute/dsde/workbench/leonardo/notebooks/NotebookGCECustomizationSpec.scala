@@ -9,6 +9,8 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAutho
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
 import org.broadinstitute.dsde.workbench.leonardo.{
   BillingProjectFixtureSpec,
+  CloudContext,
+  CloudProvider,
   LeonardoApiClient,
   SSH,
   UserJupyterExtensionConfig
@@ -80,7 +82,7 @@ final class NotebookGCECustomizationSpec
 
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
-        withNewRuntime(billingProject, request = runtimeRequest, true) { cluster =>
+        withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
           for {
 //            _ <- IO(Thread.sleep(1000 * 60 * 5))
             runtime <- LeonardoApiClient.getRuntime(cluster.googleProject, cluster.clusterName)
@@ -88,7 +90,11 @@ final class NotebookGCECustomizationSpec
               s"about to start ssh client, using runtime ${cluster.googleProject}/${cluster.clusterName} with status ${cluster.status}"
             )
 
-            output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString, 22, "echo $KEY")
+            output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
+                                         22,
+                                         "echo $KEY",
+                                         CloudProvider.Gcp
+            )
           } yield output.outputLines.mkString shouldBe "value"
         }
       }

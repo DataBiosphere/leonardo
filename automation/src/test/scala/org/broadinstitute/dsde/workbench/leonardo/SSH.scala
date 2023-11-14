@@ -58,7 +58,7 @@ object SSH {
   // Note that a session is a one time use resource, and only supports one command execution
   private def startSSHConnection(hostName: String,
                                  port: Int,
-                                 cloudContext: CloudContext
+                                 cloudProvider: CloudProvider
   ): Resource[IO, SSHConnection] = {
     val sessionAndClient = for {
       client <- IO(new SSHClient)
@@ -68,7 +68,7 @@ object SSH {
       _ <- IO(client.connect(hostName, port))
       _ <- loggerIO.info("Authenticating ssh client via password")
       _ <-
-        if (cloudContext.cloudProvider == CloudProvider.Azure)
+        if (cloudProvider == CloudProvider.Azure)
           IO(client.authPassword(LeonardoConfig.Azure.vmUser, LeonardoConfig.Azure.vmPassword))
         else
           createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail))
@@ -110,9 +110,9 @@ object SSH {
     } yield SSHKeyConfig(username, publicKey, privateKey)
   }
 
-  def executeCommand(hostName: String, port: Int, command: String, cloudContext: CloudContext): IO[CommandResult] =
+  def executeCommand(hostName: String, port: Int, command: String, cloudProvider: CloudProvider): IO[CommandResult] =
     for {
-      output <- SSH.startSSHConnection(hostName, port, cloudContext).use { connection =>
+      output <- SSH.startSSHConnection(hostName, port, cloudProvider).use { connection =>
         executeCommand(connection.session, command)
       }
     } yield output
