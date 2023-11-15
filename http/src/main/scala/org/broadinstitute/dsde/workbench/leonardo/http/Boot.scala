@@ -84,7 +84,6 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
-
 import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
@@ -269,7 +268,7 @@ object Boot extends IOApp {
               appDependencies.wsmDAO
             )
 
-          val autopauseMonitor = AutopauseMonitor(
+          val autopauseMonitorProcess = AutopauseMonitor.process(
             autoFreezeConfig,
             appDependencies.jupyterDAO,
             appDependencies.publisherQueue
@@ -314,7 +313,7 @@ object Boot extends IOApp {
             appDependencies.pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
-            autopauseMonitor.process, // check database to autopause runtimes periodically
+            autopauseMonitorProcess, // check database to autopause runtimes periodically
             metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }
