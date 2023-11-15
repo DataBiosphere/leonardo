@@ -16,8 +16,7 @@ import scala.concurrent.duration.FiniteDuration
  * Defines a common interface that certain background processes should implement.
  * This type of background processes do the following periodically:
  * 1. Query the database for a list of candidates
- * 2. Filter the candidates based on some criteria
- * 3. Perform some action on the filtered candidates
+ * 2. Perform some action on the candidates
  */
 trait BackgroundProcess[F[_], A] {
 
