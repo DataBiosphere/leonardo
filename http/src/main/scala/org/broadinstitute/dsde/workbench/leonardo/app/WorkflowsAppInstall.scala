@@ -5,7 +5,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -31,9 +31,9 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
 
   override def databases: List[Database] =
     List(
-      CreateDatabase("cbas"),
+      ControlledDatabase("cbas"),
       // Cromwell metadata database is also accessed by the cromwell-runner app
-      CreateDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+      ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
     )
 
   override def buildHelmOverrideValues(

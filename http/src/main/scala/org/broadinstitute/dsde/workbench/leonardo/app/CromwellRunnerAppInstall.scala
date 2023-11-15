@@ -5,7 +5,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.config.CromwellRunnerAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -29,8 +29,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 ) extends AppInstall[F] {
   override def databases: List[Database] =
     List(
-      CreateDatabase("cromwell"),
-      CreateDatabase("tes"),
+      ControlledDatabase("cromwell"),
+      ControlledDatabase("tes"),
       ReferenceDatabase("cromwellmetadata")
     )
 
