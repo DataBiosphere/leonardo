@@ -298,11 +298,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def markPendingDeletion(id: AppId): DBIO[Int] =
     updateStatus(id, AppStatus.Deleting)
 
-  def getAppsByNodepool(
+  def getNonDeletedAppsByNodepool(
     nodepoolId: NodepoolLeoId
   )(implicit ec: ExecutionContext): DBIO[Vector[GetAppsByNodepoolResult]] =
     appQuery
       .filter(_.nodepoolId === nodepoolId)
+      .filter(_.status =!= (AppStatus.Deleted: AppStatus))
       .result
       .map(_.map(x => GetAppsByNodepoolResult(x.samResourceId, x.auditInfo.creator)).toVector)
 

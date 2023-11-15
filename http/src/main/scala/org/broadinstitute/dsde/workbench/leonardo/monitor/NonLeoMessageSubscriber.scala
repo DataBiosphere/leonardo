@@ -218,7 +218,7 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
       ctx <- ev.ask
       task = for {
         _ <- gkeAlg.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.googleProject))
-        apps <- appQuery.getAppsByNodepool(msg.nodepoolId).transaction
+        apps <- appQuery.getNonDeletedAppsByNodepool(msg.nodepoolId).transaction
         _ <- apps.traverse { app =>
           authProvider
             .notifyResourceDeleted(app.samResourceId, app.creator, msg.googleProject)

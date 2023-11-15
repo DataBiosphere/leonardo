@@ -4,11 +4,13 @@ package db
 import java.sql.SQLIntegrityConstraintViolationException
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
+
 import java.util.UUID
 
 class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
@@ -114,12 +116,16 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
 
-    val workspaceId = WorkspaceId(UUID.randomUUID)
-    val app1 = makeApp(1, savedNodepool1.id).copy(workspaceId = Some(workspaceId)).save()
-    val app2 = makeApp(2, savedNodepool1.id).copy(workspaceId = Some(workspaceId)).save()
-    makeApp(3, savedNodepool2.id).copy(workspaceId = Some(workspaceId)).save()
+    val samResourceId1 = AppSamResourceId("r1", None)
+    val samResourceId2 = AppSamResourceId("r2", None)
+    val samResourceId3 = AppSamResourceId("r3", None)
+    val samResourceId4 = AppSamResourceId("r4", None)
+    val app1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Error, samResourceId = samResourceId1).save()
+    val app2 = makeApp(2, savedNodepool1.id).copy(status = AppStatus.Running, samResourceId = samResourceId2).save()
+    makeApp(3, savedNodepool1.id).copy(status = AppStatus.Deleted, samResourceId = samResourceId3).save()
+    makeApp(4, savedNodepool2.id).copy(status = AppStatus.Running, samResourceId = samResourceId4).save()
 
-    val res = dbFutureValue(appQuery.getAppsByNodepool(savedNodepool1.id))
+    val res = dbFutureValue(appQuery.getNonDeletedAppsByNodepool(savedNodepool1.id))
     res should contain theSameElementsAs (List(
       GetAppsByNodepoolResult(app1.samResourceId, app1.auditInfo.creator),
       GetAppsByNodepoolResult(app2.samResourceId, app2.auditInfo.creator)
