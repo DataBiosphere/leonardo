@@ -6,9 +6,16 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Ron, getAuthTokenAndAuthorization}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
-import org.broadinstitute.dsde.workbench.leonardo.{BillingProjectFixtureSpec, CloudContext, CloudProvider, LeonardoApiClient, SSH, UserJupyterExtensionConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  BillingProjectFixtureSpec,
+  CloudContext,
+  CloudProvider,
+  LeonardoApiClient,
+  SSH,
+  UserJupyterExtensionConfig
+}
 import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -87,7 +94,7 @@ final class NotebookGCECustomizationSpec
             output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
                                          22,
                                          "echo $KEY",
-              SSHRuntimeInfo(Some(runtime.googleProject), CloudProvider.Gcp)
+                                         SSHRuntimeInfo(Some(runtime.googleProject), CloudProvider.Gcp)
             )
           } yield output.outputLines.mkString shouldBe "value"
         }
