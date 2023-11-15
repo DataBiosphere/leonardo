@@ -64,7 +64,7 @@ object SSH {
       client <- IO(new SSHClient)
       _ <- loggerIO.info(s"Adding host key verifier for shh client}")
       _ <- IO(client.addHostKeyVerifier(new PromiscuousVerifier()))
-      _ <- loggerIO.info("Connecting via ssh client")
+      _ <- loggerIO.info(s"Connecting via ssh client hostname ${hostName} port $port")
       _ <- IO(client.connect(hostName, port))
       _ <- loggerIO.info("Authenticating ssh client via password")
       _ <-
@@ -97,6 +97,7 @@ object SSH {
       publicKey: String = Files.readString(Paths.get(s"$privateKeyFileName.pub"))
       privateKey: Path = Paths.get(privateKeyFileName)
       account = s"users/${serviceAccount.value}"
+
       request = ImportSshPublicKeyRequest
         .newBuilder()
         .setParent(account)
@@ -108,6 +109,7 @@ object SSH {
 
       profile <- IO(client.getLoginProfile(account))
       username = profile.getName
+      _ <- loggerIO.info(s"found username for acct ${account}")
     } yield SSHKeyConfig(username, publicKey, privateKey)
   }
 
