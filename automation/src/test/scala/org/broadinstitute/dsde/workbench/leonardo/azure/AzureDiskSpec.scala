@@ -6,25 +6,13 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{
-  AzureDiskConfig,
-  ClusterStatus,
-  CreateAzureRuntimeRequest,
-  DiskStatus,
-  GetRuntimeResponse
-}
+import org.broadinstitute.dsde.workbench.client.leonardo.model.{AzureDiskConfig, ClusterStatus, CreateAzureRuntimeRequest, DiskStatus, GetRuntimeResponse}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
+import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AzureBilling,
-  CloudProvider,
-  LeonardoConfig,
-  LeonardoTestUtils,
-  RuntimeName,
-  SSH
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, CloudProvider, LeonardoConfig, LeonardoTestUtils, RuntimeName, SSH}
 
 import scala.concurrent.duration._
 
@@ -110,13 +98,13 @@ class AzureDiskSpec
                 t.hostName,
                 t.port,
                 s"echo ${LeonardoConfig.Azure.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\"",
-                CloudProvider.Azure
+                SSHRuntimeInfo(None, CloudProvider.Azure)
               )
               _ <- loggerIO.info("executing second command to get file contents for first runtime")
               output2 <- SSH.executeCommand(t.hostName,
                                             t.port,
                                             s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
-                                            CloudProvider.Azure
+                SSHRuntimeInfo(None, CloudProvider.Azure)
               )
             } yield (output1, output2)
           }
@@ -217,7 +205,7 @@ class AzureDiskSpec
               output <- SSH.executeCommand(t.hostName,
                                            t.port,
                                            s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
-                                           CloudProvider.Azure
+                SSHRuntimeInfo(None, CloudProvider.Azure)
               )
             } yield output
           }

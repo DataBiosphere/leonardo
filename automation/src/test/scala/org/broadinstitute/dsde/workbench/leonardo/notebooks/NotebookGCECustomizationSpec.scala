@@ -5,16 +5,10 @@ import cats.effect.unsafe.implicits.global
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Ron, getAuthTokenAndAuthorization}
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
-import org.broadinstitute.dsde.workbench.leonardo.{
-  BillingProjectFixtureSpec,
-  CloudContext,
-  CloudProvider,
-  LeonardoApiClient,
-  SSH,
-  UserJupyterExtensionConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.{BillingProjectFixtureSpec, CloudContext, CloudProvider, LeonardoApiClient, SSH, UserJupyterExtensionConfig}
 import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -82,7 +76,7 @@ final class NotebookGCECustomizationSpec
 
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
-        withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
+        withNewRuntime(billingProject, request = runtimeRequest, monitorCreate = true) { cluster =>
           for {
 //            _ <- IO(Thread.sleep(1000 * 60 * 5))
             runtime <- LeonardoApiClient.getRuntime(cluster.googleProject, cluster.clusterName)
@@ -93,7 +87,7 @@ final class NotebookGCECustomizationSpec
             output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
                                          22,
                                          "echo $KEY",
-                                         CloudProvider.Gcp
+              SSHRuntimeInfo(Some(runtime.googleProject), CloudProvider.Gcp)
             )
           } yield output.outputLines.mkString shouldBe "value"
         }

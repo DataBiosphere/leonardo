@@ -12,6 +12,7 @@ import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
 import net.schmizz.sshj.userauth.password.{ConsolePasswordFinder, PasswordFinder}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import java.io.File
 import java.nio.file.{Files, Path, Paths}
@@ -58,7 +59,7 @@ object SSH {
   // Note that a session is a one time use resource, and only supports one command execution
   private def startSSHConnection(hostName: String,
                                  port: Int,
-                                 cloudProvider: CloudProvider
+                                 sshConfig: SSHRuntimeInfo
   ): Resource[IO, SSHConnection] = {
     val sessionAndClient = for {
       client <- IO(new SSHClient)
@@ -68,10 +69,10 @@ object SSH {
       _ <- IO(client.connect(hostName, port))
       _ <- loggerIO.info("Authenticating ssh client via password")
       _ <-
-        if (cloudProvider == CloudProvider.Azure)
+        if (sshConfig.cloudProvider == CloudProvider.Azure)
           IO(client.authPassword(LeonardoConfig.Azure.vmUser, LeonardoConfig.Azure.vmPassword))
         else
-          createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail))
+          createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail), sshConfig.googleProject.get)
             .flatMap(keyConfig =>
               IO(client.authPublickey(keyConfig.username, keyConfig.privateKey.toAbsolutePath.toString))
             )
@@ -89,7 +90,7 @@ object SSH {
   }
 
   final case class SSHKeyConfig(username: String, publicKey: String, privateKey: Path)
-  def createSSHKeys(serviceAccount: WorkbenchEmail): IO[SSHKeyConfig] = {
+  def createSSHKeys(serviceAccount: WorkbenchEmail, googleProject: GoogleProject): IO[SSHKeyConfig] = {
     val privateKeyFileName = s"/tmp/key-${UUID.randomUUID().toString.take(8)}"
     val createKeysCmd = s"ssh-keygen -t rsa -N '' -f $privateKeyFileName"
     for {
@@ -102,6 +103,7 @@ object SSH {
         .newBuilder()
         .setParent(account)
         .setSshPublicKey(SshPublicKey.newBuilder().setKey(publicKey))
+        .setProjectId(googleProject.value)
         .build()
 
       client = OsLoginServiceClient.create()
@@ -113,9 +115,10 @@ object SSH {
     } yield SSHKeyConfig(username, publicKey, privateKey)
   }
 
-  def executeCommand(hostName: String, port: Int, command: String, cloudProvider: CloudProvider): IO[CommandResult] =
+  final case class SSHRuntimeInfo(googleProject: Option[GoogleProject], cloudProvider: CloudProvider)
+  def executeCommand(hostName: String, port: Int, command: String, sshConfig: SSHRuntimeInfo): IO[CommandResult] =
     for {
-      output <- SSH.startSSHConnection(hostName, port, cloudProvider).use { connection =>
+      output <- SSH.startSSHConnection(hostName, port, sshConfig).use { connection =>
         executeCommand(connection.session, command)
       }
     } yield output
