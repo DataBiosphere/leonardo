@@ -37,9 +37,9 @@ trait BackgroundProcess[F[_], A] {
   ): F[Seq[A]]
 
   /**
-   * Perform some action on the candidate
+   * Describes an action that'll happen to each candidate
    */
-  def doAction(a: A, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit]
+  def action(a: A, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit]
 
   /**
    * The main logic of the background process at each interval
@@ -64,7 +64,7 @@ trait BackgroundProcess[F[_], A] {
           s"${name}/pauseRuntimeCounter"
         ) // TODO: update metrics once we add more monitors
         _ <- logger.info(Map("traceId" -> traceId.asString))(s"${name} | runtime ${a.show}")
-        _ <- doAction(a, traceId, now)
+        _ <- action(a, traceId, now)
       } yield ()
     }
   } yield ()

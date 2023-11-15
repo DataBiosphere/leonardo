@@ -81,7 +81,7 @@ class AutopauseMonitor[F[_]](
     }
   } yield filtered
 
-  override def doAction(a: RuntimeToAutoPause, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit] =
+  override def action(a: RuntimeToAutoPause, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit] =
     for {
       _ <- clusterQuery.updateClusterStatus(a.id, RuntimeStatus.PreStopping, now).transaction
       _ <- publisherQueue.offer(LeoPubsubMessage.StopRuntimeMessage(a.id, Some(traceId)))
