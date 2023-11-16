@@ -1386,6 +1386,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               )
           }
         case (AppType.Cromwell, CloudProvider.Azure) => F.pure(ConfigReader.appConfig.azure.coaAppConfig.chartVersion)
+        case (AppType.WorkflowsApp, CloudProvider.Azure) => F.pure(ConfigReader.appConfig.azure.workflowsAppConfig.chartVersion)
+        case (AppType.CromwellRunnerApp, CloudProvider.Azure) => F.pure(ConfigReader.appConfig.azure.cromwellRunnerAppConfig.chartVersion)
         case (AppType.Wds, CloudProvider.Azure)      => F.pure(ConfigReader.appConfig.azure.wdsAppConfig.chartVersion)
         case (AppType.HailBatch, CloudProvider.Azure) =>
           F.pure(ConfigReader.appConfig.azure.hailBatchAppConfig.chartVersion)
