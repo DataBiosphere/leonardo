@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{IO, Resource}
 import com.google.cloud.oslogin.common.OsLoginProto.SshPublicKey
-import com.google.cloud.oslogin.v1.{ImportSshPublicKeyRequest, OsLoginServiceClient, GetLoginProfileRequest}
+import com.google.cloud.oslogin.v1.{GetLoginProfileRequest, ImportSshPublicKeyRequest, OsLoginServiceClient}
 import liquibase.util.FileUtil
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
 import org.typelevel.log4cats.StructuredLogger
@@ -10,12 +10,12 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
-import net.schmizz.sshj.userauth.password.{PasswordFinder, ConsolePasswordFinder}
+import net.schmizz.sshj.userauth.password.{ConsolePasswordFinder, PasswordFinder}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import java.io.File
-import java.nio.file.{Path, Paths, Files}
+import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import scala.sys.process._
@@ -75,7 +75,9 @@ object SSH {
           IO(client.authPassword(LeonardoConfig.Azure.vmUser, LeonardoConfig.Azure.vmPassword))
         else {
           for {
-            keyConfig <- createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail), sshConfig.googleProject.get)
+            keyConfig <- createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail),
+                                       sshConfig.googleProject.get
+            )
             _ <- IO(client.authPublickey(keyConfig.username, keyConfig.privateKey.toAbsolutePath.toString))
           } yield ()
         }
@@ -96,11 +98,13 @@ object SSH {
   final case class SSHKeyConfig(username: String, publicKey: String, privateKey: Path)
   def createSSHKeys(serviceAccount: WorkbenchEmail, googleProject: GoogleProject): IO[SSHKeyConfig] = {
     val privateKeyFileName = s"/tmp/key-${UUID.randomUUID().toString.take(8)}"
-    val createKeysCmd = s"ssh-keygen -t rsa -N '' -C 'leonardo-qa@broad-dsde-qa.iam.gserviceaccount.com' -f $privateKeyFileName"
+    val createKeysCmd =
+      s"ssh-keygen -t rsa -N '' -C 'leonardo-qa@broad-dsde-qa.iam.gserviceaccount.com' -f $privateKeyFileName"
     for {
       _ <- IO(createKeysCmd !!)
       publicKey: String = Files.readString(Paths.get(s"$privateKeyFileName.pub"))
       privateKey: Path = Paths.get(privateKeyFileName)
+      // TODO: try sanitized name here?
       account = s"users/${serviceAccount.value}"
 
       _ <- loggerIO.info(s"about to import public key for user ${account}")
