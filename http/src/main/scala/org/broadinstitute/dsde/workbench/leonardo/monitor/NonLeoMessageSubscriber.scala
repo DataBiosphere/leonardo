@@ -6,7 +6,14 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DeviceName
-import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  clusterQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  DbReference,
+  RuntimeConfigQueries
+}
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import fs2.Stream
@@ -24,12 +31,6 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  kubernetesClusterQuery,
-  persistentDiskQuery,
-  DbReference
-}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
   CryptoMining,
@@ -44,6 +45,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -56,6 +58,7 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
                                     gkeAlg: GKEAlgebra[F],
                                     computeService: GoogleComputeService[F],
                                     samDao: SamDAO[F],
+                                    authProvider: LeoAuthProvider[F],
                                     subscriber: GoogleSubscriber[F, NonLeoMessage],
                                     publisher: GooglePublisher[F],
                                     asyncTasks: Queue[F, Task[F]]
@@ -213,7 +216,16 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      task = gkeAlg.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.googleProject))
+      task = for {
+        _ <- gkeAlg.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.googleProject))
+        apps <- appQuery.getNonDeletedAppsByNodepool(msg.nodepoolId).transaction
+        _ <- apps.traverse { app =>
+          authProvider
+            .notifyResourceDeleted(app.samResourceId, app.creator, msg.googleProject)
+            .void
+        }
+      } yield ()
+
       _ <- asyncTasks.offer(
         Task(ctx.traceId,
              task,
