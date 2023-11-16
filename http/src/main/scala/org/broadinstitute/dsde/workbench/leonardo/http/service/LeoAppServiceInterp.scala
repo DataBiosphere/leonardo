@@ -9,9 +9,8 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
+import monocle.macros.syntax.lens._
 import org.apache.commons.lang3.RandomStringUtils
-import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.azure.AKSClusterName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
@@ -28,11 +27,13 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
-import org.broadinstitute.dsp.ChartName
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.isPatchVersionDifference
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
+  checkIfCanBeDeleted,
+  isPatchVersionDifference
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -40,10 +41,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsp.{ChartVersion, Release}
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
-import monocle.macros.syntax.lens._
 
 import java.time.Instant
 import java.util.UUID
@@ -56,8 +56,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F],
-                                                samDAO: SamDAO[F]
+                                                wsmDao: WsmDao[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -84,7 +83,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
-      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).isDefined
+      enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
             AppType.CromwellRunnerApp =>
@@ -95,17 +94,28 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               cn match {
                 case AllowedChartName.RStudio => F.unit
                 case AllowedChartName.Sas =>
-                  if (config.enableSasAppGroupCheck)
-                    authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
-                      if (res) F.unit
-                      else
-                        F.raiseError[Unit](
-                          AuthenticationError(Some(userInfo.userEmail),
-                                              "You need to obtain a license in order to create a SAS App"
+                  if (config.enableSasApp) {
+                    if (enableIntraNodeVisibility) {
+                      checkIfSasAppCreationIsAllowed(userInfo.userEmail, googleProject)
+                    } else {
+                      authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
+                        if (res) {
+                          F.unit
+                        } else
+                          F.raiseError[Unit](
+                            AuthenticationError(Some(userInfo.userEmail),
+                                                "You need to obtain a license in order to create a SAS App"
+                            )
                           )
-                        )
+                      }
                     }
-                  else F.unit
+                  } else
+                    F.raiseError[Unit](
+                      AuthenticationError(
+                        Some(userInfo.userEmail),
+                        "SAS is not enabled. Please contact your administrator."
+                      )
+                    )
               }
             case None =>
               F.raiseError(
@@ -151,7 +161,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
 
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now, None, None)
+        getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
       )
 
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
@@ -168,7 +178,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      machineConfig = req.kubernetesRuntimeConfig.getOrElse(
+      machineConfigFromReqAndConfig = req.kubernetesRuntimeConfig.getOrElse(
         KubernetesRuntimeConfig(
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
           config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
@@ -176,6 +186,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
       )
 
+      // Always allow autoScaling for ALLOWED appType
+      machineConfig =
+        if (AppType.Allowed == req.appType) machineConfigFromReqAndConfig.copy(autoscalingEnabled = true)
+        else machineConfigFromReqAndConfig
       // We want to know if the user already has a nodepool with the requested config that can be re-used
       userNodepoolOpt <- nodepoolQuery
         .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
@@ -243,7 +257,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
       clusterNodepoolAction = saveClusterResult match {
-        case ClusterExists(_) =>
+        case ClusterExists(_, _) =>
           // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
           if (userNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
         case ClusterDoesNotExist(c, n) => Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
@@ -256,7 +270,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
         req.customEnvironmentVariables,
         req.appType,
-        app.appResources.namespace.name,
+        app.appResources.namespace,
         appMachineType,
         Some(ctx.traceId),
         enableIntraNodeVisibility
@@ -366,13 +380,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-      canDelete = AppStatus.deletableStatuses.contains(appResult.app.status)
-      _ <-
-        if (canDelete) F.unit
-        else
-          F.raiseError[Unit](
-            AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId)
-          )
+      // Galaxy is the only app that has custom deletion logic that requires `helm uninstall`. For all other apps, we'll
+      // delete namespace during app deletion instead, which doesn't require app to be `RUNNING` in order to delete
+      canDelete = checkIfCanBeDeleted(appResult.app.appType, appResult.app.status)
+      _ <- F.fromEither(
+        canDelete.leftMap(s => AppCannotBeDeletedException(cloudContext, appName, appResult.app.status, ctx.traceId, s))
+      )
 
       // Get the disk to delete if specified
       diskOpt = if (deleteDisk) appResult.app.appResources.disk.map(_.id) else None
@@ -515,6 +528,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] =
     for {
+      ctx <- as.ask
       // Make sure that the user still has access to the resource parent workspace
       hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
         WorkspaceResourceSamResourceId(workspaceId),
@@ -523,8 +537,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       paramMap <- F.fromEither(processListParameters(params))
+      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
       allClusters <- KubernetesServiceDbQueries
-        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2)
+        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2, creatorOnly)
         .transaction
       res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, false)
 
@@ -600,28 +615,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         F.raiseError[Unit](AppAlreadyExistsInWorkspaceException(workspaceId, appName, c.app.status, ctx.traceId))
       )
 
-      // Get the Landing Zone Resources for the app for Azure
-      leoAuth <- samDAO.getLeoAuthToken
-      landingZoneResourcesOpt <- cloudContext.cloudProvider match {
-        case CloudProvider.Gcp => F.pure(None)
-        case CloudProvider.Azure =>
-          for {
-            landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
-          } yield Some(landingZoneResources)
-      }
-
-      // Get the optional storage container for the workspace
-      storageContainer <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
-
       // Validate the machine config from the request
       // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
       // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
       machineConfig <- (cloudContext.cloudProvider, req.kubernetesRuntimeConfig) match {
         case (CloudProvider.Azure, Some(_)) =>
           F.raiseError(AppMachineConfigNotSupportedException(ctx.traceId))
-        // TODO: pull this from the landing zone instead of hardcoding once TOAZ-232 is implemented
         case (CloudProvider.Azure, None) =>
-          F.pure(KubernetesRuntimeConfig(NumNodes(1), MachineTypeName("Standard_A2_v2"), false))
+          F.pure(KubernetesRuntimeConfig(NumNodes(1), MachineTypeName("unset"), false))
         case (CloudProvider.Gcp, Some(mt)) => F.pure(mt)
         case (CloudProvider.Gcp, None) =>
           F.pure(
@@ -647,12 +648,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(userInfo.userEmail,
-                          cloudContext,
-                          ctx.now,
-                          landingZoneResourcesOpt.map(_.clusterName),
-                          landingZoneResourcesOpt.map(_.region)
-        )
+        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now)
       )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       _ <-
@@ -665,27 +661,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
         else F.unit
 
-      // Save or retrieve a nodepool record for the app
-      userNodepoolOpt <- nodepoolQuery
-        .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
-        .transaction
-      clusterId = saveClusterResult.minimalCluster.id
-      nodepool <- userNodepoolOpt match {
-        case Some(n) =>
-          log.info(ctx.loggingCtx)(
-            s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
-          ) >> F.pure(n)
-        case None =>
-          for {
-            _ <- log.info(ctx.loggingCtx)(
-              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
-            )
-            saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
-            )
-            savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
-          } yield savedNodepool
-      }
+      // Use the default nodepool of the cluster.
+      // The v1 createApp endpoint has logic for managing nodepools per user in Leonardo.
+      // In the v2 endpoint, nodepools are created upstream of Leonardo.
+      nodepool = saveClusterResult.defaultNodepool.toNodepool()
 
       // Retrieve a pet identity from Sam
       runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
@@ -734,8 +713,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         app.appName,
         workspaceId,
         cloudContext,
-        landingZoneResourcesOpt,
-        storageContainer,
+        BillingProfileId(workspaceDesc.spendProfile),
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppV2Message)
@@ -824,16 +802,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
     }
 
-    // Get the Landing Zone Resources for the app for Azure
-    leoAuth <- samDAO.getLeoAuthToken
-    landingZoneResourcesOpt <- cloudContext.cloudProvider match {
-      case CloudProvider.Gcp => F.pure(None)
-      case CloudProvider.Azure =>
-        for {
-          landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
-        } yield Some(landingZoneResources)
-    }
-
     _ <-
       for {
         _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
@@ -843,7 +811,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           workspaceId,
           cloudContext,
           diskOpt,
-          landingZoneResourcesOpt,
+          BillingProfileId(workspaceDesc.spendProfile),
           Some(ctx.traceId)
         )
         _ <- publisherQueue.offer(deleteMessage)
@@ -853,9 +821,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
-    now: Instant,
-    aksClusterName: Option[AKSClusterName],
-    azureRegionOpt: Option[Region]
+    now: Instant
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
@@ -874,18 +840,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
-    // regionName can be empty in some test configurations
-    val regionName = if (azureRegionOpt.isEmpty) "" else azureRegionOpt.map(_.name).getOrElse("")
     for {
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
-      clusterName = aksClusterName.map(c => KubernetesClusterName(c.value)).getOrElse(defaultClusterName)
     } yield SaveKubernetesCluster(
       cloudContext = cloudContext,
-      clusterName = clusterName,
+      clusterName = defaultClusterName,
       location = config.leoKubernetesConfig.clusterConfig.location,
       region =
-        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName(regionName)
+        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName("unset")
         else config.leoKubernetesConfig.clusterConfig.region,
       status =
         if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
@@ -954,6 +917,40 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
       } yield ()
     else F.unit
+
+  private[service] def checkIfSasAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      projectLabels <- googleResourceService.getLabels(googleProject)
+
+      allowedOrError = projectLabels match {
+        case Some(labels) =>
+          labels.get(SECURITY_GROUP) match {
+            case Some(securityGroupValue) =>
+              if (securityGroupValue == SECURITY_GROUP_HIGH)
+                Right(true)
+              else
+                Left(
+                  s"SAS is not supported for this project because the project doesn't have proper value for ${SECURITY_GROUP} label"
+                )
+            case None =>
+              Left(
+                s"SAS is not supported for this project because the project doesn't have value for ${SECURITY_GROUP} label"
+              )
+          }
+        case None =>
+          Left(s"SAS is not supported for this project because the project doesn't have ${SECURITY_GROUP} label")
+      }
+
+      _ <- allowedOrError match {
+        case Left(error) =>
+          log.info(Map("traceId" -> ctx.asString))(error) >> F.raiseError(ForbiddenError(userEmail, Some(ctx)))
+        case Right(_) => F.unit
+      }
+    } yield ()
 
   private def getLastUsedAppForDisk(
     req: CreateAppRequest,
@@ -1202,9 +1199,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       //
       // There are DB constraints to handle potential name collisions.
       uid = s"${RandomStringUtils.randomAlphabetic(1)}${RandomStringUtils.randomAlphanumeric(5)}".toLowerCase
-      namespaceId = lastUsedApp.fold(
-        NamespaceId(-1)
-      )(app => app.namespaceId)
       namespaceName <- lastUsedApp.fold(
         KubernetesName.withValidation(
           s"${uid}-${gkeAppConfig.namespaceNameSuffix.value}",
@@ -1249,6 +1243,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (cloudContext.cloudProvider == CloudProvider.Azure) {
           gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
         } else gkeAppConfig.kubernetesServices
+
+      numOfReplicas =
+        if (req.appType == AppType.Allowed)
+          Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
+        else None
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1265,10 +1264,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         auditInfo,
         labels,
         AppResources(
-          Namespace(
-            namespaceId,
-            namespaceName
-          ),
+          namespaceName,
           diskOpt,
           services,
           Option(gkeAppConfig.serviceAccountName)
@@ -1277,7 +1273,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         customEnvironmentVariables,
         req.descriptorPath,
         req.extraArgs,
-        req.sourceWorkspaceId
+        req.sourceWorkspaceId,
+        numOfReplicas
       )
     )
   }
@@ -1405,7 +1402,25 @@ object LeoAppServiceInterp {
     val bSplited = b.asString.split("\\.")
     aSplited(0) == bSplited(0) && aSplited(1) == bSplited(1)
   }
+
+  private[http] def checkIfCanBeDeleted(appType: AppType, appStatus: AppStatus): Either[String, Unit] = {
+    val deletable =
+      appType match {
+        case AppType.Galaxy =>
+          AppStatus.deletableStatuses.contains(appStatus)
+        case _ =>
+          // As of 10/26/2023.
+          // Right now, this is the exact same as Galaxy.
+          // But hopefully we can relax this in the future for non-Galaxy apps
+          // If this code is still here in 6 months.
+          // We should just abandon the attempt to relax AppStatus requirement for deleteApp.
+          AppStatus.deletableStatuses.contains(appStatus)
+      }
+    if (deletable) Right(())
+    else Left(s"${appType} can not be deleted in ${appStatus} status.")
+  }
 }
+
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
     extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
@@ -1447,12 +1462,14 @@ case class AppAlreadyExistsException(cloudContext: CloudContext, appName: AppNam
 case class AppCannotBeDeletedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
-                                       traceId: TraceId
+                                       traceId: TraceId,
+                                       extraMsg: String = ""
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
-      traceId = Some(traceId)
+      traceId = Some(traceId),
+      extraMessageInLogging = extraMsg
     )
 
 case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,

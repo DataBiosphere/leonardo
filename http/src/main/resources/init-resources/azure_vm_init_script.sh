@@ -93,7 +93,7 @@ sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
 
 # Read script arguments
 echo $# arguments
-if [$# -ne 13];
+if [ $# -ne 13 ];
     then echo "illegal number of parameters"
 fi
 
@@ -161,15 +161,13 @@ echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
 
-# Install relevant libraries
+# Wait for lock to resolve before any installs, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
 
-/anaconda/envs/py38_default/bin/pip3 install igv-jupyter
-
-/anaconda/envs/py38_default/bin/pip3 install seaborn
-
-# Update rbase
-
-echo "Y"|sudo apt install --no-install-recommends r-base
+while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
+  do
+    echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
+    sleep 5
+  done
 
 #Update kernel list
 

@@ -84,7 +84,6 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
-
 import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
@@ -198,15 +197,13 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO,
-          appDependencies.samDAO
+          appDependencies.wsmDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
         runtimeServiceConfig,
         appDependencies.authProvider,
         appDependencies.wsmDAO,
-        appDependencies.samDAO,
         appDependencies.publisherQueue,
         appDependencies.dateAccessedUpdaterQueue,
         appDependencies.wsmClientProvider
@@ -271,7 +268,7 @@ object Boot extends IOApp {
               appDependencies.wsmDAO
             )
 
-          val autopauseMonitor = AutopauseMonitor(
+          val autopauseMonitorProcess = AutopauseMonitor.process(
             autoFreezeConfig,
             appDependencies.jupyterDAO,
             appDependencies.publisherQueue
@@ -283,6 +280,7 @@ object Boot extends IOApp {
               appDependencies.gkeAlg,
               googleDependencies.googleComputeService,
               appDependencies.samDAO,
+              appDependencies.authProvider,
               appDependencies.nonLeoMessageGoogleSubscriber,
               googleDependencies.cryptoMiningUserPublisher,
               appDependencies.asyncTasksQueue
@@ -316,7 +314,7 @@ object Boot extends IOApp {
             appDependencies.pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
-            autopauseMonitor.process, // check database to autopause runtimes periodically
+            autopauseMonitorProcess, // check database to autopause runtimes periodically
             metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }
@@ -734,7 +732,8 @@ object Boot extends IOApp {
         samDao,
         wsmDao,
         kubeAlg,
-        wsmClientProvider
+        wsmClientProvider,
+        wsmDao
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](
@@ -869,6 +868,7 @@ object Boot extends IOApp {
         .withConnectTimeout(30 seconds)
         .withRequestTimeout(60 seconds)
         .withMaxTotalConnections(100)
+        .withMaxWaitQueueLimit(1024)
         .withMaxIdleDuration(30 seconds)
         .resource
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(

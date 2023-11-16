@@ -4,7 +4,6 @@ package service
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
-import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -13,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
+  ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
@@ -20,15 +20,26 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.runtimeSamResourceAction
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+// do not remove `projectSamResourceAction`; it is implicit
+  projectSamResourceAction,
+// do not remove `runtimeSamResourceAction`; it is implicit
+  runtimeSamResourceAction,
+// do not remove `workspaceSamResourceAction`; it is implicit
+  workspaceSamResourceAction,
+// do not remove `wsmResourceSamResourceAction`; it is implicit
+  wsmResourceSamResourceAction,
+// do not remove `AppSamResourceAction`; it is implicit
+  AppSamResourceAction
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
   StartRuntimeMessage,
   StopRuntimeMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
@@ -36,10 +47,10 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+
 class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              authProvider: LeoAuthProvider[F],
                                              wsmDao: WsmDao[F],
-                                             samDAO: SamDAO[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
                                              dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
                                              wsmClientProvider: WsmApiClientProvider[F]
@@ -81,16 +92,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
-      _ <- F
-        .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
-
-      storageContainerOpt <- wsmDao.getWorkspaceStorageContainer(workspaceId, userToken)
-      storageContainer <- F.fromOption(
-        storageContainerOpt,
-        BadRequestException(s"Workspace ${workspaceId.value} doesn't have storage container provisioned appropriately",
-                            Some(ctx.traceId)
-        )
-      )
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
       // enforcing one runtime per workspace/user at a time
       runtime <- RuntimeServiceDbQueries
@@ -113,18 +115,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
-
-      // Get the Landing Zone Resources for the app for Azure
-      leoAuth <- samDAO.getLeoAuthToken
-      landingZoneResources <- cloudContext.cloudProvider match {
-        case CloudProvider.Gcp =>
-          F.raiseError(
-            BadRequestException(s"Workspace ${workspaceId.value} is GCP and doesn't support V2 VM creation",
-                                Some(ctx.traceId)
-            )
-          )
-        case CloudProvider.Azure => wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
-      }
 
       runtimeImage: RuntimeImage = RuntimeImage(
         RuntimeImageType.Azure,
@@ -192,7 +182,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       samResource,
                       config.azureConfig.diskConfig,
                       req,
-                      landingZoneResources.region,
                       workspaceId,
                       ctx.now
                     )
@@ -202,7 +191,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     .handleErrorWith { t =>
                       log.error(t)(
                         s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${req.azureDiskConfig.name.value}"
-                      ) >> F.raiseError(t)
+                      ) >> F.raiseError[Unit](t)
                     }
                   disk <- persistentDiskQuery.save(pd).transaction
                 } yield disk.id
@@ -223,7 +212,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeConfig = RuntimeConfig.AzureConfig(
               MachineTypeName(req.machineSize.toString),
               Some(diskId),
-              landingZoneResources.region
+              None
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
@@ -231,12 +220,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               CreateAzureRuntimeMessage(
                 savedRuntime.id,
                 workspaceId,
-                storageContainer.resourceId,
-                landingZoneResources,
                 useExistingDisk,
                 Some(ctx.traceId),
                 workspaceDesc.displayName,
-                storageContainer.name
+                BillingProfileId(workspaceDesc.spendProfile)
               )
             )
           } yield ()
@@ -360,8 +347,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
-      leoAuth <- samDAO.getLeoAuthToken
-      landingZoneResources <- wsmDao.getLandingZoneResources(workspaceDesc.spendProfile, leoAuth)
 
       // Update DB record to Deleting status
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
@@ -377,7 +362,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                   diskIdToDelete,
                                   workspaceId,
                                   wsmVMResourceSamId,
-                                  landingZoneResources,
+                                  BillingProfileId(workspaceDesc.spendProfile),
                                   Some(ctx.traceId)
         )
       )
@@ -520,99 +505,98 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
+
+      // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
+      maybeWorkspaceSamId = workspaceId.map(WorkspaceResourceSamResourceId)
+
+      // Authorize: user has an active account and has accepted terms of service
+      _ <- authProvider.checkUserEnabled(userInfo)
+
+      // Authorize: get resource IDs the user can see
+      // HACK: leonardo is modeling access control here, handling inheritance
+      // of workspace and project-level permissions. Sam and WSM already do this,
+      // and should be considered the point of truth.
+
+      // HACK: leonardo short-circuits access control to grant access to runtime creators.
+      // This supports the use case where `terra-ui` requests status of runtimes that have
+      // not yet been provisioned in Sam.
+      creatorRuntimeIdsBackdoor <-
+        if (creatorOnly.isDefined)
+          RuntimeServiceDbQueries
+            .listRuntimeIdsForCreator(creatorOnly.get)
+            .map(_.map(_.samResource).toSet)
+            .transaction
+            .flatMap(F.pure(_))
+        else
+          F.pure(Set.empty)
+
+      // v1 runtimes (sam resource type `notebook-cluster`) are readable only
+      // by their creators (`Creator` is the SamResource.Runtime `ownerRoleName`),
+      // if the creator also has read access to the corresponding SamResource.Project
+      creatorV1RuntimeIds: Set[RuntimeSamResourceId] <- authProvider
+        .listResourceIds[RuntimeSamResourceId](hasOwnerRole = true, userInfo)
+      readerProjectIds: Set[ProjectSamResourceId] <- authProvider
+        .listResourceIds[ProjectSamResourceId](hasOwnerRole = false, userInfo)
+
+      // v1 runtimes are discoverable by owners on the corresponding Project
+      ownerProjectIds: Set[ProjectSamResourceId] <- authProvider
+        .listResourceIds[ProjectSamResourceId](hasOwnerRole = true, userInfo)
+
+      // v2 runtimes are WSM-managed resources and they're modeled as `WsmResourceSamResource`s.
+      // HACK: accept any ID in the list of readable WSM resources as a valid
+      // readable v2 runtime ID. Some of these IDs are for non-runtime resources.
+      // TODO [] call WSM to list workspaces, then list runtimes per workspace, to get these IDs?
+
+      // v2 runtimes are readable by users with read access to both runtime and workspace
+      readerV2WsmIds: Set[WsmResourceSamResourceId] <- authProvider
+        .listResourceIds[WsmResourceSamResourceId](hasOwnerRole = false, userInfo)
+      readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- maybeWorkspaceSamId match {
+        case Some(workspaceSamId) =>
+          for {
+            isWorkspaceReader <- authProvider.isUserWorkspaceReader(workspaceSamId, userInfo)
+            workspaceIds: Set[WorkspaceResourceSamResourceId] =
+              if (isWorkspaceReader) Set(workspaceSamId) else Set.empty
+          } yield workspaceIds
+        case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
+      }
+
+      // v2 runtimes are discoverable by owners on the corresponding Workspace
+      ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- maybeWorkspaceSamId match {
+        case Some(workspaceSamId) =>
+          for {
+            isWorkspaceOwner <- authProvider.isUserWorkspaceOwner(workspaceSamId, userInfo)
+            workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceOwner) Set(workspaceSamId) else Set.empty
+          } yield workspaceIds
+        case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
+      }
+
+      // combine: to read a runtime, user needs to be at least one of:
+      // - creator of a v1 runtime (Sam-authenticated)
+      // - any role on a v2 runtime (Sam-authenticated)
+      // - creator of a runtime (in Leo db) and filtering their request by creator-only
+      readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ readerV2WsmIds ++ creatorRuntimeIdsBackdoor
+
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimesForWorkspace(labelMap, excludeStatuses, creatorOnly, workspaceId, cloudProvider)
+        .listAuthorizedRuntimes(
+          labelMap, // arbitrary key-value labels to filter by
+          excludeStatuses, // whether to filter out Deleted runtimes
+          creatorOnly, // whether to filter out runtimes user did not create
+          workspaceId, // whether to find only runtimes in a single workspace
+          cloudProvider, // Google | Azure
+          // Authorization scopes
+          readerRuntimeIds,
+          readerWorkspaceIds,
+          ownerWorkspaceIds,
+          readerProjectIds,
+          ownerProjectIds
+        )
         .map(_.toList)
         .transaction
-      filteredRuntimes <-
-        if (creatorOnly.isDefined) {
-          F.pure(runtimes)
-        } else {
 
-          // Here, we optimize the SAM lookups based on whether we will need to use the google project fallback
-          // IF (workspaceId) EXISTS we need WSM resource ID sam lookup + workspaceId Fallback
-          // ELSE we need googleProject fallback
-          val (runtimesUserWithWorkspaceId, runtimesUserWithoutWorkspaceId) =
-            runtimes
-              .partition(_.workspaceId.isDefined)
-
-          // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
-          // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
-
-          // -----------   Filter runtimes that's in runtimesUserWithWorkspaceId   -----------
-          val runtimesUserWithWorkspaceSamIds = NonEmptyList
-            .fromList(
-              runtimesUserWithWorkspaceId.flatMap(runtime =>
-                runtime.workspaceId match {
-                  case Some(id) => List((runtime, WorkspaceResourceSamResourceId(id)))
-                  case None     => List.empty
-                }
-              )
-            )
-          for {
-            // We check if the user has access to the workspace
-            runtimesUserWithWorkspaceIdAndSamResourceId <- runtimesUserWithWorkspaceSamIds
-              .traverse(workspaces =>
-                authProvider.filterWorkspaceReader(
-                  workspaces.map(_._2),
-                  userInfo
-                )
-              )
-              .map(_.getOrElse(Set.empty))
-
-            samVisibleRuntimesUserWithWorkspaceId =
-              runtimesUserWithWorkspaceId.mapFilter { runtime =>
-                if (
-                  runtimesUserWithWorkspaceIdAndSamResourceId
-                    .exists(workspaceSamId => workspaceSamId.workspaceId == runtime.workspaceId.get)
-                ) {
-                  Some(runtime)
-                } else None
-              }
-
-            // -----------   Filter runtimes that's in runtimesUserWithoutWorkspaceId   -----------
-            // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
-            runtimesAndProjects = runtimesUserWithoutWorkspaceId
-              .mapFilter { case rt =>
-                rt.cloudContext match {
-                  case CloudContext.Gcp(googleProject) =>
-                    Some((rt, googleProject, rt.samResource))
-                  case CloudContext.Azure(_) =>
-                    None // This should never happen cuz all Azure runtimes has a workspaceId
-                }
-              }
-
-            samProjectVisibleSamIds <- NonEmptyList.fromList(runtimesAndProjects.map(x => (x._2, x._3))).traverse {
-              rs =>
-                authProvider
-                  .filterResourceProjectVisible(
-                    rs,
-                    userInfo
-                  )
-            }
-
-            samVisibleRuntimesWithoutWorkspaceId = samProjectVisibleSamIds match {
-              case Some(projectsAndSamIds) =>
-                runtimesAndProjects.mapFilter { case (rt, _, runtimeSamId) =>
-                  if (projectsAndSamIds.map(_._2).contains(runtimeSamId))
-                    Some(rt)
-                  else None
-                }
-              case None => List.empty
-            }
-
-          } yield
-          // samVisibleRuntimesUserWithWorkspaceId: User has access to both the runtime and the parent workspace (need to check in case the user lost workspace access after runtime creation for instance)
-          // samVisibleRuntimesWithoutWorkspaceId: Legacy runtimes created on GCP that have o associated workspace ID and we fallback on google project-level permissions
-          samVisibleRuntimesUserWithWorkspaceId ++ samVisibleRuntimesWithoutWorkspaceId
-        }
-      // We authenticate actions on resources. If there are no visible runtimes,
-      // we need to check if user should be able to see the empty list.
-      _ <- if (filteredRuntimes.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
-    } yield filteredRuntimes.toVector
+    } yield runtimes.toVector
 
   private[service] def convertToDisk(userInfo: UserInfo,
                                      cloudContext: CloudContext,
@@ -620,7 +604,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
-                                     region: com.azure.core.management.Region,
                                      workspaceId: WorkspaceId,
                                      now: Instant
   ): Either[Throwable, PersistentDisk] = {
@@ -645,7 +628,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
-      ZoneName(region.toString),
+      ZoneName("unset"),
       diskName,
       userInfo.userEmail,
       samResource,

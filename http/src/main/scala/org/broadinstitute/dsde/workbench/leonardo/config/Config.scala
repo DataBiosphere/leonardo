@@ -716,7 +716,8 @@ object Config {
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[ContainerRegistryCredentials]("sasContainerRegistry"),
-      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
+      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates"),
+      config.as[Int]("numOfReplicas")
     )
   }
 
@@ -788,7 +789,7 @@ object Config {
 
   val appServiceConfig = AppServiceConfig(
     config.getBoolean("app-service.enable-custom-app-check"),
-    config.getBoolean("app-service.enable-sas-group-app-check"),
+    config.getBoolean("app-service.enable-sas-app"),
     leoKubernetesConfig
   )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")

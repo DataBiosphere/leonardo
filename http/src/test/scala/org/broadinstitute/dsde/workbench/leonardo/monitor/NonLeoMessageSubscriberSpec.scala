@@ -344,13 +344,15 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): NonLeoMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
-    new NonLeoMessageSubscriber(NonLeoMessageSubscriberConfig(Config.gceConfig.userDiskDeviceName),
-                                gkeInterp,
-                                computeService,
-                                samDao,
-                                googleSubscriber,
-                                publisher,
-                                asyncTaskQueue
+    new NonLeoMessageSubscriber(
+      NonLeoMessageSubscriberConfig(Config.gceConfig.userDiskDeviceName),
+      gkeInterp,
+      computeService,
+      samDao,
+      MockAuthProvider,
+      googleSubscriber,
+      publisher,
+      asyncTaskQueue
     )
   }
 }

@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
   WORKSPACE_COMPUTE_SUBNET
 }
 import org.broadinstitute.dsde.workbench.leonardo.{
+  BillingProfileId,
   LandingZoneResources,
   LeonardoTestSuite,
   PostgresServer,
@@ -40,6 +41,7 @@ import java.util.UUID
 
 class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll {
   val config = HttpWsmDaoConfig(Uri.unsafeFromString("127.0.0.1"))
+
   it should "not error when getting 404 during resource deletion" in {
     val wsmClient = Client.fromHttpApp[IO](
       HttpApp(_ => IO(Response(status = Status.NotFound)))
@@ -70,8 +72,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
   testCases.foreach { case (tags, expectedPgBouncer) =>
     it should s"correctly get landing zone resources and detect PgBouncer for tags: $tags" in {
-      val billingId = UUID.fromString("78bacb57-2d47-4ac2-8710-5bd12edbc1bf")
-      val landingZoneId = UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe")
+      val billingId = UUID.randomUUID()
+      val landingZoneId = UUID.randomUUID()
 
       val originalLandingZone = LandingZone(landingZoneId, billingId, "def", "v1", "2022-11-11")
       val landingZoneResponse = ListLandingZonesResult(List(originalLandingZone))
@@ -93,24 +95,24 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
         LandingZoneResourcesByPurpose(
           WORKSPACE_BATCH_SUBNET,
           List(
-            buildMockLandingZoneResource("DeployedSubnet", "batchsub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "batchsub")
           )
         ),
         LandingZoneResourcesByPurpose(
           AKS_NODE_POOL_SUBNET,
           List(
-            buildMockLandingZoneResource("DeployedSubnet", "akssub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "akssub")
           )
         ),
         LandingZoneResourcesByPurpose(
           WORKSPACE_COMPUTE_SUBNET,
           List(
-            buildMockLandingZoneResource("DeployedSubnet", "computesub", false)
+            buildMockLandingZoneResource("DeployedSubnet", "computesub")
           )
         ),
         LandingZoneResourcesByPurpose(
           POSTGRESQL_SUBNET,
-          List(buildMockLandingZoneResource("DeployedSubnet", "postgressub", false))
+          List(buildMockLandingZoneResource("DeployedSubnet", "postgressub"))
         )
       )
       val landingZoneResourcesResult =
@@ -133,7 +135,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       val wsmDao = new HttpWsmDao[IO](wsmClient, config)
       val res = wsmDao
         .getLandingZoneResources(
-          billingId.toString,
+          BillingProfileId(billingId.toString),
           Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
         )
         .attempt
@@ -142,13 +144,13 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       res.isRight shouldBe true
 
       val expectedLandingZoneResources = LandingZoneResources(
-        UUID.fromString("910f1c68-425d-4060-94f2-cb57f08425fe"),
+        landingZoneId,
         AKSClusterName("lzcluster"),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),
         StorageAccountName("lzstorage"),
         NetworkName("lzvnet"),
-        SubnetworkName("batchsub"),
+        SubnetworkName("id-prefix/batchsub"),
         SubnetworkName("akssub"),
         com.azure.core.management.Region.US_EAST,
         ApplicationInsightsName("lzappinsights"),
@@ -168,8 +170,8 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     LandingZoneResource(
       resourceId = if (useId) Some(s"id-prefix/${resourceName}") else None,
       resourceType,
-      resourceName = if (useId) None else Some(resourceName),
-      resourceParentId = if (useId) None else Some("lzvnet"),
+      resourceName = if (resourceType.equalsIgnoreCase("DeployedSubnet")) Some(resourceName) else None,
+      resourceParentId = if (resourceType.equalsIgnoreCase("DeployedSubnet")) Some("lzvnet") else None,
       region = com.azure.core.management.Region.US_EAST.toString,
       tags
     )

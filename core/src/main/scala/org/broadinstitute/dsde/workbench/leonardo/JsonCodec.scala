@@ -631,6 +631,9 @@ object JsonCodec {
         .leftMap(_.getMessage)
     }
 
+  implicit val billingProfileIdDecoder: Decoder[BillingProfileId] =
+    Decoder.decodeString.map(BillingProfileId)
+
   implicit val workspaceSamResourceIdDecoder: Decoder[WorkspaceResourceSamResourceId] =
     workspaceIdDecoder.map(WorkspaceResourceSamResourceId.apply)
 
@@ -674,8 +677,6 @@ object JsonCodec {
 
   implicit val namespaceNameDecoder: Decoder[NamespaceName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, NamespaceName).leftMap(_.getMessage))
-  implicit val namespaceIdDecoder: Decoder[NamespaceId] = Decoder.decodeLong.map(NamespaceId)
-  implicit val namespaceDecoder: Decoder[Namespace] = Decoder.forProduct2("id", "name")(Namespace.apply)
   implicit val appNameDecoder: Decoder[AppName] = Decoder.decodeString.map(AppName)
   implicit val appStatusDecoder: Decoder[AppStatus] =
     Decoder.decodeString.emap(s => AppStatus.stringToObject.get(s).toRight(s"Invalid app status ${s}"))
@@ -740,6 +741,9 @@ object JsonCodec {
 
   implicit val workspaceIdEncoder: Encoder[WorkspaceId] =
     Encoder.encodeString.contramap(_.value.toString)
+
+  implicit val billingProfileIdEncoder: Encoder[BillingProfileId] =
+    Encoder.encodeString.contramap(_.value)
 
   implicit val wsmControlledResourceIdEncoder: Encoder[WsmControlledResourceId] =
     Encoder.encodeString.contramap(_.value.toString)

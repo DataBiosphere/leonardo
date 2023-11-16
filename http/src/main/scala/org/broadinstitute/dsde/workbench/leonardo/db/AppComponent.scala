@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -32,16 +32,14 @@ final case class AppRecord(id: AppId,
                            samResourceId: AppSamResourceId,
                            googleServiceAccount: WorkbenchEmail,
                            kubernetesServiceAccount: Option[ServiceAccountName],
-                           creator: WorkbenchEmail,
-                           createdDate: Instant,
-                           destroyedDate: Instant,
-                           dateAccessed: Instant,
-                           namespaceId: NamespaceId,
+                           auditInfo: AuditInfo,
+                           namespaceName: NamespaceName,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
                            descriptorPath: Option[Uri],
                            extraArgs: Option[List[String]],
-                           sourceWorkspaceId: Option[WorkspaceId]
+                           sourceWorkspaceId: Option[WorkspaceId],
+                           numOfReplicas: Option[Int]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -62,12 +60,14 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
-  def namespaceId = column[NamespaceId]("namespaceId", O.Length(254))
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
   def descriptorPath = column[Option[Uri]]("descriptorPath", O.Length(1024))
   def extraArgs = column[Option[List[String]]]("extraArgs")
   def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
+  def namespaceName = column[NamespaceName]("namespace", O.Length(254))
+  def numOfReplicas = column[Option[Int]]("numOfReplicas", O.SqlType("SMALLINT"))
+
   def * =
     (
       id,
@@ -82,24 +82,101 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       samResourceId,
       googleServiceAccount,
       kubernetesServiceAccount,
-      creator,
-      createdDate,
-      destroyedDate,
-      dateAccessed,
-      namespaceId,
+      (creator, createdDate, destroyedDate, dateAccessed),
+      namespaceName,
       diskId,
       customEnvironmentVariables,
       descriptorPath,
       extraArgs,
-      sourceWorkspaceId
-    ) <> (AppRecord.tupled, AppRecord.unapply)
+      sourceWorkspaceId,
+      numOfReplicas
+    ) <> ({
+      case (
+            id,
+            nodepoolId,
+            appType,
+            appName,
+            appAccessScope,
+            workspaceId,
+            status,
+            chart,
+            release,
+            samResourceId,
+            googleServiceAccount,
+            kubernetesServiceAccount,
+            auditInfoRaw,
+            namespaceName,
+            diskId,
+            customEnvironmentVariables,
+            descriptorPath,
+            extraArgs,
+            sourceWorkspaceId,
+            numOfReplicas
+          ) =>
+        AppRecord(
+          id,
+          nodepoolId,
+          appType,
+          appName,
+          appAccessScope,
+          workspaceId,
+          status,
+          chart,
+          release,
+          samResourceId,
+          googleServiceAccount,
+          kubernetesServiceAccount,
+          AuditInfo(
+            auditInfoRaw._1,
+            auditInfoRaw._2,
+            LeoProfile.unmarshalDestroyedDate(auditInfoRaw._3),
+            auditInfoRaw._4
+          ),
+          namespaceName,
+          diskId,
+          customEnvironmentVariables,
+          descriptorPath,
+          extraArgs,
+          sourceWorkspaceId,
+          numOfReplicas
+        )
+    }, { r: AppRecord =>
+      Some(
+        (
+          r.id,
+          r.nodepoolId,
+          r.appType,
+          r.appName,
+          r.appAccessScope,
+          r.workspaceId,
+          r.status,
+          r.chart,
+          r.release,
+          r.samResourceId,
+          r.googleServiceAccount,
+          r.kubernetesServiceAccount,
+          (r.auditInfo.creator,
+           r.auditInfo.createdDate,
+           r.auditInfo.destroyedDate.getOrElse(dummyDate),
+           r.auditInfo.dateAccessed
+          ),
+          r.namespaceName,
+          r.diskId,
+          r.customEnvironmentVariables,
+          r.descriptorPath,
+          r.extraArgs,
+          r.sourceWorkspaceId,
+          r.numOfReplicas
+        )
+      )
+    })
 }
 
 object appQuery extends TableQuery(new AppTable(_)) {
   def unmarshalApp(app: AppRecord,
                    services: List[KubernetesService],
                    labels: LabelMap,
-                   namespace: Namespace,
+                   namespace: NamespaceName,
                    disk: Option[PersistentDisk],
                    errors: List[AppError]
   ): App =
@@ -115,12 +192,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.release,
       AppSamResourceId(app.samResourceId.resourceId, app.appAccessScope),
       app.googleServiceAccount,
-      AuditInfo(
-        app.creator,
-        app.createdDate,
-        unmarshalDestroyedDate(app.destroyedDate),
-        app.dateAccessed
-      ),
+      app.auditInfo,
       labels,
       AppResources(
         namespace,
@@ -132,11 +204,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.customEnvironmentVariables.getOrElse(Map.empty),
       app.descriptorPath,
       app.extraArgs.getOrElse(List.empty),
-      app.sourceWorkspaceId
+      app.sourceWorkspaceId,
+      app.numOfReplicas
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
-    val namespaceName = saveApp.app.appResources.namespace.name
+    val namespaceName = saveApp.app.appResources.namespace
     for {
       nodepool <- nodepoolQuery
         .getMinimalById(saveApp.app.nodepoolId)
@@ -175,13 +248,6 @@ object appQuery extends TableQuery(new AppTable(_)) {
         )
       )
 
-      namespace <-
-        if (saveApp.app.appResources.namespace.id.id == -1)
-          namespaceQuery
-            .save(nodepool.clusterId, namespaceName)
-            .map(id => saveApp.app.appResources.namespace.copy(id = id))
-        else DBIO.successful(saveApp.app.appResources.namespace)
-
       diskOpt = saveApp.app.appResources.disk
 
       ksaOpt = saveApp.app.appResources.kubernetesServiceAccountName
@@ -199,21 +265,19 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.samResourceId,
         saveApp.app.googleServiceAccount,
         ksaOpt,
-        saveApp.app.auditInfo.creator,
-        saveApp.app.auditInfo.createdDate,
-        saveApp.app.auditInfo.destroyedDate.getOrElse(dummyDate),
-        saveApp.app.auditInfo.dateAccessed,
-        namespace.id,
+        saveApp.app.auditInfo,
+        namespaceName,
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
-        saveApp.app.sourceWorkspaceId
+        saveApp.app.sourceWorkspaceId,
+        saveApp.app.numOfReplicas
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
       services <- serviceQuery.saveAllForApp(appId, saveApp.app.appResources.services)
-    } yield saveApp.app.copy(id = appId, appResources = AppResources(namespace, diskOpt, services, ksaOpt))
+    } yield saveApp.app.copy(id = appId, appResources = AppResources(namespaceName, diskOpt, services, ksaOpt))
   }
 
   def updateStatus(id: AppId, status: AppStatus): DBIO[Int] =
@@ -233,6 +297,15 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def markPendingDeletion(id: AppId): DBIO[Int] =
     updateStatus(id, AppStatus.Deleting)
+
+  def getNonDeletedAppsByNodepool(
+    nodepoolId: NodepoolLeoId
+  )(implicit ec: ExecutionContext): DBIO[Vector[GetAppsByNodepoolResult]] =
+    appQuery
+      .filter(_.nodepoolId === nodepoolId)
+      .filter(_.status =!= (AppStatus.Deleted: AppStatus))
+      .result
+      .map(_.map(x => GetAppsByNodepoolResult(x.samResourceId, x.auditInfo.creator)).toVector)
 
   def markAsDeleted(id: AppId, now: Instant): DBIO[Int] =
     getByIdQuery(id)
@@ -263,8 +336,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id).result.map(_.headOption.flatMap(_.diskId))
 
   def getLastUsedApp(id: AppId, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[Option[LastUsedApp]] =
-    appQuery.filter(_.id === id).join(namespaceQuery).on(_.namespaceId === _.id).result.flatMap { x =>
-      x.headOption.traverse[DBIO, LastUsedApp] { case (app, namespace) =>
+    appQuery.filter(_.id === id).result.flatMap { x =>
+      x.headOption.traverse[DBIO, LastUsedApp] { case app =>
         app.customEnvironmentVariables match {
           case None =>
             DBIO.failed(new LeoException(s"no customEnvironmentVariables found for ${id}", traceId = traceId))
@@ -272,7 +345,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
             envs.get(WORKSPACE_NAME_KEY) match {
               case Some(ws) =>
                 DBIO.successful(
-                  LastUsedApp(app.chart, app.release, app.namespaceId, namespace.namespaceName, WorkspaceName(ws))
+                  LastUsedApp(app.chart, app.release, app.namespaceName, WorkspaceName(ws))
                 )
               case None => DBIO.failed(new LeoException(s"no WORKSPACE_NAME found for ${id}", traceId = traceId))
             }
@@ -301,22 +374,19 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .filter(_.status =!= (AppStatus.Deleted: AppStatus))
       .filter(_.destroyedDate === dummyDate)
 
-  private[db] def filterByWorkspaceId(query: Query[AppTable, AppRecord, Seq],
-                                      workspaceId: Option[WorkspaceId]
-  ): Query[AppTable, AppRecord, Seq] =
-    workspaceId match {
+  private[db] def filterByWorkspaceIdAndCreator(query: Query[AppTable, AppRecord, Seq],
+                                                workspaceId: Option[WorkspaceId],
+                                                creatorOnly: Option[WorkbenchEmail]
+  ): Query[AppTable, AppRecord, Seq] = {
+    val queryWithWorkspaceFilter = workspaceId match {
       case Some(wid) => query.filter(_.workspaceId === wid)
       case None      => query
     }
-
-  private[db] def filterByCreator(query: Query[AppTable, AppRecord, Seq],
-                                  creatorOnly: Option[WorkbenchEmail]
-  ): Query[AppTable, AppRecord, Seq] =
     creatorOnly match {
-      case Some(email) => query.filter(_.creator === email)
-      case None        => query
+      case Some(email) => queryWithWorkspaceFilter.filter(_.creator === email)
+      case None        => queryWithWorkspaceFilter
     }
-
+  }
 }
 
 case class SaveApp(app: App)
@@ -331,9 +401,5 @@ case class AppExistsException(appName: AppName,
     )
 
 final case class WorkspaceName(asString: String) extends AnyVal
-final case class LastUsedApp(chart: Chart,
-                             release: Release,
-                             namespaceId: NamespaceId,
-                             namespaceName: NamespaceName,
-                             workspace: WorkspaceName
-)
+final case class LastUsedApp(chart: Chart, release: Release, namespaceName: NamespaceName, workspace: WorkspaceName)
+final case class GetAppsByNodepoolResult(samResourceId: SamResourceId.AppSamResourceId, creator: WorkbenchEmail)

@@ -364,13 +364,14 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 val namespace = app.appResources.namespace
                 val labelSelector = s"leoAppName=${app.appName.value}"
                 for {
-                  pods <- F.delay(
-                    client.listNamespacedPod(namespace.name.value,
+                  pods <- F.blocking(
+                    client.listNamespacedPod(namespace.value,
                                              null,
                                              null,
                                              null,
                                              null,
                                              labelSelector,
+                                             null,
                                              null,
                                              null,
                                              null,

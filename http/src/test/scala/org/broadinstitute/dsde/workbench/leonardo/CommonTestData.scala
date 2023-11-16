@@ -528,11 +528,13 @@ object CommonTestData {
   val azureCloudContext =
     AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
+  val workspaceIdForCloning = WorkspaceId(UUID.randomUUID())
   val workspaceIdOpt = Some(workspaceId)
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
+  val billingProfileId = BillingProfileId("spend-profile")
 
   val testCommonControlledResourceFields = ControlledResourceCommonFields(
     ControlledResourceName("name"),

@@ -18,6 +18,7 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.headers.Authorization
 import org.http4s.blaze.client.BlazeClientBuilder
+
 import scala.concurrent.duration._
 
 /**
@@ -84,4 +85,7 @@ object GeneratedLeonardoClient {
       _ <- IO(apiClient.setBasePath(uri.toString()))
       _ <- IO(apiClient.setAccessToken(token.value))
     } yield apiClient
+      .setWriteTimeout(LeonardoConfig.LeonardoClient.writeTimeout)
+      .setReadTimeout(LeonardoConfig.LeonardoClient.readTimeout)
+      .setConnectTimeout(LeonardoConfig.LeonardoClient.connectionTimeout)
 }

@@ -1,6 +1,13 @@
-Quickstart: running swintegration tests locally on Mac/Docker 
+Quickstart: running integration tests locally on Mac/Docker 
 
 ## Set Up
+
+For Azure tests:
+- Create a new [BEE](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE) with the `swatomation` template
+- Create a new billing project on you BEE
+- Create a new workspace 
+- Find the appropriate comment in `beforeAll` within `AzureBillingBeforeAndAfter` to override the billing project
+- Find the appropriate comment in `withRawlsWorkspace` to override the workspace
 
 Run this command on the VPN to generate you `application.conf` file
 ```bash
@@ -18,24 +25,7 @@ BEE_NAME=[Your BEE instance name] ./render-local-env.sh [branch of firecloud-aut
 * service root
 	* the name of your local clone of leonardo if not `leonardo`
 
-
-
-## Running in docker
-
-See [firecloud-automated-testing](https://github.com/broadinstitute/firecloud-automated-testing).
-
-
-## Running directly (with real chrome)
-
-### Set Up
-
-```
-brew install chromedriver
-```
-
-Note: Leonardo integration tests are not currently web-based but may fail due to dependencies without chromedriver
-	
-### Run tests
+### Run tests (GCP)
 
 `sbt -Djsse.enableSNIExtension=false -Dheadless=false "project automation" test`
 
@@ -56,11 +46,9 @@ Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do th
 	- If the `Spec` extends `ClusterFixtureSpec`/`RuntimeFixtureSpec`, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to `ClusterFixtureSpec`/`RuntimeFixtureSpec`. 
 	- If not, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to the `Spec` directly.
 
-### Developing azure automation tests locally
+### Run tests (Azure)
 
-When running azure automation tests locally against a fresh [bee](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE), you will have to perform a few extra steps:
-
-- Change all sections of `application.conf` to have the proper bee/terra URLS. For example, for a bee named `jc-bee-10`:
+- Check that all sections of `application.conf` have the proper bee/terra URLS. For example, for a bee named `jc-bee-10`:
 ```
 fireCloud {
   baseUrl = "https://firecloud.jc-bee-10.bee.envs-terra.bio/"
@@ -89,16 +77,32 @@ leonardo {
   notebooksServiceAccountEmail = "leonardo-qa@broad-dsde-qa.iam.gserviceaccount.com"
 
 }
+
+azure {
+	leoVmUser = See output of `vault read secret/dsde/terra/azure/qa/leonardo/azure-vm-credential`
+	leoVmPassword = See output of `vault read secret/dsde/terra/azure/qa/leonardo/azure-vm-credential`
+}
 ```
 
-This above will allow the tests to run against a fresh bee. Then, tests can be run via `sbt  "project automation" "testOnly *[my-file-name]"`
+Then, tests can be run via `sbt  "project automation" "testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite"`
+If you want to test a specific test, you can comment out the other tests here:
 
-To save time developing, you will likely want to reference the billing project and rawls workspace created in the first run of the tests.
-To do so:
-- Find the appropriate comment in `beforeAll` within `AzureBillingBeforeAndAfter` to override the billing project
-- Find the appropriate comment in `withRawlsWorkspace` to override the workspace
+```
+final class LeonardoAzureSuite
+	extends Suites(
+		new AzureRuntimeSpec,
+		new AzureDiskSpec,
+		new AzureAutopauseSpec
+	)
+```
 
 If the test fails with some intermediate resources remaining:
 - Be sure to check the `staticTestingMrg` in the [azure portal](https://portal.azure.com/#@azure.dev.envs-terra.bio/resource/subscriptions/f557c728-871d-408c-a28b-eb6b2141a087/resourceGroups/staticTestingMrg/overview) periodically to ensure you are not leaking resources when testing
 - It may be helpful to clean up your BEE's leonardo DB since only one runtime can exist per workspace. You can find instructions to get shell mysql access to your BEE in the [leonardo handbook](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/2839576631/How+to+BEE#Connecting-to-your-BEE%E2%80%99s-databases).
   - Once you have shell access to your BEE's leonardo mysql, run the following *to delete all Leo runtime records*: `DELETE FROM CLUSTER_ERROR WHERE 1=1; DELETE FROM CLUSTER_IMAGE WHERE 1=1; DELETE FROM RUNTIME_CONTROLLED_RESOURCE WHERE 1=1; DELETE FROM CLUSTER WHERE 1=1; DELETE FROM RUNTIME_CONFIG WHERE 1=1; DELETE FROM PERSISTENT_DISK WHERE 1=1;`
+
+To get any tests working with the ssh tunnel, you will need to run the following commands. Note that the argument after `-s` is the subscription ID and can be found in the Azure Portal under the static managed resource group.
+```
+az login --service-principal -u $(vault read -field=client-id secret/dsde/terra/azure/qa/leonardo/managed-app-publisher) -p "$(vault read -field=client-secret secret/dsde/terra/azure/qa/leonardo/managed-app-publisher)" -t $(vault read -field=tenant-id secret/dsde/terra/azure/qa/leonardo/managed-app-publisher)
+az account set -s "f557c728-871d-408c-a28b-eb6b2141a087"
+```
