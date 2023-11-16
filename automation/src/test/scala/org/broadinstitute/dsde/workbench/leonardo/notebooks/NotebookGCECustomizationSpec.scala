@@ -83,21 +83,25 @@ final class NotebookGCECustomizationSpec
 
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
-        withNewRuntime(billingProject, request = runtimeRequest, monitorCreate = true) { cluster =>
-          for {
-//            _ <- IO(Thread.sleep(1000 * 60 * 5))
-            runtime <- LeonardoApiClient.getRuntime(cluster.googleProject, cluster.clusterName)
-            _ <- loggerIO.info(
-              s"about to start ssh client, using runtime ${cluster.googleProject}/${cluster.clusterName} with status ${cluster.status}"
-            )
 
-            output <- SSH.executeCommand(runtime.asyncRuntimeFields.get.hostIp.get.asString,
+        val runtimeName = randomClusterName
+        val runtime = createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = true)
+//        withNewRuntime(billingProject, request = runtimeRequest, monitorCreate = true) { cluster =>
+          for {
+//            _ <- IO(Thread.sleep(1000 * 60 * 2))
+            getRuntime <- LeonardoApiClient.getRuntime(runtime.googleProject, runtime.clusterName)
+            _ <- loggerIO.info(
+              s"about to start ssh client, using runtime ${getRuntime.googleProject}/${getRuntime.runtimeName} with status ${getRuntime.status}"
+            )
+            _ <- loggerIO.info(s"runtime: $runtime")
+
+            output <- SSH.executeCommand(getRuntime.asyncRuntimeFields.get.hostIp.get.asString,
                                          22,
                                          "echo $KEY",
-                                         SSHRuntimeInfo(Some(runtime.googleProject), CloudProvider.Gcp)
+                                         SSHRuntimeInfo(Some(getRuntime.googleProject), CloudProvider.Gcp)
             )
           } yield output.outputLines.mkString shouldBe "value"
-        }
+//        }
       }
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }

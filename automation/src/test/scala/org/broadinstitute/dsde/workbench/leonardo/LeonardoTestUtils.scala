@@ -459,7 +459,7 @@ trait LeonardoTestUtils
       googleProject,
       cluster.serviceAccount,
       null,
-      null,
+      cluster.status,
       cluster.auditInfo.creator,
       null,
       null,
