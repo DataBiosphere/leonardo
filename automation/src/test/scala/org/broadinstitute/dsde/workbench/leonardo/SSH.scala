@@ -121,10 +121,10 @@ object SSH {
 
       profileRequest = GetLoginProfileRequest.newBuilder().setName(account).setProjectId(googleProject.value).build()
 
-//      _ <- loggerIO.info("getting profile for ssh client")
-//      profile <- IO(client.getLoginProfile(profileRequest))
-//      username = profile.getName
-//      _ <- loggerIO.info(s"found username for acct ${account}")
+      _ <- loggerIO.info("getting profile for ssh client")
+      profile <- IO(client.getLoginProfile(profileRequest))
+      username = profile.getName
+      _ <- loggerIO.info(s"found username for acct ${account}")
 
       _ <- loggerIO.info("importing ssh public key")
       _ <- IO(client.importSshPublicKey(request))
