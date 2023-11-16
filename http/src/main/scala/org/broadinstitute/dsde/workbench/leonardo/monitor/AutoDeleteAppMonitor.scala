@@ -5,17 +5,17 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.syntax.all._
 import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoDeleteConfig, AutoFreezeConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, JupyterDAO}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoDeleteConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import cats.Show
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteAppMessage
-import org.broadinstitute.dsde.workbench.leonardo.{AllowedChartName, AppContext, AppName, AppStatus, CloudContext}
+import org.broadinstitute.dsde.workbench.leonardo.{AllowedChartName, AppContext, AppId, AppName, AppStatus, CloudContext, SamResourceId}
+import org.broadinstitute.dsp.ChartName
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext
@@ -29,10 +29,11 @@ class AutoDeleteAppMonitor[F[_]](
   authProvider: LeoAuthProvider[F]
 )(implicit
   dbRef: DbReference[F],
+  logger: StructuredLogger[F],
   ec: ExecutionContext
-) extends BackgroundProcess[F, RuntimeToAutoDelete] {
+) extends BackgroundProcess[F, AppToAutoDelete] {
   override def name: String =
-    "autopause" // autopauseRuntime is more accurate. But keep the current name so that existing metrics won't break
+    "autoDeleteApp" //
   override def interval: scala.concurrent.duration.FiniteDuration = config.autoDeleteCheckInterval
 
   override def getCandidates(now: Instant)(implicit
@@ -47,28 +48,28 @@ class AutoDeleteAppMonitor[F[_]](
     for {
       ctx <- as.ask
       _ <-
-        if (a.app.status == AppStatus.Error) {
+        if (a.appStatus == AppStatus.Error) {
           for {
             // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
-            _ <- authProvider.notifyResourceDeleted(a.app.samResourceId,
-              a.app.creator,
+            _ <- authProvider.notifyResourceDeleted(a.samResourceId,
+              a.creator,
               CloudContext.Gcp
             )
-            _ <- appQuery.markAsDeleted(a.app.id, ctx.now).transaction
+            _ <- appQuery.markAsDeleted(a.id, ctx.now).transaction
           } yield ()
         } else {
           for {
-            _ <- KubernetesServiceDbQueries.markPreDeleting(a.app.id).transaction
+            _ <- KubernetesServiceDbQueries.markPreDeleting(a.id).transaction
             deleteMessage = DeleteAppMessage(
-              a.app.id,
-              a.app.appName,
+              a.id,
+              a.appName,
               CloudContext.Gcp,
               None,
               Some(ctx.traceId)
             )
-            trackUsage = AllowedChartName.fromChartName(a.app.chart).exists(_.trackUsage)
-            _ <- appUsageQuery.recordStop(a.app.id, ctx.now).whenA(trackUsage).recoverWith {
-              case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+            trackUsage = AllowedChartName.fromChartName(a.chartName).exists(_.trackUsage)
+            _ <- appUsageQuery.recordStop(a.id, ctx.now).whenA(trackUsage).recoverWith {
+              case e: FailToRecordStoptime => logger.error(ctx.loggingCtx)(e.getMessage)
             }
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
@@ -104,7 +105,8 @@ object AutoDeleteAppMonitor {
 
 }
 
-final case class AppToAutoDelete(app: AppTable
+final case class AppToAutoDelete(id: AppId, appName: AppName, appStatus: AppStatus, samResourceId: SamResourceId, creator: WorkbenchEmail,
+                                 chartName: ChartName
 ) {
   def projectNameString: String = s"${CloudContext.Gcp}/${app.appName}"
 }

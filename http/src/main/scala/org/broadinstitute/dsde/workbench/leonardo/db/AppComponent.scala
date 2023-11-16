@@ -379,7 +379,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .filter(_.status inSetBind AppStatus.deletableStatuses)
 
     baseQuery.result map { recs =>
-      recs.map(r => AppToAutoDelete(r))
+      recs.map(r => AppToAutoDelete(r.id, r.appName, r.status, r.samResourceId, r.auditInfo.creator, r.chart.name))
     }
   }
 
