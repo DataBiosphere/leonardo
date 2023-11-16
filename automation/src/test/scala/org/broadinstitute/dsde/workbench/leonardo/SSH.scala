@@ -129,7 +129,7 @@ object SSH {
       _ <- loggerIO.info("importing ssh public key")
       _ <- IO(client.importSshPublicKey(request))
 
-    } yield SSHKeyConfig("sa_117004481319471038556", publicKey, privateKey)
+    } yield SSHKeyConfig("sa_106387076428805685843", publicKey, privateKey)
   }
 
   final case class SSHRuntimeInfo(googleProject: Option[GoogleProject], cloudProvider: CloudProvider)
