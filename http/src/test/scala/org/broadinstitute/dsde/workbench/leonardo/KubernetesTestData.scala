@@ -203,7 +203,8 @@ object KubernetesTestData {
               chart: Chart = galaxyChart,
               releasePrefix: String = galaxyReleasePrefix,
               disk: Option[PersistentDisk] = None,
-              kubernetesServiceAccountName: Option[ServiceAccountName] = None
+              kubernetesServiceAccountName: Option[ServiceAccountName] = None,
+              autoDeleteThreshold =
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
