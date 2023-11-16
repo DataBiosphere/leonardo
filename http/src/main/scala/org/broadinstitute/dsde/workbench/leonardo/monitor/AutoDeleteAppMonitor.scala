@@ -108,5 +108,5 @@ object AutoDeleteAppMonitor {
 final case class AppToAutoDelete(id: AppId, appName: AppName, appStatus: AppStatus, samResourceId: SamResourceId, creator: WorkbenchEmail,
                                  chartName: ChartName
 ) {
-  def projectNameString: String = s"${CloudContext.Gcp}/${app.appName}"
+  def projectNameString: String = s"${CloudContext.Gcp}/${appName}"
 }
