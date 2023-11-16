@@ -298,6 +298,15 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def markPendingDeletion(id: AppId): DBIO[Int] =
     updateStatus(id, AppStatus.Deleting)
 
+  def getNonDeletedAppsByNodepool(
+    nodepoolId: NodepoolLeoId
+  )(implicit ec: ExecutionContext): DBIO[Vector[GetAppsByNodepoolResult]] =
+    appQuery
+      .filter(_.nodepoolId === nodepoolId)
+      .filter(_.status =!= (AppStatus.Deleted: AppStatus))
+      .result
+      .map(_.map(x => GetAppsByNodepoolResult(x.samResourceId, x.auditInfo.creator)).toVector)
+
   def markAsDeleted(id: AppId, now: Instant): DBIO[Int] =
     getByIdQuery(id)
       .map(a => (a.status, a.destroyedDate, a.diskId))
@@ -393,3 +402,4 @@ case class AppExistsException(appName: AppName,
 
 final case class WorkspaceName(asString: String) extends AnyVal
 final case class LastUsedApp(chart: Chart, release: Release, namespaceName: NamespaceName, workspace: WorkspaceName)
+final case class GetAppsByNodepoolResult(samResourceId: SamResourceId.AppSamResourceId, creator: WorkbenchEmail)

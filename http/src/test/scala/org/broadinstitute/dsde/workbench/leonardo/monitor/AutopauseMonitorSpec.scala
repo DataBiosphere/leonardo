@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDA
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
-
 import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -136,10 +135,10 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     jupyterDAO: JupyterDAO[IO] = MockJupyterDAO,
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(waitDuration: FiniteDuration): IO[Unit] = {
-    val monitor = AutopauseMonitor[IO](autoFreezeConfig, jupyterDAO, publisherQueue)
+    val monitorProcess = AutopauseMonitor.process[IO](autoFreezeConfig, jupyterDAO, publisherQueue)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val signal = Stream.sleep[IO](waitDuration).evalMap(_ => signalToStop.complete(())).void
-      val p = Stream(monitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)
+      val p = Stream(monitorProcess.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)
         .parJoin(3)
       p ++ Stream.eval(signalToStop.get)
     }
