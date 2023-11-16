@@ -280,6 +280,7 @@ object Boot extends IOApp {
               appDependencies.gkeAlg,
               googleDependencies.googleComputeService,
               appDependencies.samDAO,
+              appDependencies.authProvider,
               appDependencies.nonLeoMessageGoogleSubscriber,
               googleDependencies.cryptoMiningUserPublisher,
               appDependencies.asyncTasksQueue
