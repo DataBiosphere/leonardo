@@ -161,6 +161,14 @@ echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
 
+# Wait for lock to resolve before any installs, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
+
+while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
+  do
+    echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
+    sleep 5
+  done
+
 #Update kernel list
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
