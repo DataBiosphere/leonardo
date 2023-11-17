@@ -12,18 +12,32 @@ import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, Event, GoogleDiskService, GoogleSubscriber, MachineTypeName, ZoneName, isSuccess, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{
+  isSuccess,
+  streamUntilDoneOrTimeout,
+  DiskName,
+  Event,
+  GoogleDiskService,
+  GoogleSubscriber,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.appTypeToFormattedByType
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.appServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{AllowedAppConfig, KubernetesAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, AppTypeNotSupportedOnCloudException}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppNotFoundException,
+  AppTypeNotSupportedOnCloudException
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
-import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{getGalaxyPostgresDiskName, getOldStyleGalaxyPostgresDiskName}
+import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{
+  getGalaxyPostgresDiskName,
+  getOldStyleGalaxyPostgresDiskName
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
@@ -1353,7 +1367,9 @@ class LeoPubsubMessageSubscriber[F[_]](
         F.raiseError[GetAppResult](PubsubHandleMessageError.AppNotFound(msg.appId.id, msg))
       )(F.pure)
 
-      latestAppChartVersion <- KubernetesAppConfig.configForTypeAndCloud(appResult.app.appType, msg.cloudContext.cloudProvider) match {
+      latestAppChartVersion <- KubernetesAppConfig.configForTypeAndCloud(appResult.app.appType,
+                                                                         msg.cloudContext.cloudProvider
+      ) match {
         case Some(AllowedAppConfig(_, rstudioChartVersion, sasChartVersion, _, _, _, _, _, _, _)) =>
           AllowedChartName.fromChartName(appResult.app.chart.name) match {
             case Some(AllowedChartName.RStudio) =>
@@ -1366,9 +1382,10 @@ class LeoPubsubMessageSubscriber[F[_]](
               )
           }
         case Some(conf) => F.pure(conf.chartVersion)
-        case None => F.raiseError[ChartVersion](
-          AppTypeNotSupportedOnCloudException(msg.cloudContext.cloudProvider, appResult.app.appType, ctx.traceId)
-        )
+        case None =>
+          F.raiseError[ChartVersion](
+            AppTypeNotSupportedOnCloudException(msg.cloudContext.cloudProvider, appResult.app.appType, ctx.traceId)
+          )
       }
 
       updateApp = msg.cloudContext match {
