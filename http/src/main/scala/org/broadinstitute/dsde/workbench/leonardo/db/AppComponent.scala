@@ -40,7 +40,8 @@ final case class AppRecord(id: AppId,
                            descriptorPath: Option[Uri],
                            extraArgs: Option[List[String]],
                            sourceWorkspaceId: Option[WorkspaceId],
-                           numOfReplicas: Option[Int]
+                           numOfReplicas: Option[Int],
+                           autoDeleteThresholdInHours: Int
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -279,7 +280,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.descriptorPath,
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
         saveApp.app.sourceWorkspaceId,
-        saveApp.app.numOfReplicas
+        saveApp.app.numOfReplicas,
+        saveApp.app.autoDeleteThresholdInHours
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
@@ -368,7 +370,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def getAppType(appName: AppName): DBIO[Option[AppType]] =
     findActiveByNameQuery(appName).map(_.appType).result.headOption
 
-  def getAppReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
+  def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
     val hour = SimpleLiteral[String]("HOUR")
@@ -379,7 +381,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .filter(_.status inSetBind AppStatus.deletableStatuses)
 
     baseQuery.result map { recs =>
-      recs.map(r => AppToAutoDelete(r.id, r.appName, r.status, r.samResourceId, r.auditInfo.creator, r.chart.name))
+      recs.map(r => AppToAutoDelete(r.id, r.appName, r.status, r.samResourceId, r.auditInfo.creator, r.chart.name, r.))
     }
   }
 

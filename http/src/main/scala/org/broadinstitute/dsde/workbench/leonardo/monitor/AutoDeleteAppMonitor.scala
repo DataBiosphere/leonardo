@@ -41,12 +41,12 @@ class AutoDeleteAppMonitor[F[_]](
     metrics: OpenTelemetryMetrics[F],
     logger: StructuredLogger[F]
   ): F[Seq[AppToAutoDelete]] = for {
-    candidates <- appQuery.getAppReadyToAutoDelete.transaction
+    candidates <- appQuery.getAppsReadyToAutoDelete.transaction
   } yield candidates
 
   override def action(a: AppToAutoDelete, traceId: TraceId, now: Instant)(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
-      ctx <- as.ask
+      ctx <- as.ask[AppContext]
       _ <-
         if (a.appStatus == AppStatus.Error) {
           for {
@@ -74,7 +74,6 @@ class AutoDeleteAppMonitor[F[_]](
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
         }
-    } yield ()
     } yield ()
 }
 
@@ -106,7 +105,7 @@ object AutoDeleteAppMonitor {
 }
 
 final case class AppToAutoDelete(id: AppId, appName: AppName, appStatus: AppStatus, samResourceId: SamResourceId, creator: WorkbenchEmail,
-                                 chartName: ChartName
+                                 chartName: ChartName, cloudContext:CloudContext
 ) {
   def projectNameString: String = s"${CloudContext.Gcp}/${appName}"
 }
