@@ -195,12 +195,12 @@ jobs:
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
           inputs: '{
-              "bee-name": "leo-${{ github.run_id }}-${{ matrix.terra-env }}",
+              "bee-name": "${{ env.BEE_NAME }}",
               "ENV": "${{ matrix.testing-env }}",
               "sbt-test-command": "${{ env.leo_test_command }}",
               "java-version": "17",
               "ref": "${{ needs.init-github-context.outputs.branch }}",
-              "test-reporting": ${{ toJson(env.TEST_REPORTING) }},
+              "test-reporting": ${{ toJson(env.TEST_REPORTING) }}
             }'
 
   destroy-bee-workflow:
