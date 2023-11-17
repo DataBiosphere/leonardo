@@ -7,8 +7,7 @@ import com.google.api.services.serviceusage.v1.model.AuthProvider
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, LeonardoTestSuite}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, appQuery, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, appQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -16,6 +15,7 @@ import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
   it should "auto delete the app when dateAccssed exceeds auto delete threshold" in isolatedDbTest {
@@ -32,6 +32,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
           )
           .save()
       )
+      _ <- monitor(queue, authProvider)(3 seconds)
       status <- appQuery.getAppStatus(runningApp.id).transaction
       event <- queue.tryTake
     } yield {
@@ -56,6 +57,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
           )
           .save()
       )
+      _ <- monitor(queue, authProvider)(3 seconds)
       status <- appQuery.getAppStatus(runningApp.id).transaction
       event <- queue.tryTake
     } yield {
@@ -67,7 +69,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   private def monitor(
-    publisherQueue: Queue[IO, LeoPubsubMessage], authProvider: AuthProvider[F]
+    publisherQueue: Queue[IO, LeoPubsubMessage], authProvider: LeoAuthProvider[Any]
   )(waitDuration: FiniteDuration): IO[Unit] = {
     val monitorProcess = AutoDeleteAppMonitor.process[IO](autoDeleteConfig, publisherQueue, authProvider)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
