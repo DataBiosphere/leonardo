@@ -370,7 +370,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def getAppType(appName: AppName): DBIO[Option[AppType]] =
     findActiveByNameQuery(appName).map(_.appType).result.headOption
 
-  def getAppReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
+  def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
     val hour = SimpleLiteral[String]("HOUR")
