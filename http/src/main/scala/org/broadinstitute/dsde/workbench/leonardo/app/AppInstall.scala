@@ -51,7 +51,9 @@ object AppInstall {
   }
 
   def getAzureDatabaseName(dbResources: List[WsmControlledDatabaseResource], dbPrefix: String): Option[String] =
-    dbResources.find(_.wsmDatabaseName.startsWith(dbPrefix)).map(_.azureDatabaseName)
+    dbResources.collectFirst {
+      case db if db.wsmDatabaseName.startsWith(dbPrefix) => db.azureDatabaseName
+    }
 }
 
 sealed trait Database
