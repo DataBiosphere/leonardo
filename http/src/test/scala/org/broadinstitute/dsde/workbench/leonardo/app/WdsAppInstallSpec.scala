@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.WorkspaceId
+import org.broadinstitute.dsde.workbench.leonardo.{WorkspaceId, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WdsDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -23,8 +23,13 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
     mockAzureApplicationInsightsService
   )
 
+  val wdsAzureDbName = "wds_rtyjga"
+  val wdsAzureDatabases: List[WsmControlledDatabaseResource] = List(
+    WsmControlledDatabaseResource("wds", wdsAzureDbName)
+  )
+
   it should "build wds override values" in {
-    val params = buildHelmOverrideValuesParams(List("wds1"))
+    val params = buildHelmOverrideValuesParams(wdsAzureDatabases)
 
     val overrides = wdsAppInstall.buildHelmOverrideValues(params)
 
@@ -50,13 +55,13 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "provenance.sourceWorkspaceId=," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
-      "postgres.dbname=wds1," +
+      s"postgres.dbname=$wdsAzureDatabases," +
       "postgres.user=ksa-1"
   }
 
   it should "build wds override values with a sourceWorkspaceId" in {
     val sourceWorkspaceId = WorkspaceId(UUID.randomUUID())
-    val params = buildHelmOverrideValuesParams(List("wds1")).copy(
+    val params = buildHelmOverrideValuesParams(wdsAzureDatabases).copy(
       app = app.copy(sourceWorkspaceId = Some(sourceWorkspaceId))
     )
 
@@ -84,12 +89,12 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
-      "postgres.dbname=wds1," +
+      s"postgres.dbname=$wdsAzureDbName," +
       "postgres.user=ksa-1"
   }
 
   it should "fail if there is no postgres server" in {
-    val params = buildHelmOverrideValuesParams(List("wds1"))
+    val params = buildHelmOverrideValuesParams(wdsAzureDatabases)
       .copy(landingZoneResources = landingZoneResources.copy(postgresServer = None))
     val overrides = wdsAppInstall.buildHelmOverrideValues(params)
     assertThrows[AppCreationException] {
