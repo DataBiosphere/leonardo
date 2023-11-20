@@ -9,7 +9,7 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.17"
-  val http4sVersion = "1.0.0-M38" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
+  val http4sVersion = "1.0.0-M40" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
   val slickV = "3.4.1"
   val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
@@ -17,7 +17,7 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "9e8bb8d"
+  private val workbenchLibsHash = "85d7480"
   val serviceTestV = s"4.2-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.30-$workbenchLibsHash"
