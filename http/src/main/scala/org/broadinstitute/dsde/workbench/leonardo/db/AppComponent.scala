@@ -370,7 +370,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def getAppType(appName: AppName): DBIO[Option[AppType]] =
     findActiveByNameQuery(appName).map(_.appType).result.headOption
 
-  def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
+  def getAppReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
     val hour = SimpleLiteral[String]("HOUR")
@@ -380,8 +380,20 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .filter(record => tsdiff(hour, record.dateAccessed, now) >= record.autoDeleteThresholdInHours)
       .filter(_.status inSetBind AppStatus.deletableStatuses)
 
-    baseQuery.result map { recs =>
-      recs.map(r => AppToAutoDelete(r.id, r.appName, r.status, r.samResourceId, r.auditInfo.creator, r.chart.name, r.))
+    val query = baseQuery join nodepoolQuery on (_.nodepoolId === _.id) join
+      clusterQuery on (_._2.clusterId === _.id)
+
+    query.result map { recs =>
+      recs.map(r =>
+        AppToAutoDelete(r._1._1.id,
+          r._1._1.appName,
+          r._1._1.status,
+          r._1._1.samResourceId,
+          r._1._1.auditInfo.creator,
+          r._1._1.chart.name,
+          r._2.cloudContext
+        )
+      )
     }
   }
 
