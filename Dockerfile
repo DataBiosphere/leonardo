@@ -34,7 +34,7 @@ ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.378
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
 ENV CROMWELL_RUNNER_APP_VERSION 0.46.0
 # WORKFLOWS APP comment to prevent merge conflicts
-ENV WORKFLOWS_APP_VERSION 0.79.0
+ENV WORKFLOWS_APP_VERSION 0.80.0
 # WDS CHART comment to prevent merge conflicts
 ENV WDS_CHART_VERSION 0.54.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
