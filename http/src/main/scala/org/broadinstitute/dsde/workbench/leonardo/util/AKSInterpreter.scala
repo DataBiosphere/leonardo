@@ -228,9 +228,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(
-          _.azureDatabaseName
-        ) ++ referenceDatabases.map(_.azureDatabaseName),
+        wsmDatabases ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
