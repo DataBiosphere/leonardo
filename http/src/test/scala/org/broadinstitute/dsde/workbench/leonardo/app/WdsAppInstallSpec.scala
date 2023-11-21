@@ -55,7 +55,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "provenance.sourceWorkspaceId=," +
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
-      s"postgres.dbname=$wdsAzureDatabases," +
+      s"postgres.dbname=$wdsAzureDbName," +
       "postgres.user=ksa-1"
   }
 
