@@ -5,15 +5,43 @@ import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
-import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, ApplicationInsightsName, AzureCloudContext, BatchAccountName, RelayNamespace}
+import org.broadinstitute.dsde.workbench.azure.{
+  AKSClusterName,
+  ApplicationInsightsName,
+  AzureCloudContext,
+  BatchAccountName,
+  RelayNamespace
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, KubernetesName, Location, MachineTypeName, NetworkName, OperationName, RegionName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
+  DiskName,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  OperationName,
+  RegionName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeResponse, DiskConfig, GetRuntimeResponse, PersistentDiskRequest}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateRuntimeResponse,
+  DiskConfig,
+  GetRuntimeResponse,
+  PersistentDiskRequest
+}
+import org.broadinstitute.dsde.workbench.model.google.{
+  parseGcsPath,
+  GcsBucketName,
+  GcsObjectName,
+  GcsPath,
+  GoogleProject
+}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.ChartName
