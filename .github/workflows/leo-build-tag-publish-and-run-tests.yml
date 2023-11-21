@@ -195,6 +195,7 @@ jobs:
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
           inputs: '{
+              "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
               "bee-name": "${{ env.BEE_NAME }}",
               "ENV": "${{ matrix.testing-env }}",
               "sbt-test-command": "${{ env.leo_test_command }}",
