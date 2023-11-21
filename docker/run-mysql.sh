@@ -17,14 +17,14 @@ start() {
                -e MYSQL_DATABASE=leotestdb \
                -d \
                -p 3311:3306 \
-               mysql/mysql-server:$MYSQL_VERSION
+               mariadb:10.2
 
     # validate mysql
     echo "running mysql validation..."
     docker run --rm \
                --link $CONTAINER:mysql \
                -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh \
-               mysql:$MYSQL_VERSION \
+               mariadb:10.2 \
                /working/sql_validate.sh $TARGET
 
     if [ 0 -eq $? ]; then
