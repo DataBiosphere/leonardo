@@ -26,9 +26,9 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
       now <- IO.realTimeInstant
       runningApp <- IO(
         makeApp(1, savedNodepool1.id)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.HOURS )),
+          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES )),
                 status = AppStatus.Running,
-                autoDeleteThresholdInHours = 1
+                autoDeleteThresholdInMinutes = 1
           )
           .save()
       )
@@ -53,7 +53,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(1, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.HOURS)),
             status = AppStatus.Running,
-            autoDeleteThresholdInHours = 6
+            autoDeleteThresholdInMinutes = 6
           )
           .save()
       )
