@@ -381,17 +381,17 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .filter(_.status inSetBind AppStatus.deletableStatuses)
 
     val query = baseQuery join nodepoolQuery on (_.nodepoolId === _.id) join
-      clusterQuery on (_._2.clusterId === _.id)
+      kubernetesClusterQuery on (_._2.clusterId === _.id)
 
     query.result map { recs =>
       recs.map(r =>
         AppToAutoDelete(r._1._1.id,
-          r._1._1.appName,
-          r._1._1.status,
-          r._1._1.samResourceId,
-          r._1._1.auditInfo.creator,
-          r._1._1.chart.name,
-          r._2.cloudContext
+                        r._1._1.appName,
+                        r._1._1.status,
+                        r._1._1.samResourceId,
+                        r._1._1.auditInfo.creator,
+                        r._1._1.chart.name,
+                        r._2.cloudContext
         )
       )
     }

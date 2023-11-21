@@ -3,11 +3,10 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import cats.effect.std.Queue
 import cats.effect.{Deferred, IO}
 import cats.syntax.all._
-import com.google.api.services.serviceusage.v1.model.AuthProvider
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, LeonardoTestSuite}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, appQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -16,17 +15,19 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
+import org.scalatestplus.mockito.MockitoSugar.mock
 class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
-  it should "auto delete the app when dateAccssed exceeds auto delete threshold" in isolatedDbTest {
+  it should "auto delete the app when dateAccessed exceeds auto delete threshold" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val authProvider = mock[LeoAuthProvider[IO]]
     val res = for {
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       now <- IO.realTimeInstant
       runningApp <- IO(
         makeApp(1, savedNodepool1.id)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES )),
+          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
                 autoDeleteThresholdInMinutes = 1
           )
@@ -43,17 +44,18 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "not auto delete the app when date accessed with auto delete threshold" in isolatedDbTest {
+  it should "not auto delete the app when dateAccessed within auto delete threshold" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val authProvider = mock[LeoAuthProvider[IO]]
     val res = for {
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       now <- IO.realTimeInstant
       runningApp <- IO(
         makeApp(1, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.HOURS)),
-            status = AppStatus.Running,
-            autoDeleteThresholdInMinutes = 6
+                status = AppStatus.Running,
+                autoDeleteThresholdInMinutes = 6
           )
           .save()
       )
@@ -69,7 +71,8 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   private def monitor(
-    publisherQueue: Queue[IO, LeoPubsubMessage], authProvider: LeoAuthProvider[Any]
+    publisherQueue: Queue[IO, LeoPubsubMessage],
+    authProvider: LeoAuthProvider[IO]
   )(waitDuration: FiniteDuration): IO[Unit] = {
     val monitorProcess = AutoDeleteAppMonitor.process[IO](autoDeleteConfig, publisherQueue, authProvider)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
