@@ -1249,8 +1249,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
         else None
       autoDeleteThresholdInMinutes = req.autoDeleteThresholdDuration match {
-        case None    => 0
-        case scala.concurrent.duration.Duration.Inf => 0
+        case None    => autoDeleteOffValue
+        case scala.concurrent.duration.Duration.Inf => autoDeleteOffValue
         case Some(x) => x.toMinutes.toInt
       }
 
