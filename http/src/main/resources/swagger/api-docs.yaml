@@ -4031,10 +4031,11 @@ components:
         sourceWorkspaceId:
           type: string
           description: Optional id of source workspace if app is a clone.
-        autoDeleteThresholdInHours:
-          type: integer
-          description: The number of hours of idle time to elapse before the app is
-            auto deleted. A value of 0 means no auto delete.
+        autoDeleteThresholdDuration:
+          type: string
+          description: The duration of idle time to elapse before the app is
+            auto deleted, e.g. "2 hours".  
+            A value of Inf means no auto delete.
 
     UpdateAppsRequest:
       description: a request to update a specific set of apps (v1 or v2)

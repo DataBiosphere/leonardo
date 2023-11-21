@@ -2,27 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AllowedChartName,
-  App,
-  AppAccessScope,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  CloudContext,
-  KubernetesCluster,
-  KubernetesRuntimeConfig,
-  LabelMap,
-  Nodepool,
-  WorkspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AllowedChartName, App, AppAccessScope, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, KubernetesCluster, KubernetesRuntimeConfig, LabelMap, Nodepool, WorkspaceId}
 import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
 import java.net.URL
+import scala.concurrent.duration.FiniteDuration
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
@@ -33,7 +19,8 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   customEnvironmentVariables: Map[String, String],
                                   descriptorPath: Option[Uri],
                                   extraArgs: List[String],
-                                  sourceWorkspaceId: Option[WorkspaceId]
+                                  sourceWorkspaceId: Option[WorkspaceId],
+                                  autoDeleteThresholdDuration: Option[FiniteDuration]
 )
 
 final case class GetAppResponse(

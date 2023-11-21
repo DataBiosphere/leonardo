@@ -1248,6 +1248,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (req.appType == AppType.Allowed)
           Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
         else None
+      autoDeleteThresholdDuration  = req.autoDeleteThresholdDuration match {
+        case None => scala.concurrent.duration.Duration.Inf
+        case Some(x) => x
+      }
+
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1274,7 +1279,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.descriptorPath,
         req.extraArgs,
         req.sourceWorkspaceId,
-        numOfReplicas
+        numOfReplicas,
+        autoDeleteThresholdDuration.toMinutes.toInt
       )
     )
   }

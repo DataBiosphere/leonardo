@@ -4,8 +4,8 @@ import JsonCodec._
 import io.circe.CursorOp.DownField
 import io.circe.{DecodingFailure, Json}
 import io.circe.parser._
+import io.circe.syntax.EncoderOps
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
-
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
@@ -169,5 +169,16 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         List()
       )
     )
+  }
+
+  it should "decode duration" in {
+    import scala.concurrent.duration.FiniteDuration
+    import java.util.concurrent.TimeUnit
+    import cats.syntax.all._
+    val decoder: io.circe.Decoder[scala.concurrent.duration.Duration] = io.circe.Decoder.decodeString.emap { x =>
+      Either.catchNonFatal(scala.concurrent.duration.Duration(x)).leftMap(_.getMessage)
+    }
+    decoder.decodeJson("""15 minutes""".asJson) shouldBe Right(FiniteDuration(15, TimeUnit.MINUTES))
+    decoder.decodeJson("""Inf""".asJson) shouldBe Right(scala.concurrent.duration.Duration.Inf)
   }
 }
