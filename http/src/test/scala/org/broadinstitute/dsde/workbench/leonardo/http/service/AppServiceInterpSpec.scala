@@ -2531,7 +2531,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, CloudTopicPublisher.Gcp(new FakeGooglePublisher))
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }
 

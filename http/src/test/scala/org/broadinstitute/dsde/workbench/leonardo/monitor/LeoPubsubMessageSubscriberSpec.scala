@@ -1112,7 +1112,7 @@ class LeoPubsubMessageSubscriberSpec
           false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
@@ -1272,7 +1272,7 @@ class LeoPubsubMessageSubscriberSpec
                                Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
@@ -1598,7 +1598,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(tr),
           false
         )
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1899,7 +1899,7 @@ class LeoPubsubMessageSubscriberSpec
                                         BillingProfileId("spend-profile")
         )
 
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
 
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
@@ -1951,7 +1951,9 @@ class LeoPubsubMessageSubscriberSpec
                                         None
         )
 
-        _ <- leoSubscriber.messageHandler(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(
+          CloudPubsubEvent.GCP(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
+        )
 
         errors <- clusterErrorQuery.get(runtime.id).transaction
         getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
@@ -2130,7 +2132,6 @@ class LeoPubsubMessageSubscriberSpec
                                        Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig,
                                        Config.leoPubsubMessageSubscriberConfig.galaxyDiskConfig
       ),
-      CloudSubscriber.GCP(googleSubscriber),
       asyncTaskQueue,
       MockAuthProvider,
       azureInterp,

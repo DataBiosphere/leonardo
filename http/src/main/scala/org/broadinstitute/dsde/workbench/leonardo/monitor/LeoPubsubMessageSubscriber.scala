@@ -57,7 +57,6 @@ import scala.jdk.CollectionConverters._
  */
 class LeoPubsubMessageSubscriber[F[_]](
   config: LeoPubsubMessageSubscriberConfig,
-  subscriber: CloudSubscriber[F],
   asyncTasks: Queue[F, Task[F]],
   authProvider: LeoAuthProvider[F],
   azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
@@ -168,18 +167,21 @@ class LeoPubsubMessageSubscriber[F[_]](
         } yield resp
     }
 
-  private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
+  private[monitor] def messageHandler(event: CloudPubsubEvent[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
-    val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
-    implicit val ev = Ask.const[F, AppContext](AppContext(traceId, now, span = None))
+    implicit val ev = Ask.const[F, AppContext](AppContext(traceId, event.publishedTime, span = None))
     childSpan(event.msg.messageType.asString).use { implicit ev =>
       messageHandlerWithContext(event)
     }
   }
 
   private[monitor] def messageHandlerWithContext(
-    event: Event[LeoPubsubMessage]
+    event: CloudPubsubEvent[LeoPubsubMessage]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    val consumerHandler = event match {
+      case CloudPubsubEvent.GCP(event) => Some(event.consumer)
+      case CloudPubsubEvent.Azure(_)   => None
+    }
     val res = for {
       res <- messageResponder(event.msg)
         .timeout(config.timeout)
@@ -255,10 +257,23 @@ class LeoPubsubMessageSubscriber[F[_]](
     recordMessageMetric(event, Some(e)) >> handleErrorMessages
   }
 
-  private[monitor] def recordMessageMetric(event: Event[LeoPubsubMessage], e: Option[Throwable] = None): F[Unit] =
+  def process(subscriber: CloudSubscriber[F, LeoPubsubMessage]): Stream[F, Unit] =
+    subscriber.messages
+      .parEvalMapUnordered(config.concurrency)(messageHandler)
+      .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
+
+  private def ack(event: CloudPubsubEvent[LeoPubsubMessage]): F[Unit] =
     for {
+      _ <- logger.info(s"acking message: ${event}")
+      _ <- event match {
+        case CloudPubsubEvent.GCP(event) =>
+          F.delay(
+            event.consumer.ack()
+          )
+        case CloudPubsubEvent.Azure(_) => F.unit
+      }
       end <- F.realTimeInstant
-      duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
+      duration = (end.toEpochMilli - event.publishedTime.toEpochMilli).millis
       distributionBucket = List(0.5 minutes,
                                 1 minutes,
                                 1.5 minutes,
@@ -1751,16 +1766,3 @@ final case class GCPModeSpecificDependencies[F[_]](googleDiskService: GoogleDisk
                                                    runtimeInstances: RuntimeInstances[F],
                                                    monitor: RuntimeMonitor[F, CloudService]
 )
-
-trait CloudSubscriber[F[_]] extends Product with Serializable {
-  def start: F[Unit]
-}
-object CloudSubscriber {
-  final case class GCP[F[_]](subscriber: GoogleSubscriber[F, LeoPubsubMessage]) extends CloudSubscriber[F] {
-    override def start: F[Unit] = subscriber.start
-  }
-  final case class Azure[F[_]](subscriber: AzureSubscriber[F, LeoPubsubMessage]) extends CloudSubscriber[F] {
-    override def start: F[Unit] = ???
-  }
-}
-trait AzureSubscriber[F[_], A] //TODO: Jesus will fill this out and move to its own file
