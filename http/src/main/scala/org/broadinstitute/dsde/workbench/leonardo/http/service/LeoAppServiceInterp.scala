@@ -53,8 +53,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
                                                 serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
-                                                computeService: GoogleComputeService[F],
-                                                googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
                                                 wsmDao: WsmDao[F]
 )(implicit
@@ -71,7 +69,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     req: CreateAppRequest,
     workspaceId: Option[WorkspaceId] = None
   )(implicit
-    as: Ask[F, AppContext]
+    as: Ask[F, AppContext],
+    googleResourceService: GoogleResourceService[F],
+    computeService: GoogleComputeService[F]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -872,7 +872,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                    googleProject: GoogleProject,
                                                    descriptorPath: Uri
   )(implicit
-    ev: Ask[F, TraceId]
+    ev: Ask[F, TraceId],
+    googleResourceService: GoogleResourceService[F]
   ): F[Unit] =
     if (config.enableCustomAppCheck)
       for {
@@ -919,7 +920,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     else F.unit
 
   private[service] def checkIfSasAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    ev: Ask[F, TraceId]
+    ev: Ask[F, TraceId],
+    googleResourceService: GoogleResourceService[F]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1094,7 +1096,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                       diskSize: Option[DiskSize],
                                       machineTypeName: MachineTypeName
   )(implicit
-    as: Ask[F, AppContext]
+    as: Ask[F, AppContext],
+    computeService: GoogleComputeService[F]
   ): F[AppMachineType] =
     for {
       ctx <- as.ask

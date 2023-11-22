@@ -10,6 +10,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -51,13 +52,18 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(MockRuntimeServiceInterp,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -67,13 +73,18 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(MockRuntimeServiceInterp,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -83,13 +94,18 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(MockRuntimeServiceInterp,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -99,13 +115,18 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(MockRuntimeServiceInterp,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -941,13 +962,18 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       MockAppService,
       runtimev2Service,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(runtimeService,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -957,13 +983,18 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       kubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(runtimeService,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

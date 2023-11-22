@@ -85,7 +85,7 @@ object Config {
     ApplicationConfig(
       config.getString("applicationName"),
       config.as[GoogleProject]("leoGoogleProject"),
-      config.as[Path]("leoServiceAccountJsonFile"),
+      config.as[Option[Path]]("leoServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail"),
       config.as[URL]("leoUrlBase"),
       config.as[Long]("concurrency")
@@ -795,8 +795,8 @@ object Config {
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
-  val subscriberConfig: SubscriberConfig = SubscriberConfig(
-    applicationConfig.leoServiceAccountJsonFile.toString,
+  def subscriberConfig(leoServiceAccountFilePath: Path): SubscriberConfig = SubscriberConfig(
+    leoServiceAccountFilePath.toString,
     topic,
     None,
     config.as[FiniteDuration]("pubsub.ackDeadLine"),
@@ -805,8 +805,8 @@ object Config {
     Some("attributes:leonardo")
   )
 
-  val nonLeoMessageSubscriberConfig: SubscriberConfig = SubscriberConfig(
-    applicationConfig.leoServiceAccountJsonFile.toString,
+  def nonLeoMessageSubscriberConfig(leoServiceAccountFilePath: Path): SubscriberConfig = SubscriberConfig(
+    leoServiceAccountFilePath.toString,
     topic,
     Some(
       ProjectSubscriptionName.of(applicationConfig.leoGoogleProject.value,
@@ -829,14 +829,14 @@ object Config {
   private val nonLeoMessageSubscriberCryptominingTopic =
     config.as[String]("pubsub.non-leo-message-subscriber.terra-cryptomining-topic")
 
-  val cryptominingTopicPublisherConfig: PublisherConfig =
+  def cryptominingTopicPublisherConfig(leoServiceAccountPath: Path): PublisherConfig =
     PublisherConfig(
-      applicationConfig.leoServiceAccountJsonFile.toString,
+      leoServiceAccountPath.toString,
       ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, nonLeoMessageSubscriberCryptominingTopic)
     )
 
-  val publisherConfig: PublisherConfig =
-    PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic)
+  def publisherConfig(leoServiceAccountPath: Path): PublisherConfig =
+    PublisherConfig(leoServiceAccountPath.toString, topic)
 
   val dataprocInterpreterConfig = DataprocInterpreterConfig(
     dataprocConfig,

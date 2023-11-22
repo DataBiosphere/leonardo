@@ -51,89 +51,122 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 /**
- * @param config
- * @param subscriber
- * @param asyncTasks
- * @param googleDiskService
- * @param authProvider
- * @param gkeAlg
- * @param azurePubsubHandler
  * @param operationFutureCache This is used to cancel long running java Futures for Google operations. Currently, we only cancel existing stopping runtime operation if a `deleteRuntime`
  *                             message is received
- * @tparam F
+ * @param gcpModeSpecificDependencies When defined, Leonardo is running in GCP mode; when not defined, Leonardo is running in Azure mode
  */
 class LeoPubsubMessageSubscriber[F[_]](
   config: LeoPubsubMessageSubscriberConfig,
-  subscriber: GoogleSubscriber[F, LeoPubsubMessage],
+  subscriber: CloudSubscriber[F],
   asyncTasks: Queue[F, Task[F]],
-  googleDiskService: GoogleDiskService[F],
   authProvider: LeoAuthProvider[F],
-  gkeAlg: GKEAlgebra[F],
   azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
-  operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]]
+  operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]],
+  gcpModeSpecificDependencies: Option[GCPModeSpecificDependencies[F]]
 )(implicit
   executionContext: ExecutionContext,
   F: Async[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
-  runtimeInstances: RuntimeInstances[F],
-  monitor: RuntimeMonitor[F, CloudService],
   metrics: OpenTelemetryMetrics[F]
 ) {
 
   private[monitor] def messageResponder(
     message: LeoPubsubMessage
   )(implicit traceId: Ask[F, AppContext]): F[Unit] =
-    for {
-      resp <- message match {
-        case msg: CreateRuntimeMessage =>
-          handleCreateRuntimeMessage(msg)
-        case msg: DeleteRuntimeMessage =>
-          handleDeleteRuntimeMessage(msg)
-        case msg: StopRuntimeMessage =>
-          handleStopRuntimeMessage(msg)
-        case msg: StartRuntimeMessage =>
-          handleStartRuntimeMessage(msg)
-        case msg: UpdateRuntimeMessage =>
-          handleUpdateRuntimeMessage(msg)
-        case msg: CreateDiskMessage =>
-          handleCreateDiskMessage(msg)
-        case msg: DeleteDiskMessage =>
-          handleDeleteDiskMessage(msg)
-        case msg: UpdateDiskMessage =>
-          handleUpdateDiskMessage(msg)
-        case msg: CreateAppMessage =>
-          handleCreateAppMessage(msg)
-        case msg: DeleteAppMessage =>
-          handleDeleteAppMessage(msg)
-        case msg: StopAppMessage =>
-          handleStopAppMessage(msg)
-        case msg: StartAppMessage =>
-          handleStartAppMessage(msg)
-        case msg: UpdateAppMessage =>
-          handleUpdateAppMessage(msg)
-        case msg: CreateAzureRuntimeMessage =>
-          azurePubsubHandler.createAndPollRuntime(msg).adaptError { case e =>
-            PubsubHandleMessageError.AzureRuntimeCreationError(
-              msg.runtimeId,
-              msg.workspaceId,
-              e.getMessage,
-              msg.useExistingDisk
-            )
+    gcpModeSpecificDependencies match {
+      case Some(GCPModeSpecificDependencies(googleDiskService, gkeAlg, runtimeInstances, monitor)) =>
+        implicit val rInstances: RuntimeInstances[F] = runtimeInstances
+        implicit val runtimeMonitor: RuntimeMonitor[F, CloudService] = monitor
+        implicit val diskService: GoogleDiskService[F] = googleDiskService
+        implicit val gke: GKEAlgebra[F] = gkeAlg
+        for {
+          resp <- message match {
+            case msg: CreateRuntimeMessage =>
+              handleCreateRuntimeMessage(msg)
+            case msg: DeleteRuntimeMessage =>
+              handleDeleteRuntimeMessage(msg)
+            case msg: StopRuntimeMessage =>
+              handleStopRuntimeMessage(msg)
+            case msg: StartRuntimeMessage =>
+              handleStartRuntimeMessage(msg)
+            case msg: UpdateRuntimeMessage =>
+              handleUpdateRuntimeMessage(msg)
+            case msg: CreateDiskMessage =>
+              handleCreateDiskMessage(msg)
+            case msg: DeleteDiskMessage =>
+              handleDeleteDiskMessage(msg)
+            case msg: UpdateDiskMessage =>
+              handleUpdateDiskMessage(msg)
+            case msg: CreateAppMessage =>
+              handleCreateAppMessage(msg)
+            case msg: DeleteAppMessage =>
+              handleDeleteAppMessage(msg)
+            case msg: StopAppMessage =>
+              handleStopAppMessage(msg)
+            case msg: StartAppMessage =>
+              handleStartAppMessage(msg)
+            case msg: UpdateAppMessage =>
+              handleUpdateAppMessage(msg)
+            case msg: CreateAzureRuntimeMessage =>
+              azurePubsubHandler.createAndPollRuntime(msg).adaptError { case e =>
+                PubsubHandleMessageError.AzureRuntimeCreationError(
+                  msg.runtimeId,
+                  msg.workspaceId,
+                  e.getMessage,
+                  msg.useExistingDisk
+                )
+              }
+            case msg: DeleteAzureRuntimeMessage =>
+              azurePubsubHandler.deleteAndPollRuntime(msg).adaptError { case e =>
+                PubsubHandleMessageError.AzureRuntimeDeletionError(
+                  msg.runtimeId,
+                  msg.workspaceId,
+                  e.getMessage
+                )
+              }
+            case msg: CreateAppV2Message  => handleCreateAppV2Message(msg)
+            case msg: DeleteAppV2Message  => handleDeleteAppV2Message(msg)
+            case msg: DeleteDiskV2Message => handleDeleteDiskV2Message(msg)
           }
-        case msg: DeleteAzureRuntimeMessage =>
-          azurePubsubHandler.deleteAndPollRuntime(msg).adaptError { case e =>
-            PubsubHandleMessageError.AzureRuntimeDeletionError(
-              msg.runtimeId,
-              msg.workspaceId,
-              e.getMessage
-            )
+        } yield resp
+      case None =>
+        for {
+          resp <- message match {
+            case msg: CreateAzureRuntimeMessage =>
+              azurePubsubHandler.createAndPollRuntime(msg).adaptError { case e =>
+                PubsubHandleMessageError.AzureRuntimeCreationError(
+                  msg.runtimeId,
+                  msg.workspaceId,
+                  e.getMessage,
+                  msg.useExistingDisk
+                )
+              }
+            case msg: DeleteAzureRuntimeMessage =>
+              azurePubsubHandler.deleteAndPollRuntime(msg).adaptError { case e =>
+                PubsubHandleMessageError.AzureRuntimeDeletionError(
+                  msg.runtimeId,
+                  msg.workspaceId,
+                  e.getMessage
+                )
+              }
+            case msg: CreateAppV2Message => handleCreateAppV2Message(msg)
+            case msg: DeleteAppV2Message => handleDeleteAppV2Message(msg)
+            case msg: DeleteDiskV2Message =>
+              azurePubsubHandler.deleteDisk(msg).adaptError { case e =>
+                PubsubHandleMessageError.DiskDeletionError(
+                  msg.diskId,
+                  msg.workspaceId,
+                  e.getMessage
+                )
+              }
+            case msg =>
+              F.raiseError[Unit](
+                new RuntimeException(s"messageType ${msg.messageType} is not supported yet for Leonardo in Azure mode")
+              )
           }
-        case msg: CreateAppV2Message  => handleCreateAppV2Message(msg)
-        case msg: DeleteAppV2Message  => handleDeleteAppV2Message(msg)
-        case msg: DeleteDiskV2Message => handleDeleteDiskV2Message(msg)
-      }
-    } yield resp
+        } yield resp
+    }
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
@@ -142,8 +175,8 @@ class LeoPubsubMessageSubscriber[F[_]](
     childSpan(event.msg.messageType.asString).use { implicit ev =>
       messageHandlerWithContext(event)
     }
-
   }
+
   private[monitor] def messageHandlerWithContext(
     event: Event[LeoPubsubMessage]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
@@ -199,9 +232,16 @@ class LeoPubsubMessageSubscriber[F[_]](
     )
   }
 
-  val process: Stream[F, Unit] = subscriber.messages
-    .parEvalMapUnordered(config.concurrency)(messageHandler)
-    .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
+  val process: Stream[F, Unit] = subscriber match {
+    case CloudSubscriber.Azure(_) =>
+      Stream.raiseError(
+        new NotImplementedError("Azure subscriber is not implemented yet")
+      ) // TODO: Jesus will fill this out
+    case CloudSubscriber.GCP(sub) =>
+      sub.messages
+        .parEvalMapUnordered(config.concurrency)(messageHandler)
+        .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
+  }
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] =
     for {
@@ -226,7 +266,10 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F],
+    runtimeInstances: RuntimeInstances[F],
+    monitor: RuntimeMonitor[F, CloudService]
   ): F[Unit] = {
     val createCluster = for {
       ctx <- ev.ask
@@ -274,7 +317,10 @@ class LeoPubsubMessageSubscriber[F[_]](
   }
 
   private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F],
+    runtimeInstances: RuntimeInstances[F],
+    monitor: RuntimeMonitor[F, CloudService]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -352,7 +398,9 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    runtimeInstances: RuntimeInstances[F],
+    monitor: RuntimeMonitor[F, CloudService]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -441,7 +489,9 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    runtimeInstances: RuntimeInstances[F],
+    monitor: RuntimeMonitor[F, CloudService]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -499,7 +549,9 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    runtimeInstances: RuntimeInstances[F],
+    monitor: RuntimeMonitor[F, CloudService]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -606,7 +658,10 @@ class LeoPubsubMessageSubscriber[F[_]](
               ctxStarting = Ask.const[F, AppContext](
                 AppContext(ctx.traceId, now)
               )
-              _ <- startAndUpdateRuntime(runtime, runtimeConfig, msg.newMachineType)(ctxStarting)
+              _ <- startAndUpdateRuntime(runtime, runtimeConfig, msg.newMachineType)(ctxStarting,
+                                                                                     runtimeInstances,
+                                                                                     monitor
+              )
             } yield ()
             _ <- asyncTasks.offer(
               Task(
@@ -649,7 +704,11 @@ class LeoPubsubMessageSubscriber[F[_]](
     runtime: Runtime,
     runtimeConfig: RuntimeConfig,
     targetMachineType: Option[MachineTypeName]
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+  )(implicit
+    ev: Ask[F, AppContext],
+    runtimeInstances: RuntimeInstances[F],
+    monitor: RuntimeMonitor[F, CloudService]
+  ): F[Unit] =
     for {
       ctx <- ev.ask
       _ <- targetMachineType.traverse(m =>
@@ -675,13 +734,15 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] =
     createDisk(msg, None, false)
 
   // this returns an F[F[Unit]. It kicks off the google operation, and then return an F containing the async polling task
   private[monitor] def createDisk(msg: CreateDiskMessage, formattedBy: Option[FormattedBy], sync: Boolean)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] = {
     val create = {
       val diskBuilder = Disk
@@ -756,7 +817,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                                                             appName: AppName,
                                                             dataDiskName: DiskName
   )(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] = {
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only creating the postgress disk in Google since we are not supporting persistence
     // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
@@ -791,12 +853,14 @@ class LeoPubsubMessageSubscriber[F[_]](
   }
 
   private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] =
     deleteDisk(msg.diskId, false)
 
   private[monitor] def deleteDisk(diskId: DiskId, sync: Boolean)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -859,7 +923,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                                                             namespaceName: NamespaceName,
                                                             dataDiskName: DiskName
   )(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] =
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only deleting the postgress disk in Google since we are not supporting persistence
     // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
@@ -879,7 +944,8 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -912,7 +978,9 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleCreateAppMessage(msg: CreateAppMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    gkeAlg: GKEAlgebra[F],
+    googleDiskService: GoogleDiskService[F]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1088,12 +1156,16 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F],
+    gkeAlg: GKEAlgebra[F]
   ): F[Unit] =
     deleteApp(msg, false, false)
 
   private[monitor] def deleteApp(msg: DeleteAppMessage, sync: Boolean, errorAfterDelete: Boolean)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F],
+    gkeAlg: GKEAlgebra[F]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1270,7 +1342,8 @@ class LeoPubsubMessageSubscriber[F[_]](
     x.disk.map(_.getLastDetachTimestamp) != x.originalDetachTimestampOpt
 
   private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    gkeAlg: GKEAlgebra[F]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1293,7 +1366,9 @@ class LeoPubsubMessageSubscriber[F[_]](
                                          diskId: Option[DiskId],
                                          error: Throwable
   )(implicit
-    ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext],
+    googleDiskService: GoogleDiskService[F],
+    gkeAlg: GKEAlgebra[F]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1316,7 +1391,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
     } yield ()
 
-  private[monitor] def handleStopAppMessage(msg: StopAppMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  private[monitor] def handleStopAppMessage(
+    msg: StopAppMessage
+  )(implicit ev: Ask[F, AppContext], gkeAlg: GKEAlgebra[F]): F[Unit] =
     for {
       ctx <- ev.ask
       stopApp = gkeAlg
@@ -1336,7 +1413,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
   private[monitor] def handleStartAppMessage(
     msg: StartAppMessage
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+  )(implicit ev: Ask[F, AppContext], gkeAlg: GKEAlgebra[F]): F[Unit] =
     for {
       ctx <- ev.ask
       startApp = gkeAlg
@@ -1357,7 +1434,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
   private[monitor] def handleUpdateAppMessage(
     msg: UpdateAppMessage
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+  )(implicit ev: Ask[F, AppContext], gkeAlg: GKEAlgebra[F]): F[Unit] =
     for {
       ctx <- ev.ask
       appOpt <- KubernetesServiceDbQueries
@@ -1445,7 +1522,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
   private[monitor] def createRuntimeErrorHandler(runtimeId: Long, cloudService: CloudService, now: Instant)(
     e: Throwable
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+  )(implicit ev: Ask[F, AppContext], googleDiskService: GoogleDiskService[F]): F[Unit] =
     for {
       ctx <- ev.ask
       _ <- metrics.incrementCounter(s"createRuntimeError", 1)
@@ -1544,7 +1621,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     namespaceName: NamespaceName,
     project: GoogleProject,
     zone: ZoneName
-  )(implicit traceId: Ask[F, AppContext]): F[Option[Operation]] =
+  )(implicit traceId: Ask[F, AppContext], googleDiskService: GoogleDiskService[F]): F[Option[Operation]] =
     for {
       postgresDiskOpt <- googleDiskService
         .deleteDisk(
@@ -1648,7 +1725,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
   private[monitor] def handleDeleteDiskV2Message(
     msg: DeleteDiskV2Message
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+  )(implicit ev: Ask[F, AppContext], googleDiskService: GoogleDiskService[F]): F[Unit] =
     for {
       _ <- msg.cloudContext match {
         case CloudContext.Azure(_) =>
@@ -1664,3 +1741,22 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
     } yield ()
 }
+
+final case class GCPModeSpecificDependencies[F[_]](googleDiskService: GoogleDiskService[F],
+                                                   gkeAlg: GKEAlgebra[F],
+                                                   runtimeInstances: RuntimeInstances[F],
+                                                   monitor: RuntimeMonitor[F, CloudService]
+)
+
+trait CloudSubscriber[F[_]] extends Product with Serializable {
+  def start: F[Unit]
+}
+object CloudSubscriber {
+  final case class GCP[F[_]](subscriber: GoogleSubscriber[F, LeoPubsubMessage]) extends CloudSubscriber[F] {
+    override def start: F[Unit] = subscriber.start
+  }
+  final case class Azure[F[_]](subscriber: AzureSubscriber[F, LeoPubsubMessage]) extends CloudSubscriber[F] {
+    override def start: F[Unit] = ???
+  }
+}
+trait AzureSubscriber[F[_], A] //TODO: Jesus will fill this out and move to its own file
