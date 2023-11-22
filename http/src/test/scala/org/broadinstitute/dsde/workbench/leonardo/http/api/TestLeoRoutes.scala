@@ -111,8 +111,6 @@ trait TestLeoRoutes {
     allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService,
-    FakeGoogleResourceService,
     Config.gkeCustomAppConfig,
     wsmDao
   )
@@ -199,13 +197,18 @@ trait TestLeoRoutes {
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(runtimeService,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -215,13 +218,18 @@ trait TestLeoRoutes {
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(runtimeService,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

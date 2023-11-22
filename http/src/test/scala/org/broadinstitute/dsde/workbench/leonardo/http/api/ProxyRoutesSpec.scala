@@ -14,6 +14,7 @@ import cats.effect.std.Queue
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -542,13 +543,18 @@ class ProxyRoutesSpec
     val httpRoutes = new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(runtimeService,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -713,13 +719,18 @@ class ProxyRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      gcpModeSpecificServices = Some(
+        GCPModeSpecificServices(runtimeService,
+                                MockDiskServiceInterp,
+                                proxyService,
+                                FakeGoogleResourceService,
+                                FakeGoogleComputeService
+        )
+      ),
       userInfoDirectives,
       contentSecurityPolicy,
       useRefererConfig

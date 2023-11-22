@@ -66,7 +66,6 @@ import org.scalatestplus.mockito.MockitoSugar
 import scalacache.caffeine.CaffeineCache
 
 import java.net.URL
-import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -882,8 +881,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    implicit val diskService: GoogleDiskService[IO] = MockGoogleDiskService
+    implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release))
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg, diskService = diskService)
 
     val res =
       for {
@@ -936,8 +937,10 @@ class LeoPubsubMessageSubscriberSpec
     } yield getApp.app.status shouldBe AppStatus.Running
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    implicit val diskService: GoogleDiskService[IO] = MockGoogleDiskService
+    implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release))
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg, diskService = diskService)
 
     val res =
       for {
@@ -1031,10 +1034,9 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                          gkeAlgebra =
-                                            makeGKEInterp(nodepoolLock, List(savedApp1.release, savedApp2.release))
-    )
+    implicit val diskService: GoogleDiskService[IO] = MockGoogleDiskService
+    implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release, savedApp2.release))
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg)
 
     val res =
       for {
@@ -1148,7 +1150,9 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
+    implicit val diskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val res = for {
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
@@ -1197,7 +1201,9 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
+    implicit val diskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = diskService)
 
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -1314,9 +1320,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    implicit val diskService: GoogleDiskService[IO] = MockGoogleDiskService
+    implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release))
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
-
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg, diskService = diskService)
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1421,8 +1428,10 @@ class LeoPubsubMessageSubscriberSpec
       resourceService,
       FakeGoogleComputeService
     )
+    implicit val diskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    implicit val gkeAlg: GKEAlgebra[IO] = gkeInterp
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = diskService, gkeAlgebra = gkeAlg)
 
     val res =
       for {
@@ -1482,12 +1491,13 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val gkeAlg = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService {
+    implicit val diskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService {
       override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
         IO.raiseError(new RuntimeException("app creation failed"))
     }
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeAlg)
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = diskService, gkeAlgebra = gkeAlg)
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1601,7 +1611,8 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Stopping).save()
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg)
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1621,7 +1632,8 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Starting).save()
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg)
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1657,7 +1669,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val gkeInterp = new GKEInterpreter[IO](
+    implicit val diskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    implicit val gkeAlg: GKEAlgebra[IO] = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
       bucketHelper,
       vpcInterp,
@@ -1675,7 +1688,7 @@ class LeoPubsubMessageSubscriberSpec
     )
 
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeAlg)
 
     val res =
       for {
@@ -1745,8 +1758,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    implicit val diskService: GoogleDiskService[IO] = MockGoogleDiskService
+    implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release))
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg, diskService = diskService)
 
     val res =
       for {
@@ -1789,7 +1804,9 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.status shouldBe savedNodepool1.status
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
+    implicit val diskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -2096,9 +2113,7 @@ class LeoPubsubMessageSubscriberSpec
   )(implicit metrics: OpenTelemetryMetrics[IO]): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
-    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)
-
-    implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
+    val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)
 
     val underlyingOperationFutureCache =
       Caffeine
@@ -2115,13 +2130,12 @@ class LeoPubsubMessageSubscriberSpec
                                        Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig,
                                        Config.leoPubsubMessageSubscriberConfig.galaxyDiskConfig
       ),
-      googleSubscriber,
+      CloudSubscriber.GCP(googleSubscriber),
       asyncTaskQueue,
-      diskService,
       MockAuthProvider,
-      gkeAlgebra,
       azureInterp,
-      operationFutureCache
+      operationFutureCache,
+      Some(GCPModeSpecificDependencies(diskService, gkeAlgebra, runtimeInstances, runtimeMonitor))
     )
   }
 
@@ -2133,12 +2147,12 @@ class LeoPubsubMessageSubscriberSpec
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
-      new ApplicationConfig("test",
-                            GoogleProject("test"),
-                            Paths.get("x.y"),
-                            WorkbenchEmail("z@x.y"),
-                            new URL("https://leonardo.foo.org"),
-                            0L
+      ApplicationConfig("test",
+                        GoogleProject("test"),
+                        None,
+                        WorkbenchEmail("z@x.y"),
+                        new URL("https://leonardo.foo.org"),
+                        0L
       ),
       contentSecurityPolicy,
       asyncTaskQueue,

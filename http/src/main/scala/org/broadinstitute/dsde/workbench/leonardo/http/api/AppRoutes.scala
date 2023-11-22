@@ -11,6 +11,7 @@ import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   createAppDecoder,
   getAppResponseEncoder,
@@ -22,7 +23,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
-  metrics: OpenTelemetryMetrics[IO]
+  metrics: OpenTelemetryMetrics[IO],
+  googleResourceService: GoogleResourceService[IO],
+  computeService: GoogleComputeService[IO]
 ) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
@@ -112,7 +115,9 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                                     appName: AppName,
                                     req: CreateAppRequest
   )(implicit
-    ev: Ask[IO, AppContext]
+    ev: Ask[IO, AppContext],
+    googleResourceService: GoogleResourceService[IO],
+    computeService: GoogleComputeService[IO]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]

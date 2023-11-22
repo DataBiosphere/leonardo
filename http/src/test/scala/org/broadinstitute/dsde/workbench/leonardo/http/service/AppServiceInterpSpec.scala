@@ -12,7 +12,13 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGooglePublisher,
   FakeGoogleResourceService
 }
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  GoogleResourceService,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -95,57 +101,24 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(6 * 1024).setGuestCpus(2).build()))
     }
 
-    val highSecurityGoogleResourceService = new FakeGoogleResourceService {
-      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-        IO(Some(Map("security-group" -> "high")))
-    }
-
-    val anySecurityGoogleResourceService = new FakeGoogleResourceService {
-      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-        IO(Some(Map("security-group" -> "low")))
-    }
-
-    val noSecurityGoogleResourceService = new FakeGoogleResourceService {
-      override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-        IO(Some(Map("unused-label" -> "unused-label-value")))
-    }
-
-    val passAppService = new LeoAppServiceInterp[IO](
+    val appService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      passComputeService,
-      FakeGoogleResourceService,
-      gkeCustomAppConfig,
-      wsmDao
-    )
-    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      allowListAuthProvider,
-      serviceAccountProvider,
-      QueueFactory.makePublisherQueue(),
-      notEnoughMemoryComputeService,
-      FakeGoogleResourceService,
-      gkeCustomAppConfig,
-      wsmDao
-    )
-    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
-      appServiceConfig,
-      allowListAuthProvider,
-      serviceAccountProvider,
-      QueueFactory.makePublisherQueue(),
-      notEnoughCpuComputeService,
-      FakeGoogleResourceService,
       gkeCustomAppConfig,
       wsmDao
     )
 
     for {
       ctx <- appContext.ask[AppContext]
-      _ <- passAppService.validateGalaxy(project, None, MachineTypeName("fake"))
-      error1 <- notEnoughMemoryAppService.validateGalaxy(project, None, MachineTypeName("fake")).attempt
-      error2 <- notEnoughCpuAppService.validateGalaxy(project, None, MachineTypeName("fake")).attempt
+      _ <- appService.validateGalaxy(project, None, MachineTypeName("fake"))(appContext, passComputeService)
+      error1 <- appService
+        .validateGalaxy(project, None, MachineTypeName("fake"))(appContext, notEnoughMemoryComputeService)
+        .attempt
+      error2 <- appService
+        .validateGalaxy(project, None, MachineTypeName("fake"))(appContext, notEnoughCpuComputeService)
+        .attempt
     } yield {
       error1 shouldBe (Left(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId))))
       error2 shouldBe (Left(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId))))
@@ -157,7 +130,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
-    val noLabelsGoogleResourceService = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val noLabelsGoogleResourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(None)
     }
@@ -166,8 +140,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noLabelsGoogleResourceService,
       gkeCustomAppConfig,
       wsmDao
     )
@@ -191,13 +163,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val interp = new LeoAppServiceInterp[IO](
       AppServiceConfig(false, false, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
       gkeCustomAppConfig,
       wsmDao
     )
@@ -219,6 +191,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
@@ -257,6 +231,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
+
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -269,6 +246,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig2 = PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty)
     val appReq2 =
       createAppRequest.copy(diskConfig = Some(createDiskConfig2), customEnvironmentVariables = customEnvVars)
+
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName2, appReq2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -330,6 +308,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                          diskConfig = Some(diskConfig4)
       )
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
+
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName1, defaultAppReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -377,6 +358,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     kubeServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -417,6 +400,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val res = kubeServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .attempt
@@ -446,6 +431,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
+
     val res = kubeServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .attempt
@@ -471,6 +459,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appReq =
       createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVariables)
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     kubeServiceInterp
@@ -495,6 +485,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = cromwellAppCreateRequest(createDiskConfig, customEnvVars)
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     appServiceInterp
       .createApp(petUserInfo, cloudContextGcp, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -529,6 +521,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = cromwellAppCreateRequest(createDiskConfig, customEnvVars)
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     appServiceInterp
       .createApp(petUserInfo, cloudContextGcp, appName, appReq)
@@ -551,6 +545,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = cromwellAppCreateRequest(createDiskConfig, customEnvVars)
+
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     kubeServiceInterp
       .createApp(petUserInfo, cloudContextGcp, appName, appReq)
@@ -601,6 +598,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
+
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val res = kubeServiceInterp
@@ -614,6 +614,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "error on creation of a galaxy app without a disk" in isolatedDbTest {
     val appName = AppName("app1")
     val appReq = createAppRequest.copy(diskConfig = None, appType = AppType.Galaxy)
+
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     an[AppRequiresDiskException] should be thrownBy {
       appServiceInterp
@@ -632,6 +635,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), appType = AppType.Cromwell)
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val res = kubeServiceInterp
@@ -656,6 +661,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val res = kubeServiceInterp
@@ -669,7 +676,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "error on creation of Cromwell app without a disk" in isolatedDbTest {
     val appName = AppName("cromwell-app1")
     val appReq = createAppRequest.copy(diskConfig = None, appType = AppType.Cromwell)
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     an[AppRequiresDiskException] should be thrownBy {
       appServiceInterp
         .createApp(userInfo, cloudContextGcp, appName, appReq)
@@ -694,7 +702,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName1, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -718,7 +727,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -734,7 +744,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(DiskName("new-disk"), Some(DiskSize(50)), None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     a[BadRequestException] should be thrownBy {
       appServiceInterp
         .createApp(userInfo, cloudContextGcp, appName, appReq)
@@ -748,7 +759,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     kubeServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -861,6 +873,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
+
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -884,6 +899,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
@@ -909,6 +927,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     kubeServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
@@ -972,7 +992,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val diskName2 = DiskName("newDiskName")
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName1, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1027,7 +1048,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName1 = AppName("app1")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(diskConfig = Some(createDiskConfig1))
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     appServiceInterp
       .createApp(userInfo, cloudContext2Gcp, appName1, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1046,6 +1068,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
                                         diskConfig = Some(createDiskConfig1)
     )
+
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName1, appReq1)
@@ -1074,6 +1099,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val diskName2 = DiskName("newDiskName")
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2), labels = labels)
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
 
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName1, appReq1)
@@ -1157,7 +1184,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val diskName2 = DiskName("newDiskName")
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName1, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1292,13 +1320,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val noSecurityGroupGoogleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1337,7 +1365,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         appType = AppType.Allowed,
         allowedChartName = Some(AllowedChartName.Sas)
       )
-
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val noSecurityGroupGoogleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), authProvider = authProvider)
     val res = appServiceInterp
       .createApp(userInfo, cloudContextGcp, appName, appReq)
@@ -1351,11 +1380,12 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "reject create SAS app request if it's not for an AoU project" in {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val grs = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val grs: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO.pure(Some(Map.from(List("security-group" -> "low"))))
     }
-    val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), googleResourceService = grs)
+    val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
     val appReq =
       createAppRequest.copy(
         diskConfig = Some(createDiskConfig),
@@ -1376,12 +1406,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "reject create SAS app request if SAS is disabled" in {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val grs = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val grs: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO.pure(Some(Map.from(List("security-group" -> "low"))))
     }
     val appServiceInterp =
-      makeInterp(QueueFactory.makePublisherQueue(), googleResourceService = grs, enableSasApp = false)
+      makeInterp(QueueFactory.makePublisherQueue(), enableSasApp = false)
     val appReq =
       createAppRequest.copy(
         diskConfig = Some(createDiskConfig),
@@ -1404,7 +1435,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "create SAS app successfully for AoU even if user is not in sas_app_users group" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val grs = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val grs: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO.pure(Some(Map.from(List("security-group" -> "high"))))
     }
@@ -1414,7 +1446,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(false)
     }
     val queue = QueueFactory.makePublisherQueue()
-    val appServiceInterp = makeInterp(queue, googleResourceService = grs, authProvider = authProvider)
+    val appServiceInterp = makeInterp(queue, authProvider = authProvider)
     val appReq =
       createAppRequest.copy(
         diskConfig = Some(createDiskConfig),
@@ -1442,13 +1474,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val noSecurityGroupGoogleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1481,7 +1513,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
-    val noSecurityGroupGoogleResourceService = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val noSecurityGroupGoogleResourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("not-security-group" -> "any-val")))
     }
@@ -1490,8 +1523,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1523,7 +1554,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List("https://www.myappdescriptor.com/finaldesc"))
-    val highSecurityGoogleResourceService = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val highSecurityGoogleResourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("security-group" -> "high")))
     }
@@ -1532,8 +1564,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1562,7 +1592,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val highSecurityGoogleResourceService = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val highSecurityGoogleResourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("security-group" -> "high")))
     }
@@ -1571,8 +1602,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1607,7 +1636,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
-    val noSecurityGroupGoogleResourceService = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val noSecurityGroupGoogleResourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("not-security-group" -> "any-val")))
     }
@@ -1616,8 +1646,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1652,7 +1680,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
-    val noSecurityGroupGoogleResourceService = new FakeGoogleResourceService {
+    implicit val computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    implicit val noSecurityGroupGoogleResourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("not-security-group" -> "any-val")))
     }
@@ -1661,8 +1690,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -2447,6 +2474,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   "checkIfAppCreationIsAllowedAndIsAoU" should "enable IntraNodeVisibility if customApp check is disabled" in {
+    implicit val resourceService: GoogleResourceService[IO] = FakeGoogleResourceService
     val interp = makeInterp(QueueFactory.makePublisherQueue(), enableCustomAppCheckFlag = false)
     val res =
       interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
@@ -2454,15 +2482,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "should fail if app is not in allowed list for non high security projects" in {
-    val resourceService = new FakeGoogleResourceService {
+    implicit val resourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO.pure(Some(Map(SECURITY_GROUP -> "other")))
     }
     val userEmail = WorkbenchEmail("allowlist")
+
     val interp = makeInterp(
       QueueFactory.makePublisherQueue(),
       enableCustomAppCheckFlag = true,
-      googleResourceService = resourceService,
       customAppConfig = gkeCustomAppConfig.copy(customApplicationAllowList =
         CustomApplicationAllowListConfig(List(), List("https://dummy"))
       )
@@ -2478,7 +2506,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "should fail if app is not in allowed list for high security projects" in {
-    val resourceService = new FakeGoogleResourceService {
+    implicit val resourceService: GoogleResourceService[IO] = new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO.pure(Some(Map(SECURITY_GROUP -> "high")))
     }
@@ -2486,7 +2514,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val interp = makeInterp(
       QueueFactory.makePublisherQueue(),
       enableCustomAppCheckFlag = true,
-      googleResourceService = resourceService,
       customAppConfig = gkeCustomAppConfig.copy(customApplicationAllowList =
         CustomApplicationAllowListConfig(List("https://dummy"), List())
       )
@@ -2504,7 +2531,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, CloudTopicPublisher.Gcp(new FakeGooglePublisher))
     withInfiniteStream(leoPublisher.process, validations)
   }
 
@@ -2514,7 +2541,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                          wsmDao: WsmDao[IO] = wsmDao,
                          enableCustomAppCheckFlag: Boolean = true,
                          enableSasApp: Boolean = true,
-                         googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                          customAppConfig: CustomAppConfig = gkeCustomAppConfig
   ) = {
     val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
@@ -2524,8 +2550,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       authProvider,
       serviceAccountProvider,
       queue,
-      FakeGoogleComputeService,
-      googleResourceService,
       customAppConfig,
       wsmDao
     )

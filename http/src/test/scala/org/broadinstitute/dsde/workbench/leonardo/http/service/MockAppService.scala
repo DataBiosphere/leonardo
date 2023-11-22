@@ -4,6 +4,7 @@ package service
 
 import cats.effect.IO
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
@@ -14,7 +15,9 @@ class MockAppService extends AppService[IO] {
                          req: CreateAppRequest,
                          workspaceId: Option[WorkspaceId] = None
   )(implicit
-    as: Ask[IO, AppContext]
+    as: Ask[IO, AppContext],
+    googleResourceService: GoogleResourceService[IO],
+    computeService: GoogleComputeService[IO]
   ): IO[Unit] =
     IO.unit
 

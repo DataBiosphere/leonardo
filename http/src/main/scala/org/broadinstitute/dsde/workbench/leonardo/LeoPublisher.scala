@@ -30,7 +30,7 @@ import scala.concurrent.duration._
  */
 final class LeoPublisher[F[_]](
   publisherQueue: Queue[F, LeoPubsubMessage],
-  googlePublisher: GooglePublisher[F]
+  publisher: CloudTopicPublisher[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -42,11 +42,19 @@ final class LeoPublisher[F[_]](
     val publishingStream =
       Stream.eval(logger.info(s"Initializing publisher")) ++ Stream.fromQueueUnterminated(publisherQueue).flatMap {
         event =>
-          Stream
-            .eval(F.pure(event))
-            .covary[F]
-            .through(convertToPubsubMessagePipe)
-            .through(googlePublisher.publishNative)
+          val publishStream = publisher match {
+            case CloudTopicPublisher.Azure(_) =>
+              Stream.raiseError(new NotImplementedError("Azure publisher is not implemented yet"))
+
+            case CloudTopicPublisher.Gcp(googlePublisher) =>
+              Stream
+                .eval(F.pure(event))
+                .covary[F]
+                .through(convertToPubsubMessagePipe)
+                .through(googlePublisher.publishNative)
+          }
+
+          publishStream
             .evalMap(_ => updateDatabase(event))
             .handleErrorWith { t =>
               val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
@@ -139,3 +147,11 @@ final class LeoPublisher[F[_]](
       }
     } yield ()
 }
+
+sealed trait CloudTopicPublisher[F[_]] extends Product with Serializable
+object CloudTopicPublisher {
+  final case class Azure[F[_]](azurePublisher: AzurePublisher[F]) extends CloudTopicPublisher[F]
+  final case class Gcp[F[_]](googlePublisher: GooglePublisher[F]) extends CloudTopicPublisher[F]
+}
+
+trait AzurePublisher[F[_]] // TODO: Jesus will fill this in and move it to a better place

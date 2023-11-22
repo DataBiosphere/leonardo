@@ -14,6 +14,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Encoder
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
@@ -29,23 +30,16 @@ import scala.concurrent.{ExecutionContext, Future}
 class HttpRoutes(
   oidcConfig: OpenIDConnectConfiguration,
   statusService: StatusService,
-  proxyService: ProxyService,
-  runtimeService: RuntimeService[IO],
-  diskService: DiskService[IO],
   diskV2Service: DiskV2Service[IO],
   kubernetesService: AppService[IO],
   azureService: RuntimeV2Service[IO],
   adminService: AdminService[IO],
+  gcpModeSpecificServices: Option[GCPModeSpecificServices],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
   refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val statusRoutes = new StatusRoutes(statusService)
-  private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
-  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
-  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
-  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
-  private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
   private val appV2Routes = new AppV2Routes(kubernetesService, userInfoDirectives)
   private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
   private val diskV2Routes = new DiskV2Routes(diskV2Service, userInfoDirectives)
@@ -111,16 +105,41 @@ class HttpRoutes(
       )
       .result()
 
-  val route: Route =
+  val route: Route = {
+    val commonTopLevelRoutes = oidcConfig
+      .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route
+
+    val topLevelRoutes = gcpModeSpecificServices match {
+      case Some(GCPModeSpecificServices(_, _, proxyService, _, _)) =>
+        val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
+        val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
+        commonTopLevelRoutes ~ proxyRoutes.route
+      case None =>
+        commonTopLevelRoutes
+    }
+
     logRequestResult {
       Route.seal(
-        oidcConfig
-          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ proxyRoutes.route ~ statusRoutes.route ~
+        topLevelRoutes ~
           pathPrefix("api") {
-            runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes
+            gcpModeSpecificServices match {
+              case Some(
+                    GCPModeSpecificServices(runtimeService, diskService, _, resourceService, googleComputeService)
+                  ) =>
+                val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
+                val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
+                implicit val rs: GoogleResourceService[IO] = resourceService
+                implicit val cs: GoogleComputeService[IO] = googleComputeService
+                val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
+
+                runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes
+              case None =>
+                runtimeV2Routes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes
+            }
           }
       )
     }
+  }
 }
 
 object HttpRoutes {
@@ -134,3 +153,11 @@ object HttpRoutes {
     "traceId"
   )(x => (x.source, x.message, x.statusCode, x.exceptionClass, x.traceId))
 }
+
+final case class GCPModeSpecificServices(
+  runtimeService: RuntimeService[IO],
+  diskService: DiskService[IO],
+  proxyService: ProxyService,
+  googleResourceService: GoogleResourceService[IO],
+  googleComputeService: GoogleComputeService[IO]
+)

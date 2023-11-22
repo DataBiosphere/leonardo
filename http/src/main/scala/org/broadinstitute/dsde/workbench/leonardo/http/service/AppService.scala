@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 package service
 
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, CloudContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -14,7 +15,11 @@ trait AppService[F[_]] {
     appName: AppName,
     req: CreateAppRequest,
     workspaceId: Option[WorkspaceId] = None
-  )(implicit as: Ask[F, AppContext]): F[Unit]
+  )(implicit
+    as: Ask[F, AppContext],
+    googleResourceService: GoogleResourceService[F],
+    computeService: GoogleComputeService[F]
+  ): F[Unit]
 
   def getApp(
     userInfo: UserInfo,

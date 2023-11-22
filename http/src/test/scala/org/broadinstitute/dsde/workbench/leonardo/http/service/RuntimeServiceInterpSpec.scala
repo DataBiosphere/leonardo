@@ -2286,7 +2286,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)(
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, CloudTopicPublisher.Gcp(new FakeGooglePublisher))(
       implicitly,
       implicitly,
       implicitly,
