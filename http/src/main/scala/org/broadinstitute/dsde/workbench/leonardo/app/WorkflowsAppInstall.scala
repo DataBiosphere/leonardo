@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
+import bio.terra.workspace.model.CloningInstructionsEnum
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -31,7 +32,7 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
 
   override def databases: List[Database] =
     List(
-      ControlledDatabase("cbas"),
+      ControlledDatabase("cbas", cloningInstructions = CloningInstructionsEnum.RESOURCE),
       // Cromwell metadata database is also accessed by the cromwell-runner app
       ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
     )
