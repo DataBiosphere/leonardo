@@ -25,7 +25,6 @@ jobs:
       branch: ${{ steps.prepare-outputs.outputs.branch }}
       delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
-      student-subjects: ${{ steps.prepare-outputs.outputs.student-subjects }}
       service-account: ${{ steps.prepare-outputs.outputs.service-account }}
       log-results: ${{ steps.prepare-outputs.outputs.log-results }}
       test-context: ${{ steps.prepare-outputs.outputs.test-context }}
@@ -35,8 +34,6 @@ jobs:
         run: |
           echo "branch=${{ inputs.branch                            || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee                    || false }}" >> "$GITHUB_OUTPUT"
-          echo "owner-subject=${{ inputs.owner-subject              || 'hermione.owner@quality.firecloud.org' }}" >> "$GITHUB_OUTPUT"
-          echo "student-subjects=${{ toJson(inputs.student-subjects || '["harry.potter@quality.firecloud.org","ron.weasley@quality.firecloud.org"]') }}" >> "$GITHUB_OUTPUT"
           echo "service-account=${{ inputs.service-account          || 'firecloud-qa@broad-dsde-qa.iam.gserviceaccount.com' }}" >> "$GITHUB_OUTPUT"
           echo "log-results=true" >> $GITHUB_OUTPUT
           if ${{ github.ref_name == 'develop' }}; then
