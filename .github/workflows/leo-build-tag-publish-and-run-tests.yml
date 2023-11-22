@@ -191,7 +191,7 @@ jobs:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
           workflow: leonardo-swat-tests
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: DDO-2377-report-logging-on-fail
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
           # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
           inputs: '{
