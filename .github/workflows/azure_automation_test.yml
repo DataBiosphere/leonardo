@@ -4,8 +4,8 @@
 name: Azure automation tests
 
 on:
-  pull_request:
-    branches: [ develop ]
+#  pull_request:
+#    branches: [ develop ]
   schedule:
     # run twice a day at 10:00 and 22:00 UTC every day of the week
     - cron: "0 10/12 * * *"
@@ -112,7 +112,7 @@ jobs:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
           echo "$GITHUB_CONTEXT"
-          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\, \"workspacemanager\":{\"appVersion\":\"96afee6221e2e23a90e7ab610421735797408d47\"}}' >> $GITHUB_OUTPUT
+          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"},\"workspacemanager\":{\"appVersion\":\"96afee6221e2e23a90e7ab610421735797408d47\"}' >> $GITHUB_OUTPUT
 
   create-bee-workflow:
     runs-on: ubuntu-latest
