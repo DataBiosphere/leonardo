@@ -112,7 +112,7 @@ jobs:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
           echo "$GITHUB_CONTEXT"
-          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"},\"workspacemanager\":{\"appVersion\":\"96afee6221e2e23a90e7ab610421735797408d47\"}' >> $GITHUB_OUTPUT
+          echo 'custom-version-json={\"workspacemanager\":{\"appVersion\":\"96afee6221e2e23a90e7ab610421735797408d47\"}' >> $GITHUB_OUTPUT
 
   create-bee-workflow:
     runs-on: ubuntu-latest
