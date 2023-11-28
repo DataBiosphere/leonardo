@@ -52,8 +52,8 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       now <- IO.realTimeInstant
       runningApp <- IO(
-        makeApp(1, savedNodepool1.id)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.HOURS)),
+        makeApp(2, savedNodepool1.id)
+          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
                 autoDeleteThresholdInMinutes = 6
           )
@@ -64,7 +64,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
       event <- queue.tryTake
     } yield {
       status.get shouldBe (AppStatus.Running)
-      event.get shouldBe None
+      event shouldBe None
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
