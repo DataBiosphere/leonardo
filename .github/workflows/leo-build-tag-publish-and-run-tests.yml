@@ -19,10 +19,15 @@ env:
   BEE_DESTROY_RUN_NAME: 'bee-destroy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
 jobs:
+
+  #
+  # Environment Initialization
+  #
+
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.prepare-outputs.outputs.branch }}
+      branch: ${{ steps.extract-branch.outputs.branch }}
       delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
       service-account: ${{ steps.prepare-outputs.outputs.service-account }}
@@ -32,9 +37,7 @@ jobs:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
         run: |
-          echo "branch=${{ inputs.branch                            || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee                    || false }}" >> "$GITHUB_OUTPUT"
-          echo "service-account=${{ inputs.service-account          || 'firecloud-qa@broad-dsde-qa.iam.gserviceaccount.com' }}" >> "$GITHUB_OUTPUT"
           echo "log-results=true" >> $GITHUB_OUTPUT
           if ${{ github.ref_name == 'develop' }}; then
             echo 'test-context=dev-merge' >> $GITHUB_OUTPUT
@@ -42,8 +45,29 @@ jobs:
             echo 'test-context=pr-test' >> $GITHUB_OUTPUT
           fi
 
+      # we need this because github can't actually provide the branch name reliably
+      # https://github.com/orgs/community/discussions/5251
+      - name: Extract branch
+        id: extract-branch
+        run: |
+          if [[ '${{ github.event_name }}' == 'push' ]]; then
+            BRANCH_NAME=${{ github.ref_name }}
+          elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
+            BRANCH_NAME=${{ github.head_ref }}
+          else
+            echo "Failed to extract branch information"
+            exit 1
+          fi
+
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+  #
+  # Artifact Build and Promotion
+  #
+
   leo-build-tag-publish-job:
     runs-on: ubuntu-latest
+    needs: [init-github-context]
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -62,22 +86,6 @@ jobs:
           RELEASE_BRANCHES: develop
           WITH_V: true
 
-      # we need this because github can't actually provide the branch name reliably
-      # https://github.com/orgs/community/discussions/5251
-      - name: Extract branch
-        id: extract-branch
-        run: |
-          if [[ '${{ github.event_name }}' == 'push' ]]; then
-            BRANCH_NAME=${{ github.ref_name }}
-          elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
-            BRANCH_NAME=${{ github.head_ref }}
-          else
-            echo "Failed to extract branch information"
-            exit 1
-          fi
-
-          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-
       # Builds Leonardo elsewhere to protect secrets.  Upon success, will tag the commit in git.
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v3
@@ -86,7 +94,7 @@ jobs:
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "${{ steps.extract-branch.outputs.name }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
+          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "${{ needs.init-github-context.outputs.log-results }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
 
       # formats the app version string to be usable by create-bee
       - name: Render Leonardo version
@@ -123,8 +131,13 @@ jobs:
     permissions:
       id-token: 'write'
 
+  #
+  # E2E Tests - Setup and Run
+  #
+
   create-bee-workflow:
     runs-on: ubuntu-latest
+    needs: [ leo-build-tag-publish-job, report-to-sherlock ]
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -141,11 +154,11 @@ jobs:
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
-            "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "bee-template-name": "rawls-e2e-azure-tests",
-            "version-template": "dev",
-            "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}"
+              "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
+              "bee-name": "${{ env.BEE_NAME }}",
+              "bee-template-name": "rawls-e2e-azure-tests",
+              "version-template": "dev",
+              "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}"
             }'
 
   leo-swat-test-job:
@@ -160,20 +173,15 @@ jobs:
       id-token: 'write'
     steps:
       - name: Configure test-reporting input parameter
+        # TEST_REPORTING values are used as follows:
+        # log_results: boolean to log test results to bigquery
+        # test_context: descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table
+        # caller_run_id: descriptive run_id of caller
         run: |
           TEST_REPORTING='{
-              "log_results": {
-                "description": "boolean to log test results to bigquery",
-                "val": ${{ needs.init-github-context.outputs.log-results }}
-              },
-              "test_context": {
-                "description": "descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table",
-                "val": "${{ needs.init-github-context.outputs.test-context }}"
-              },
-              "caller_run_id": {
-                "description": "run_id of caller, defaults to this ghas run_id",
-                "val": "${{ github.run_id }}"
-              }
+              "log_results": { "val": ${{ needs.init-github-context.outputs.log-results }} },
+              "test_context": { "val": "${{ needs.init-github-context.outputs.test-context }}" },
+              "caller_run_id": { "val": "${{ github.run_id }}" }
             }'
           TEST_REPORTING=$(echo "$TEST_REPORTING" |
             tr -d '\n' |
@@ -188,9 +196,8 @@ jobs:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
           workflow: leonardo-swat-tests
           repo: broadinstitute/terra-github-workflows
-          ref: DDO-2377-report-logging-on-fail
-          token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
-          # manually recalculate b/c env context is broken https://github.com/actions/runner/issues/480
+          ref: refs/heads/main
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
               "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
               "bee-name": "${{ env.BEE_NAME }}",
@@ -200,6 +207,10 @@ jobs:
               "ref": "${{ needs.init-github-context.outputs.branch }}",
               "test-reporting": ${{ toJson(env.TEST_REPORTING) }}
             }'
+
+  #
+  # E2E Tests - Cleanup
+  #
 
   destroy-bee-workflow:
     runs-on: ubuntu-latest
