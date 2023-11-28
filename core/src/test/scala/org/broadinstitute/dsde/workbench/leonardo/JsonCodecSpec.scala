@@ -9,6 +9,9 @@ import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, Z
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
+import java.util.concurrent.TimeUnit
+import scala.concurrent.duration.FiniteDuration
+
 class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   "JsonCodec" should "decode DataprocConfig properly" in {
     val inputString =
@@ -172,13 +175,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
   }
 
   it should "decode duration" in {
-    import scala.concurrent.duration.FiniteDuration
-    import java.util.concurrent.TimeUnit
-    import cats.syntax.all._
-    val decoder: io.circe.Decoder[scala.concurrent.duration.Duration] = io.circe.Decoder.decodeString.emap { x =>
-      Either.catchNonFatal(scala.concurrent.duration.Duration(x)).leftMap(_.getMessage)
-    }
-    decoder.decodeJson("""15 minutes""".asJson) shouldBe Right(FiniteDuration(15, TimeUnit.MINUTES))
-    decoder.decodeJson("""Inf""".asJson) shouldBe Right(scala.concurrent.duration.Duration.Inf)
+    durationStringDecoder.decodeJson("""15 minutes""".asJson) shouldBe Right(FiniteDuration(15, TimeUnit.MINUTES))
+    durationStringDecoder.decodeJson("""Inf""".asJson) shouldBe Right(scala.concurrent.duration.Duration.Inf)
   }
 }

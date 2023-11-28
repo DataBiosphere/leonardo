@@ -815,6 +815,6 @@ object JsonCodec {
     )
   )
 
-  implicit val dd: Decoder[FiniteDuration] =
+  implicit val durationStringDecoder: Decoder[FiniteDuration] =
     Decoder.decodeDuration.map(x => FiniteDuration(x.toMillis, TimeUnit.MILLISECONDS))
 }
