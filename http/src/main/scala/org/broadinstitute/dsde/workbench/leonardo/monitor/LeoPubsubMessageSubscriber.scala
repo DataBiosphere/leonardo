@@ -218,19 +218,20 @@ class LeoPubsubMessageSubscriber[F[_]](
       end <- F.realTimeInstant
       duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
       distributionBucket = List(0.5 minutes,
-        1 minutes,
-        1.5 minutes,
-        2 minutes,
-        2.5 minutes,
-        3 minutes,
-        3.5 minutes,
-        4 minutes,
-        4.5 minutes
+                                1 minutes,
+                                1.5 minutes,
+                                2 minutes,
+                                2.5 minutes,
+                                3 minutes,
+                                3.5 minutes,
+                                4 minutes,
+                                4.5 minutes
       )
-      metricsName = if (isFailure)
-        s"pubsub/fail/${event.msg.messageType.asString}"
-      else
-        s"pubsub/ack/${event.msg.messageType.asString}"
+      metricsName =
+        if (isFailure)
+          s"pubsub/fail/${event.msg.messageType.asString}"
+        else
+          s"pubsub/ack/${event.msg.messageType.asString}"
       _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
     } yield ()
 
@@ -1406,7 +1407,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
       }
 
-      _ <- updateApp.adaptError { case e => {
+      _ <- updateApp.adaptError { case e =>
         PubsubKubernetesError(
           AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
           Some(msg.appId),
@@ -1415,7 +1416,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           None,
           None
         )
-      }}
+      }
 
       _ <- asyncTasks.offer(Task(ctx.traceId, updateApp, Some(handleKubernetesError), ctx.now, "updateApp"))
     } yield ()
