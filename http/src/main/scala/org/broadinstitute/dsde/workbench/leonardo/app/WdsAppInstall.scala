@@ -43,7 +43,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
       )
 
       // Database required for WDS App
-      dbName <- F.fromOption(params.databaseNames.headOption,
+      dbName <- F.fromOption(params.databaseNames.headOption.map(_.azureDatabaseName),
                              AppCreationException("Database names required for WDS app", Some(ctx.traceId))
       )
 
