@@ -51,6 +51,7 @@ class AutoDeleteAppMonitor[F[_]](
     logger: StructuredLogger[F]
   ): F[Seq[AppToAutoDelete]] = for {
     candidates <- appQuery.getAppsReadyToAutoDelete.transaction
+    _= println(s"candidates $candidates")
   } yield candidates
 
   override def action(a: AppToAutoDelete, traceId: TraceId, now: Instant)(implicit F: Async[F]): F[Unit] =
@@ -59,6 +60,7 @@ class AutoDeleteAppMonitor[F[_]](
       loggingCtx = Map("traceId" -> traceId.asString)
       _ <- a.cloudContext match {
         case CloudContext.Gcp(googleProject) =>
+          printf("!!!!!!!!!!!!FOUND GCP app to delete %s", a)
           if (a.appStatus == AppStatus.Error) {
             implicit val implicitTraceId: Ask[F, TraceId] = Ask.const[F, TraceId](traceId)
             for {
@@ -71,6 +73,7 @@ class AutoDeleteAppMonitor[F[_]](
               _ <- appQuery.markAsDeleted(a.id, now).transaction
             } yield ()
           } else {
+            printf("!!!!!!!!!!!!FOUND GCP app to delete and RUNNING %s", a)
             for {
               _ <- KubernetesServiceDbQueries.markPreDeleting(a.id).transaction
               deleteMessage = DeleteAppMessage(
