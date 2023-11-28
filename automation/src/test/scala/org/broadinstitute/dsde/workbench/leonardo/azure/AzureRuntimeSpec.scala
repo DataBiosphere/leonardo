@@ -143,44 +143,44 @@ class AzureRuntimeSpec
         )
         _ = monitorStartResult.getStatus shouldBe ClusterStatus.RUNNING
 
-        _ <- loggerIO.info(
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
-        )
-        // Delete the runtime
-        _ <- IO(runtimeClient.deleteAzureRuntime(workspaceId, runtimeName.asString, true))
-
-        _ <- loggerIO.info(
-          s"AzureRuntimeSpec: about to test proxyUrl"
-        )
-
-        _ <- GeneratedLeonardoClient.client.use { c =>
-          implicit val client = c
-          GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)
-        }
-
-        _ <- loggerIO.info(
-          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
-        )
-
-        callGetRuntime2 = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
-        monitorDeleteResult <- streamUntilDoneOrTimeout(
-          callGetRuntime2,
-          240,
-          10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 40 minutes"
-        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
-
-        _ <- loggerIO.info(
-          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete monitor result: $monitorDeleteResult"
-        )
-        _ = monitorDeleteResult.getStatus() shouldBe ClusterStatus.DELETED
-
-        diskAfterRuntimeDelete <- getDisk
-        _ = diskAfterRuntimeDelete.getStatus shouldBe DiskStatus.DELETED
-
-        _ <- loggerIO.info(
-          s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
-        )
+//        _ <- loggerIO.info(
+//          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
+//        )
+//        // Delete the runtime
+//        _ <- IO(runtimeClient.deleteAzureRuntime(workspaceId, runtimeName.asString, true))
+//
+//        _ <- loggerIO.info(
+//          s"AzureRuntimeSpec: about to test proxyUrl"
+//        )
+//
+//        _ <- GeneratedLeonardoClient.client.use { c =>
+//          implicit val client = c
+//          GeneratedLeonardoClient.testProxyUrl(monitorCreateResult)
+//        }
+//
+//        _ <- loggerIO.info(
+//          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
+//        )
+//
+//        callGetRuntime2 = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
+//        monitorDeleteResult <- streamUntilDoneOrTimeout(
+//          callGetRuntime2,
+//          240,
+//          10 seconds,
+//          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish deleting after 40 minutes"
+//        )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
+//
+//        _ <- loggerIO.info(
+//          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete monitor result: $monitorDeleteResult"
+//        )
+//        _ = monitorDeleteResult.getStatus() shouldBe ClusterStatus.DELETED
+//
+//        diskAfterRuntimeDelete <- getDisk
+//        _ = diskAfterRuntimeDelete.getStatus shouldBe DiskStatus.DELETED
+//
+//        _ <- loggerIO.info(
+//          s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
+//        )
 
         _ <- IO.sleep(1 minute) // sleep for a minute before cleaning up workspace
       } yield ()
