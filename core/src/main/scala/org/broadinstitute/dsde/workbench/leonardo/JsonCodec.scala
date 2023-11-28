@@ -51,9 +51,8 @@ import java.net.URL
 import java.nio.file.{Path, Paths}
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import java.util.stream.Collectors
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.Duration
 
 object JsonCodec {
   // Errors
@@ -815,6 +814,8 @@ object JsonCodec {
     )
   )
 
-  implicit val durationStringDecoder: Decoder[FiniteDuration] =
-    Decoder.decodeDuration.map(x => FiniteDuration(x.toMillis, TimeUnit.MILLISECONDS))
+  implicit val durationDecoder: Decoder[Duration] =
+    Decoder.decodeString.emap { x =>
+      Either.catchNonFatal(Duration(x)).leftMap(_.getMessage)
+    }
 }

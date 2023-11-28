@@ -10,7 +10,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
 import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{Duration, FiniteDuration}
 
 class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   "JsonCodec" should "decode DataprocConfig properly" in {
@@ -175,7 +175,9 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
   }
 
   it should "decode duration" in {
-    durationStringDecoder.decodeJson("""15 minutes""".asJson) shouldBe Right(FiniteDuration(15, TimeUnit.MINUTES))
-    durationStringDecoder.decodeJson("""Inf""".asJson) shouldBe Right(scala.concurrent.duration.Duration.Inf)
+    durationDecoder.decodeJson("""15 minutes""".asJson) shouldBe Right(Duration(15, TimeUnit.MINUTES))
+    durationDecoder.decodeJson("""15m""".asJson) shouldBe Right(Duration(15, TimeUnit.MINUTES))
+    durationDecoder.decodeJson("""15d""".asJson) shouldBe Right(Duration(15, TimeUnit.DAYS))
+    durationDecoder.decodeJson("""Inf""".asJson) shouldBe Right(Duration.Inf)
   }
 }

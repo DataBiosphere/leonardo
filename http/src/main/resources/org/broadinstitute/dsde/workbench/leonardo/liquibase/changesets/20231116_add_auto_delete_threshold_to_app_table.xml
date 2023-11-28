@@ -3,7 +3,7 @@
     <changeSet logicalFilePath="leonardo" author="qi" id="yonghao_20231116_add_auto_delete_threshold_to_app_table">
         <addColumn tableName="APP">
             <column name="autoDeleteThresholdInMinutes" defaultValue="0" type="SMALLINT">
-                <constraints nullable="true"/>
+                <constraints nullable="false"/>
             </column>
         </addColumn>
     </changeSet>

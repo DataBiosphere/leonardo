@@ -48,6 +48,7 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.Duration
 
 final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
@@ -1249,9 +1250,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
         else None
       autoDeleteThresholdInMinutes = req.autoDeleteThresholdDuration match {
-        case None                                   => autoDeleteOffValue
-        case scala.concurrent.duration.Duration.Inf => autoDeleteOffValue
-        case Some(x)                                => x.toMinutes.toInt
+        case None               => autoDeleteOffValue
+        case Some(Duration.Inf) => autoDeleteOffValue
+        case Some(x)            => x.toMinutes.toInt
       }
 
     } yield SaveApp(

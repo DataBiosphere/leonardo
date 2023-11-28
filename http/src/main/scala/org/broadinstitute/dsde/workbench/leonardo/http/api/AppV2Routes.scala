@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Uri
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.Duration
 
 class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
@@ -178,7 +178,7 @@ object AppV2Routes {
         dp <- x.downField("descriptorPath").as[Option[Uri]]
         ea <- x.downField("extraArgs").as[Option[List[String]]]
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
-        adt <- x.downField("autoDeleteThresholdDuration").as[Option[FiniteDuration]]
+        adt <- x.downField("autoDeleteThresholdDuration").as[Option[Duration]]
 
         optStr <- x.downField("appType").as[Option[String]]
         cn <- x.downField("allowedChartName").as[Option[AllowedChartName]]
