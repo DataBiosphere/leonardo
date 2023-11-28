@@ -137,7 +137,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         ChartVersion("2.5.0"),
         ChartVersion("2.5.1"),
         ChartVersion("2.5.2"),
-        ChartVersion("2.8.0")
+        ChartVersion("2.8.0"),
+        ChartVersion("2.8.1")
       )
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
