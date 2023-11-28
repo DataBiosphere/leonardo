@@ -261,32 +261,32 @@ jobs:
             "test-reporting": ${{ toJson(env.TEST_REPORTING) }},
             "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
           }'
-
-  delete-billing-project-v2-from-bee-workflow:
-    runs-on: ubuntu-latest
-    needs:
-      - init-github-context
-      - params-gen
-      - leo-automation-test-job
-    if: always()
-    steps:
-      - name: dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4.0.0
-        with:
-          run-name: "${{ env.DEL_BP_V2_RUN_NAME }}"
-          workflow: .github/workflows/delete-billing-project-v2-from-bee.yaml
-          repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
-          token: ${{ env.TOKEN }}
-          inputs: '{
-            "run-name": "${{ env.DEL_BP_V2_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "billing-project": "${{ needs.params-gen.outputs.project-name }}",
-            "billing-project-owner": "${{ needs.init-github-context.outputs.owner-subject }}",
-            "service-account": "${{ needs.init-github-context.outputs.service-account }}",
-            "silent-on-failure": "true"
-          }'
-
+#
+#  delete-billing-project-v2-from-bee-workflow:
+#    runs-on: ubuntu-latest
+#    needs:
+#      - init-github-context
+#      - params-gen
+#      - leo-automation-test-job
+#    if: always()
+#    steps:
+#      - name: dispatch to terra-github-workflows
+#        uses: broadinstitute/workflow-dispatch@v4.0.0
+#        with:
+#          run-name: "${{ env.DEL_BP_V2_RUN_NAME }}"
+#          workflow: .github/workflows/delete-billing-project-v2-from-bee.yaml
+#          repo: broadinstitute/terra-github-workflows
+#          ref: refs/heads/main
+#          token: ${{ env.TOKEN }}
+#          inputs: '{
+#            "run-name": "${{ env.DEL_BP_V2_RUN_NAME }}",
+#            "bee-name": "${{ env.BEE_NAME }}",
+#            "billing-project": "${{ needs.params-gen.outputs.project-name }}",
+#            "billing-project-owner": "${{ needs.init-github-context.outputs.owner-subject }}",
+#            "service-account": "${{ needs.init-github-context.outputs.service-account }}",
+#            "silent-on-failure": "true"
+#          }'
+#
 #  destroy-bee-workflow:
 #    runs-on: ubuntu-latest
 #    needs:
