@@ -228,9 +228,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(
-          _.azureDatabaseName
-        ) ++ referenceDatabases.map(_.azureDatabaseName),
+        wsmDatabases ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -367,8 +365,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmDatabases <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
         .transaction
-      wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
+      wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
         F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
+          .map(db => WsmControlledDatabaseResource(db.getMetadata.getName, db.getAttributes.getDatabaseName))
       }
 
       // call WSM resource API to get list of ReferenceDatabases
@@ -439,7 +438,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDbNames.map(_.getAttributes.getDatabaseName) ++ referenceDatabases.map(_.azureDatabaseName),
+        wsmDatabases ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)

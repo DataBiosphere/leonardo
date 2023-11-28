@@ -13,7 +13,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   LandingZoneResources,
   ManagedIdentityName,
-  WorkspaceId
+  WorkspaceId,
+  WsmControlledDatabaseResource
 }
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
@@ -50,6 +51,11 @@ object AppInstall {
     case AppType.CromwellRunnerApp => cromwellRunnerAppInstall
     case e                         => throw new IllegalArgumentException(s"Unexpected app type: ${e}")
   }
+
+  def getAzureDatabaseName(dbResources: List[WsmControlledDatabaseResource], dbPrefix: String): Option[String] =
+    dbResources.collectFirst {
+      case db if db.wsmDatabaseName.startsWith(dbPrefix) => db.azureDatabaseName
+    }
 }
 
 sealed trait Database
@@ -74,6 +80,6 @@ final case class BuildHelmOverrideValuesParams(app: App,
                                                relayPath: Uri,
                                                ksaName: ServiceAccountName,
                                                managedIdentityName: ManagedIdentityName,
-                                               databaseNames: List[String],
+                                               databaseNames: List[WsmControlledDatabaseResource],
                                                config: AKSInterpreterConfig
 )
