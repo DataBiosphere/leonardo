@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   PostgresServer,
   StorageAccountName,
   WorkspaceId,
+  WsmControlledDatabaseResource,
   WsmControlledResourceId
 }
 import org.broadinstitute.dsp.Release
@@ -81,7 +82,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
     ConfigReader.appConfig.azure.listenerChartConfig
   )
 
-  def buildHelmOverrideValuesParams(databases: List[String]): BuildHelmOverrideValuesParams =
+  def buildHelmOverrideValuesParams(databases: List[WsmControlledDatabaseResource]): BuildHelmOverrideValuesParams =
     BuildHelmOverrideValuesParams(
       app,
       workspaceId,

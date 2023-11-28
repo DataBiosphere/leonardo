@@ -4,6 +4,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.WsmControlledDatabaseResource
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 
 class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
@@ -17,8 +18,17 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
     mockAzureApplicationInsightsService
   )
 
+  val cromwellAzureDbName = "cromwell_wgsdoi"
+  val tesAzureDbName = "tes_oiwjnz"
+  val cromwellMetadataAzureDbName = "cromwellmetadata_tyuiwk"
+  val cromwellRunnerAzureDatabases: List[WsmControlledDatabaseResource] = List(
+    WsmControlledDatabaseResource("cromwell", cromwellAzureDbName),
+    WsmControlledDatabaseResource("tes", tesAzureDbName),
+    WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName)
+  )
+
   it should "build cromwell-runner override values" in {
-    val params = buildHelmOverrideValuesParams(List("cromwell1", "tes1", "cromwellmetadata1"))
+    val params = buildHelmOverrideValuesParams(cromwellRunnerAzureDatabases)
 
     val overrides = cromwellRunnerAppInstall.buildHelmOverrideValues(params)
 
@@ -50,13 +60,13 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
-      s"postgres.dbnames.cromwell=cromwell1," +
-      s"postgres.dbnames.tes=tes1," +
-      s"postgres.dbnames.cromwellMetadata=cromwellmetadata1"
+      s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
+      s"postgres.dbnames.tes=$tesAzureDbName," +
+      s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName"
   }
 
   it should "fail if there is no storage container" in {
-    val params = buildHelmOverrideValuesParams(List("cromwell1", "tes1")).copy(storageContainer = None)
+    val params = buildHelmOverrideValuesParams(cromwellRunnerAzureDatabases).copy(storageContainer = None)
     val overrides = cromwellRunnerAppInstall.buildHelmOverrideValues(params)
     assertThrows[AppCreationException] {
       overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -64,7 +74,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
   }
 
   it should "fail if there is no postgres server" in {
-    val params = buildHelmOverrideValuesParams(List("cromwell1", "tes1"))
+    val params = buildHelmOverrideValuesParams(cromwellRunnerAzureDatabases)
       .copy(landingZoneResources = landingZoneResources.copy(postgresServer = None))
     val overrides = cromwellRunnerAppInstall.buildHelmOverrideValues(params)
     assertThrows[AppCreationException] {
@@ -82,10 +92,11 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
 
   it should "find the first instance of each database type" in {
     cromwellRunnerAppInstall.toCromwellRunnerAppDatabaseNames(
-      List("cromwellmetadata_zyxwvu",
-           "cromwell_12345",
-           "tes_12345"
+      List(
+        WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName),
+        WsmControlledDatabaseResource("cromwell", cromwellAzureDbName),
+        WsmControlledDatabaseResource("tes", tesAzureDbName)
       ) // put cromwellmetadata first to ensure it doesn't get confused with cromwell
-    ) should be(Some(CromwellRunnerAppDatabaseNames("cromwell_12345", "tes_12345", "cromwellmetadata_zyxwvu")))
+    ) should be(Some(CromwellRunnerAppDatabaseNames(cromwellAzureDbName, tesAzureDbName, cromwellMetadataAzureDbName)))
   }
 }
