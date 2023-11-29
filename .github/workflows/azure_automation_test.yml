@@ -4,8 +4,8 @@
 name: Azure automation tests
 
 on:
-#  pull_request:
-#    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
   schedule:
     # run twice a day at 10:00 and 22:00 UTC every day of the week
     - cron: "0 10/12 * * *"
@@ -112,7 +112,7 @@ jobs:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
           echo "$GITHUB_CONTEXT"
-          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
+          echo 'custom-version-json={\"workspacemanager\":{\"appVersion\":\"v0.0.1-98cebac\"}}' >> $GITHUB_OUTPUT
 
   create-bee-workflow:
     runs-on: ubuntu-latest
@@ -262,71 +262,71 @@ jobs:
             "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
           }'
 
-  delete-billing-project-v2-from-bee-workflow:
-    runs-on: ubuntu-latest
-    needs:
-      - init-github-context
-      - params-gen
-      - leo-automation-test-job
-    if: always()
-    steps:
-      - name: dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4.0.0
-        with:
-          run-name: "${{ env.DEL_BP_V2_RUN_NAME }}"
-          workflow: .github/workflows/delete-billing-project-v2-from-bee.yaml
-          repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
-          token: ${{ env.TOKEN }}
-          inputs: '{
-            "run-name": "${{ env.DEL_BP_V2_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "billing-project": "${{ needs.params-gen.outputs.project-name }}",
-            "billing-project-owner": "${{ needs.init-github-context.outputs.owner-subject }}",
-            "service-account": "${{ needs.init-github-context.outputs.service-account }}",
-            "silent-on-failure": "true"
-          }'
-
-  destroy-bee-workflow:
-    runs-on: ubuntu-latest
-    needs:
-      - init-github-context
-      - leo-automation-test-job
-      - delete-billing-project-v2-from-bee-workflow
-    if: ${{ needs.init-github-context.outputs.delete-bee && always() }} # always run to confirm bee is destroyed unless explicitly requested not to
-    permissions:
-      contents: 'read'
-      id-token: 'write'
-    steps:
-      - name: dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4.0.0
-        with:
-          run-name: "${{ env.BEE_DESTROY_RUN_NAME }}"
-          workflow: bee-destroy
-          repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
-          token: ${{ env.TOKEN }}
-          inputs: '{
-            "run-name": "${{ env.BEE_DESTROY_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}"
-          }'
-          wait-for-completion: false
-
-  notify-slack-on-failure:
-    runs-on: ubuntu-latest
-    needs:
-      - init-github-context
-      - leo-build-tag-publish-job
-      - create-bee-workflow
-      - leo-automation-test-job
-      - destroy-bee-workflow
-    if: ${{ github.event_name == 'schedule' && failure() }} # Want to notify regardless of which step fails
-    steps:
-      - name: Notify slack
-        uses: slackapi/slack-github-action@v1.23.0
-        with:
-          # Channel is for #ia-notification-test
-          channel-id: 'C03ATF4QXEV'
-          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
+#  delete-billing-project-v2-from-bee-workflow:
+#    runs-on: ubuntu-latest
+#    needs:
+#      - init-github-context
+#      - params-gen
+#      - leo-automation-test-job
+#    if: always()
+#    steps:
+#      - name: dispatch to terra-github-workflows
+#        uses: broadinstitute/workflow-dispatch@v4.0.0
+#        with:
+#          run-name: "${{ env.DEL_BP_V2_RUN_NAME }}"
+#          workflow: .github/workflows/delete-billing-project-v2-from-bee.yaml
+#          repo: broadinstitute/terra-github-workflows
+#          ref: refs/heads/main
+#          token: ${{ env.TOKEN }}
+#          inputs: '{
+#            "run-name": "${{ env.DEL_BP_V2_RUN_NAME }}",
+#            "bee-name": "${{ env.BEE_NAME }}",
+#            "billing-project": "${{ needs.params-gen.outputs.project-name }}",
+#            "billing-project-owner": "${{ needs.init-github-context.outputs.owner-subject }}",
+#            "service-account": "${{ needs.init-github-context.outputs.service-account }}",
+#            "silent-on-failure": "true"
+#          }'
+#
+#  destroy-bee-workflow:
+#    runs-on: ubuntu-latest
+#    needs:
+#      - init-github-context
+#      - leo-automation-test-job
+#      - delete-billing-project-v2-from-bee-workflow
+#    if: ${{ needs.init-github-context.outputs.delete-bee && always() }} # always run to confirm bee is destroyed unless explicitly requested not to
+#    permissions:
+#      contents: 'read'
+#      id-token: 'write'
+#    steps:
+#      - name: dispatch to terra-github-workflows
+#        uses: broadinstitute/workflow-dispatch@v4.0.0
+#        with:
+#          run-name: "${{ env.BEE_DESTROY_RUN_NAME }}"
+#          workflow: bee-destroy
+#          repo: broadinstitute/terra-github-workflows
+#          ref: refs/heads/main
+#          token: ${{ env.TOKEN }}
+#          inputs: '{
+#            "run-name": "${{ env.BEE_DESTROY_RUN_NAME }}",
+#            "bee-name": "${{ env.BEE_NAME }}"
+#          }'
+#          wait-for-completion: false
+#
+#  notify-slack-on-failure:
+#    runs-on: ubuntu-latest
+#    needs:
+#      - init-github-context
+#      - leo-build-tag-publish-job
+#      - create-bee-workflow
+#      - leo-automation-test-job
+#      - destroy-bee-workflow
+#    if: ${{ github.event_name == 'schedule' && failure() }} # Want to notify regardless of which step fails
+#    steps:
+#      - name: Notify slack
+#        uses: slackapi/slack-github-action@v1.23.0
+#        with:
+#          # Channel is for #ia-notification-test
+#          channel-id: 'C03ATF4QXEV'
+#          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+#        env:
+#          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
