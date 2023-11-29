@@ -4,8 +4,8 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.effect.unsafe.implicits._
-import com.comcast.ip4s.{Host, Port}
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import pact4s.scalatest.PactVerifier
@@ -22,10 +22,26 @@ class ScalaTestVerifyPacts extends AnyFlatSpec with ScalatestRouteTest with Befo
     sleep(5000)
   }
 
+  val routes =
+    new HttpRoutes(
+      openIdConnectionConfiguration,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockDiskV2ServiceInterp,
+      MockAppService,
+      new MockRuntimeV2Interp,
+      MockAdminServiceInterp,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      RefererConfig(Set.empty, false)
+    )
+
   def startLeo: IO[Http.ServerBinding] =
   for {
     binding <- IO
-      .fromFuture(IO(Http().newServerAt("localhost",8080).bind(genLeoRoutes(genLeoDependencies, defaultLeoUser).route)))
+      .fromFuture(IO(Http().newServerAt("localhost",8080).bind(routes.route)))
       .onError { t: Throwable =>
         IO(logger.error("FATAL - failure starting http server", t)) *> IO.raiseError(t)
       }
