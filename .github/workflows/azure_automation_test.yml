@@ -311,22 +311,22 @@ jobs:
 #            "bee-name": "${{ env.BEE_NAME }}"
 #          }'
 #          wait-for-completion: false
-
-  notify-slack-on-failure:
-    runs-on: ubuntu-latest
-    needs:
-      - init-github-context
-      - leo-build-tag-publish-job
-      - create-bee-workflow
-      - leo-automation-test-job
- #     - destroy-bee-workflow
-    if: ${{ github.event_name == 'schedule' && failure() }} # Want to notify regardless of which step fails
-    steps:
-      - name: Notify slack
-        uses: slackapi/slack-github-action@v1.23.0
-        with:
-          # Channel is for #ia-notification-test
-          channel-id: 'C03ATF4QXEV'
-          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
+#
+#  notify-slack-on-failure:
+#    runs-on: ubuntu-latest
+#    needs:
+#      - init-github-context
+#      - leo-build-tag-publish-job
+#      - create-bee-workflow
+#      - leo-automation-test-job
+# #     - destroy-bee-workflow
+#    if: ${{ github.event_name == 'schedule' && failure() }} # Want to notify regardless of which step fails
+#    steps:
+#      - name: Notify slack
+#        uses: slackapi/slack-github-action@v1.23.0
+#        with:
+#          # Channel is for #ia-notification-test
+#          channel-id: 'C03ATF4QXEV'
+#          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+#        env:
+#          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
