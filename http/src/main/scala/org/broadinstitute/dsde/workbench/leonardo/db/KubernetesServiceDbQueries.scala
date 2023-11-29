@@ -276,7 +276,6 @@ object KubernetesServiceDbQueries {
 
   def markPreDeleting(appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
     for {
-      =>
       _ <- appQuery.updateStatus(appId, AppStatus.Predeleting)
     } yield ()
 
