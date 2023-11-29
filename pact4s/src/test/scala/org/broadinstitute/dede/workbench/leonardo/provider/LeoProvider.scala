@@ -5,15 +5,17 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.effect.unsafe.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, TestLeoRoutes}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import pact4s.scalatest.PactVerifier
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockAdminServiceInterp, MockAppService, MockDiskServiceInterp, MockDiskV2ServiceInterp, MockRuntimeServiceInterp, MockRuntimeV2Interp}
 
 import java.lang.Thread.sleep
 import scala.concurrent.duration.DurationInt
 
-class ScalaTestVerifyPacts extends AnyFlatSpec with ScalatestRouteTest with BeforeAndAfterAll with PactVerifier with LazyLogging {
+class ScalaTestVerifyPacts extends AnyFlatSpec with ScalatestRouteTest with BeforeAndAfterAll with PactVerifier with LazyLogging with TestLeoRoutes{
 
 
   override def beforeAll(): Unit = {
@@ -35,7 +37,7 @@ class ScalaTestVerifyPacts extends AnyFlatSpec with ScalatestRouteTest with Befo
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      RefererConfig(Set.empty, false)
+      refererConfig
     )
 
   def startLeo: IO[Http.ServerBinding] =
