@@ -10,12 +10,22 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import pact4s.scalatest.PactVerifier
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockAdminServiceInterp, MockAppService, MockDiskServiceInterp, MockDiskV2ServiceInterp, MockRuntimeServiceInterp, MockRuntimeV2Interp}
+import pact4s.provider.{PactSource, ProviderInfoBuilder, ProviderTags}
 
+import java.io.File
 import java.lang.Thread.sleep
 import scala.concurrent.duration.DurationInt
 
-class ScalaTestVerifyPacts extends AnyFlatSpec with ScalatestRouteTest with BeforeAndAfterAll with PactVerifier with LazyLogging with TestLeoRoutes{
+class ScalaTestVerifyPacts
+  extends AnyFlatSpec
+  with ScalatestRouteTest
+  with BeforeAndAfterAll
+  with PactVerifier
+  with LazyLogging
+  with TestLeoRoutes
+  with LeonardoTestSuite {
 
 
   override def beforeAll(): Unit = {
@@ -51,7 +61,13 @@ class ScalaTestVerifyPacts extends AnyFlatSpec with ScalatestRouteTest with Befo
     _ <- IO(system.terminate())
   } yield binding
 
-
+  val provider: ProviderInfoBuilder = ProviderInfoBuilder(
+    name = "sam",
+    pactSource = PactSource
+      .FileSource(
+        Map("munit-consumer" -> new File("./example/resources/pacts/munit-consumer-munit-provider.json"))
+      )).withHost("localhost")
+    .withPort(8080)
 
   it should "Verify pacts" in {
     verifyPacts(
