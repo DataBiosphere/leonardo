@@ -86,6 +86,7 @@ class AutoDeleteAppMonitor[F[_]](
               }
               _ <- publisherQueue.offer(deleteMessage)
             } yield ()
+            logger.info(loggingCtx)(s"Auto deleting app: ${a.appName}")
           }
         case CloudContext.Azure(_) => logger.info(loggingCtx)("Azure is not supported")
       }
