@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.WsmControlledDatabaseResource
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 
@@ -18,8 +19,15 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
     mockAzureApplicationInsightsService
   )
 
+  val cbasAzureDbName = "cbas_wgsdoi"
+  val cromwellMetadataAzureDbName = "cromwellmetadata_tyuiwk"
+  val workflowsAzureDatabases: List[WsmControlledDatabaseResource] = List(
+    WsmControlledDatabaseResource("cbas", cbasAzureDbName),
+    WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName)
+  )
+
   it should "build workflows app override values" in {
-    val params = buildHelmOverrideValuesParams(List("cromwellmetadata1", "cbas1"))
+    val params = buildHelmOverrideValuesParams(workflowsAzureDatabases)
 
     val overrides = workflowsAppInstall.buildHelmOverrideValues(params)
 
@@ -52,12 +60,12 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
-      s"postgres.dbnames.cromwellMetadata=cromwellmetadata1," +
-      s"postgres.dbnames.cbas=cbas1"
+      s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName," +
+      s"postgres.dbnames.cbas=$cbasAzureDbName"
   }
 
   it should "fail if there is no storage container" in {
-    val params = buildHelmOverrideValuesParams(List("cromwellmetadata1", "cbas1")).copy(storageContainer = None)
+    val params = buildHelmOverrideValuesParams(workflowsAzureDatabases).copy(storageContainer = None)
     val overrides = workflowsAppInstall.buildHelmOverrideValues(params)
     assertThrows[AppCreationException] {
       overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -65,7 +73,7 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
   }
 
   it should "fail if there is no postgres server" in {
-    val params = buildHelmOverrideValuesParams(List("cromwellmetadata1", "cbas1"))
+    val params = buildHelmOverrideValuesParams(workflowsAzureDatabases)
       .copy(landingZoneResources = landingZoneResources.copy(postgresServer = None))
     val overrides = workflowsAppInstall.buildHelmOverrideValues(params)
     assertThrows[AppCreationException] {

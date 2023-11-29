@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
-import org.broadinstitute.dsde.workbench.leonardo.{ManagedIdentityName, PostgresServer}
+import org.broadinstitute.dsde.workbench.leonardo.{ManagedIdentityName, PostgresServer, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -21,9 +21,17 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
     mockAzureApplicationInsightsService
   )
 
-  it should "build coa override values" in {
-    val params = buildHelmOverrideValuesParams(List("cromwell1", "cbas1", "tes1"))
+  val cromwellAzureDbName = "cromwell_tghfgi"
+  val cbasAzureDbName = "cbas_edfgvb"
+  val tesAzureDbName = "tes_pasgjf"
+  val cromwellOnAzureDatabases: List[WsmControlledDatabaseResource] = List(
+    WsmControlledDatabaseResource("cromwell", cromwellAzureDbName),
+    WsmControlledDatabaseResource("cbas", cbasAzureDbName),
+    WsmControlledDatabaseResource("tes", tesAzureDbName)
+  )
 
+  it should "build coa override values" in {
+    val params = buildHelmOverrideValuesParams(cromwellOnAzureDatabases)
     val overrides = cromwellAppInstall.buildHelmOverrideValues(params)
 
     overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe
@@ -60,9 +68,9 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
-      s"postgres.dbnames.cromwell=cromwell1," +
-      s"postgres.dbnames.cbas=cbas1," +
-      s"postgres.dbnames.tes=tes1"
+      s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
+      s"postgres.dbnames.cbas=$cbasAzureDbName," +
+      s"postgres.dbnames.tes=$tesAzureDbName"
   }
 
   it should "build coa override values when pgbouncer is not enabled" in {
@@ -75,7 +83,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       Uri.unsafeFromString("https://relay.com/app"),
       ServiceAccountName("ksa-1"),
       ManagedIdentityName("mi-1"),
-      List("cromwell1", "cbas1", "tes1"),
+      cromwellOnAzureDatabases,
       aksInterpConfig
     )
 
@@ -115,13 +123,13 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
       "postgres.pgbouncer.enabled=false," +
       "postgres.user=ksa-1," +
-      s"postgres.dbnames.cromwell=cromwell1," +
-      s"postgres.dbnames.cbas=cbas1," +
-      s"postgres.dbnames.tes=tes1"
+      s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
+      s"postgres.dbnames.cbas=$cbasAzureDbName," +
+      s"postgres.dbnames.tes=$tesAzureDbName"
   }
 
   it should "fail if there is no storage container" in {
-    val params = buildHelmOverrideValuesParams(List("cromwell1", "cbas1", "tes1")).copy(storageContainer = None)
+    val params = buildHelmOverrideValuesParams(cromwellOnAzureDatabases).copy(storageContainer = None)
     val overrides = cromwellAppInstall.buildHelmOverrideValues(params)
     assertThrows[AppCreationException] {
       overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -129,7 +137,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
   }
 
   it should "fail if there is no postgres server" in {
-    val params = buildHelmOverrideValuesParams(List("cromwell1", "cbas1", "tes1"))
+    val params = buildHelmOverrideValuesParams(cromwellOnAzureDatabases)
       .copy(landingZoneResources = landingZoneResources.copy(postgresServer = None))
     val overrides = cromwellAppInstall.buildHelmOverrideValues(params)
     assertThrows[AppCreationException] {
