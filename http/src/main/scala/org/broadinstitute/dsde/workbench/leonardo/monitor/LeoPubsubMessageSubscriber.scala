@@ -157,40 +157,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
 
       _ <- res match {
-        case Left(e) =>
-          val handleErrorMessages = e match {
-            case ee: PubsubHandleMessageError =>
-              for {
-                _ <- ee match {
-                  case ee: PubsubKubernetesError =>
-                    logger.error(ctx.loggingCtx, e)(
-                      s"Encountered an error for app ${ee.appId}, ${ee.getMessage}"
-                    ) >> handleKubernetesError(
-                      ee
-                    )
-                  case ee: AzureRuntimeCreationError =>
-                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
-                  case ee: AzureRuntimeDeletionError =>
-                    azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
-                  case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
-                }
-                _ <-
-                  if (ee.isRetryable)
-                    logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F
-                      .delay(event.consumer.nack())
-                  else
-                    logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
-              } yield ()
-            case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
-              logger
-                .error(ctx.loggingCtx, e)(
-                  "Fail to process retryable pubsub message due to Google API call failure"
-                ) >> F
-                .delay(event.consumer.nack())
-            case _ =>
-              logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
-          }
-          recordMessageMetric(event, isFailure = true) >> handleErrorMessages
+        case Left(e) => processFailed(ctx, event, e)
         case Right(_) => ack(event)
       }
     } yield ()
@@ -212,6 +179,36 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
       _ <- recordMessageMetric(event)
     } yield ()
+
+  private def processFailed(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    val handleErrorMessages = e match {
+      case ee: PubsubHandleMessageError =>
+        for {
+          _ <- ee match {
+            case ee: PubsubKubernetesError =>
+              logger.error(ctx.loggingCtx, e)(
+                s"Encountered an error for app ${ee.appId}, ${ee.getMessage}"
+              ) >> handleKubernetesError(ee)
+            case ee: AzureRuntimeCreationError =>
+              azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
+            case ee: AzureRuntimeDeletionError =>
+              azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
+            case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
+          }
+          _ <- if (ee.isRetryable)
+            logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F.delay(event.consumer.nack())
+          else
+            logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
+        } yield ()
+      case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
+        logger.error(ctx.loggingCtx, e)(
+          "Fail to process retryable pubsub message due to Google API call failure"
+        ) >> F.delay(event.consumer.nack())
+      case _ =>
+        logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
+    }
+    recordMessageMetric(event, isFailure = true) >> handleErrorMessages
+  }
 
   private def recordMessageMetric(event: Event[LeoPubsubMessage], isFailure: Boolean = false): F[Unit] =
     for {
