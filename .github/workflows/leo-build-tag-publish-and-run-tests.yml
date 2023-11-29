@@ -102,7 +102,7 @@ jobs:
           inputs: '{
               "repository": "${{ github.event.repository.full_name }}",
               "ref": "${{ needs.init-github-context.outputs.app-branch }}",
-              "leonardo-release-tag": "${{ steps.tag.outputs.tag }}",
+              "leonardo-release-tag": "${{ steps.tag.outputs.tag }}"
             }'
 
   report-to-sherlock:
