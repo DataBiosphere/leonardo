@@ -157,7 +157,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
 
       _ <- res match {
-        case Left(e) => processFailed(ctx, event, e)
+        case Left(e)  => processFailed(ctx, event, e)
         case Right(_) => ack(event)
       }
     } yield ()
@@ -180,7 +180,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- recordMessageMetric(event)
     } yield ()
 
-  private def processFailed(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+  private def processFailed(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = {
     val handleErrorMessages = e match {
       case ee: PubsubHandleMessageError =>
         for {
@@ -195,10 +197,13 @@ class LeoPubsubMessageSubscriber[F[_]](
               azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
             case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
           }
-          _ <- if (ee.isRetryable)
-            logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F.delay(event.consumer.nack())
-          else
-            logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
+          _ <-
+            if (ee.isRetryable)
+              logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F.delay(
+                event.consumer.nack()
+              )
+            else
+              logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
         } yield ()
       case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
         logger.error(ctx.loggingCtx, e)(
