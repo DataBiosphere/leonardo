@@ -57,6 +57,11 @@ env:
   E2E_ENV: 'azure_e2e.env'
 
 jobs:
+
+  #
+  # Setup
+  #
+
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
@@ -150,6 +155,10 @@ jobs:
             "service-account": "${{ needs.init-github-context.outputs.service-account }}"
             }'
 
+  #
+  # Test Run
+  #
+
   leo-automation-test-job:
     runs-on: ubuntu-latest
     needs:
@@ -174,16 +183,13 @@ jobs:
           echo "USER_SUBJECTS=$USER_SUBJECTS" >> $GITHUB_ENV
 
       - name: Configure e2e-infrastructure input parameter
+        # E2E_INFRASTRUCTURE values are used as follows:
+        # e2e_env: The name of a .env file that contains envvars for E2E tests
+        # billing_project: Billing Project
         run: |
           E2E_INFRASTRUCTURE='{
-              "e2e_env": {
-                "description": "The name of a .env file that contains envvars for E2E tests",
-                "val": "${{ env.E2E_ENV }}"
-              },
-              "billing_project": {
-                "description": "Billing Project",
-                "val": "${{ needs.params-gen.outputs.project-name }}"
-              }
+              "e2e_env": { "val": "${{ env.E2E_ENV }}" },
+              "billing_project": { "val": "${{ needs.params-gen.outputs.project-name }}" }
             }'
           E2E_INFRASTRUCTURE=$(echo "$E2E_INFRASTRUCTURE" |
             tr -d '\n' |
@@ -191,20 +197,15 @@ jobs:
           echo "E2E_INFRASTRUCTURE=$E2E_INFRASTRUCTURE" >> $GITHUB_ENV
 
       - name: Configure test-reporting input parameter
+        # TEST_REPORTING values are used as follows:
+        # log_results: boolean to log test results to bigquery
+        # test_context: descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table
+        # caller_run_id: descriptive run_id of caller
         run: |
           TEST_REPORTING='{
-              "log_results": {
-                "description": "boolean to log test results to bigquery",
-                "val": ${{ needs.init-github-context.outputs.log-results }}
-              },
-              "test_context": {
-                "description": "descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table",
-                "val": "${{ needs.init-github-context.outputs.test-context }}"
-              },
-              "caller_run_id": {
-                "description": "run_id of caller, defaults to this ghas run_id",
-                "val": "${{ github.run_id }}"
-              }
+              "log_results": { "val": ${{ needs.init-github-context.outputs.log-results }} },
+              "test_context": { "val": "${{ needs.init-github-context.outputs.test-context }}" },
+              "caller_run_id": { "val": "${{ github.run_id }}" }
             }'
           TEST_REPORTING=$(echo "$TEST_REPORTING" |
             tr -d '\n' |
@@ -222,17 +223,21 @@ jobs:
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
-            "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "ENV": "qa",
-            "test-group-name": "workspaces_azure",
-            "sbt-test-command": "${{ env.leo_test_command }}",
-            "java-version": "17",
-            "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
-            "e2e-infrastructure": ${{ toJson(env.E2E_INFRASTRUCTURE) }},
-            "test-reporting": ${{ toJson(env.TEST_REPORTING) }},
-            "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
+              "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
+              "bee-name": "${{ env.BEE_NAME }}",
+              "ENV": "qa",
+              "test-group-name": "workspaces_azure",
+              "sbt-test-command": "${{ env.leo_test_command }}",
+              "java-version": "17",
+              "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
+              "e2e-infrastructure": ${{ toJson(env.E2E_INFRASTRUCTURE) }},
+              "test-reporting": ${{ toJson(env.TEST_REPORTING) }},
+              "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
             }'
+
+  #
+  # Cleanup
+  #
 
   delete-billing-project-v2-from-bee-workflow:
     runs-on: ubuntu-latest
