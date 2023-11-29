@@ -29,7 +29,7 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 /**
- * This monitor periodically sweeps the Leo database and auto pause clusters that have been running for too long.
+ * This monitor periodically sweeps the Leo database and auto delete App that have been running for too long.
  */
 class AutoDeleteAppMonitor[F[_]](
   config: AutoDeleteConfig,
