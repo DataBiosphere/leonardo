@@ -26,7 +26,7 @@ ENV HELM_DEBUG 1
 ENV TERRA_APP_SETUP_VERSION 0.1.0
 ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
-ENV GALAXY_VERSION 2.8.0
+ENV GALAXY_VERSION 2.8.1
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.386
@@ -34,9 +34,9 @@ ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.386
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
 ENV CROMWELL_RUNNER_APP_VERSION 0.46.0
 # WORKFLOWS APP comment to prevent merge conflicts
-ENV WORKFLOWS_APP_VERSION 0.79.0
+ENV WORKFLOWS_APP_VERSION 0.83.0
 # WDS CHART comment to prevent merge conflicts
-ENV WDS_CHART_VERSION 0.54.0
+ENV WDS_CHART_VERSION 0.56.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.2.0
 ENV SAS_CHART_VERSION 0.1.0
