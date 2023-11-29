@@ -327,7 +327,7 @@ object AllowedChartName {
   // We used to have different chart names for RStudio and SAS. This is to handle the old names for backwards-compatibility
   private val deprecatedName: Map[String, AllowedChartName] = Map(
     "aou-rstudio-chart" -> RStudio,
-    "aou-sas-chart" -> RStudio
+    "aou-sas-chart" -> Sas
   )
 
   def stringToObject: Map[String, AllowedChartName] =
