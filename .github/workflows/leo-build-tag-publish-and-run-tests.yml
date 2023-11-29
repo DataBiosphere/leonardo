@@ -27,7 +27,11 @@ jobs:
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
+    # automation-branch refers to the version of the automation test application to be used, running on the gha runner
+    # app-branch refers to the version of the leonardo app that will be tested against, usually running in a BEE
+    # these are often the same, and live in the same repo, but are distinct instances of code.
       automation-branch: ${{ steps.extract-branch.outputs.automation-branch }}
+      app-branch: ${{ steps.extract-branch.outputs.app-branch }}
       create-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
@@ -89,13 +93,17 @@ jobs:
 
       # Builds Leonardo elsewhere to protect secrets.  Upon success, will tag the commit in git.
       - name: dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v3
+        uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           workflow: leonardo-build
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
-          inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "${{ needs.init-github-context.outputs.log-results }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
+          inputs: '{
+              "repository": "${{ github.event.repository.full_name }}",
+              "ref": "${{ needs.init-github-context.outputs.app-branch }}" }}",
+              "leonardo-release-tag": "${{ steps.tag.outputs.tag }}"
+            }'
 
   report-to-sherlock:
     # Report new Leonardo version to Broad DevOps
