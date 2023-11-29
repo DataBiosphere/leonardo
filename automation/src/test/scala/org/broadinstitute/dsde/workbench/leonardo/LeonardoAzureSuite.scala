@@ -77,8 +77,8 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
     try
       testCode(response)
     finally
-      try null
-      // Rawls.workspaces.delete(projectName.value, workspaceName)
+      try
+        Rawls.workspaces.delete(projectName.value, workspaceName)
       catch {
         case e: Throwable =>
           println(
