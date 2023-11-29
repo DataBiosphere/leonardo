@@ -27,7 +27,8 @@ jobs:
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.extract-branch.outputs.branch }}
+      automation-branch: ${{ steps.extract-branch.outputs.automation-branch }}
+      create-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
       service-account: ${{ steps.prepare-outputs.outputs.service-account }}
@@ -37,12 +38,12 @@ jobs:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
         run: |
-          echo "delete-bee=${{ inputs.delete-bee                    || false }}" >> "$GITHUB_OUTPUT"
-          echo "log-results=true" >> $GITHUB_OUTPUT
+          echo 'delete-bee=true'          >> $GITHUB_OUTPUT
+          echo 'log-results=true'         >> $GITHUB_OUTPUT
           if ${{ github.ref_name == 'develop' }}; then
             echo 'test-context=dev-merge' >> $GITHUB_OUTPUT
           else
-            echo 'test-context=pr-test' >> $GITHUB_OUTPUT
+            echo 'test-context=pr-test'   >> $GITHUB_OUTPUT
           fi
 
       # we need this because github can't actually provide the branch name reliably
@@ -59,7 +60,8 @@ jobs:
             exit 1
           fi
 
-          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "app-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
   #
   # Artifact Build and Promotion
@@ -72,7 +74,6 @@ jobs:
       contents: 'read'
       id-token: 'write'
     outputs:
-      custom-version-json: ${{ steps.render-leo-version.outputs.custom-version-json }}
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: 'actions/checkout@v4'
@@ -95,15 +96,6 @@ jobs:
           ref: refs/heads/main
           token: ${{ secrets.BROADBOT_TOKEN}} # github token for access to kick off a job in the private repo
           inputs: '{ "repository": "${{ github.event.repository.full_name }}", "ref": "${{ needs.init-github-context.outputs.log-results }}", "leonardo-release-tag": "${{ steps.tag.outputs.tag }}" }'
-
-      # formats the app version string to be usable by create-bee
-      - name: Render Leonardo version
-        id: render-leo-version
-        env:
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-        run: |
-          echo "$GITHUB_CONTEXT"
-          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
 
   report-to-sherlock:
     # Report new Leonardo version to Broad DevOps
@@ -142,9 +134,15 @@ jobs:
       contents: 'read'
       id-token: 'write'
     steps:
-      - name: Echo Leo version
+      # format the app version string to be usable by create-bee
+      - name: Render Leonardo version
+        id: render-leo-version
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
-          echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
+          echo "$GITHUB_CONTEXT"
+          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ needs.leo-build-tag-publish-job.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
+      
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
@@ -152,13 +150,13 @@ jobs:
           workflow: bee-create
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          token: ${{ env.TOKEN }}
+          token: ${{ secrets.BROADBOT_TOKEN }}
           inputs: '{
               "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
               "bee-name": "${{ env.BEE_NAME }}",
               "bee-template-name": "rawls-e2e-azure-tests",
               "version-template": "dev",
-              "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}"
+              "custom-version-json": "${{ steps.render-leo-version.outputs.custom-version-json }}"
             }'
 
   leo-swat-test-job:
@@ -204,7 +202,7 @@ jobs:
               "ENV": "${{ matrix.testing-env }}",
               "sbt-test-command": "${{ env.leo_test_command }}",
               "java-version": "17",
-              "ref": "${{ needs.init-github-context.outputs.branch }}",
+              "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
               "test-reporting": ${{ toJson(env.TEST_REPORTING) }}
             }'
 
