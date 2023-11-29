@@ -27,11 +27,13 @@ jobs:
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
-    # automation-branch refers to the version of the automation test application to be used, running on the gha runner
-    # app-branch refers to the version of the leonardo app that will be tested against, usually running in a BEE
-    # these are often the same, and live in the same repo, but are distinct instances of code.
+    # automation-branch: the git branch automation test application to be used, running on the gha runner
+    # build-branch: the git branch to checkout to build a new app-version
+    # app-version: the version of the leonardo app artifact that will be tested against, usually running in a BEE
+    # these are often the same string, but all represent distinct artifacts
       automation-branch: ${{ steps.extract-branch.outputs.automation-branch }}
-      app-branch: ${{ steps.extract-branch.outputs.app-branch }}
+      build-branch: ${{ steps.extract-branch.outputs.build-branch }}
+      app-version: ${{ steps.extract-branch.outputs.app-version }}
       create-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
@@ -64,7 +66,8 @@ jobs:
             exit 1
           fi
 
-          echo "app-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "app-version=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "build-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
   #
@@ -101,7 +104,7 @@ jobs:
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
               "repository": "${{ github.event.repository.full_name }}",
-              "ref": "${{ needs.init-github-context.outputs.app-branch }}",
+              "ref": "${{ needs.init-github-context.outputs.build-branch }}",
               "leonardo-release-tag": "${{ steps.tag.outputs.tag }}"
             }'
 

@@ -11,7 +11,7 @@ on:
     - cron: "0 10/12 * * *"
   workflow_dispatch:
     # automation-branch refers to the version of the automation test application to be used, running on the gha runner
-    # app-branch refers to the version of the leonardo app that will be tested against, usually running in a BEE
+    # app-version refers to the version of the leonardo app that will be tested against, usually running in a BEE
     # these are often the same, and live in the same repo, but are distinct instances of code.
     inputs:
       automation-branch:
@@ -19,7 +19,7 @@ on:
         required: true
         default: 'develop'
         type: string
-      app-branch:
+      app-version:
         description: 'Branch of leo app to be deployed'
         required: true
         default: 'develop'
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       automation-branch: ${{ steps.prepare-outputs.outputs.automation-branch }}
-      app-branch: ${{ steps.prepare-outputs.outputs.app-branch }}
+      app-version: ${{ steps.prepare-outputs.outputs.app-version }}
       delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
       student-subjects: ${{ steps.prepare-outputs.outputs.student-subjects }}
@@ -78,7 +78,7 @@ jobs:
         id: prepare-outputs
         run: |
           echo "automation-branch=${{ inputs.automation-branch      || 'develop' }}" >> "$GITHUB_OUTPUT"
-          echo "app-branch=${{ inputs.app-branch                    || 'develop' }}" >> "$GITHUB_OUTPUT"
+          echo "app-version=${{ inputs.app-version                  || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee                    || false }}" >> "$GITHUB_OUTPUT"
           echo "owner-subject=${{ inputs.owner-subject              || 'hermione.owner@quality.firecloud.org' }}" >> "$GITHUB_OUTPUT"
           echo "student-subjects=${{ toJson(inputs.student-subjects || '["harry.potter@quality.firecloud.org","ron.weasley@quality.firecloud.org"]') }}" >> "$GITHUB_OUTPUT"
@@ -100,7 +100,7 @@ jobs:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
           echo "$GITHUB_CONTEXT"
-          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ needs.init-github-context.outputs.app-branch }}\"}}' >> $GITHUB_OUTPUT
+          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ needs.init-github-context.outputs.app-version }}\"}}' >> $GITHUB_OUTPUT
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
