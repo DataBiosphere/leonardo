@@ -130,5 +130,5 @@ final case class AppToAutoDelete(id: AppId,
                                  chartName: ChartName,
                                  cloudContext: CloudContext
 ) {
-  def projectNameString: String = s"${CloudContext.Gcp}/${appName}"
+  def projectNameString: String = s"${cloudContext}/${appName}"
 }

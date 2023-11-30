@@ -24,7 +24,7 @@ start() {
     docker run --rm \
                --link $CONTAINER:mysql \
                -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh \
-               mysql/mysql-server:$MYSQL_VERSION \
+               mysql:$MYSQL_VERSION \
                /working/sql_validate.sh $TARGET
 
     if [ 0 -eq $? ]; then
