@@ -17,6 +17,7 @@ import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pact4s.provider.{PactSource, ProviderInfoBuilder}
 import pact4s.scalatest.PactVerifier
+import java.nio.file.{Files, Paths}
 
 import java.io.File
 import java.lang.Thread.sleep
@@ -65,6 +66,19 @@ implicit val system: ActorSystem = ActorSystem("leotests")
 
 
   override def beforeAll(): Unit = {
+    val currentDirectory = Paths.get("./pact4s/src/test/resources")
+
+    // List all entries in the current directory
+    val entries = Files.list(currentDirectory)
+
+    // Filter out directories
+    val directories = entries.filter(Files.isDirectory(_))
+
+    // Print the names of the directories
+    directories.forEach(directory => println(directory.getFileName))
+
+    // Close the stream
+    entries.close()
     startLeo.unsafeToFuture()
     startLeo.start
     sleep(5000)
@@ -85,7 +99,7 @@ implicit val system: ActorSystem = ActorSystem("leotests")
     name = "y",
     pactSource = PactSource
       .FileSource(
-        Map("x" -> new File("./example/resources/pacts/x-y.json"))
+        Map("x" -> new File("./pact4s/src/test/resources/x-y.json"))
       )).withHost("localhost")
     .withPort(8080)
 

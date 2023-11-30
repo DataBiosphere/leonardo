@@ -1,0 +1,88 @@
+{
+  "provider": {
+    "name": "y"
+  },
+  "consumer": {
+    "name": "x"
+  },
+  "interactions": [
+    {
+      "description": "b",
+      "request": {
+        "method": "GET",
+        "path": "/api/google/v1/apps/googleProject/appName"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        "body": {
+          "diskName": "Porg",
+          "appName": "Minivan",
+          "appType": "CROMWELL",
+          "cloudContext": {},
+          "errors": [],
+          "status": "RUNNING"
+        },
+        "matchingRules": {
+          "body": {
+            "$.appName": {
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ],
+              "combine": "AND"
+            },
+            "$.status": {
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ],
+              "combine": "AND"
+            },
+            "$.diskName": {
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ],
+              "combine": "AND"
+            },
+            "$.appType": {
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ],
+              "combine": "AND"
+            },
+            "$.cloudContext.cloudprovider": {
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ],
+              "combine": "AND"
+            }
+          }
+        }
+      },
+      "providerStates": [
+        {
+          "name": "a"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "pactSpecification": {
+      "version": "3.0.0"
+    },
+    "pact-jvm": {
+      "version": "4.0.10"
+    }
+  }
+}
