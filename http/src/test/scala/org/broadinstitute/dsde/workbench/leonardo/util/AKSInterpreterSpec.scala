@@ -12,10 +12,11 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, workspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.workspaceIdForCloning
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
+import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppInstall}
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -26,6 +27,7 @@ import org.broadinstitute.dsp.mocks.MockHelm
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Values}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
+import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -56,7 +58,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockKube = setUpMockKube
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = setUpMockWsmApiClientProvider
 
-  implicit val appTypeToAppInstall: AppType => AppInstall[IO] = _ => setUpMockAppInstall
+  implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
+    case AppType.WorkflowsApp => setUpMockWorkflowAppInstall
+    case _                    => setUpMockAppInstall
+  }
   def newAksInterp(configuration: AKSInterpreterConfig) = new AKSInterpreter[IO](
     configuration,
     MockHelm,
@@ -228,6 +233,21 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
+  // retrieve wsm identity
+  it should "retrieve a WSM controlled identity if it exists in workspace" in isolatedDbTest {
+    val res = for {
+      retrievedIdentity <- aksInterp.retrieveWsmManagedIdentity(mockResourceApi,
+                                                                AppType.WorkflowsApp,
+                                                                workspaceIdForCloning.value
+      )
+    } yield {
+      retrievedIdentity.get.wsmResourceName shouldBe "idworkflows_app"
+      retrievedIdentity.get.managedIdentityName shouldBe "cloned_abcxyz"
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   // create wsm identity
   it should "create a WSM controlled identity" in isolatedDbTest {
     val res = for {
@@ -264,6 +284,53 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  // fetch wsm database or create if it doesn't exists
+  it should "retrieve cbas database and create cromwellmetadata database for WORKFLOWS app" in isolatedDbTest {
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.WorkflowsApp,
+        status = AppStatus.Running,
+        appResources = AppResources(
+          namespace = NamespaceName("ns-1"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+
+      appId = saveApp.id
+
+      controlledDatabases <- aksInterp.createOrFetchWsmDatabaseResources(saveApp,
+                                                                         saveApp.appType,
+                                                                         workspaceIdForCloning,
+                                                                         app.appResources.namespace.value,
+                                                                         Option("idworkflows_app"),
+                                                                         lzResources,
+                                                                         mockResourceApi
+      )
+
+      controlledResources <- appControlledResourceQuery
+        .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
+        .transaction
+    } yield {
+      controlledDatabases.size shouldBe 2
+      controlledDatabases.head.wsmDatabaseName shouldBe "cbas"
+      controlledDatabases.head.azureDatabaseName shouldBe "cbas_cloned_db_abcxyz"
+      controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata_ns"
+      controlledDatabases(1).azureDatabaseName shouldBe "cromwellmetadata_ns"
+
+      controlledResources.size shouldBe 1
+      controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
+      controlledResources.head.status shouldBe AppControlledResourceStatus.Created
+      controlledResources.head.appId shouldBe appId.id
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   // create wsm database
   it should "create a WSM controlled database" in isolatedDbTest {
     val res = for {
@@ -286,7 +353,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       createdDatabase <- aksInterp.createWsmDatabaseResource(saveApp,
                                                              workspaceId,
-                                                             CreateDatabase("test", false),
+                                                             ControlledDatabase("test", false),
                                                              "wds",
                                                              Some(owner),
                                                              mockControlledResourceApi
@@ -644,9 +711,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       wsm.getControlledAzureResourceApi(any)(any)
     } thenReturn IO.pure(api)
 
-    // enumerate workspace resources
+    // enumerate workspace database resources
     when {
-      resourceApi.enumerateResources(any, any, any, any, any)
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
+                                     any
+      )
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
@@ -659,6 +731,46 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceList.add(resourceDesc)
       new ResourceList().resources(resourceList)
     }
+    // enumerate workspace database resources for a workspace with cloned db
+    when {
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForCloning.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
+                                     any
+      )
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("cbas"))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cbas_cloned_db_abcxyz")
+        )
+      )
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
+    // enumerate workspace managed identity resources
+    when {
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForCloning.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_MANAGED_IDENTITY),
+                                     any
+      )
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app"))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureManagedIdentity(
+          new AzureManagedIdentityAttributes().managedIdentityName("cloned_abcxyz")
+        )
+      )
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
     when {
       wsm.getResourceApi(any)(any)
     } thenReturn IO.pure(resourceApi)
@@ -666,11 +778,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   }
 
-  private def setUpMockAppInstall: AppInstall[IO] = {
+  private def setUpMockAppInstall(): AppInstall[IO] = {
     val appInstall = mock[AppInstall[IO]]
     when {
       appInstall.databases
-    } thenReturn List(CreateDatabase("db1", false))
+    } thenReturn List(ControlledDatabase("db1"))
     when {
       appInstall.buildHelmOverrideValues(any)(any)
     } thenReturn IO.pure(Values("values"))
@@ -680,4 +792,21 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     appInstall
   }
 
+  private def setUpMockWorkflowAppInstall(): AppInstall[IO] = {
+    val mockWorkflowsAppInstall = mock[WorkflowsAppInstall[IO]]
+
+    when(mockWorkflowsAppInstall.databases) thenReturn
+      List(
+        ControlledDatabase("cbas"),
+        ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+      )
+    when {
+      mockWorkflowsAppInstall.buildHelmOverrideValues(any)(any)
+    } thenReturn IO.pure(Values("values"))
+    when {
+      mockWorkflowsAppInstall.checkStatus(any, any)(any)
+    } thenReturn IO.pure(true)
+
+    mockWorkflowsAppInstall
+  }
 }

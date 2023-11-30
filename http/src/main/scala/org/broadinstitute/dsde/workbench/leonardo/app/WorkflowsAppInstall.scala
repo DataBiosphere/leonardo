@@ -4,8 +4,9 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
-import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
+import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -31,9 +32,9 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
 
   override def databases: List[Database] =
     List(
-      CreateDatabase("cbas"),
+      ControlledDatabase("cbas"),
       // Cromwell metadata database is also accessed by the cromwell-runner app
-      CreateDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+      ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
     )
 
   override def buildHelmOverrideValues(
@@ -138,9 +139,12 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
     ).sequence
       .map(_.forall(identity))
 
-  private def toWorkflowsAppDatabaseNames(dbNames: List[String]): Option[WorkflowsAppDatabaseNames] =
-    (dbNames.find(_.startsWith("cromwellmetadata")), dbNames.find(_.startsWith("cbas")))
-      .mapN(WorkflowsAppDatabaseNames)
+  private def toWorkflowsAppDatabaseNames(
+    dbResources: List[WsmControlledDatabaseResource]
+  ): Option[WorkflowsAppDatabaseNames] =
+    (getAzureDatabaseName(dbResources, "cromwellmetadata"), getAzureDatabaseName(dbResources, "cbas")).mapN(
+      WorkflowsAppDatabaseNames
+    )
 }
 
 final case class WorkflowsAppDatabaseNames(cromwellMetadata: String, cbas: String)
