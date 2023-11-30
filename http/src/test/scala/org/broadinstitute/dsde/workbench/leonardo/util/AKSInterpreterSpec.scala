@@ -18,11 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   workspaceIdForAppCreation,
   workspaceIdForCloning
 }
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
-  makeApp,
-  makeKubeCluster,
-  makeNodepool
-}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppInstall}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
@@ -308,15 +304,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         //  - COPY_RESOURCE for Workflows app
         val expectedCloningInstructions =
           if (appType == AppType.WorkflowsApp) CloningInstructionsEnum.RESOURCE else CloningInstructionsEnum.NOTHING
-        val createIdentityCaptor = ArgumentCaptor.forClass(classOf[CreateControlledAzureManagedIdentityRequestBody])
-        verify(mockControlledResourceApi, atLeastOnce()).createAzureManagedIdentity(createIdentityCaptor.capture(),
-                                                                                    any()
-        )
-        assert(createIdentityCaptor.getValue.isInstanceOf[CreateControlledAzureManagedIdentityRequestBody])
-        val createIdentityCaptorValues =
-          createIdentityCaptor.getValue.asInstanceOf[CreateControlledAzureManagedIdentityRequestBody]
-        createIdentityCaptorValues.getCommon.getName shouldBe s"id${appType.toString.toLowerCase}"
-        createIdentityCaptorValues.getCommon.getCloningInstructions shouldBe expectedCloningInstructions
+        createdIdentity.getAzureManagedIdentity.getMetadata.getCloningInstructions shouldBe expectedCloningInstructions
       }
 
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -389,23 +377,25 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       appId = saveApp.id
       owner = "idwds"
 
-      createdDatabase <- aksInterp.createWsmDatabaseResource(saveApp,
-                                                             workspaceIdForAppCreation,
-                                                             ControlledDatabase("wds"),
-                                                             app.appResources.namespace.value,
-                                                             Some(owner),
-                                                             mockControlledResourceApi
+      controlledDatabases <- aksInterp.createOrFetchWsmDatabaseResources(saveApp,
+                                                                         saveApp.appType,
+                                                                         workspaceIdForAppCreation,
+                                                                         app.appResources.namespace.value,
+                                                                         Some(owner),
+                                                                         lzResources,
+                                                                         mockResourceApi
       )
 
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
     } yield {
-      createdDatabase.getAzureDatabase.getMetadata.getName shouldBe "wds"
-      createdDatabase.getAzureDatabase.getAttributes.getDatabaseName shouldBe "wds_ns"
-      createdDatabase.getAzureDatabase.getAttributes.getDatabaseOwner shouldBe owner
+      controlledDatabases.size shouldBe 1
+      // for all apps (except Workflows app) "db1" is the returned controlled database in mock data
+      controlledDatabases.head.wsmDatabaseName shouldBe "db1"
+      controlledDatabases.head.azureDatabaseName shouldBe "db1_ns"
+
       controlledResources.size shouldBe 1
-      controlledResources.head.resourceId.value shouldBe createdDatabase.getResourceId
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
       controlledResources.head.appId shouldBe appId.id
@@ -415,7 +405,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       verify(mockControlledResourceApi, atLeastOnce()).createAzureDatabase(createDbCaptor.capture(), any())
       assert(createDbCaptor.getValue.isInstanceOf[CreateControlledAzureDatabaseRequestBody])
       val createDbCaptorValues = createDbCaptor.getValue.asInstanceOf[CreateControlledAzureDatabaseRequestBody]
-      createDbCaptorValues.getCommon.getName shouldBe "wds"
+      createDbCaptorValues.getCommon.getName shouldBe "db1"
       createDbCaptorValues.getCommon.getCloningInstructions shouldBe CloningInstructionsEnum.NOTHING
     }
 
@@ -441,51 +431,24 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       appId = saveApp.id
 
-      cbasDatabase <- aksInterp.createWsmDatabaseResource(
-        saveApp,
-        workspaceIdForAppCreation,
-        ControlledDatabase("cbas", cloningInstructions = CloningInstructionsEnum.RESOURCE),
-        app.appResources.namespace.value,
-        Option("idworkflows_app"),
-        mockControlledResourceApi
+      controlledDatabases <- aksInterp.createOrFetchWsmDatabaseResources(saveApp,
+                                                                         saveApp.appType,
+                                                                         workspaceIdForAppCreation,
+                                                                         app.appResources.namespace.value,
+                                                                         Option("idworkflows_app"),
+                                                                         lzResources,
+                                                                         mockResourceApi
       )
-
-      // verify that cloning instructions for "cbas" Azure database is set to COPY_RESOURCE
-      createCbasDbCaptor = ArgumentCaptor.forClass(classOf[CreateControlledAzureDatabaseRequestBody])
-      _ = verify(mockControlledResourceApi, atLeastOnce()).createAzureDatabase(createCbasDbCaptor.capture(), any())
-      _ = assert(createCbasDbCaptor.getValue.isInstanceOf[CreateControlledAzureDatabaseRequestBody])
-      createCbasDbCaptorValues = createCbasDbCaptor.getValue.asInstanceOf[CreateControlledAzureDatabaseRequestBody]
-      _ = createCbasDbCaptorValues.getCommon.getName shouldBe "cbas"
-      _ = createCbasDbCaptorValues.getCommon.getCloningInstructions shouldBe CloningInstructionsEnum.RESOURCE
-
-      cromwellMetadataDatabase <- aksInterp.createWsmDatabaseResource(
-        saveApp,
-        workspaceIdForAppCreation,
-        ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true),
-        app.appResources.namespace.value,
-        Option("idworkflows_app"),
-        mockControlledResourceApi
-      )
-
-      // verify that cloning instructions for "cromwellmetadata" Azure database is set to COPY_NOTHING
-      createCromwellMetadataDbCaptor = ArgumentCaptor.forClass(classOf[CreateControlledAzureDatabaseRequestBody])
-      _ = verify(mockControlledResourceApi, atLeastOnce()).createAzureDatabase(createCromwellMetadataDbCaptor.capture(),
-                                                                               any()
-      )
-      _ = assert(createCromwellMetadataDbCaptor.getValue.isInstanceOf[CreateControlledAzureDatabaseRequestBody])
-      createCromwellMetadataDbCaptorValues = createCromwellMetadataDbCaptor.getValue
-        .asInstanceOf[CreateControlledAzureDatabaseRequestBody]
-      _ = createCromwellMetadataDbCaptorValues.getCommon.getName shouldBe "cromwellmetadata"
-      _ = createCromwellMetadataDbCaptorValues.getCommon.getCloningInstructions shouldBe CloningInstructionsEnum.NOTHING
 
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
     } yield {
-      cbasDatabase.getAzureDatabase.getMetadata.getName shouldBe "cbas"
-      cbasDatabase.getAzureDatabase.getAttributes.getDatabaseName shouldBe "cbas_ns"
-      cromwellMetadataDatabase.getAzureDatabase.getMetadata.getName shouldBe "cromwellmetadata"
-      cromwellMetadataDatabase.getAzureDatabase.getAttributes.getDatabaseName shouldBe "cromwellmetadata_ns"
+      controlledDatabases.size shouldBe 2
+      controlledDatabases.head.wsmDatabaseName shouldBe "cbas"
+      controlledDatabases.head.azureDatabaseName shouldBe "cbas_ns"
+      controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata"
+      controlledDatabases(1).azureDatabaseName shouldBe "cromwellmetadata_ns"
 
       controlledResources.size shouldBe 2
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
@@ -494,6 +457,33 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledResources(1).resourceType shouldBe WsmResourceType.AzureDatabase
       controlledResources(1).status shouldBe AppControlledResourceStatus.Created
       controlledResources(1).appId shouldBe appId.id
+
+      val createDbCaptor = ArgumentCaptor.forClass(classOf[CreateControlledAzureDatabaseRequestBody])
+      verify(mockControlledResourceApi, atLeastOnce()).createAzureDatabase(createDbCaptor.capture(), any())
+      // there are multiple invocations of "createAzureDatabase" in the mock API before this test is run.
+      // We extract the last 2 invocations which reflect the calls made as part of this test.
+      // Call for "cbas" db creation will be second last in the list
+      val cbasDbCreationCallIndex = createDbCaptor.getAllValues.size() - 2
+      assert(
+        createDbCaptor.getAllValues
+          .get(cbasDbCreationCallIndex)
+          .isInstanceOf[CreateControlledAzureDatabaseRequestBody]
+      )
+      // Call for "crowmellmetadata" db creation will be last in the list
+      assert(createDbCaptor.getValue.isInstanceOf[CreateControlledAzureDatabaseRequestBody])
+
+      // verify that cloning instructions for "cbas" Azure database is set to COPY_RESOURCE
+      val cbasDbCaptorValues = createDbCaptor.getAllValues
+        .get(cbasDbCreationCallIndex)
+        .asInstanceOf[CreateControlledAzureDatabaseRequestBody]
+      cbasDbCaptorValues.getCommon.getName shouldBe "cbas"
+      cbasDbCaptorValues.getCommon.getCloningInstructions shouldBe CloningInstructionsEnum.RESOURCE
+
+      // verify that cloning instructions for "cromwellmetadata" Azure database is set to COPY_NOTHING
+      val cromwellMetadataDbCaptorValues =
+        createDbCaptor.getValue.asInstanceOf[CreateControlledAzureDatabaseRequestBody]
+      cromwellMetadataDbCaptorValues.getCommon.getName shouldBe "cromwellmetadata"
+      cromwellMetadataDbCaptorValues.getCommon.getCloningInstructions shouldBe CloningInstructionsEnum.NOTHING
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -724,7 +714,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .resourceId(requestBody.getCommon.getResourceId)
         .azureManagedIdentity(
           new AzureManagedIdentityResource()
-            .metadata(new ResourceMetadata().name(requestBody.getCommon.getName))
+            .metadata(
+              new ResourceMetadata()
+                .name(requestBody.getCommon.getName)
+                .cloningInstructions(requestBody.getCommon.getCloningInstructions)
+            )
             .attributes(new AzureManagedIdentityAttributes().managedIdentityName(requestBody.getCommon.getName))
         )
     }
