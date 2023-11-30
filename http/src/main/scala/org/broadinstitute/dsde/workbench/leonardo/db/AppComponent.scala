@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImpl
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.monitor.AppToAutoDelete
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.Release
 import org.http4s.Uri
@@ -40,8 +39,7 @@ final case class AppRecord(id: AppId,
                            descriptorPath: Option[Uri],
                            extraArgs: Option[List[String]],
                            sourceWorkspaceId: Option[WorkspaceId],
-                           numOfReplicas: Option[Int],
-                           autoDeleteThresholdInMinutes: Int
+                           numOfReplicas: Option[Int]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -69,7 +67,6 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
   def namespaceName = column[NamespaceName]("namespace", O.Length(254))
   def numOfReplicas = column[Option[Int]]("numOfReplicas", O.SqlType("SMALLINT"))
-  def autoDeleteThresholdInMinutes = column[Int]("autoDeleteThresholdInMinutes")
 
   def * =
     (
@@ -92,8 +89,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       descriptorPath,
       extraArgs,
       sourceWorkspaceId,
-      numOfReplicas,
-      autoDeleteThresholdInMinutes
+      numOfReplicas
     ) <> ({
       case (
             id,
@@ -115,8 +111,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             descriptorPath,
             extraArgs,
             sourceWorkspaceId,
-            numOfReplicas,
-            autoDeleteThresholdInMinutes
+            numOfReplicas
           ) =>
         AppRecord(
           id,
@@ -143,8 +138,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           descriptorPath,
           extraArgs,
           sourceWorkspaceId,
-          numOfReplicas,
-          autoDeleteThresholdInMinutes
+          numOfReplicas
         )
     }, { r: AppRecord =>
       Some(
@@ -172,8 +166,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.descriptorPath,
           r.extraArgs,
           r.sourceWorkspaceId,
-          r.numOfReplicas,
-          r.autoDeleteThresholdInMinutes
+          r.numOfReplicas
         )
       )
     })
@@ -212,8 +205,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.descriptorPath,
       app.extraArgs.getOrElse(List.empty),
       app.sourceWorkspaceId,
-      app.numOfReplicas,
-      app.autoDeleteThresholdInMinutes
+      app.numOfReplicas
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -280,8 +272,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.descriptorPath,
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
         saveApp.app.sourceWorkspaceId,
-        saveApp.app.numOfReplicas,
-        saveApp.app.autoDeleteThresholdInMinutes
+        saveApp.app.numOfReplicas
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
@@ -369,36 +360,6 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def getAppType(appName: AppName): DBIO[Option[AppType]] =
     findActiveByNameQuery(appName).map(_.appType).result.headOption
-
-  def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
-    val now = SimpleFunction.nullary[Instant]("NOW")
-    val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
-    val minute = SimpleLiteral[String]("MINUTE")
-
-    val baseQuery = appQuery
-      .filter(_.autoDeleteThresholdInMinutes =!= autoDeleteOffValue)
-      .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autoDeleteThresholdInMinutes)
-      .filter(_.status inSetBind AppStatus.deletableStatuses)
-
-    val query = baseQuery join nodepoolQuery on (_.nodepoolId === _.id) join
-      kubernetesClusterQuery on (_._2.clusterId === _.id)
-
-    query.result map { recs =>
-      recs.map(r =>
-        AppToAutoDelete(r._1._1.id,
-                        r._1._1.appName,
-                        r._1._1.status,
-                        r._1._1.samResourceId,
-                        r._1._1.auditInfo.creator,
-                        r._1._1.chart.name,
-                        r._2.cloudContext
-        )
-      )
-    }
-  }
-
-  def getAppStatus(id: AppId): DBIO[Option[AppStatus]] =
-    getByIdQuery(id).map(_.status).result.headOption
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)
