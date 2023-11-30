@@ -4,13 +4,10 @@ import JsonCodec._
 import io.circe.CursorOp.DownField
 import io.circe.{DecodingFailure, Json}
 import io.circe.parser._
-import io.circe.syntax.EncoderOps
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
+
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
-
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.Duration
 
 class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   "JsonCodec" should "decode DataprocConfig properly" in {
@@ -172,12 +169,5 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         List()
       )
     )
-  }
-
-  it should "decode duration" in {
-    durationDecoder.decodeJson("""15 minutes""".asJson) shouldBe Right(Duration(15, TimeUnit.MINUTES))
-    durationDecoder.decodeJson("""15m""".asJson) shouldBe Right(Duration(15, TimeUnit.MINUTES))
-    durationDecoder.decodeJson("""15d""".asJson) shouldBe Right(Duration(15, TimeUnit.DAYS))
-    durationDecoder.decodeJson("""Inf""".asJson) shouldBe Right(Duration.Inf)
   }
 }

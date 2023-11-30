@@ -7,13 +7,10 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.AppToAutoDelete
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
@@ -132,50 +129,6 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     res should contain theSameElementsAs (List(
       GetAppsByNodepoolResult(app1.samResourceId, app1.auditInfo.creator),
       GetAppsByNodepoolResult(app2.samResourceId, app2.auditInfo.creator)
-    ))
-  }
-
-  it should "get all apps ready for auto delete" in isolatedDbTest {
-    val savedCluster = makeKubeCluster(1).save()
-    val savedNodepool = makeNodepool(1, savedCluster.id).save()
-
-    val samResourceId1 = AppSamResourceId("r1", None)
-    val now = Instant.now
-    // App1, Ready to delete:  Last accessed 5 minutes ago, auto delete threshold is 1 minute.
-    val app1 = makeApp(1, savedNodepool.id)
-      .copy(
-        auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
-        status = AppStatus.Running,
-        autoDeleteThresholdInMinutes = 1,
-        samResourceId = samResourceId1
-      )
-      .save()
-    // App2, Not ready to delete:  Last accessed 5 minutes ago, auto delete threshold is 10 minute.
-    makeApp(2, savedNodepool.id)
-      .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
-            status = AppStatus.Running,
-            autoDeleteThresholdInMinutes = 10
-      )
-      .save()
-
-    // App3, Not ready to delete:  Status is not deletable
-    makeApp(3, savedNodepool.id)
-      .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
-            status = AppStatus.Deleting,
-            autoDeleteThresholdInMinutes = 1
-      )
-      .save()
-
-    val res = dbFutureValue(appQuery.getAppsReadyToAutoDelete)
-    res should contain theSameElementsAs (List(
-      AppToAutoDelete(app1.id,
-                      app1.appName,
-                      app1.status,
-                      app1.samResourceId,
-                      app1.auditInfo.creator,
-                      app1.chart.name,
-                      savedCluster.cloudContext
-      )
     ))
   }
 

@@ -10,11 +10,8 @@ import java.time.Instant
 
 package object leonardo {
   type LabelMap = Map[String, String]
-  // this value is the default for autopause, if none is specified. An autopause Threshold of 0 indicates no autopause
+  // this value is the default for autopause, if none is specified. An autopauseThreshold of 0 indicates no autopause
   val autoPauseOffValue = 0
-  // this value is the default for auto delete, if none is specified. Threshold of 0 indicates no auto delete
-  // In database, we also use 0 to represent no auto delete.
-  val autoDeleteOffValue = 0
   val traceIdHeaderString = ci"X-Cloud-Trace-Context"
 
   val SECURITY_GROUP = "security-group"
