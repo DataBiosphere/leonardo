@@ -52,6 +52,7 @@ import java.nio.file.{Path, Paths}
 import java.time.Instant
 import java.util.UUID
 import java.util.stream.Collectors
+import scala.concurrent.duration.Duration
 
 object JsonCodec {
   // Errors
@@ -812,4 +813,9 @@ object JsonCodec {
      x.postgresServer
     )
   )
+
+  implicit val durationDecoder: Decoder[Duration] =
+    Decoder.decodeString.emap { x =>
+      Either.catchNonFatal(Duration(x)).leftMap(_.getMessage)
+    }
 }

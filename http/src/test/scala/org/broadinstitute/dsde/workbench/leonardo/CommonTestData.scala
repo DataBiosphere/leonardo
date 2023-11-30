@@ -161,6 +161,7 @@ object CommonTestData {
   val clusterResourcesConfig = Config.clusterResourcesConfig
   val proxyConfig = Config.proxyConfig
   val autoFreezeConfig = Config.autoFreezeConfig
+  val autoDeleteConfig = Config.autoDeleteConfig
   val clusterToolConfig = Config.clusterToolMonitorConfig
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val clusterBucketConfig = Config.clusterBucketConfig
