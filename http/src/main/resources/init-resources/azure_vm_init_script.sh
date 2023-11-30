@@ -183,6 +183,9 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
 
 echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel pydevd
 
+echo "Waiting 5min to hopefully trigger a package lock..."
+sleep 300
+
 echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
 # Start Jupyter server with custom parameters
