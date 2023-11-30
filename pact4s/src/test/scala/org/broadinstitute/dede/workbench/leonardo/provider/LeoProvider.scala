@@ -2,21 +2,17 @@ package org.broadinstitute.dede.workbench.leonardo.provider
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, TestLeoRoutes}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, UserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.openTelemetry.{FakeOpenTelemetryMetricsInterpreter, OpenTelemetryMetrics}
+import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
-import org.scalatestplus.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pact4s.provider.{PactSource, ProviderInfoBuilder}
@@ -29,36 +25,51 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 class LeoProvider
   extends AnyFlatSpec
-  with ScalatestRouteTest
-  with PactVerifier
-    with Matchers
-    with ScalaFutures
-    with LeonardoTestSuite
-    with TestComponent
-    with MockitoSugar
-  with TestLeoRoutes {
+  with BeforeAndAfterAll
+  with PactVerifier {
 
 
-//override implicit val metrics: OpenTelemetryMetrics[IO] = FakeOpenTelemetryMetricsInterpreter
-//override implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
+implicit val metrics: OpenTelemetryMetrics[IO] = mock[OpenTelemetryMetrics[IO]]
+implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-override implicit val system: ActorSystem = ActorSystem("leotests")
+implicit val system: ActorSystem = ActorSystem("leotests")
+
+  val mockOpenIDConnectConfiguration: OpenIDConnectConfiguration = mock[OpenIDConnectConfiguration];
+  val mockStatusService: StatusService = mock[StatusService];
+  val mockProxyService: ProxyService = mock[ProxyService];
+  val mockRuntimeService: RuntimeService[IO] = mock[RuntimeService[IO]];
+  val mockDiskService: DiskService[IO] = mock[DiskService[IO]];
+  val mockDiskV2Service: DiskV2Service[IO] = mock[DiskV2Service[IO]];
+  val mockAppService: AppService[IO] = mock[AppService[IO]];
+  val mockRuntimeV2Service: RuntimeV2Service[IO] = mock[RuntimeV2Service[IO]];
+  val mockAdminService: AdminService[IO] = mock[AdminService[IO]];
+  val mockUserInfoDirectives: UserInfoDirectives = mock[UserInfoDirectives];
+  val mockContentSecurityPolicyConfig: ContentSecurityPolicyConfig = mock[ContentSecurityPolicyConfig];
+  val refererConfig: RefererConfig = new RefererConfig(Set("*"),true, false)
+
   val routes =
     new HttpRoutes(
-      openIdConnectionConfiguration,
-      statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
-      MockDiskV2ServiceInterp,
-      MockAppService,
-      new MockRuntimeV2Interp,
-      MockAdminServiceInterp,
-      timedUserInfoDirectives,
-      contentSecurityPolicy,
+      mockOpenIDConnectConfiguration,
+      mockStatusService,
+      mockProxyService,
+      mockRuntimeService,
+      mockDiskService,
+      mockDiskV2Service,
+      mockAppService,
+      mockRuntimeV2Service,
+      mockAdminService,
+      mockUserInfoDirectives,
+      mockContentSecurityPolicyConfig,
       refererConfig
     )
 
+
+  override def beforeAll(): Unit = {
+    startLeo.unsafeToFuture()
+    startLeo.start
+    sleep(5000)
+
+  }
   def startLeo: IO[Http.ServerBinding] =
   for {
     binding <- IO
