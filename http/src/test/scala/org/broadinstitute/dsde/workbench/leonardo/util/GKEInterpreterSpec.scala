@@ -210,7 +210,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "startAndPollApp properly" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
-    val chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+    val chart = Chart.fromString("/leonardo/sas-0.1.0")
     val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Allowed, chart = chart.get)
       .copy(status = AppStatus.Stopping)
       .save()
@@ -329,7 +329,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val disk = makePersistentDisk(Some(DiskName("d1"))).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+    val chart = Chart.fromString("/leonardo/sas-0.1.0")
     val savedApp1 = makeApp(1,
                             savedNodepool1.id,
                             appType = AppType.Allowed,

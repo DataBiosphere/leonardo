@@ -7,8 +7,8 @@ import org.broadinstitute.dsp.ChartName
 class kubernetesModelsSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   it should "convert chartName to AllowedChartName correctly" in {
     AllowedChartName.fromChartName(ChartName("/leonardo/cromwell")) shouldBe None
-    AllowedChartName.fromChartName(ChartName("/leonardo/aou-sas-chart")) shouldBe Some(AllowedChartName.Sas)
-    AllowedChartName.fromChartName(ChartName("/leonardo/aou-rstudio-chart")) shouldBe Some(
+    AllowedChartName.fromChartName(ChartName("/leonardo/sas")) shouldBe Some(AllowedChartName.Sas)
+    AllowedChartName.fromChartName(ChartName("/leonardo/rstudio")) shouldBe Some(
       AllowedChartName.RStudio
     )
   }
