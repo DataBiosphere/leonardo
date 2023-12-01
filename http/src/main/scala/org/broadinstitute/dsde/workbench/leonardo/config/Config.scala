@@ -298,7 +298,6 @@ object Config {
 
   implicit private val autoDeleteConfigReader: ValueReader[AutoDeleteConfig] = ValueReader.relative { config =>
     AutoDeleteConfig(
-      config.getBoolean("enableAutoDelete"),
       toScalaDuration(config.getDuration("autoDeleteCheckInterval"))
     )
   }
