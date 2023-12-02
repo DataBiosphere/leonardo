@@ -29,8 +29,8 @@ ENV TERRA_APP_VERSION 0.5.0
 ENV GALAXY_VERSION 2.8.1
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.2.386
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.386
+ENV CROMWELL_CHART_VERSION 0.2.390
+ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.390
 # These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
 ENV CROMWELL_RUNNER_APP_VERSION 0.46.0
 # WORKFLOWS APP comment to prevent merge conflicts
@@ -38,8 +38,8 @@ ENV WORKFLOWS_APP_VERSION 0.83.0
 # WDS CHART comment to prevent merge conflicts
 ENV WDS_CHART_VERSION 0.57.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
-ENV RSTUDIO_CHART_VERSION 0.2.0
-ENV SAS_CHART_VERSION 0.1.0
+ENV RSTUDIO_CHART_VERSION 0.3.0
+ENV SAS_CHART_VERSION 0.3.0
 ENV LISTENER_CHART_VERSION 0.2.0
 
 RUN mkdir /leonardo
@@ -59,8 +59,6 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
-    helm repo add aou-rstudio-chart https://storage.googleapis.com/terra-app-helm/aou-rstudio-chart && \
-    helm repo add aou-sas-chart https://storage.googleapis.com/terra-app-helm/aou-sas-chart && \
     helm repo update
 
 
@@ -79,8 +77,8 @@ RUN cd /leonardo && \
     helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
     helm pull terra-helm/workflows-app --version $WORKFLOWS_APP_VERSION --untar && \
     helm pull terra-helm/cromwell-runner-app --version $CROMWELL_RUNNER_APP_VERSION --untar && \
-    helm pull aou-rstudio-chart/aou-rstudio-chart --version $RSTUDIO_CHART_VERSION --untar && \
-    helm pull aou-sas-chart/aou-sas-chart --version $SAS_CHART_VERSION --untar && \
+    helm pull terra-helm/rstudio --version $RSTUDIO_CHART_VERSION --untar && \
+    helm pull terra-helm/sas --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
     helm pull terra-helm/listener --version $LISTENER_CHART_VERSION --untar && \
     cd /
