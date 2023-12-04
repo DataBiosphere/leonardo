@@ -87,19 +87,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       mockContentSecurityPolicyConfig,
       refererConfig
     )
-  val provider: ProviderInfoBuilder =
-    ProviderInfoBuilder(name = "leonardo",
-                        pactSource = PactSource
-                          .FileSource(
-                            Map("aou" -> new File("./src/test/resources/aou-leonardo.json"))
-                          )
-    )
-      .withStateManagementFunction(
-        providerStatesHandler
-          .withBeforeEach(() => resetMocks())
-      )
-      .withHost("localhost")
-      .withPort(8080)
+
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
     case ProviderState(States.AppExists, _) =>
       when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
@@ -125,6 +113,20 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     case _ =>
       loggerIO.debug("other state")
   }
+
+  val provider: ProviderInfoBuilder =
+    ProviderInfoBuilder(name = "leonardo",
+                        pactSource = PactSource
+                          .FileSource(
+                            Map("aou" -> new File("./src/test/resources/aou-leonardo.json"))
+                          )
+    )
+      .withStateManagementFunction(
+        providerStatesHandler
+          .withBeforeEach(() => resetMocks())
+      )
+      .withHost("localhost")
+      .withPort(8080)
 
   override def beforeAll(): Unit = {
     startLeo.unsafeToFuture()
