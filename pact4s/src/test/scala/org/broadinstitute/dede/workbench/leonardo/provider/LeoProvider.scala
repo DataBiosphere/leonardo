@@ -8,24 +8,15 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives, UserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  CloudContext,
-  KubernetesRuntimeConfig,
-  NumNodes
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, CloudContext, KubernetesRuntimeConfig, NumNodes}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.ChartName
-import org.mockito.ArgumentMatchers.{any, anyLong, anyMap, anyString}
+import org.mockito.ArgumentMatchers.{any, anyLong, anyString}
 import org.mockito.Mockito.{reset, when}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
@@ -43,6 +34,7 @@ import java.net.URL
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import org.broadinstitute.dsde.workbench.leonardo.AuditInfo
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.defaultUserInfo
+import org.mockito.stubbing.OngoingStubbing
 
 import java.time.Instant
 
@@ -57,7 +49,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
   implicit val system: ActorSystem = ActorSystem("leotests")
 
-  val mockOpenIDConnectConfiguration: OpenIDConnectConfiguration = mock[OpenIDConnectConfiguration];
+  val mockOpenIDConnectConfiguration: OpenIDConnectConfiguration = mock[OpenIDConnectConfiguration]
   val mockStatusService: StatusService = mock[StatusService]
   val mockProxyService: ProxyService = mock[ProxyService]
   val mockRuntimeService: RuntimeService[IO] = mock[RuntimeService[IO]]
@@ -66,10 +58,9 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   val mockAppService: AppService[IO] = mock[AppService[IO]]
   val mockRuntimeV2Service: RuntimeV2Service[IO] = mock[RuntimeV2Service[IO]]
   val mockAdminService: AdminService[IO] = mock[AdminService[IO]]
-//  val mockUserInfoDirectives: UserInfoDirectives = mock[UserInfoDirectives];
-  val mockContentSecurityPolicyConfig: ContentSecurityPolicyConfig = mock[ContentSecurityPolicyConfig];
-  val refererConfig: RefererConfig = new RefererConfig(Set("*"), true, false)
-  val mockUserInfoDirectives = new MockUserInfoDirectives {
+  val mockContentSecurityPolicyConfig: ContentSecurityPolicyConfig = mock[ContentSecurityPolicyConfig]
+  val refererConfig: RefererConfig = RefererConfig(Set("*"), enabled = true)
+  val mockUserInfoDirectives: MockUserInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
 
@@ -95,19 +86,18 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
   }
 
-  def resetMocks() = {
-    reset(mockOpenIDConnectConfiguration);
-    reset(mockStatusService);
-    reset(mockProxyService);
-    reset(mockRuntimeService);
-    reset(mockDiskService);
-    reset(mockDiskV2Service);
-    reset(mockAppService);
-    reset(mockRuntimeV2Service);
-    reset(mockAdminService);
-//    reset(mockUserInfoDirectives);
-    reset(mockContentSecurityPolicyConfig);
-    when(metrics.incrementCounter(anyString(), anyLong(), any())).thenReturn(IO.pure(None));
+  def resetMocks(): OngoingStubbing[IO[Unit]] = {
+    reset(mockOpenIDConnectConfiguration)
+    reset(mockStatusService)
+    reset(mockProxyService)
+    reset(mockRuntimeService)
+    reset(mockDiskService)
+    reset(mockDiskV2Service)
+    reset(mockAppService)
+    reset(mockRuntimeV2Service)
+    reset(mockAdminService)
+    reset(mockContentSecurityPolicyConfig)
+    when(metrics.incrementCounter(anyString(), anyLong(), any())).thenReturn(IO.pure(None))
   }
 
   private def startLeo: IO[Http.ServerBinding] =
@@ -115,7 +105,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       binding <- IO
         .fromFuture(IO(Http().newServerAt("localhost", 8080).bind(routes.route)))
         .onError { t: Throwable =>
-          loggerIO.error(t.toString())
+          loggerIO.error(t.toString)
         }
       _ <- IO.fromFuture(IO(binding.whenTerminated))
       _ <- IO(system.terminate())
@@ -130,7 +120,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
             AppName("exampleApp"),
             CloudContext.Gcp(GoogleProject("exampleProject")),
             RegionName("exampleRegion"),
-            KubernetesRuntimeConfig(NumNodes(8), MachineTypeName("exampleMachine"), true),
+            KubernetesRuntimeConfig(NumNodes(8), MachineTypeName("exampleMachine"), autoscalingEnabled = true),
             List.empty[AppError],
             AppStatus.Unspecified,
             Map.empty[KubernetesSerializableName.ServiceName, URL],
