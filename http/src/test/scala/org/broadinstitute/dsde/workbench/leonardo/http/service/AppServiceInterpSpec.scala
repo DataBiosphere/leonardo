@@ -833,7 +833,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      chart = Chart.fromString("/leonardo/sas-0.1.0")
       savedApp <- IO(
         makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
           .copy(status = AppStatus.Running)
@@ -1213,7 +1213,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      chart = Chart.fromString("/leonardo/sas-0.1.0")
       savedApp <- IO(
         makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
           .copy(status = AppStatus.Running)
