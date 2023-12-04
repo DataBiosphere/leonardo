@@ -22,25 +22,11 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => _, _}
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  Event,
-  GKEModels,
-  GoogleDiskService,
-  KubernetesModels,
-  MachineTypeName,
-  RegionName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, Event, GKEModels, GoogleDiskService, KubernetesModels, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
-  makeApp,
-  makeKubeCluster,
-  makeNodepool,
-  makeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool, makeService}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.BootSource
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, Config}
@@ -53,10 +39,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerInterp, _}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, startsWith}
 import org.mockito.Mockito._
 import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -2014,6 +2001,22 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "create a metric for a failed condition" in {
+    val mockCtx = mock[AppContext]
+    val mockEvent = mock[Event[LeoPubsubMessage]]
+    val mockThrowable = mock[Throwable]
+    implicit val mockMetrics = mock[OpenTelemetryMetrics[IO]]
+
+    println("CREATING LEO SUBSCRIBER")
+    val leoSubscriber = makeLeoSubscriber()(mockMetrics)
+    println("RUNNING MESSAGE_FAILURE")
+    val res = for {
+      _ <- leoSubscriber.processMessageFailure(mockCtx, mockEvent, mockThrowable)(any())
+    } yield verify(mockMetrics, times(1)).recordDuration(startsWith("pubsub/fail/"), any(), any())
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty
   ): GKEInterpreter[IO] =
@@ -2043,7 +2046,7 @@ class LeoPubsubMessageSubscriberSpec
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
     azureInterp: AzurePubsubHandlerAlgebra[IO] = makeAzureInterp()
-  ): LeoPubsubMessageSubscriber[IO] = {
+  )(implicit metrics: OpenTelemetryMetrics[IO]): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)

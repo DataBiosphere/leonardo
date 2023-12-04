@@ -157,7 +157,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
 
       _ <- res match {
-        case Left(e)  => processFailed(ctx, event, e)
+        case Left(e)  => processMessageFailure(ctx, event, e)
         case Right(_) => ack(event)
       }
     } yield ()
@@ -180,8 +180,8 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- recordMessageMetric(event)
     } yield ()
 
-  private def processFailed(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit
-    ev: Ask[F, AppContext]
+  private[monitor] def processMessageFailure(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit
+                                                                                                            ev: Ask[F, AppContext]
   ): F[Unit] = {
     val handleErrorMessages = e match {
       case ee: PubsubHandleMessageError =>
