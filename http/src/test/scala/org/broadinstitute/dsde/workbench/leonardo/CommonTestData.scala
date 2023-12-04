@@ -234,8 +234,6 @@ object CommonTestData {
     RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val customDataprocImage =
     RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
-  val legacyAouCustomDataprocImage =
-    RuntimeImage(BootSource, "legacy_aou_custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
