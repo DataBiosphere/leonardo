@@ -7,7 +7,7 @@
   },
   "interactions": [
     {
-      "description": "b",
+      "description": "a request to get that app",
       "request": {
         "method": "GET",
         "path": "/api/google/v1/apps/googleProject/appname"
@@ -18,8 +18,8 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "diskName": "Porg",
-          "appName": "Minivan",
+          "diskName": "disk-123",
+          "appName": "sample-cromwell-study",
           "appType": "CROMWELL",
           "cloudContext": {},
           "errors": [],
@@ -72,7 +72,7 @@
       },
       "providerStates": [
         {
-          "name": "a"
+          "name": "there is an app in a Google project"
         }
       ]
     }
