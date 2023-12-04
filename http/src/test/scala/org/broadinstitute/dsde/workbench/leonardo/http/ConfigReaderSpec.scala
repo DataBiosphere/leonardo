@@ -75,7 +75,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
-          ChartName("/leonardo/cromwell-on-azure"),
+          ChartName("cromwell-on-azure"),
           ChartVersion("0.2.390"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
@@ -137,7 +137,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         CromwellRunnerAppConfig(
-          ChartName("/leonardo/cromwell-runner-app"),
+          ChartName("cromwell-runner-app"),
           ChartVersion("0.46.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
