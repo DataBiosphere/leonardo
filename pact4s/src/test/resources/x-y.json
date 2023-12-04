@@ -10,7 +10,7 @@
       "description": "b",
       "request": {
         "method": "GET",
-        "path": "/api/google/v1/apps/googleProject/appName"
+        "path": "/api/google/v1/apps/googleProject/appname"
       },
       "response": {
         "status": 200,
