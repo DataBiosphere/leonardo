@@ -10,7 +10,16 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives, UserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, CloudContext, KubernetesRuntimeConfig, NumNodes}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  AppError,
+  AppName,
+  AppStatus,
+  AppType,
+  CloudContext,
+  KubernetesRuntimeConfig,
+  NumNodes
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
@@ -41,16 +50,12 @@ object States {
   val AppExists = "a"
 }
 
-class LeoProvider
-  extends AnyFlatSpec
-  with BeforeAndAfterAll
-  with PactVerifier {
+class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
-
-implicit val metrics: OpenTelemetryMetrics[IO] = mock[OpenTelemetryMetrics[IO]]
-implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
-implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-implicit val system: ActorSystem = ActorSystem("leotests")
+  implicit val metrics: OpenTelemetryMetrics[IO] = mock[OpenTelemetryMetrics[IO]]
+  implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
+  implicit val ec: ExecutionContextExecutor = ExecutionContext.global
+  implicit val system: ActorSystem = ActorSystem("leotests")
 
   val mockOpenIDConnectConfiguration: OpenIDConnectConfiguration = mock[OpenIDConnectConfiguration];
   val mockStatusService: StatusService = mock[StatusService]
@@ -63,7 +68,7 @@ implicit val system: ActorSystem = ActorSystem("leotests")
   val mockAdminService: AdminService[IO] = mock[AdminService[IO]]
 //  val mockUserInfoDirectives: UserInfoDirectives = mock[UserInfoDirectives];
   val mockContentSecurityPolicyConfig: ContentSecurityPolicyConfig = mock[ContentSecurityPolicyConfig];
-  val refererConfig: RefererConfig = new RefererConfig(Set("*"),true, false)
+  val refererConfig: RefererConfig = new RefererConfig(Set("*"), true, false)
   val mockUserInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
@@ -102,11 +107,10 @@ implicit val system: ActorSystem = ActorSystem("leotests")
     reset(mockAdminService);
 //    reset(mockUserInfoDirectives);
     reset(mockContentSecurityPolicyConfig);
-    when(metrics.incrementCounter(anyString(),anyLong(), any())).thenReturn(IO.pure(None));
+    when(metrics.incrementCounter(anyString(), anyLong(), any())).thenReturn(IO.pure(None));
   }
 
-
-  private def startLeo: IO[Http.ServerBinding] = {
+  private def startLeo: IO[Http.ServerBinding] =
     for {
       binding <- IO
         .fromFuture(IO(Http().newServerAt("localhost", 8080).bind(routes.route)))
@@ -116,44 +120,46 @@ implicit val system: ActorSystem = ActorSystem("leotests")
       _ <- IO.fromFuture(IO(binding.whenTerminated))
       _ <- IO(system.terminate())
     } yield binding
-  }
 
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
     case ProviderState(States.AppExists, _) =>
-      when(mockAppService.getApp(any[UserInfo],any[CloudContext.Gcp],AppName(anyString()))(any[Ask[IO, AppContext]])).thenReturn(IO {
-        GetAppResponse(
-          None,
-          AppName("exampleApp"),
-          CloudContext.Gcp(GoogleProject("exampleProject")),
-          RegionName("exampleRegion"),
-          KubernetesRuntimeConfig(NumNodes(8),MachineTypeName("exampleMachine"),true),
-          List.empty[AppError],
-          AppStatus.Unspecified,
-          Map.empty[KubernetesSerializableName.ServiceName, URL],
-          Some(DiskName("Cheese")),
-          Map.empty[String,String],
-          AuditInfo(WorkbenchEmail(""),Instant.now(),None,Instant.now()),
-          AppType.CromwellRunnerApp,
-          ChartName(""),
-          None,
-          Map.empty[String,String])})
+      when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
+        .thenReturn(IO {
+          GetAppResponse(
+            None,
+            AppName("exampleApp"),
+            CloudContext.Gcp(GoogleProject("exampleProject")),
+            RegionName("exampleRegion"),
+            KubernetesRuntimeConfig(NumNodes(8), MachineTypeName("exampleMachine"), true),
+            List.empty[AppError],
+            AppStatus.Unspecified,
+            Map.empty[KubernetesSerializableName.ServiceName, URL],
+            Some(DiskName("Cheese")),
+            Map.empty[String, String],
+            AuditInfo(WorkbenchEmail(""), Instant.now(), None, Instant.now()),
+            AppType.CromwellRunnerApp,
+            ChartName(""),
+            None,
+            Map.empty[String, String]
+          )
+        })
     case _ =>
       loggerIO.debug("other state")
   }
 
-  val provider: ProviderInfoBuilder = ProviderInfoBuilder(
-    name = "y",
-    pactSource = PactSource
-      .FileSource(
-        Map("x" -> new File("./pact4s/src/test/resources/x-y.json"))
-      ))
-    .withStateManagementFunction(
-      providerStatesHandler
-      .withBeforeEach(() => resetMocks())
+  val provider: ProviderInfoBuilder =
+    ProviderInfoBuilder(name = "y",
+                        pactSource = PactSource
+                          .FileSource(
+                            Map("x" -> new File("./pact4s/src/test/resources/x-y.json"))
+                          )
     )
-
-    .withHost("localhost")
-    .withPort(8080)
+      .withStateManagementFunction(
+        providerStatesHandler
+          .withBeforeEach(() => resetMocks())
+      )
+      .withHost("localhost")
+      .withPort(8080)
 
   it should "Verify pacts" in {
     verifyPacts(
