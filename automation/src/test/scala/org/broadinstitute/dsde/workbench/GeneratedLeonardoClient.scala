@@ -59,7 +59,6 @@ object GeneratedLeonardoClient {
       api <- IO(new AppsApi(apiClient))
     } yield api
 
-
   def testProxyUrl(
     runtime: org.broadinstitute.dsde.workbench.client.leonardo.model.GetRuntimeResponse
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
