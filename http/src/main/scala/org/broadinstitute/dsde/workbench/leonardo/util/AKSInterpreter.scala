@@ -205,6 +205,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         s"Relay listener values for app ${params.appName.value} are ${values.asString}"
       )
 
+      // Pull Listener helm chart
+      _ <- helmClient
+        .updateAndPullChart(config.listenerChartConfig.chartName, config.listenerChartConfig.chartVersion, "/leonardo")
+        .run(authContext)
+
       // Install listener helm chart
       _ <- childSpan("helmInstallRelayListener").use { _ =>
         helmClient
@@ -232,6 +237,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
+
+      // Pull App helm chart
+      _ <- helmClient
+        .updateAndPullChart(app.chart.name, app.chart.version, "/leonardo")
+        .run(authContext)
 
       // Install app chart
       _ <- childSpan("helmInstallApp").use { _ =>

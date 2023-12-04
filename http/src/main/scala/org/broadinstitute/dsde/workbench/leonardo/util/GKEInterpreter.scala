@@ -384,6 +384,15 @@ class GKEInterpreter[F[_]](
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+
+      // Pull Terra Setup helm chart
+      _ <- helmClient
+        .updateAndPullChart(config.terraAppSetupChartConfig.chartName,
+                            config.terraAppSetupChartConfig.chartVersion,
+                            "/leonardo"
+        )
+        .run(helmAuthContext)
+
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),
@@ -1250,6 +1259,11 @@ class GKEInterpreter[F[_]](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, config.ingressConfig.namespace)
 
+      // Pull Ingress helm chart
+      _ <- helmClient
+        .updateAndPullChart(config.ingressConfig.chartName, config.ingressConfig.chartVersion, "/leonardo")
+        .run(helmAuthContext)
+
       // Invoke helm
       _ <- helmClient
         .installChart(
@@ -1342,6 +1356,11 @@ class GKEInterpreter[F[_]](
           )}"
       )
 
+      // Pull App helm chart
+      _ <- helmClient
+        .updateAndPullChart(chart.name, chart.version, "/leonardo")
+        .run(helmAuthContext)
+
       // Invoke helm
       helmInstall = helmClient
         .installChart(
@@ -1419,6 +1438,11 @@ class GKEInterpreter[F[_]](
                                                               customEnvironmentVariables
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
+
+      // Pull App helm chart
+      _ <- helmClient
+        .updateAndPullChart(chart.name, chart.version, "/leonardo")
+        .run(helmAuthContext)
 
       // Invoke helm
       helmInstall = helmClient
@@ -1516,6 +1540,11 @@ class GKEInterpreter[F[_]](
                                                              customEnvironmentVariables
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
+
+      // Pull App helm chart
+      _ <- helmClient
+        .updateAndPullChart(chart.name, chart.version, "/leonardo")
+        .run(helmAuthContext)
 
       // Invoke helm
       helmInstall = helmClient
@@ -1630,6 +1659,11 @@ class GKEInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
       )
+
+      // Pull App helm chart
+      _ <- helmClient
+        .updateAndPullChart(config.customAppConfig.chartName, config.customAppConfig.chartVersion, "/leonardo")
+        .run(helmAuthContext)
 
       // Invoke helm
       helmInstall = helmClient
