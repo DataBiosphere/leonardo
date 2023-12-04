@@ -5,7 +5,7 @@ import akka.http.scaladsl.Http
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google2.{KubernetesSerializableName, MachineTypeName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives, UserInfoDirectives}
@@ -123,14 +123,14 @@ implicit val system: ActorSystem = ActorSystem("leotests")
       when(mockAppService.getApp(any[UserInfo],any[CloudContext.Gcp],AppName(anyString()))(any[Ask[IO, AppContext]])).thenReturn(IO {
         GetAppResponse(
           None,
-          AppName("example"),
+          AppName("exampleApp"),
           CloudContext.Gcp(GoogleProject("exampleProject")),
           RegionName("exampleRegion"),
           KubernetesRuntimeConfig(NumNodes(8),MachineTypeName("exampleMachine"),true),
           List.empty[AppError],
           AppStatus.Unspecified,
           Map.empty[KubernetesSerializableName.ServiceName, URL],
-          None,
+          Some(DiskName("Cheese")),
           Map.empty[String,String],
           AuditInfo(WorkbenchEmail(""),Instant.now(),None,Instant.now()),
           AppType.CromwellRunnerApp,
