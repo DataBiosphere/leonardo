@@ -2876,8 +2876,8 @@ components:
     AllowedChartName:
       type: string
       enum:
-        - aou-rstudio-chart
-        - aou-sas-chart
+        - rstudio
+        - sas
     AppStatus:
       type: string
       enum:
