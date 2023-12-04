@@ -24,7 +24,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.1.0")),
+      TerraAppSetupChartConfig(ChartName("terra-app-setup-charts/terra-app-setup"), ChartVersion("0.1.0")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -75,7 +75,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
-          ChartName("cromwell-on-azure"),
+          ChartName("cromwell-helm/cromwell-on-azure"),
           ChartVersion("0.2.390"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
@@ -137,7 +137,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         CromwellRunnerAppConfig(
-          ChartName("cromwell-runner-app"),
+          ChartName("terra-helm/cromwell-runner-app"),
           ChartVersion("0.46.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
@@ -153,7 +153,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
-          ChartName("/leonardo/workflows-app"),
+          ChartName("terra-helm/workflows-app"),
           ChartVersion("0.83.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
@@ -171,7 +171,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WdsAppConfig(
-          ChartName("/leonardo/wds"),
+          ChartName("terra-helm/wds"),
           ChartVersion("0.58.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
@@ -207,7 +207,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         HailBatchAppConfig(
-          ChartName("/leonardo/hail-batch-terra-azure"),
+          ChartName("oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure"),
           ChartVersion("0.1.9"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
@@ -220,7 +220,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
+        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.2.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
