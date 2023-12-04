@@ -10,7 +10,16 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, CloudContext, KubernetesRuntimeConfig, NumNodes}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  AppError,
+  AppName,
+  AppStatus,
+  AppType,
+  CloudContext,
+  KubernetesRuntimeConfig,
+  NumNodes
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
