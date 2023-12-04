@@ -1,9 +1,9 @@
 {
   "provider": {
-    "name": "y"
+    "name": "leonardo"
   },
   "consumer": {
-    "name": "x"
+    "name": "aou"
   },
   "interactions": [
     {

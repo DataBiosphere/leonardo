@@ -6,6 +6,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.defaultUserInfo
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
@@ -16,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppName,
   AppStatus,
   AppType,
+  AuditInfo,
   CloudContext,
   KubernetesRuntimeConfig,
   NumNodes
@@ -27,6 +29,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.ChartName
 import org.mockito.ArgumentMatchers.{any, anyLong, anyString}
 import org.mockito.Mockito.{reset, when}
+import org.mockito.stubbing.OngoingStubbing
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
@@ -40,12 +43,8 @@ import pact4s.scalatest.PactVerifier
 import java.io.File
 import java.lang.Thread.sleep
 import java.net.URL
-import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-import org.broadinstitute.dsde.workbench.leonardo.AuditInfo
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.defaultUserInfo
-import org.mockito.stubbing.OngoingStubbing
-
 import java.time.Instant
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object States {
   val AppExists = "a"
@@ -88,38 +87,19 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       mockContentSecurityPolicyConfig,
       refererConfig
     )
-
-  override def beforeAll(): Unit = {
-    startLeo.unsafeToFuture()
-    sleep(5000)
-
-  }
-
-  def resetMocks(): OngoingStubbing[IO[Unit]] = {
-    reset(mockOpenIDConnectConfiguration)
-    reset(mockStatusService)
-    reset(mockProxyService)
-    reset(mockRuntimeService)
-    reset(mockDiskService)
-    reset(mockDiskV2Service)
-    reset(mockAppService)
-    reset(mockRuntimeV2Service)
-    reset(mockAdminService)
-    reset(mockContentSecurityPolicyConfig)
-    when(metrics.incrementCounter(anyString(), anyLong(), any())).thenReturn(IO.pure(None))
-  }
-
-  private def startLeo: IO[Http.ServerBinding] =
-    for {
-      binding <- IO
-        .fromFuture(IO(Http().newServerAt("localhost", 8080).bind(routes.route)))
-        .onError { t: Throwable =>
-          loggerIO.error(t.toString)
-        }
-      _ <- IO.fromFuture(IO(binding.whenTerminated))
-      _ <- IO(system.terminate())
-    } yield binding
-
+  val provider: ProviderInfoBuilder =
+    ProviderInfoBuilder(name = "leonardo",
+                        pactSource = PactSource
+                          .FileSource(
+                            Map("aou" -> new File("./pact4s/src/test/resources/aou-leonardo.json"))
+                          )
+    )
+      .withStateManagementFunction(
+        providerStatesHandler
+          .withBeforeEach(() => resetMocks())
+      )
+      .withHost("localhost")
+      .withPort(8080)
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
     case ProviderState(States.AppExists, _) =>
       when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
@@ -146,19 +126,36 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       loggerIO.debug("other state")
   }
 
-  val provider: ProviderInfoBuilder =
-    ProviderInfoBuilder(name = "y",
-                        pactSource = PactSource
-                          .FileSource(
-                            Map("x" -> new File("./pact4s/src/test/resources/x-y.json"))
-                          )
-    )
-      .withStateManagementFunction(
-        providerStatesHandler
-          .withBeforeEach(() => resetMocks())
-      )
-      .withHost("localhost")
-      .withPort(8080)
+  override def beforeAll(): Unit = {
+    startLeo.unsafeToFuture()
+    sleep(5000)
+
+  }
+
+  private def startLeo: IO[Http.ServerBinding] =
+    for {
+      binding <- IO
+        .fromFuture(IO(Http().newServerAt("localhost", 8080).bind(routes.route)))
+        .onError { t: Throwable =>
+          loggerIO.error(t.toString)
+        }
+      _ <- IO.fromFuture(IO(binding.whenTerminated))
+      _ <- IO(system.terminate())
+    } yield binding
+
+  def resetMocks(): OngoingStubbing[IO[Unit]] = {
+    reset(mockOpenIDConnectConfiguration)
+    reset(mockStatusService)
+    reset(mockProxyService)
+    reset(mockRuntimeService)
+    reset(mockDiskService)
+    reset(mockDiskV2Service)
+    reset(mockAppService)
+    reset(mockRuntimeV2Service)
+    reset(mockAdminService)
+    reset(mockContentSecurityPolicyConfig)
+    when(metrics.incrementCounter(anyString(), anyLong(), any())).thenReturn(IO.pure(None))
+  }
 
   it should "Verify pacts" in {
     verifyPacts(
