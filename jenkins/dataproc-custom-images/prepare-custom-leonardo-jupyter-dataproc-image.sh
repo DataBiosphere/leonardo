@@ -34,11 +34,11 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 
 # this array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+#docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
 
 # NOTE - UNCOMMENT TO REGENERATE THE AOU LEGACY DATAPROC IMAGE
 # You would also need to change the debian version, see https://github.com/DataBiosphere/leonardo/pull/3871
-#docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
+docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
 
 # The version of python to install
 # Note: this should match the version of python in the terra-jupyter-hail image.
