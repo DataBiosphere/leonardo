@@ -3,9 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.consumer
 import cats.effect.kernel.Concurrent
 import cats.syntax.all._
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.leonardo.{SamResourceType, consumer}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ListResourceResponse
+import org.broadinstitute.dsde.workbench.leonardo.{consumer, SamResourceType}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.Credentials.Token
 import org.http4s._
