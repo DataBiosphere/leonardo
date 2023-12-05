@@ -80,6 +80,7 @@ object KubernetesTestData {
     Map.empty,
     None,
     List.empty,
+    None,
     None
   )
 
@@ -121,6 +122,7 @@ object KubernetesTestData {
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
       extraArgs = List.empty,
+      None,
       None
     )
 

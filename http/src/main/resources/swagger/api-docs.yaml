@@ -4028,6 +4028,9 @@ components:
           items:
             type: string
           description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
+        workspaceId:
+          type: string
+          description: Optional id of workspace. Every app must have a workspaceId, but this is not required for backwards-compatibility.
         sourceWorkspaceId:
           type: string
           description: Optional id of source workspace if app is a clone.
