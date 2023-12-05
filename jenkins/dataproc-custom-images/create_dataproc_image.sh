@@ -36,7 +36,7 @@ gcloud config set dataproc/region us-central1
 
 python generate_custom_image.py \
     --image-name "$OUTPUT_IMAGE_NAME" \
-    --dataproc-version "2-0-51-debian10" \
+    --dataproc-version "2.0.51-debian10" \
     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
     --zone $ZONE \
     --gcs-bucket $DATAPROC_IMAGE_BUCKET \
