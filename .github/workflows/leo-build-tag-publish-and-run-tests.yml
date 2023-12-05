@@ -68,7 +68,8 @@ jobs:
 
           echo "app-version=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "build-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          # echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "automation-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
 
   #
   # Artifact Build and Promotion
