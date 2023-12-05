@@ -13,8 +13,6 @@ import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 
-import java.lang
-
 trait SamClient[F[_]] {
 
   def fetchResourcePolicies[R](
