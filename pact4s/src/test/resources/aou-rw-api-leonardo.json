@@ -3,7 +3,7 @@
     "name": "leonardo"
   },
   "consumer": {
-    "name": "aou"
+    "name": "aou-rw-api"
   },
   "interactions": [
     {

@@ -118,7 +118,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     ProviderInfoBuilder(name = "leonardo",
                         pactSource = PactSource
                           .FileSource(
-                            Map("aou" -> new File("./src/test/resources/aou-leonardo.json"))
+                            Map("aou" -> new File("./src/test/resources/aou-rw-api-leonardo.json"))
                           )
     )
       .withStateManagementFunction(
