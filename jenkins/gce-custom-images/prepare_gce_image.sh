@@ -41,7 +41,7 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
 
 # NOTE - UNCOMMENT TO REGENERATE THE AOU LEGACY DATAPROC IMAGE
-# You would also need to change the debian version, see https://github.com/DataBiosphere/leonardo/pull/3871/commits/5aeedc0df8b28e293ca3627e41994d28bf90c971
+# You would also need to change the debian version, see https://github.com/DataBiosphere/leonardo/pull/3871
 #docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
 
 #
