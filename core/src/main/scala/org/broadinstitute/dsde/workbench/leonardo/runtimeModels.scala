@@ -542,8 +542,14 @@ object MemorySize {
  * Resource constraints for a runtime.
  * See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
  * for other types of resources we may want to add here.
+ *
+ * driverMemory will be populated if the machine type is either n1-standard-{x} or n1-highmem-{x} when using a different algorithm
+ * for calculating spark:spark.driver.memory
  */
-final case class RuntimeResourceConstraints(memoryLimit: MemorySize, totalMachineMemory: MemorySize)
+final case class RuntimeResourceConstraints(memoryLimit: MemorySize,
+                                            totalMachineMemory: MemorySize,
+                                            driverMemory: Option[MemorySize]
+)
 
 final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
