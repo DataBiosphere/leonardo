@@ -193,7 +193,10 @@ class DataprocInterpreter[F[_]: Parallel](
 
         // We need to maintain the old version of the dataproc image to uncouple the terra from the aou release
         imageUrls = params.runtimeImages.map(_.imageUrl)
-        dataprocImage = config.dataprocConfig.customDataprocImage
+        dataprocImage =
+          if (imageUrls.contains("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.1.15"))
+            config.dataprocConfig.legacyAouCustomDataprocImage
+          else config.dataprocConfig.customDataprocImage
 
         // If the cluster is configured with worker private access, then specify the
         // `leonardo-private` network tag. This tag will be removed from the master node
