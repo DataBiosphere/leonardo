@@ -7,10 +7,9 @@ import au.com.dius.pact.core.model.RequestResponsePact
 import cats.effect.IO
 import cats.effect.unsafe.implicits._
 import io.circe.parser._
-import org.broadinstitute.dede.workbench.leonardo.consumer.AuthHelper._
-import org.broadinstitute.dede.workbench.leonardo.consumer.PactHelper._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.consumer.SamClientImpl
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{ListResourceResponse, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.{SamPolicyName, SamResourceType, WorkspaceId}

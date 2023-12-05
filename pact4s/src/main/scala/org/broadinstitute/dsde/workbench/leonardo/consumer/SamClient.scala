@@ -1,9 +1,9 @@
-package org.broadinstitute.dede.workbench.leonardo.consumer
+package org.broadinstitute.dsde.workbench.leonardo.consumer
 
 import cats.effect.kernel.Concurrent
 import cats.syntax.all._
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceType
+import org.broadinstitute.dsde.workbench.leonardo.{SamResourceType, consumer}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ListResourceResponse
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
@@ -12,6 +12,8 @@ import org.http4s._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
+
+import java.lang
 
 trait SamClient[F[_]] {
 
@@ -40,7 +42,7 @@ class SamClientImpl[F[_]: Concurrent](client: Client[F], baseUrl: Uri, bearer: T
       resp.status match {
         case Status.Ok                  => resp.as[StatusCheckResponse]
         case Status.InternalServerError => resp.as[StatusCheckResponse]
-        case _                          => UnknownError.raiseError
+        case _                          => consumer.UnknownError.raiseError
       }
     }
   }
@@ -58,7 +60,7 @@ class SamClientImpl[F[_]: Concurrent](client: Client[F], baseUrl: Uri, bearer: T
     client.run(request).use { resp =>
       resp.status match {
         case Status.Ok => resp.as[Iterable[ListResourceResponse[R]]]
-        case _         => UnknownError.raiseError
+        case _         => consumer.UnknownError.raiseError
       }
     }
   }

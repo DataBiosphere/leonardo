@@ -1,4 +1,4 @@
-package org.broadinstitute.dede.workbench.leonardo.provider
+package org.broadinstitute.dsde.workbench.leonardo.provider
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
