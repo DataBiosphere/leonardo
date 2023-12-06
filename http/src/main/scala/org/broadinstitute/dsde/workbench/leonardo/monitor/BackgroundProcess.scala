@@ -77,7 +77,7 @@ trait BackgroundProcess[F[_], A] {
     (Stream.sleep[F](interval) ++ Stream.eval(
       check
         .handleErrorWith { case e =>
-          logger.error(e)(s"Unexpected error occurred during ${name} monitoring. Recovering...")
+          logger.error(e)(s"Unexpected error occurred during ${name} monitoring.") >> F.raiseError[Unit](e)
         }
     )).repeat
 }
