@@ -46,6 +46,8 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import org.scalatest.prop.TableDrivenPropertyChecks.Table
+import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 
 class DataprocInterpreterSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -214,7 +216,7 @@ class DataprocInterpreterSpec
       )
 
     val runtimeConfig = RuntimeConfig.DataprocConfig(0,
-                                                     MachineTypeName("n1-standard-4"),
+                                                     MachineTypeName("n2-standard-4"),
                                                      DiskSize(500),
                                                      None,
                                                      None,
@@ -249,6 +251,68 @@ class DataprocInterpreterSpec
       "spark:spark.driver.memory"
     ) shouldBe ((resourceConstraints.totalMachineMemory.bytes - resourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes) + "m"
 
+  }
+
+  it should "calculate cluster resource constraints and software config correctly for n1-standard and n1-highmem machine types" in isolatedDbTest {
+    val highMemGoogleComputeService = new FakeGoogleComputeService {
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[MachineType]] =
+        IO.pure(Some(MachineType.newBuilder().setName("pass").setMemoryMb(104 * 1024).setGuestCpus(4).build()))
+    }
+
+    def dataprocInterpHighMem(computeService: GoogleComputeService[IO] = highMemGoogleComputeService,
+                              dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService,
+                              googleDirectoryDao: GoogleDirectoryDAO = mockGoogleDirectoryDAO
+    ) =
+      new DataprocInterpreter[IO](
+        Config.dataprocInterpreterConfig,
+        bucketHelper,
+        vpcInterp,
+        dataprocCluster,
+        computeService,
+        MockGoogleDiskService,
+        googleDirectoryDao,
+        mockGoogleIamDAO,
+        mockGoogleResourceService,
+        MockWelderDAO
+      )
+
+    val machineTypes = Table("machineType", MachineTypeName("n1-standard-4"), MachineTypeName("n1-highmem-64"))
+    forAll(machineTypes) { machineType: MachineTypeName =>
+      val runtimeConfig = RuntimeConfig.DataprocConfig(0,
+                                                       machineType,
+                                                       DiskSize(500),
+                                                       None,
+                                                       None,
+                                                       None,
+                                                       None,
+                                                       Map.empty[String, String],
+                                                       RegionName("us-central1"),
+                                                       true,
+                                                       false
+      )
+      val resourceConstraints = dataprocInterpHighMem()
+        .getDataprocRuntimeResourceContraints(testClusterClusterProjectAndName,
+                                              runtimeConfig.machineType,
+                                              RegionName("us-central1")
+        )
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+      val dataProcSoftwareConfig = dataprocInterp().getSoftwareConfig(
+        GoogleProject("MyGoogleProject"),
+        RuntimeName("MyRuntimeName"),
+        runtimeConfig,
+        resourceConstraints
+      )
+
+      val propertyMap = dataProcSoftwareConfig.getPropertiesMap()
+      val expectedMemory =
+        if (machineType == MachineTypeName("n1-standard-4")) (104 - 7) * 0.9 * 1024 else (104 - 11) * 0.9 * 1024
+      propertyMap.get(
+        "spark:spark.driver.memory"
+      ) shouldBe s"${expectedMemory.toInt}m"
+    }
   }
 
   it should "create correct softwareConfig - minimum runtime memory 4gb" in isolatedDbTest {
