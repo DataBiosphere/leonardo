@@ -233,18 +233,41 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
 
-      // Install app chart
-      _ <- childSpan("helmInstallApp").use { _ =>
-        helmClient
-          .installChart(
-            app.release,
-            app.chart.name,
-            app.chart.version,
-            values,
-            createNamespace = false
-          )
-          .run(authContext)
-      }
+      _ <-
+        if (app.appType == AppType.HailBatch) {
+          for {
+            // Try to pull the hail batch chart first before installing
+            _ <- helmClient
+              .updateAndPullChart(app.chart.name, app.chart.version, "/leonardo")
+              .run(())
+            _ <- childSpan("helmInstallApp").use { _ =>
+              helmClient
+                .installChart(
+                  app.release,
+                  ChartName("/leonardo/hail-batch-terra-azure"),
+                  app.chart.version,
+                  values,
+                  createNamespace = false
+                )
+                .run(authContext)
+            }
+          } yield ()
+        } else {
+          for {
+            // Install app chart directly from remote
+            _ <- childSpan("helmInstallApp").use { _ =>
+              helmClient
+                .installChart(
+                  app.release,
+                  app.chart.name,
+                  app.chart.version,
+                  values,
+                  createNamespace = false
+                )
+                .run(authContext)
+            }
+          } yield ()
+        }
 
       appOk <- childSpan("pollAppCreation").use { implicit ev =>
         pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
