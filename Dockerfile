@@ -23,6 +23,9 @@ EXPOSE 5050
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
 
+# WARNING: If you are changing any versions here, update it in the reference.conf
+ENV TERRA_APP_SETUP_VERSION 0.1.0
+
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
 COPY --from=helm-go-lib-builder /helm-go-lib-build/helm-scala-sdk/helm-go-lib /leonardo/helm-go-lib
@@ -41,6 +44,13 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
     helm repo update
+
+# .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
+# pulling `terra-app-setup` locally and add cert files to the chart.
+RUN cd /leonardo && \
+    helm repo update && \
+    helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
+    cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \
