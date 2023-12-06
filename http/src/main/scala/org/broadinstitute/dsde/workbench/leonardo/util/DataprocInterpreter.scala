@@ -898,7 +898,7 @@ class DataprocInterpreter[F[_]: Parallel](
     val memoryLimitInMb = jupyterResourceConstraints.driverMemory match {
       case Some(value) => value.bytes / MemorySize.mbInBytes
       case None        =>
-        // We use a different algorithm to calculate spark.driver.memory when machine type is n1-standard and n1-highmem
+        // We use a different algorithm to calculate spark.driver.memory when machine type is not n1-standard and n1-highmem
         (jupyterResourceConstraints.totalMachineMemory.bytes - jupyterResourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes
     }
     val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${memoryLimitInMb}m")
