@@ -787,7 +787,7 @@ class DataprocInterpreter[F[_]: Parallel](
       // We still want a minimum to run Jupyter and other system processes.
       val minRuntimeMemoryGb = config.dataprocConfig.minimumRuntimeMemoryInGb.getOrElse(4.0)
       // Note this algorithm is recommended by Hail team. See more info in https://broadworkbench.atlassian.net/browse/IA-4720
-      val sparkDriverMemoary = machineType match {
+      val sparkDriverMemory = machineType match {
         case MachineTypeName(n1standard) if n1standard.startsWith("n1-standard") =>
           Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 7) * 0.9))
         case MachineTypeName(n1highmem) if n1highmem.startsWith("n1-highmem") =>
@@ -800,7 +800,7 @@ class DataprocInterpreter[F[_]: Parallel](
           MemorySize.fromGb(minRuntimeMemoryGb).bytes
         )
 
-      RuntimeResourceConstraints(MemorySize(runtimeAllocatedMemory), MemorySize(total.bytes), sparkDriverMemoary)
+      RuntimeResourceConstraints(MemorySize(runtimeAllocatedMemory), MemorySize(total.bytes), sparkDriverMemory)
     }
 
   /**

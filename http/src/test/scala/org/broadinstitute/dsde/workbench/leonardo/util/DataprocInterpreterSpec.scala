@@ -317,7 +317,7 @@ class DataprocInterpreterSpec
 
   it should "create correct softwareConfig - minimum runtime memory 4gb" in isolatedDbTest {
     val runtimeConfig = RuntimeConfig.DataprocConfig(0,
-                                                     MachineTypeName("n1-highmem-64"),
+                                                     MachineTypeName("n2-highmem-64"),
                                                      DiskSize(500),
                                                      None,
                                                      None,
