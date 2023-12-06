@@ -43,7 +43,6 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"config.region=${azureRegion}," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
       "relay.path=https://relay.com/app," +
-      "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       "persistence.blobContainer=sc-container," +
       "persistence.leoAppInstanceName=app1," +
