@@ -1,19 +1,25 @@
 name: Azure E2E Release Promotion Tests
-
-on:
+'on':
   push:
-    branches: ['aj-1436-e2e-staging'] # Temporary to get the workflow on the map
+    branches:
+      - aj-1436-e2e-staging
   workflow_dispatch:
     inputs:
       testEnv:
-        description: 'Environment in which tests should be run. Currently only runs on staging'
-
+        description: >-
+          Environment in which tests should be run. Currently only runs on
+          staging
 env:
-  BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}-dev'
-  TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # GitHub token for access to kick off a job in the private repo
-  BEE_CREATE_RUN_NAME: 'bee-create-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
-  ATTACH_BP_TO_LZ_RUN_NAME: 'attach-billing-project-to-landing-zone-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
-
+  BEE_NAME: >-
+    ${{ github.event.repository.name }}-${{ github.run_id }}-${{
+    github.run_attempt }}-dev
+  TOKEN: '${{ secrets.BROADBOT_TOKEN }}'
+  BEE_CREATE_RUN_NAME: >-
+    bee-create-${{ github.event.repository.name }}-${{ github.run_id }}-${{
+    github.run_attempt }}
+  ATTACH_BP_TO_LZ_RUN_NAME: >-
+    attach-billing-project-to-landing-zone-${{ github.event.repository.name
+    }}-${{ github.run_id }}-${{ github.run_attempt }}
 jobs:
   init-github-context:
     runs-on: ubuntu-latest
@@ -23,10 +29,11 @@ jobs:
     steps:
       - name: Get inputs or use defaults
         id: extract-inputs
-        run: |
+        run: >
           echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
-          echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
 
+          echo "delete-bee=${{ inputs.delete-bee || false }}" >>
+          "$GITHUB_OUTPUT"
   params-gen:
     runs-on: ubuntu-latest
     outputs:
@@ -39,7 +46,6 @@ jobs:
         run: |
           project_name=$(echo "tmp-billing-project-$(uuidgen)" | cut -c -30)
           echo "project_name=${project_name}" >> $GITHUB_OUTPUT
-
   create-bee-workflow:
     runs-on: ubuntu-latest
     permissions:
@@ -47,46 +53,48 @@ jobs:
       id-token: write
     steps:
       - name: Echo Leo version
-        run: |
-          echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
+        run: >
+          echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json
+          }}'
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
-          run-name: "${{ env.BEE_CREATE_RUN_NAME }}"
+          run-name: '${{ env.BEE_CREATE_RUN_NAME }}'
           workflow: bee-create
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          token: ${{ env.TOKEN }}
-          inputs: '{
-            "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "bee-template-name": "rawls-e2e-azure-tests", #do we need this/should it be different
-            "version-template": "staging",
-            "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}"
-          }'
-  
+          token: '${{ env.TOKEN }}'
+          inputs: >-
+            { "run-name": "${{ env.BEE_CREATE_RUN_NAME }}", "bee-name": "${{
+            env.BEE_NAME }}", "bee-template-name": "rawls-e2e-azure-tests", #do
+            we need this/should it be different "version-template": "staging",
+            "custom-version-json": "${{
+            needs.leo-build-tag-publish-job.outputs.custom-version-json }}" }
   attach-landing-zone-to-bee-workflow:
     runs-on: ubuntu-latest
-    needs: [ init-github-context, create-bee-workflow, params-gen ]
+    needs:
+      - init-github-context
+      - create-bee-workflow
+      - params-gen
     steps:
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
-          run-name: "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}"
+          run-name: '${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}'
           workflow: attach-billing-project-to-landing-zone.yaml
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          token: ${{ env.TOKEN }}
-          inputs: '{
-            "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}",
-            "mrg-id": "staticTestingMrg",
-            "landing-zone-id": "f41c1a97-179b-4a18-9615-5214d79ba600",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "billing-project": "${{ needs.params-gen.outputs.project-name }}",
-            "billing-project-creator": "${{ needs.init-github-context.outputs.owner-subject }}",
-            "service-account": "${{ needs.init-github-context.outputs.service-account }}"
-          }'
-  
+          token: '${{ env.TOKEN }}'
+          inputs: >-
+            { "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}", "mrg-id":
+            "staticTestingMrg", "landing-zone-id":
+            "f41c1a97-179b-4a18-9615-5214d79ba600", "bee-name": "${{
+            env.BEE_NAME }}", "billing-project": "${{
+            needs.params-gen.outputs.project-name }}",
+            "billing-project-creator": "${{
+            needs.init-github-context.outputs.owner-subject }}",
+            "service-account": "${{
+            needs.init-github-context.outputs.service-account }}" }
   run-wds-e2e-test-job:
     needs:
       - attach-landing-zone-to-bee-workflow
@@ -94,32 +102,36 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: broadinstitute/dsp-reusable-workflows/.github/workflows/run-e2e-tests.yaml@main
+    uses: >-
+      broadinstitute/dsp-reusable-workflows/.github/workflows/run-e2e-tests.yaml@main
     with:
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       branch: main
-
-    run-cromwell-az-e2e:
-      needs: [params-gen, attach-landing-zone-to-bee-workflow]
-      permissions:
-        contents: read
-        id-token: write
-      uses: "broadinstitute/dsp-reusable-workflows/.github/workflows/cromwell-az-e2e-test.yaml@main"
-      with:
-        bee-name: "${{ needs.params-gen.outputs.bee-name }}"
-        billing-project-name: "${{ needs.params-gen.outputs.project-name }}"
-
-  run-cbas-azure-e2e-test:
-    needs: [ params-gen, attach-landing-zone-to-bee-workflow ]
+  run-cromwell-az-e2e:
+    needs:
+      - params-gen
+      - attach-landing-zone-to-bee-workflow
     permissions:
       contents: read
       id-token: write
-    uses: broadinstitute/dsp-reusable-workflows/.github/workflows/run_cbas_azure_e2e_tests.yaml@main
+    uses: >-
+      broadinstitute/dsp-reusable-workflows/.github/workflows/cromwell-az-e2e-test.yaml@main
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
-
+  run-cbas-azure-e2e-test:
+    needs:
+      - params-gen
+      - attach-landing-zone-to-bee-workflow
+    permissions:
+      contents: read
+      id-token: write
+    uses: >-
+      broadinstitute/dsp-reusable-workflows/.github/workflows/run_cbas_azure_e2e_tests.yaml@main
+    with:
+      bee-name: '${{ needs.params-gen.outputs.bee-name }}'
+      billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
   destroy-bee-workflow:
     runs-on: ubuntu-latest
     needs:
@@ -142,6 +154,6 @@ jobs:
     uses: broadinstitute/sherlock/.github/workflows/client-report-workflow.yaml@main
     if: github.ref == 'refs/heads/main'
     with:
-      notify-slack-channels-upon-workflow-completion: "#dsde-qa"
+      notify-slack-channels-upon-workflow-completion: '#dsde-qa'
     permissions:
       id-token: write
