@@ -66,8 +66,8 @@ jobs:
           token: '${{ env.TOKEN }}'
           inputs: >-
             { "run-name": "${{ env.BEE_CREATE_RUN_NAME }}", "bee-name": "${{
-            env.BEE_NAME }}", "bee-template-name": "rawls-e2e-azure-tests", #do
-            we need this/should it be different "version-template": "staging",
+            env.BEE_NAME }}", "bee-template-name": "rawls-e2e-azure-tests", 
+            "version-template": "staging",
             "custom-version-json": "${{
             needs.leo-build-tag-publish-job.outputs.custom-version-json }}" }
   attach-landing-zone-to-bee-workflow:
