@@ -11,17 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  CloudContext,
-  KubernetesRuntimeConfig,
-  NumNodes
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, KubernetesRuntimeConfig, NumNodes}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
@@ -36,11 +26,11 @@ import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
 import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import pact4s.provider.Authentication.BasicAuth
 import pact4s.provider.StateManagement.StateManagementFunction
 import pact4s.provider._
 import pact4s.scalatest.PactVerifier
 
-import java.io.File
 import java.lang.Thread.sleep
 import java.net.URL
 import java.time.Instant
@@ -114,12 +104,16 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       loggerIO.debug("other state")
   }
 
+  lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
+  lazy val pactBrokerUser: String = sys.env.getOrElse("PACT_BROKER_USERNAME", "")
+  lazy val pactBrokerPass: String = sys.env.getOrElse("PACT_BROKER_PASSWORD", "")
+  lazy val branch: String = sys.env.getOrElse("BRANCH", "")
+  lazy val gitShaShort: String = sys.env.getOrElse("GIT_SHA_SHORT", "")
+
   val provider: ProviderInfoBuilder =
     ProviderInfoBuilder(name = "leonardo",
-                        pactSource = PactSource
-                          .FileSource(
-                            Map("aou" -> new File("./src/test/resources/aou-rw-api-leonardo.json"))
-                          )
+      PactSource.PactBrokerWithSelectors(pactBrokerUrl)
+        .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
     )
       .withStateManagementFunction(
         providerStatesHandler
@@ -130,6 +124,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
   override def beforeAll(): Unit = {
     startLeo.unsafeToFuture()
+    startLeo.start
     sleep(5000)
 
   }
@@ -161,9 +156,9 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
   it should "Verify pacts" in {
     verifyPacts(
-      publishVerificationResults = None,
+      publishVerificationResults = Some(PublishVerificationResults(gitShaShort, ProviderTags(branch))),
       providerVerificationOptions = Nil,
-      verificationTimeout = Some(1000.seconds)
+      verificationTimeout = Some(1000.seconds),
     )
   }
 }
