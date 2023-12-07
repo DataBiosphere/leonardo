@@ -207,7 +207,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         HailBatchAppConfig(
-          ChartName("oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure"),
+          ChartName("/leonardo/hail-batch-terra-azure"),
           ChartVersion("0.1.9"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),

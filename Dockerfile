@@ -25,6 +25,7 @@ ENV HELM_DEBUG 1
 
 # WARNING: If you are changing any versions here, update it in the reference.conf
 ENV TERRA_APP_SETUP_VERSION 0.1.0
+ENV HAIL_BATCH_CHART_VERSION 0.1.9
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -47,9 +48,11 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
+# Helm does not seem to support the direct installation of a chart located in OCI so let's pull it to a local directory for now.
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
+    helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
