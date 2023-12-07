@@ -2,15 +2,15 @@ name: Azure E2E Release Promotion Tests
 
 on:
   push:
-    branches: [ 'aj-1436-e2e-staging' ] #temporary to get the workflow on the map
+    branches: ['aj-1436-e2e-staging'] # Temporary to get the workflow on the map
   workflow_dispatch:
     inputs:
       testEnv:
         description: 'Environment in which tests should be run. Currently only runs on staging'
-        required: true
+
 env:
-  BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-dev'
-  TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # github token for access to kick off a job in the private repo
+  BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}-dev'
+  TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # GitHub token for access to kick off a job in the private repo
   BEE_CREATE_RUN_NAME: 'bee-create-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   ATTACH_BP_TO_LZ_RUN_NAME: 'attach-billing-project-to-landing-zone-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
@@ -23,10 +23,10 @@ jobs:
     steps:
       - name: Get inputs or use defaults
         id: extract-inputs
-        run: >
+        run: |
           echo "branch=${{ inputs.branch || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee || false }}" >> "$GITHUB_OUTPUT"
-          
+
   params-gen:
     runs-on: ubuntu-latest
     outputs:
@@ -39,7 +39,7 @@ jobs:
         run: |
           project_name=$(echo "tmp-billing-project-$(uuidgen)" | cut -c -30)
           echo "project_name=${project_name}" >> $GITHUB_OUTPUT
-          
+
   create-bee-workflow:
     runs-on: ubuntu-latest
     permissions:
