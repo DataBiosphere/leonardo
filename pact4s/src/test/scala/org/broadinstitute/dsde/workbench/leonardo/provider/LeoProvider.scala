@@ -11,7 +11,17 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, KubernetesRuntimeConfig, NumNodes}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  AppError,
+  AppName,
+  AppStatus,
+  AppType,
+  AuditInfo,
+  CloudContext,
+  KubernetesRuntimeConfig,
+  NumNodes
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
@@ -112,8 +122,9 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
   val provider: ProviderInfoBuilder =
     ProviderInfoBuilder(name = "leonardo",
-      PactSource.PactBrokerWithSelectors(pactBrokerUrl)
-        .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
+                        PactSource
+                          .PactBrokerWithSelectors(pactBrokerUrl)
+                          .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
     )
       .withStateManagementFunction(
         providerStatesHandler
@@ -158,7 +169,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     verifyPacts(
       publishVerificationResults = Some(PublishVerificationResults(gitShaShort, ProviderTags(branch))),
       providerVerificationOptions = Nil,
-      verificationTimeout = Some(1000.seconds),
+      verificationTimeout = Some(1000.seconds)
     )
   }
 }
