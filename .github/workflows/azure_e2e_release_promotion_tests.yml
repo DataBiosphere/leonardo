@@ -90,11 +90,7 @@ jobs:
             "staticTestingMrg", "landing-zone-id":
             "f41c1a97-179b-4a18-9615-5214d79ba600", "bee-name": "${{
             env.BEE_NAME }}", "billing-project": "${{
-            needs.params-gen.outputs.project-name }}",
-            "billing-project-creator": "${{
-            needs.init-github-context.outputs.owner-subject }}",
-            "service-account": "${{
-            needs.init-github-context.outputs.service-account }}" }
+            needs.params-gen.outputs.project-name }}"}
   run-wds-e2e-test-job:
     needs:
       - attach-landing-zone-to-bee-workflow
