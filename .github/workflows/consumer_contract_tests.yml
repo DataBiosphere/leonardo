@@ -109,7 +109,7 @@ jobs:
                           -v jar-cache:/root/.ivy2 \
                           -w /working \
                           sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
-                          sbt "project pact4s" clean coverage test coverageReport
+                          sbt "project pact4s" clean coverage "testOnly org.broadinstitute.dede.workbench.leonardo.consumer.*"  coverageReport
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
