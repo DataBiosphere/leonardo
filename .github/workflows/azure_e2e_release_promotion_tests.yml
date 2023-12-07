@@ -1,7 +1,7 @@
 name: Azure E2E Release Promotion Tests
 
 on:
-  pull_request:
+  push:
     branches: [ 'aj-1436-e2e-staging' ] #temporary to get the workflow on the map
   workflow_dispatch:
     inputs:
