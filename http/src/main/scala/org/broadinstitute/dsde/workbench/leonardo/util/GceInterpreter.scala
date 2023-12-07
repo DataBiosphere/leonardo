@@ -544,7 +544,7 @@ class GceInterpreter[F[_]](
       gceAllocated = config.gceConfig.gceReservedMemory.map(_.bytes).getOrElse(0L)
       welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
       result = MemorySize(total.bytes - gceAllocated - welderAllocated)
-    } yield RuntimeResourceConstraints(result, total)
+    } yield RuntimeResourceConstraints(result, total, None)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
                                      subnetwork: SubnetworkName,
