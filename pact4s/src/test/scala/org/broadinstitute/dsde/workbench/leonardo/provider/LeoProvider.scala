@@ -117,8 +117,24 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
   lazy val pactBrokerUser: String = sys.env.getOrElse("PACT_BROKER_USERNAME", "")
   lazy val pactBrokerPass: String = sys.env.getOrElse("PACT_BROKER_PASSWORD", "")
-  lazy val branch: String = sys.env.getOrElse("BRANCH", "")
-  lazy val gitShaShort: String = sys.env.getOrElse("GIT_SHA_SHORT", "")
+  // Provider branch, sha
+  lazy val branch: String = sys.env.getOrElse("PROVIDER_BRANCH", "")
+  lazy val providerVer: String = sys.env.getOrElse("PROVIDER_VERSION", "")
+  // Consumer name, bran, sha (used for webhook events only)
+  lazy val consumerName: Option[String] = sys.env.get("CONSUMER_NAME")
+  lazy val consumerBranch: Option[String] = sys.env.get("CONSUMER_BRANCH")
+  // This matches the latest commit of the consumer branch that triggered the webhook event
+  lazy val consumerSha: Option[String] = sys.env.get("CONSUMER_SHA")
+
+  var consumerVersionSelectors: ConsumerVersionSelectors = ConsumerVersionSelectors()
+  // consumerVersionSelectors = consumerVersionSelectors.mainBranch
+  // The following match condition basically says
+  // 1. If verification is triggered by consumer pact change, verify only the changed pact.
+  // 2. For normal Sam PR, verify all consumer pacts in Pact Broker labelled with a deployed environment (alpha, dev, prod, staging).
+  consumerBranch match {
+    case Some(s) if !s.isBlank => consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName)
+    case _ => consumerVersionSelectors = consumerVersionSelectors.deployedOrReleased.mainBranch
+  }
 
   val provider: ProviderInfoBuilder =
     ProviderInfoBuilder(name = "leonardo",
@@ -166,10 +182,19 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   }
 
   it should "Verify pacts" in {
+    val publishResults = sys.env.getOrElse("PACT_PUBLISH_RESULTS", "false").toBoolean
     verifyPacts(
-      publishVerificationResults = Some(PublishVerificationResults(gitShaShort, ProviderTags(branch))),
-      providerVerificationOptions = Nil,
-      verificationTimeout = Some(1000.seconds)
+      providerBranch = if (branch.isEmpty) None else Some(Branch(branch)),
+      publishVerificationResults =
+        if (publishResults)
+          Some(
+            PublishVerificationResults(providerVer, ProviderTags(branch))
+          )
+        else None,
+      providerVerificationOptions = Seq(
+        ProviderVerificationOption.SHOW_STACKTRACE
+      ).toList,
+      verificationTimeout = Some(30.seconds)
     )
   }
 }

@@ -1,0 +1,64 @@
+name: Verify consumer pacts
+# The purpose of this workflow is to verify Leo consumer contract
+# using the Pact framework.
+#
+# The workflow requires Pact broker credentials
+# - PACT_BROKER_USERNAME - the Pact Broker username
+# - PACT_BROKER_PASSWORD - the Pact Broker password
+on:
+  pull_request:
+    branches:
+    - develop
+    paths-ignore:
+    - 'README.md'
+  push:
+    branches:
+    - develop
+    paths-ignore:
+    - 'README.md'
+env:
+  PACT_BROKER_URL: https://pact-broker.dsp-eng-tools.broadinstitute.org
+
+jobs:
+  verify-consumer-pact:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+    - name: Checkout current code
+      uses: actions/checkout@v3
+
+    - name: Extract branch
+      id: extract-branch
+      run: |
+        GITHUB_EVENT_NAME=${{ github.event_name }}
+        if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+          GITHUB_REF=${{ github.ref }}
+          GITHUB_SHA=${{ github.sha }}
+        elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          GITHUB_REF=refs/heads/${{ github.head_ref }}
+          GITHUB_SHA=${{ github.event.pull_request.head.sha }}
+        else
+          echo "Failed to extract branch information"
+          exit 1
+        fi
+        echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
+        echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
+        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
+
+    - name: Verify consumer pacts and publish verification status to Pact Broker
+      run: |
+        docker run --rm -v $PWD:/working \
+                        -v jar-cache:/root/.ivy \
+                        -v jar-cache:/root/.ivy2 \
+                        -w /working \
+                        -e BRANCH=${{ steps.extract-branch.outputs.branch }} \
+                        -e GIT_SHA_SHORT=${{ steps.extract-branch.outputs.sha_short }} \
+                        -e PACT_BROKER_URL=${{ env.PACT_BROKER_URL }} \
+                        -e PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }} \
+                        -e PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }} \
+                        sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
+                        sbt "project pact4s" clean coverage "testOnly org.broadinstitute.dede.workbench.leonardo.provider.*"  coverageReport
