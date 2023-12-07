@@ -1,6 +1,14 @@
-name: Verify consumer pacts
-# The purpose of this workflow is to verify Leo consumer contract
-# using the Pact framework.
+name: Verify consumer contracts
+# The purpose of this workflow is to verify ANY consumer contract(s) dependent on Leo provider using Pact framework.
+#
+# The workflow meets the criteria of Pact Broker *Platinum* as described in https://docs.pact.io/pact_nirvana/step_6.
+# The can-i-deploy job has been added to this workflow to gate the merge of PRs into develop branch.
+#
+# This workflow is triggered when
+#
+# 1. Consumer makes a change that results in a new pact published to Pact Broker (will verify ONLY the changed pact and publish the verification results back to the broker)
+# 2. Provider makes a change (runs verification tests against ALL DEPLOYED consumer pact versions and publishes corresponding verification results)
+#
 #
 # The workflow requires Pact broker credentials
 # - PACT_BROKER_USERNAME - the Pact Broker username
@@ -16,19 +24,79 @@ on:
     - develop
     paths-ignore:
     - 'README.md'
+  workflow_dispatch:
+    inputs:
+      pb-event-type:
+        description: 'the Pact Broker event type that triggers this workflow'
+        required: true
+        type: string
+      consumer-name:
+        description: 'the consumer name'
+        required: true
+        type: string
+      consumer-version-number:
+        description: 'the version number of the most recent consumer version associated with the pact content'
+        required: true
+        type: string
+      provider-version-number:
+        description: 'the provider version number for the verification result'
+        required: false
+        type: string
+      consumer-version-tags:
+        description: 'the list of tag names for the most recent consumer version associated with the pact content, separated by ", "'
+        required: true
+        type: string
+      consumer-version-branch:
+        description: 'the name of the branch for most recent consumer version associated with the pact content'
+        required: true
+        type: string
+      provider-version-branch:
+        description: 'the name of the branch for the provider version associated with the verification result'
+        required: false
+        type: string
+      consumer-labels:
+        description: 'the list of labels for the consumer associated with the pact content, separated by ", "'
+        required: false
+        type: string
+      provider-labels:
+        description: 'the list of labels for the provider associated with the pact content, separated by ", "'
+        required: false
+        type: string
+      pact-url:
+        description: 'the "permalink" URL to the newly published pact (the URL specifying the consumer version URL, rather than the "/latest" format'
+        required: true
+        type: string
+
 env:
   PACT_BROKER_URL: https://pact-broker.dsp-eng-tools.broadinstitute.org
+  CAN_I_DEPLOY_RUN_NAME: 'can-i-deploy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  COURSIER_CACHE: $HOME/.cache
+  SBT_CACHE: $HOME/.sbt
 
 jobs:
+  # Create a new version tag only when this workflow is triggered by a PR or merge commit.
+  # If triggered by a Pact Broker webhook, the provider version (GIT hash or release tag)
+  # is already included in the payload, making a new version tag unnecessary.
+  tag:
+    if: ${{ inputs.pb-event-type == '' }}
+    uses: ./.github/workflows/tag.yml
+    secrets: inherit
+
   verify-consumer-pact:
     runs-on: ubuntu-latest
+    needs: [ tag ]
     permissions:
       contents: 'read'
       id-token: 'write'
+    outputs:
+      provider-sha: ${{ steps.verification-test.outputs.provider-sha }}
+      provider-version: ${{ steps.verification-test.outputs.provider-version }}
 
     steps:
     - name: Checkout current code
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: Extract branch
       id: extract-branch
@@ -40,25 +108,234 @@ jobs:
         elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
           GITHUB_REF=refs/heads/${{ github.head_ref }}
           GITHUB_SHA=${{ github.event.pull_request.head.sha }}
+        elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+          GITHUB_REF=${{ github.ref }} # The Git Ref that this workflow runs on
+          GITHUB_SHA=${{ github.sha }} # The Git Sha that this workflow runs on
         else
           echo "Failed to extract branch information"
           exit 1
         fi
-        echo "ref=$GITHUB_REF" >> $GITHUB_OUTPUT
-        echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
-        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        echo "branch=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_OUTPUT
+        echo "CURRENT_BRANCH=${GITHUB_REF/refs\/heads\//""}" >> $GITHUB_ENV
+        echo "CURRENT_SHA=$GITHUB_SHA" >> $GITHUB_ENV
+
+    - name: "This step will only run when this workflow is triggered by a Pact Broker webhook event"
+      if: ${{ inputs.pb-event-type != '' }}
+      run: |
+        echo "pb-event-type=${{ inputs.pb-event-type }}"
+        echo "consumer-name=${{ inputs.consumer-name }}"
+        echo "consumer-version-branch/consumer-version-number=${{ inputs.consumer-version-branch }}/${{ inputs.consumer-version-number }}"
+        echo "provider-version-branch/provider-version-number=${{ inputs.provider-version-branch }}/${{ inputs.provider-version-number }}"
+        # The consumer-version-branch/consumer-version-number is practically sufficient.
+        # The pact-url is included here in case future pact4s client supports it.
+        echo "pact-url=${{ inputs.pact-url }}"
+        if [[ ! -z "${{ inputs.provider-version-branch }}" ]]; then
+          echo "PROVIDER_BRANCH=${{ inputs.provider-version-branch }}" >> $GITHUB_ENV
+          echo "CHECKOUT_BRANCH=${{ inputs.provider-version-branch }}" >> $GITHUB_ENV
+        fi
+        if [[ ! -z "${{ inputs.provider-version-number }}" ]]; then
+          echo "PROVIDER_SHA=${{ inputs.provider-version-number }}" >> $GITHUB_ENV
+          echo "CHECKOUT_SHA=${{ inputs.provider-version-number }}" >> $GITHUB_ENV
+        fi
+        echo "CONSUMER_NAME=${{ inputs.consumer-name }}" >> $GITHUB_ENV
+        echo "CONSUMER_BRANCH=${{ inputs.consumer-version-branch }}" >> $GITHUB_ENV
+        echo "CONSUMER_SHA=${{ inputs.consumer-version-number }}" >> $GITHUB_ENV
+
+    - name: Set provider version envvar
+      run: |
+        if [[ -n "${{ needs.tag.outputs.tag }}" ]]; then
+          echo "PROVIDER_VERSION=${{ needs.tag.outputs.tag }}" >> $GITHUB_ENV
+        else
+          echo "PROVIDER_VERSION=${{ env.PROVIDER_SHA }}" >> $GITHUB_ENV
+        fi
+
+    - name: Switch to appropriate branch
+      run: |
+        if [[ -z "${{ env.PROVIDER_BRANCH }}" ]]; then
+          echo "PROVIDER_BRANCH=${{ env.CURRENT_BRANCH }}" >> $GITHUB_ENV
+        fi
+        if [[ -z "${{ env.PROVIDER_SHA }}" ]]; then
+          echo "PROVIDER_SHA=${{ env.CURRENT_SHA }}" >> $GITHUB_ENV
+        fi
+        git fetch
+        if [[ ! -z "${{ env.CHECKOUT_BRANCH }}" ]] && [[ ! -z "${{ env.CHECKOUT_SHA }}" ]]; then
+          echo "git checkout -b ${{ env.CHECKOUT_BRANCH }} ${{ env.CHECKOUT_SHA }}"
+          git checkout -b ${{ env.CHECKOUT_BRANCH }} ${{ env.CHECKOUT_SHA }} || echo "already in ${{ env.CHECKOUT_BRANCH }}"
+          echo "git branch"
+          git branch
+        else
+          if [[ "${{ github.event_name }}" == "push" ]] || [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "git checkout ${{ env.CURRENT_BRANCH }}"
+            git checkout ${{ env.CURRENT_BRANCH }}
+          else
+            echo "git checkout -b ${{ env.CURRENT_BRANCH }} ${{ env.CURRENT_SHA }}"
+            git checkout -b ${{ env.CURRENT_BRANCH }} ${{ env.CURRENT_SHA }}
+          fi
+        fi
+        echo "git rev-parse HEAD"
+        git rev-parse HEAD
+
+    - name: Setup envvars for Pact Broker
+      run: |
+        echo "PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }}" >> $GITHUB_ENV
+        echo "PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }}" >> $GITHUB_ENV
+
+    # Caching Coursier
+    # Recent sbt versions use Coursier instead of Ivy for dependency management.
+    # The .coursier cache in the sbtscala docker container is located under its .cache directory, which is mounted to the host $PWD/.cache dir.
+    # The hashFiles function calculates the hash based on the file contents from
+    #   .sbt, .scala, build.properties
+    # under the project root directory.
+    #
+    # Any changes to these files will result in a different cache key, triggering a cache update.
+    - name: Coursier cache
+      id: coursier-cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache
+        key: leonardo-${{ runner.os }}-coursier-cache-${{ hashFiles('**/*.sbt', '**/project/*.scala', '**/project/build.properties') }}
+
+    - name: Check coursier-cache hit
+      run: |
+        if [ "${{ steps.coursier-cache.outputs.cache-hit }}" == 'true' ]; then
+          echo "Coursier cache ${{ env.COURSIER_CACHE }} restored!"
+        else
+          echo "Coursier cache ${{ env.COURSIER_CACHE }} needs update!"
+        fi
+
+    # Caching .sbt directory
+    # The hashFiles function calculates the hash based on the file contents from all
+    #  .sbt, .scala
+    # files under the project root directory.
+    #
+    # In general, you would include all relevant files that affect the build,
+    # such as build definition files (build.sbt), project files (*.scala),
+    # and any other files that impact the build process.
+    #
+    # Any changes to these files will result in a different cache key, triggering a cache update.
+    - name: Cache .sbt directory
+      id: sbt-cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.sbt
+        key: leonardo-${{ runner.os }}-sbt-cache-${{ hashFiles('**/*.sbt', '**/*.scala') }}
+
+    - name: Check sbt cache hit
+      run: |
+        if [ "${{ steps.sbt-cache.outputs.cache-hit }}" == 'true' ]; then
+          echo "${{ env.SBT_CACHE }} cache restored!"
+        else
+          echo "${{ env.SBT_CACHE }} cache needs update!"
+        fi
+
+    # Caching sbt target directories
+    # The hashFiles function calculates the hash based on the file contents from all
+    #  .sbt, src/, project/
+    # files under the project root directory.
+    #
+    # In general, you would include all relevant files that affect the build targets,
+    # such as build definition files (build.sbt), project files (*.scala),
+    # and any other files that impact the build process.
+    #
+    # Any changes to these files will result in a different cache key, triggering a cache update.
+    #
+    # Caching target directories offers significant performance improvements by avoiding
+    # unnecessary compilation and task executions, enabling incremental compilation, and ensuring
+    # consistent and reproducible build outputs.
+    - name: Cache sbt targets
+      id: sbt-targets
+      uses: actions/cache@v3
+      with:
+        path: |
+          **/target
+        key: leonardo-${{ runner.os }}-sbt-targets-${{ hashFiles('*.sbt', 'src/**/*', '**/project/*.sbt', '**/project/*.scala', '**/project/build.properties') }}
+
+    - name: Check sbt targets cache hit
+      run: |
+        if [ "${{ steps.sbt-targets.outputs.cache-hit }}" == 'true' ]; then
+          echo "sbt targets restored!"
+        else
+          echo "sbt targets need update!"
+        fi
+
+    # Caching sbt pact4s target directory
+    # The hashFiles function calculates the hash based on the file contents from all
+    #  pact4s/src/
+    # files under the project root directory.
+    #
+    # This is similar to sbt-targets cache but limited to pact4s targets.
+    - name: Cache pact4s targets
+      id: sbt-pact4s-targets
+      uses: actions/cache@v3
+      with:
+        path: |
+          pact4s/**/target
+        key: sam-${{ runner.os }}-sbt-pact4s-targets-${{ hashFiles('pact4s/src/**/*') }}
+
+    - name: Check sbt pact4s targets cache hit
+      run: |
+        if [ "${{ steps.sbt-pact4s-targets.outputs.cache-hit }}" == 'true' ]; then
+          echo "sbt pact4s targets restored!"
+        else
+          echo "sbt pact4s targets need update!"
+        fi
 
     - name: Verify consumer pacts and publish verification status to Pact Broker
+      id: verification-test
       run: |
-        docker run --rm -v $PWD:/working \
-                        -v jar-cache:/root/.ivy \
-                        -v jar-cache:/root/.ivy2 \
-                        -w /working \
-                        -e BRANCH=${{ steps.extract-branch.outputs.branch }} \
-                        -e GIT_SHA_SHORT=${{ steps.extract-branch.outputs.sha_short }} \
+        echo "provider-sha=${{ env.PROVIDER_SHA }}" >> $GITHUB_OUTPUT
+        echo "provider-version=${{ env.PROVIDER_VERSION }}" >> $GITHUB_OUTPUT
+        echo "env.CHECKOUT_BRANCH=${{ env.CHECKOUT_BRANCH }} # If not empty, this reflects the branch being checked out (generated by Pact Broker)"
+        echo "env.CHECKOUT_SHA=${{ env.CHECKOUT_SHA }}       # If not empty, this reflects the git commit hash of the branch being checked out (generated by Pact Broker)"
+        echo "env.CURRENT_BRANCH=${{ env.CURRENT_BRANCH }}   # This reflects the branch being checked out if CHECKOUT_BRANCH is empty"
+        echo "env.CURRENT_SHA=${{ env.CURRENT_SHA }}         # This reflects the git commit hash of the branch being checked out if CHECKOUT_BRANCH is empty"
+        echo "env.PROVIDER_BRANCH=${{ env.PROVIDER_BRANCH }} # This reflects the provider branch for pact verification"
+        echo "env.PROVIDER_SHA=${{ env.PROVIDER_SHA }}       # This reflects the provider version for pact verification"
+        echo "env.CONSUMER_BRANCH=${{ env.CONSUMER_BRANCH }} # This reflects the consumer branch for pact verification (generated by Pact Broker)"
+        echo "env.CONSUMER_SHA=${{ env.CONSUMER_SHA }}       # This reflects the consumer version for pact verification (generated by Pact Broker)"
+        echo "env.PROVIDER_VERSION=${{ env.PROVIDER_VERSION }}  # Deprecate env.PROVIDER_SHA. This new envvar is used for migrating GIT hash to app versioning"
+        
+        # Refer to https://github.com/sbt/docker-sbt on this Docker image
+        # Recent sbt versions use Coursier instead of Ivy for dependency management.
+        # On Linux, the location is
+        #     sbt "show csrCacheDirectory"
+        # with a default value of ~/.cache/coursier/v1
+        docker run --rm -w /working \
+                        -v "$PWD":/working \
+                        -v ${{ env.COURSIER_CACHE }}:/root/.cache \
+                        -v ${{ env.SBT_CACHE }}:/root/.sbt \
+                        -e PACT_PUBLISH_RESULTS=true \
+                        -e PROVIDER_BRANCH=${{ env.PROVIDER_BRANCH }} \
+                        -e PROVIDER_SHA=${{ env.PROVIDER_SHA }} \
+                        -e PROVIDER_VERSION=${{ env.PROVIDER_VERSION }} \
+                        -e CONSUMER_NAME=${{ env.CONSUMER_NAME }} \
+                        -e CONSUMER_BRANCH=${{ env.CONSUMER_BRANCH }} \
+                        -e CONSUMER_SHA=${{ env.CONSUMER_SHA }} \
                         -e PACT_BROKER_URL=${{ env.PACT_BROKER_URL }} \
-                        -e PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }} \
-                        -e PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }} \
+                        -e PACT_BROKER_USERNAME=${{ env.PACT_BROKER_USERNAME }} \
+                        -e PACT_BROKER_PASSWORD=${{ env.PACT_BROKER_PASSWORD }} \
+                        -e POSTGRES_READ_URL=localhost:5432 \
+                        -e POSTGRES_USERNAME=sam-test \
+                        -e POSTGRES_PASSWORD=sam-test \
                         sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
                         sbt "project pact4s" clean coverage "testOnly org.broadinstitute.dsde.workbench.leonardo.provider.*"  coverageReport
+
+  can-i-deploy: # The can-i-deploy job will run as a result of a Sam PR. It reports the pact verification statuses on all deployed environments.
+    runs-on: ubuntu-latest
+    if: ${{ inputs.pb-event-type == '' }}
+    needs: [ verify-consumer-pact ]
+    steps:
+    - name: Dispatch to terra-github-workflows
+      uses: broadinstitute/workflow-dispatch@v4.0.0
+      with:
+        run-name: "${{ env.CAN_I_DEPLOY_RUN_NAME }}"
+        workflow: .github/workflows/can-i-deploy.yaml
+        repo: broadinstitute/terra-github-workflows
+        ref: refs/heads/main
+        token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
+        inputs: '{
+            "run-name": "${{ env.CAN_I_DEPLOY_RUN_NAME }}",
+            "pacticipant": "leonardo",
+            "version": "${{ needs.verify-consumer-pact.outputs.provider-version }}"
+          }'
