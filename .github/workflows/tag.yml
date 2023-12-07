@@ -1,0 +1,41 @@
+name: Tag
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      print-tag:
+        description: "Echo generated tag to console"
+        default: "true"
+        required: false
+        type: string
+    outputs:
+      tag:
+        description: "Generated tag"
+        value: ${{ jobs.tag-job.outputs.tag }}
+    secrets:
+      BROADBOT_TOKEN:
+        required: true
+
+jobs:
+  tag-job:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+    - name: Checkout current code
+      uses: actions/checkout@v2
+      with:
+        token: ${{ secrets.BROADBOT_TOKEN }} # this allows the push to succeed later
+    - name: Bump the tag to a new version
+      # https://github.com/DataBiosphere/github-actions/tree/master/actions/bumper
+      uses: databiosphere/github-actions/actions/bumper@bumper-0.0.6
+      id: tag
+      env:
+        DEFAULT_BUMP: patch
+        GITHUB_TOKEN: ${{ secrets.BROADBOT_TOKEN }}
+        RELEASE_BRANCHES: develop
+        WITH_V: true
+    - name: Echo generated tag to console
+      if: ${{ inputs.print-tag == 'true' }}
+      run: |
+        echo "app version tag: '${{ steps.tag.outputs.tag }}'"
