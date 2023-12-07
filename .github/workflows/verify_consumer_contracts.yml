@@ -61,4 +61,4 @@ jobs:
                         -e PACT_BROKER_USERNAME=${{ secrets.PACT_BROKER_USERNAME }} \
                         -e PACT_BROKER_PASSWORD=${{ secrets.PACT_BROKER_PASSWORD }} \
                         sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 \
-                        sbt "project pact4s" clean coverage "testOnly org.broadinstitute.dede.workbench.leonardo.provider.*"  coverageReport
+                        sbt "project pact4s" clean coverage "testOnly org.broadinstitute.dsde.workbench.leonardo.provider.*"  coverageReport

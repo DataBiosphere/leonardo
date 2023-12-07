@@ -1,4 +1,4 @@
-package org.broadinstitute.dede.workbench.leonardo.consumer
+package org.broadinstitute.dsde.workbench.leonardo.consumer
 
 import au.com.dius.pact.consumer.dsl.LambdaDsl.{newJsonArray, newJsonBody}
 import au.com.dius.pact.consumer.dsl._
