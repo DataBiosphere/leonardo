@@ -282,6 +282,15 @@ object Boot extends IOApp {
             appDependencies.publisherQueue
           )
 
+          // LeoMetricsMonitor collects metrics from both runtimes and apps.
+          // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
+          // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
+          implicit val clusterToolToToolDao =
+            ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
+                                         appDependencies.welderDAO,
+                                         appDependencies.rstudioDAO
+            )
+
           val metricsMonitor = new LeoMetricsMonitor(
             ConfigReader.appConfig.metrics,
             appDependencies.appDAO,
@@ -328,15 +337,6 @@ object Boot extends IOApp {
                     nonLeoMessageGoogleSubscriber,
                     cryptoMiningUserPublisher,
                     appDependencies.asyncTasksQueue
-                  )
-
-                // LeoMetricsMonitor collects metrics from both runtimes and apps.
-                // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
-                // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
-                implicit val clusterToolToToolDao =
-                  ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
-                                               appDependencies.welderDAO,
-                                               appDependencies.rstudioDAO
                   )
 
                 List(
