@@ -133,7 +133,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   // 2. For normal Sam PR, verify all consumer pacts in Pact Broker labelled with a deployed environment (alpha, dev, prod, staging).
   consumerBranch match {
     case Some(s) if !s.isBlank => consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName)
-    case _ => consumerVersionSelectors = consumerVersionSelectors.deployedOrReleased.mainBranch
+    case _                     => consumerVersionSelectors = consumerVersionSelectors.deployedOrReleased.mainBranch
   }
 
   val provider: ProviderInfoBuilder =
