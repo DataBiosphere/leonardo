@@ -70,12 +70,13 @@ class AzureAutopauseSpec
           s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} in creating status detected"
         )
 
-        // Verify the runtime eventually becomes Running (in 20 minutes)
+        // Verify the runtime eventually becomes Running (in 25 minutes)
+        // will reduce to 20 once https://broadworkbench.atlassian.net/browse/WOR-1397 is merged
         monitorCreateResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          120,
+          150,
           10 seconds,
-          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not finish creating after 20 minutes"
+          s"AzureAutoPauseSpec: runtime $workspaceId/${runtimeName.asString} did not finish creating after 25 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
         _ <- loggerIO.info(
