@@ -78,7 +78,7 @@ jobs:
       ref: ${{ github.head_ref || '' }}
       # The 'dry-run' parameter prevents the new tag from being dispatched.
       dry-run: true
-      release-branches: main
+      release-branches: develop
     secrets: inherit
   init-github-context:
     runs-on: ubuntu-latest
@@ -177,7 +177,7 @@ jobs:
             "pact-b64": "${{ needs.leo-consumer-contract-tests.outputs.pact-b64 }}",
             "repo-owner": "${{ github.repository_owner }}",
             "repo-name": "${{ github.event.repository.name }}",
-            "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}"
+            "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}",
             "release-tag": "${{ needs.regulated-tag-job.outputs.new-tag }}"
           }'
 
