@@ -782,8 +782,6 @@ class DataprocInterpreter[F[_]: Parallel](
     } yield {
       // For dataproc, we don't need much memory for Jupyter.
 
-      // Hail reserves about 80% of memory available to the machine to the JVM.
-      val sparkMemoryConfigRatio = config.dataprocConfig.sparkMemoryConfigRatio.getOrElse(0.8)
       // We still want a minimum to run Jupyter and other system processes.
       val minRuntimeMemoryGb = config.dataprocConfig.minimumRuntimeMemoryInGb.getOrElse(4.0)
       // Note this algorithm is recommended by Hail team. See more info in https://broadworkbench.atlassian.net/browse/IA-4720
@@ -794,13 +792,8 @@ class DataprocInterpreter[F[_]: Parallel](
           Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 11) * 0.9))
         case _ => none[MemorySize]
       }
-      val runtimeAllocatedMemory =
-        Math.max(
-          (total.bytes * (1 - sparkMemoryConfigRatio)).toLong,
-          MemorySize.fromGb(minRuntimeMemoryGb).bytes
-        )
-
-      RuntimeResourceConstraints(MemorySize(runtimeAllocatedMemory), MemorySize(total.bytes), sparkDriverMemory)
+      val runtimeAllocatedMemory = MemorySize(sparkDriverMemory.map(_.bytes).getOrElse(0) + minRuntimeMemoryGb.bytes)
+      RuntimeResourceConstraints(runtimeAllocatedMemory, MemorySize(total.bytes), sparkDriverMemory)
     }
 
   /**
