@@ -117,14 +117,14 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
   lazy val pactBrokerUser: String = sys.env.getOrElse("PACT_BROKER_USERNAME", "")
   lazy val pactBrokerPass: String = sys.env.getOrElse("PACT_BROKER_PASSWORD", "")
-  // Provider branch, sha
-  lazy val branch: String = sys.env.getOrElse("PROVIDER_BRANCH", "")
+  // Provider branch, semver
+  lazy val providerBranch: String = sys.env.getOrElse("PROVIDER_BRANCH", "")
   lazy val providerVer: String = sys.env.getOrElse("PROVIDER_VERSION", "")
-  // Consumer name, bran, sha (used for webhook events only)
+  // Consumer name, branch, semver (used for webhook events only)
   lazy val consumerName: Option[String] = sys.env.get("CONSUMER_NAME")
   lazy val consumerBranch: Option[String] = sys.env.get("CONSUMER_BRANCH")
   // This matches the latest commit of the consumer branch that triggered the webhook event
-  lazy val consumerSha: Option[String] = sys.env.get("CONSUMER_SHA")
+  lazy val consumerVer: Option[String] = sys.env.get("CONSUMER_VERSION")
 
   var consumerVersionSelectors: ConsumerVersionSelectors = ConsumerVersionSelectors()
   // consumerVersionSelectors = consumerVersionSelectors.mainBranch
@@ -184,11 +184,11 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   it should "Verify pacts" in {
     val publishResults = sys.env.getOrElse("PACT_PUBLISH_RESULTS", "false").toBoolean
     verifyPacts(
-      providerBranch = if (branch.isEmpty) None else Some(Branch(branch)),
+      providerBranch = if (providerBranch.isEmpty) None else Some(Branch(providerBranch)),
       publishVerificationResults =
         if (publishResults)
           Some(
-            PublishVerificationResults(providerVer, ProviderTags(branch))
+            PublishVerificationResults(providerVer, ProviderTags(providerBranch))
           )
         else None,
       providerVerificationOptions = Seq(

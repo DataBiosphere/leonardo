@@ -3,39 +3,64 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout"
+        default: ''
+        required: false
+        type: string
+      dry-run:
+        description: "Determine the next version without tagging the branch. The workflow can use the outputs new_tag and tag in subsequent steps. Possible values are true and false (default)"
+        default: false
+        required: false
+        type: string
       print-tag:
         description: "Echo generated tag to console"
         default: "true"
         required: false
         type: string
+      release-branches:
+        description: "Default branch (main, develop, etc)"
+        default: 'main'
+        required: false
+        type: string
     outputs:
       tag:
-        description: "Generated tag"
+        description: "The value of the latest tag after running this action"
         value: ${{ jobs.tag-job.outputs.tag }}
+      new-tag:
+        description: "The value of the newly created tag"
+        value: ${{ jobs.tag-job.outputs.new-tag }}
     secrets:
       BROADBOT_TOKEN:
         required: true
 
 jobs:
+  # On tag vs. new-tag.
+  # The new-tag is always the tag resulting from a bump to the original tag.
+  # However, the tag is by definition the value of the latest tag after running the action,
+  # which might not change if dry run is used, and remains same as the original tag.
   tag-job:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      new-tag: ${{ steps.tag.outputs.new_tag }}
     steps:
     - name: Checkout current code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
+        ref: ${{ inputs.ref }}
         token: ${{ secrets.BROADBOT_TOKEN }} # this allows the push to succeed later
     - name: Bump the tag to a new version
       # https://github.com/DataBiosphere/github-actions/tree/master/actions/bumper
-      uses: databiosphere/github-actions/actions/bumper@bumper-0.0.6
+      uses: databiosphere/github-actions/actions/bumper@bumper-0.3.0
       id: tag
       env:
         DEFAULT_BUMP: patch
         GITHUB_TOKEN: ${{ secrets.BROADBOT_TOKEN }}
-        RELEASE_BRANCHES: develop
+        DRY_RUN: ${{ inputs.dry-run }}
+        RELEASE_BRANCHES: ${{ inputs.release-branches }}
         WITH_V: true
     - name: Echo generated tag to console
       if: ${{ inputs.print-tag == 'true' }}
       run: |
-        echo "app version tag: '${{ steps.tag.outputs.tag }}'"
+        echo "Newly created version tag: '${{ steps.tag.outputs.new_tag }}'"
