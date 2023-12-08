@@ -44,11 +44,6 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
     for {
       ctx <- ev.ask
 
-      // Resolve batch account in Azure
-      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-                                                        params.cloudContext
-      )
-
       // Resolve application insights in Azure
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
         params.landingZoneResources.applicationInsightsName,
@@ -82,27 +77,18 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
       values =
         List(
           // azure resources configs
-          raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
-          raw"config.batchAccountKey=${batchAccount.getKeys().primary}",
-          raw"config.batchAccountName=${params.landingZoneResources.batchAccountName.value}",
-          raw"config.batchNodesSubnetId=${params.landingZoneResources.batchNodesSubnetName.value}",
           raw"config.drsUrl=${drsConfig.url}",
-          raw"config.landingZoneId=${params.landingZoneResources.landingZoneId}",
-          raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
-          raw"config.region=${params.landingZoneResources.region}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
 
           // relay configs
           raw"relay.path=${params.relayPath.renderString}",
 
           // persistence configs
-          raw"persistence.storageResourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
           raw"persistence.blobContainer=${storageContainer.name.value}",
           raw"persistence.leoAppInstanceName=${params.app.appName.value}",
           raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
           raw"persistence.workspaceManager.workspaceId=${params.workspaceId.value}",
-          raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
           // identity configs
           raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
