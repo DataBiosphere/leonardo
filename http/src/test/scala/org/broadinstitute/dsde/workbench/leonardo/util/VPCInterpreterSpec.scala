@@ -135,8 +135,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
             IpRange("69.173.127.128/26"),
             IpRange("69.173.96.0/20"),
             IpRange("69.173.127.240/28"),
-            IpRange("69.173.112.0/21"),
-            IpRange("35.235.240.0/20")
+            IpRange("69.173.112.0/21")
           )
         )
         .toMap,
@@ -146,7 +145,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
     test.firewallRulesToAdd(
       Map("leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",
-          "leonardo-allow-https-firewall-name" -> "leonardo-ssl"
+          "leonardo-allow-https-firewall-name" -> "leonardo-ssl" -> "leonardo-allow-iap-ssh"
       )
     ) shouldBe List(expectedSshFirewallRules)
   }
