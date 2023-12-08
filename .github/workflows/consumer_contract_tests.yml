@@ -50,6 +50,36 @@ env:
   CAN_I_DEPLOY_RUN_NAME: 'can-i-deploy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
 jobs:
+  # The primary objective of this section is to carefully control the dispatching of tags,
+  # ensuring it only occurs during the 'Tag, publish, deploy' workflow.
+  # However, a challenge arises with contract tests, as they require knowledge of the upcoming tag
+  # before the actual deployment. To address this, we leverage the dry run feature provided by bumper.
+  # This allows us to obtain the next tag for publishing contracts and verifying consumer pacts without
+  # triggering the tag dispatch. This approach sidesteps the need for orchestrating multiple workflows,
+  # simplifying our implementation.
+  #
+  # We regulate the tag job to meet the following requirements according to the trigger event type:
+  # 1. pull_request event (due to opening or updating of PR branch):
+  #      dry-run flag is set to false
+  #         this allows the new semver tag #major.#minor.#patch-#commit to be used to identity pacticipant version for development purpose
+  #         PR has no effect on the value of the latest tag in settings.gradle on disk
+  # 2. PR merge to main, this triggers a push event on the main branch:
+  #      dry-run flag is set to true
+  #         this allows the new semver tag #major.#minor.#patch to be used to identity pacticipant version, and
+  #         this action will not update the value of the latest tag in settings.gradle on disk
+  #
+  # Note: All workflows from the same PR merge should have the same copy of settings.gradle on disk,
+  # which should be the one from the HEAD of the main branch before the workflow starts running
+  regulated-tag-job:
+    uses: ./.github/workflows/tag.yml
+    with:
+      # The 'ref' parameter ensures that the consumer version is postfixed with the HEAD commit of the PR branch,
+      # facilitating cross-referencing of a pact between Pact Broker and GitHub.
+      ref: ${{ github.head_ref || '' }}
+      # The 'dry-run' parameter prevents the new tag from being dispatched.
+      dry-run: true
+      release-branches: main
+    secrets: inherit
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
@@ -131,8 +161,8 @@ jobs:
   # since access to secrets is not allowed.
   publish-contracts:
     runs-on: ubuntu-latest
+    needs: [init-github-context, leo-consumer-contract-tests, regulated-tag-job ]
     if: ${{ needs.init-github-context.outputs.fork == 'false' }}
-    needs: [init-github-context, leo-consumer-contract-tests]
     steps:
       - name: Dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
@@ -148,6 +178,7 @@ jobs:
             "repo-owner": "${{ github.repository_owner }}",
             "repo-name": "${{ github.event.repository.name }}",
             "repo-branch": "${{ needs.init-github-context.outputs.repo-branch }}"
+            "release-tag": "${{ needs.regulated-tag-job.outputs.new-tag }}"
           }'
 
   can-i-deploy:
@@ -166,5 +197,5 @@ jobs:
           inputs: '{
             "run-name": "${{ env.CAN_I_DEPLOY_RUN_NAME }}",
             "pacticipant": "leonardo",
-            "version": "${{ needs.init-github-context.outputs.repo-version }}"
+            "version": "${{ needs.regulated-tag-job.outputs.new-tag }}"
           }'
