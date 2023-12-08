@@ -33,6 +33,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   customEnvironmentVariables: Map[String, String],
                                   descriptorPath: Option[Uri],
                                   extraArgs: List[String],
+                                  workspaceId: Option[WorkspaceId],
                                   sourceWorkspaceId: Option[WorkspaceId]
 )
 
