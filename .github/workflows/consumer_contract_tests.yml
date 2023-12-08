@@ -184,7 +184,7 @@ jobs:
   can-i-deploy:
     runs-on: ubuntu-latest
     if: ${{ needs.init-github-context.outputs.fork == 'false' }}
-    needs: [ init-github-context, publish-contracts ]
+    needs: [ init-github-context, publish-contracts, regulated-tag-job ]
     steps:
       - name: Dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
