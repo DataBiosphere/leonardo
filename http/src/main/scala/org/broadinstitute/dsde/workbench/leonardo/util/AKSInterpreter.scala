@@ -740,8 +740,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _                         => identityName
       }
 
-      cloningInstructions =
-        if (app.appType == AppType.WorkflowsApp) CloningInstructionsEnum.RESOURCE else CloningInstructionsEnum.NOTHING
+      cloningInstructions = CloningInstructionsEnum.NOTHING
 
       identityCommonFields = getWsmCommonFields(wsmResourceName,
                                                 s"Identity for Leo app ${app.appName.value}",

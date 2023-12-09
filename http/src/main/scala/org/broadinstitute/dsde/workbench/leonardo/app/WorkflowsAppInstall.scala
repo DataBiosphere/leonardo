@@ -33,7 +33,7 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
 
   override def databases: List[Database] =
     List(
-      ControlledDatabase("cbas", cloningInstructions = CloningInstructionsEnum.RESOURCE),
+      ControlledDatabase("cbas", cloningInstructions = CloningInstructionsEnum.NOTHING),
       // Cromwell metadata database is also accessed by the cromwell-runner app
       ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
     )
