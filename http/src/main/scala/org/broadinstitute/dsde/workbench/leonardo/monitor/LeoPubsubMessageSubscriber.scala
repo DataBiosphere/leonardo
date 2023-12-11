@@ -181,7 +181,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
   private[monitor] def processMessageFailure(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit
-                                                                                                            ev: Ask[F, AppContext]
+    ev: Ask[F, AppContext]
   ): F[Unit] = {
     val handleErrorMessages = e match {
       case ee: PubsubHandleMessageError =>
@@ -212,10 +212,10 @@ class LeoPubsubMessageSubscriber[F[_]](
       case _ =>
         logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
     }
-    recordMessageMetric(event, isFailure = true) >> handleErrorMessages
+    recordMessageMetric(event, Some(e)) >> handleErrorMessages
   }
 
-  private def recordMessageMetric(event: Event[LeoPubsubMessage], isFailure: Boolean = false): F[Unit] =
+  private[monitor] def recordMessageMetric(event: Event[LeoPubsubMessage], e: Option[Throwable]): F[Unit] =
     for {
       end <- F.realTimeInstant
       duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
@@ -229,11 +229,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                                 4 minutes,
                                 4.5 minutes
       )
-      metricsName =
-        if (isFailure)
-          s"pubsub/fail/${event.msg.messageType.asString}"
-        else
-          s"pubsub/ack/${event.msg.messageType.asString}"
+      messageType = event.msg.messageType.asString
+      metricsName = e match {
+        case Some(e) =>
+          s"pubsub/fail/${messageType}/${e.getClass.toString.split(".").last}"
+        case None => s"pubsub/ack/${messageType}"
+      }
       _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
     } yield ()
 
