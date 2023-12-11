@@ -545,6 +545,9 @@ object MemorySize {
  *
  * driverMemory will be populated if it's Dataproc, and machine type is either n1-standard-{x} or n1-highmem-{x} when using a different algorithm
  * for calculating spark:spark.driver.memory
+ *
+ * Note that the memory limit includes all the sub-procesess of the Notebook server including the
+ * Notebook kernel and the Spark driver process, if any.
  */
 final case class RuntimeResourceConstraints(memoryLimit: MemorySize,
                                             totalMachineMemory: MemorySize,

@@ -790,10 +790,13 @@ class DataprocInterpreter[F[_]: Parallel](
           Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 7) * 0.9))
         case MachineTypeName(n1highmem) if n1highmem.startsWith("n1-highmem") =>
           Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 11) * 0.9))
-        case _ => none[MemorySize]
+        case MachineTypeName(n1highcpu) if n1highcpu.startsWith("n1-highcpu") =>
+          Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes) * 0.8))
+        case MachineTypeName(other) =>
+          throw new RuntimeException(s"Unsupported machine type ${other}")
       }
-      val runtimeAllocatedMemory = MemorySize(sparkDriverMemory.map(_.bytes).getOrElse(0) + minRuntimeMemoryGb.bytes)
-      RuntimeResourceConstraints(runtimeAllocatedMemory, MemorySize(total.bytes), sparkDriverMemory)
+      val memoryLimit = MemorySize(sparkDriverMemory.map(_.bytes).getOrElse(0) + minRuntimeMemoryGb.bytes)
+      RuntimeResourceConstraints(memoryLimit, MemorySize(total.bytes), sparkDriverMemory)
     }
 
   /**
@@ -891,8 +894,7 @@ class DataprocInterpreter[F[_]: Parallel](
     val memoryLimitInMb = jupyterResourceConstraints.driverMemory match {
       case Some(value) => value.bytes / MemorySize.mbInBytes
       case None        =>
-        // We use a different algorithm to calculate spark.driver.memory when machine type is not n1-standard and n1-highmem
-        (jupyterResourceConstraints.totalMachineMemory.bytes - jupyterResourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes
+        throw new RuntimeException(s"Spark driver memory must be specified for DataprocInterpreter")
     }
     val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${memoryLimitInMb}m")
 
