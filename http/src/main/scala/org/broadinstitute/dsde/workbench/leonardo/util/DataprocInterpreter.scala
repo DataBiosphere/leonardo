@@ -794,11 +794,15 @@ class DataprocInterpreter[F[_]: Parallel](
           Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 11) * 0.9))
         case _ => none[MemorySize]
       }
-      val runtimeAllocatedMemory =
-        Math.max(
-          (total.bytes * (1 - sparkMemoryConfigRatio)).toLong,
-          MemorySize.fromGb(minRuntimeMemoryGb).bytes
-        )
+      val runtimeAllocatedMemory = sparkDriverMemory match {
+        case Some(value) =>
+          value.bytes + minRuntimeMemoryGb.toLong * MemorySize.gbInBytes
+        case None =>
+          Math.max(
+            (total.bytes * (1 - sparkMemoryConfigRatio)).toLong,
+            MemorySize.fromGb(minRuntimeMemoryGb).bytes
+          )
+      }
 
       RuntimeResourceConstraints(MemorySize(runtimeAllocatedMemory), MemorySize(total.bytes), sparkDriverMemory)
     }
