@@ -567,7 +567,7 @@ object CommonTestData {
 
   val landingZoneResources = LandingZoneResources(
     UUID.randomUUID(),
-    AKSClusterName("lzcluster"),
+    AKSCluster("lzcluster", Map.empty[String, Boolean]),
     BatchAccountName("lzbatch"),
     RelayNamespace("lznamespace"),
     StorageAccountName("lzstorage"),

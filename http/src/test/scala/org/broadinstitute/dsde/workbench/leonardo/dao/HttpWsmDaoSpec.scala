@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
   WORKSPACE_COMPUTE_SUBNET
 }
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AKSCluster,
   BillingProfileId,
   LandingZoneResources,
   LeonardoTestSuite,
@@ -145,7 +146,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
       val expectedLandingZoneResources = LandingZoneResources(
         landingZoneId,
-        AKSClusterName("lzcluster"),
+        AKSCluster("lzcluster", Map.empty[String, Boolean]),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),
         StorageAccountName("lzstorage"),

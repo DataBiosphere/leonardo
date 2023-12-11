@@ -60,6 +60,12 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
         AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
+      // Get AKS information 
+      aksCluster <- F.fromOption(
+        params.landingZoneResources.aksCluster,
+        AppCreationException("AKS cluster required for WDS app", Some(ctx.traceId))
+      )
+
       valuesList =
         List(
           // pass enviiroment information to wds so it can properly pick its config
@@ -95,6 +101,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           // general configs
           raw"fullnameOverride=wds-${params.app.release.asString}",
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
+          raw"vpaEnabled"=${aksCluster.tags.getOrElse("aks-cost-vpa-enabled", false)},
 
           // import configs
           raw"import.dataRepoUrl=${tdrConfig.url}",

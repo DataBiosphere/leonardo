@@ -6,7 +6,6 @@ import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
   ApplicationInsightsName,
   BatchAccountName,
   RelayNamespace
@@ -153,12 +152,20 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       groupedLzResources = lzResourcesByPurpose.foldMap(a =>
         a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
       )
-
-      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
-                                                   "Microsoft.ContainerService/managedClusters",
-                                                   SHARED_RESOURCE,
-                                                   false
+      aksResource <- getLandingZoneResource(groupedLzResources,
+                                           "Microsoft.ContainerService/managedClusters",
+                                            SHARED_RESOURCE
       )
+      aksCluster <- aksResource.toOption.traverse { resource =>
+        getLandingZoneResourceName(resource, useParent = false).map { aksName =>
+          val tagValue = getLandingZoneResourceTagValue(resource, "aks-cost-vpa-enabled")
+          val tags: Map[String, Boolean] = Map("aks-cost-vpa-enabled" -> java.lang.Boolean.parseBoolean(tagValue.getOrElse("false")))
+          logger.info(
+            s"Landing Zone AKS has 'aks-cost-vpa-enabled' tag $tagValue."
+          )
+          AksCluster(aksName, tags)
+        }
+      }
       batchAccountName <- getLandingZoneResourceName(groupedLzResources,
                                                      "Microsoft.Batch/batchAccounts",
                                                      SHARED_RESOURCE,
@@ -198,7 +205,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       }
     } yield LandingZoneResources(
       landingZoneId,
-      AKSClusterName(aksClusterName),
+      aksCluster,
       BatchAccountName(batchAccountName),
       RelayNamespace(relayNamespace),
       StorageAccountName(storageAccountName),
