@@ -4,6 +4,7 @@ package util
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
+import cats.implicits._
 import cats.mtl.Ask
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
@@ -190,16 +191,8 @@ class DataprocInterpreterSpec
     )
   }
 
-  it should "calculate cluster resource constraints and software config for high-mem cluster" in isolatedDbTest {
-    val highMemGoogleComputeService = new FakeGoogleComputeService {
-      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[MachineType]] =
-        IO.pure(Some(MachineType.newBuilder().setName("pass").setMemoryMb(104 * 1024).setGuestCpus(4).build()))
-    }
-
-    def dataprocInterpHighMem(computeService: GoogleComputeService[IO] = highMemGoogleComputeService,
-                              dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService,
+  it should "Fail cluster creation if machine type is n1-highcpu" in isolatedDbTest {
+    def dataprocInterpHighMem(dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService,
                               googleDirectoryDao: GoogleDirectoryDAO = mockGoogleDirectoryDAO
     ) =
       new DataprocInterpreter[IO](
@@ -207,7 +200,7 @@ class DataprocInterpreterSpec
         bucketHelper,
         vpcInterp,
         dataprocCluster,
-        computeService,
+        FakeGoogleComputeService,
         MockGoogleDiskService,
         googleDirectoryDao,
         mockGoogleIamDAO,
@@ -216,7 +209,7 @@ class DataprocInterpreterSpec
       )
 
     val runtimeConfig = RuntimeConfig.DataprocConfig(0,
-                                                     MachineTypeName("n2-standard-4"),
+                                                     MachineTypeName("n1-highcpu-4"),
                                                      DiskSize(500),
                                                      None,
                                                      None,
@@ -227,30 +220,16 @@ class DataprocInterpreterSpec
                                                      true,
                                                      false
     )
-    val resourceConstraints = dataprocInterpHighMem()
+    val res = dataprocInterpHighMem()
       .getDataprocRuntimeResourceContraints(testClusterClusterProjectAndName,
                                             runtimeConfig.machineType,
                                             RegionName("us-central1")
       )
+      .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val dataProcSoftwareConfig = dataprocInterp().getSoftwareConfig(
-      GoogleProject("MyGoogleProject"),
-      RuntimeName("MyRuntimeName"),
-      runtimeConfig,
-      resourceConstraints
+    res.leftMap(_.getMessage) shouldBe Left(
+      s"Machine type (n1-highcpu-4) not supported by Hail. Consider use `n1-highmem` machine type"
     )
-
-    val propertyMap = dataProcSoftwareConfig.getPropertiesMap()
-    val sparkMemoryConfigRatio = dataprocConfig.sparkMemoryConfigRatio.getOrElse(0.8)
-    resourceConstraints.totalMachineMemory shouldBe MemorySize.fromGb(104)
-    resourceConstraints.memoryLimit shouldBe MemorySize(
-      (MemorySize.fromGb(104).bytes * (1 - sparkMemoryConfigRatio)).toLong
-    )
-    propertyMap.get(
-      "spark:spark.driver.memory"
-    ) shouldBe ((resourceConstraints.totalMachineMemory.bytes - resourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes) + "m"
-
   }
 
   it should "calculate cluster resource constraints and software config correctly for n1-standard and n1-highmem machine types" in isolatedDbTest {
@@ -303,7 +282,7 @@ class DataprocInterpreterSpec
         GoogleProject("MyGoogleProject"),
         RuntimeName("MyRuntimeName"),
         runtimeConfig,
-        resourceConstraints
+        resourceConstraints.driverMemory.get
       )
 
       val propertyMap = dataProcSoftwareConfig.getPropertiesMap()
@@ -313,39 +292,6 @@ class DataprocInterpreterSpec
         "spark:spark.driver.memory"
       ) shouldBe s"${expectedMemory.toInt}m"
     }
-  }
-
-  it should "create correct softwareConfig - minimum runtime memory 4gb" in isolatedDbTest {
-    val runtimeConfig = RuntimeConfig.DataprocConfig(0,
-                                                     MachineTypeName("n2-highmem-64"),
-                                                     DiskSize(500),
-                                                     None,
-                                                     None,
-                                                     None,
-                                                     None,
-                                                     Map.empty[String, String],
-                                                     RegionName("us-central1"),
-                                                     true,
-                                                     false
-    )
-    val resourceConstraints = dataprocInterp()
-      .getDataprocRuntimeResourceContraints(testClusterClusterProjectAndName,
-                                            runtimeConfig.machineType,
-                                            RegionName("us-central1")
-      )
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val dataProcSoftwareConfig = dataprocInterp().getSoftwareConfig(
-      GoogleProject("MyGoogleProject"),
-      RuntimeName("MyRuntimeName"),
-      runtimeConfig,
-      resourceConstraints
-    )
-
-    val propertyMap = dataProcSoftwareConfig.getPropertiesMap()
-
-    resourceConstraints.memoryLimit shouldBe MemorySize.fromGb(4)
-    propertyMap.get("spark:spark.driver.memory") shouldBe (MemorySize.fromGb(3.5).bytes / MemorySize.mbInBytes) + "m"
   }
 
   it should "don't error if runtime is already deleted" in isolatedDbTest {

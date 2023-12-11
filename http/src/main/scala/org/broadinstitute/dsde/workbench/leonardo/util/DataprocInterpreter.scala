@@ -274,10 +274,19 @@ class DataprocInterpreter[F[_]: Parallel](
               .getOrElse((None, None))
           } else (None, None)
 
+        sparkDriverMemory <- jupyterResourceConstraints.driverMemory match {
+          case Some(value) => F.pure(value)
+          case None =>
+            F.raiseError[MemorySize](
+              new RuntimeException(
+                s"Spark driver memory must be specified for DataprocInterpreter. This should never happen"
+              )
+            )
+        }
         softwareConfig = getSoftwareConfig(googleProject,
                                            params.runtimeProjectAndName.runtimeName,
                                            machineConfig,
-                                           jupyterResourceConstraints
+                                           sparkDriverMemory
         )
 
         // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
@@ -779,21 +788,30 @@ class DataprocInterpreter[F[_]: Parallel](
       )
       _ <- logger.debug(ctx.loggingCtx)(s"Resolved machine type: ${resolvedMachineType.toString}")
       total = MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
+
+      sparkDriverMemory <- machineType match {
+        case MachineTypeName(n1standard) if n1standard.startsWith("n1-standard") =>
+          F.pure(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 7) * 0.9))
+        case MachineTypeName(n1highmem) if n1highmem.startsWith("n1-highmem") =>
+          F.pure(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 11) * 0.9))
+        case x =>
+          F.raiseError(
+            new RuntimeException(
+              s"Machine type (${x.value}) not supported by Hail. Consider use `n1-highmem` machine type"
+            )
+          )
+      }
     } yield {
       // For dataproc, we don't need much memory for Jupyter.
 
       // We still want a minimum to run Jupyter and other system processes.
       val minRuntimeMemoryGb = MemorySize.fromGb(config.dataprocConfig.minimumRuntimeMemoryInGb.getOrElse(4.0))
       // Note this algorithm is recommended by Hail team. See more info in https://broadworkbench.atlassian.net/browse/IA-4720
-      val sparkDriverMemory = machineType match {
-        case MachineTypeName(n1standard) if n1standard.startsWith("n1-standard") =>
-          Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 7) * 0.9))
-        case MachineTypeName(n1highmem) if n1highmem.startsWith("n1-highmem") =>
-          Some(MemorySize.fromGb((total.bytes / MemorySize.gbInBytes - 11) * 0.9))
-        case _ => none[MemorySize]
-      }
-      val runtimeAllocatedMemory = MemorySize(sparkDriverMemory.map(_.bytes).getOrElse(0) + minRuntimeMemoryGb.bytes)
-      RuntimeResourceConstraints(runtimeAllocatedMemory, MemorySize(total.bytes), sparkDriverMemory)
+
+      val runtimeAllocatedMemory = MemorySize(
+        sparkDriverMemory.bytes + minRuntimeMemoryGb.bytes
+      )
+      RuntimeResourceConstraints(runtimeAllocatedMemory, MemorySize(total.bytes), Some(sparkDriverMemory))
     }
 
   /**
@@ -881,20 +899,14 @@ class DataprocInterpreter[F[_]: Parallel](
   def getSoftwareConfig(googleProject: GoogleProject,
                         runtimeName: RuntimeName,
                         machineConfig: RuntimeConfig.DataprocConfig,
-                        jupyterResourceConstraints: RuntimeResourceConstraints
+                        sparkDriverMemory: MemorySize
   ): SoftwareConfig = {
     val dataprocProps = if (machineConfig.numberOfWorkers == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     } else Map.empty[String, String]
 
-    val memoryLimitInMb = jupyterResourceConstraints.driverMemory match {
-      case Some(value) => value.bytes / MemorySize.mbInBytes
-      case None        =>
-        // We use a different algorithm to calculate spark.driver.memory when machine type is not n1-standard and n1-highmem
-        (jupyterResourceConstraints.totalMachineMemory.bytes - jupyterResourceConstraints.memoryLimit.bytes) / MemorySize.mbInBytes
-    }
-    val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${memoryLimitInMb}m")
+    val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${sparkDriverMemory.bytes / MemorySize.mbInBytes}m")
 
     val yarnProps = Map(
       // Helps with debugging
