@@ -82,12 +82,13 @@ class AzureDiskSpec
             s"AzureDiskSpec: disk ${workspaceId}/${diskDuringRuntimeCreate.getId()} in creating status detected"
           )
 
-          // Verify the runtime eventually becomes Running (in 40 minutes)
+          // Verify the runtime eventually becomes Running (in 25 minutes)
+          // will reduce to 20 once https://broadworkbench.atlassian.net/browse/WOR-1397 is merged
           monitorCreateResult <- streamUntilDoneOrTimeout(
             callGetRuntime,
-            240,
+            150,
             10 seconds,
-            s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
+            s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 25 minutes"
           )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
           _ <- loggerIO.info(
@@ -185,12 +186,13 @@ class AzureDiskSpec
             s"AzureDiskSpec: disk2 ${workspaceId}/${diskDuringRuntimeCreate2.getId()} in creating status detected"
           )
 
-          // Verify runtime 2 eventually becomes Running (in 40 minutes)
+          // Verify runtime 2 eventually becomes Running (in 25 minutes)
+          // will reduce to 20 once https://broadworkbench.atlassian.net/browse/WOR-1397 is merged
           monitorCreateResult2 <- streamUntilDoneOrTimeout(
             callGetRuntime2,
-            240,
+            150,
             10 seconds,
-            s"AzureDiskSpec: runtime2 ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
+            s"AzureDiskSpec: runtime2 ${workspaceId}/${runtimeName.asString} did not finish creating after 25 minutes"
           )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
           _ <- loggerIO.info(

@@ -125,6 +125,7 @@ object LeonardoApiClient {
     Map.empty,
     None,
     List.empty,
+    None,
     None
   )
 
