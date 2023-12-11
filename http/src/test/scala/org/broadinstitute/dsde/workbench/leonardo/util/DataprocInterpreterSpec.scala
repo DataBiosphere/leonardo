@@ -307,11 +307,14 @@ class DataprocInterpreterSpec
       )
 
       val propertyMap = dataProcSoftwareConfig.getPropertiesMap()
-      val expectedMemory =
+
+      val expectedDriverMemory =
         if (machineType == MachineTypeName("n1-standard-4")) (104 - 7) * 0.9 * 1024 else (104 - 11) * 0.9 * 1024
+      resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(expectedDriverMemory + 4 * 1024)
+
       propertyMap.get(
         "spark:spark.driver.memory"
-      ) shouldBe s"${expectedMemory.toInt}m"
+      ) shouldBe s"${expectedDriverMemory.toInt}m"
     }
   }
 
