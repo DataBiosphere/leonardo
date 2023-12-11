@@ -24,7 +24,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedConfig = AppConfig(
-      TerraAppSetupChartConfig(ChartName("leonardo/terra-app-setup"), ChartVersion("0.1.0")),
+      TerraAppSetupChartConfig(ChartName("/leonardo/terra-app-setup"), ChartVersion("0.1.0")),
       PersistentDiskConfig(
         DiskSize(30),
         DiskType.Standard,
@@ -207,7 +207,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         HailBatchAppConfig(
-          ChartName("leonardo/hail-batch-terra-azure"),
+          ChartName("/leonardo/hail-batch-terra-azure"),
           ChartVersion("0.1.9"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
