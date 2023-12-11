@@ -544,6 +544,9 @@ object MemorySize {
  * for other types of resources we may want to add here.
  *
  * driverMemory will be populated if it's Dataproc runtime.
+ * 
+ * Note that the memory limit includes all the sub-procesess of the Notebook server including the
+ * Notebook kernel and the Spark driver process, if any.
  */
 final case class RuntimeResourceConstraints(memoryLimit: MemorySize,
                                             totalMachineMemory: MemorySize,

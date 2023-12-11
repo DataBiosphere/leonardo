@@ -906,6 +906,7 @@ class DataprocInterpreter[F[_]: Parallel](
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     } else Map.empty[String, String]
 
+
     val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${sparkDriverMemory.bytes / MemorySize.mbInBytes}m")
 
     val yarnProps = Map(
