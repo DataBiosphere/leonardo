@@ -26,6 +26,15 @@ ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
 ENV TERRA_APP_SETUP_VERSION 0.1.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
+ENV TERRA_APP_VERSION 0.5.0
+# This is galaxykubeman, which references Galaxy
+ENV GALAXY_VERSION 2.8.1
+ENV NGINX_VERSION 4.3.0
+# If you update this here, make sure to also update reference.conf:
+ENV CROMWELL_CHART_VERSION 0.2.397
+ENV HAIL_BATCH_CHART_VERSION 0.1.9
+ENV RSTUDIO_CHART_VERSION 0.3.0
+ENV SAS_CHART_VERSION 0.3.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -52,6 +61,12 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
+    helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
+    helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
+    helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
+    helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
+    helm pull terra-helm/rstudio --version $RSTUDIO_CHART_VERSION --untar && \
+    helm pull terra-helm/sas --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
     cd /
 

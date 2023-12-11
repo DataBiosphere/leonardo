@@ -47,7 +47,7 @@ object KubernetesTestData {
 
   val galaxyApp = AppType.Galaxy
 
-  val galaxyChartName = ChartName("galaxy/galaxykubeman")
+  val galaxyChartName = ChartName("leonardo/galaxykubeman")
   val galaxyChartVersion = ChartVersion("2.8.1")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
