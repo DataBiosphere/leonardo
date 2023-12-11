@@ -215,7 +215,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     recordMessageMetric(event, Some(e)) >> handleErrorMessages
   }
 
-  private[monitor] def recordMessageMetric(event: Event[LeoPubsubMessage], e: Option[Throwable]): F[Unit] =
+  private[monitor] def recordMessageMetric(event: Event[LeoPubsubMessage], e: Option[Throwable] = None): F[Unit] =
     for {
       end <- F.realTimeInstant
       duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
