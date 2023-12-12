@@ -9,6 +9,10 @@ COPY project /app/project
 COPY build.sbt /app
 COPY automation-tests-docker-entrypoint.sh /app
 
+RUN curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-456.0.0-linux-x86_64.tar.gz \
+    && tar -xf google-cloud-cli-456.0.0-linux-x86_64.tar.gz ./google-cloud-sdk/install.sh \
+    && touch /app/key.json
+
 WORKDIR /app
 
 ENTRYPOINT ["bash", "automation-tests-docker-entrypoint.sh"]
