@@ -50,7 +50,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
 
   val lzResources = LandingZoneResources(
     UUID.fromString("5c12f64b-f4ac-4be1-ae4a-4cace5de807d"),
-    AKSClusterName("cluster"),
+    AKSCluster("cluster", Map.empty[String, Boolean]),
     BatchAccountName("batch"),
     RelayNamespace("relay"),
     StorageAccountName("storage"),

@@ -5,7 +5,6 @@ import cats.effect.unsafe.implicits.global
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
 import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
   ApplicationInsightsName,
   BatchAccountName,
   RelayNamespace
