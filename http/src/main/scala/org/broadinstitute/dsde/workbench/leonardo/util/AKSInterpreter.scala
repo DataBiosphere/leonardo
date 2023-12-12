@@ -543,7 +543,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         if (deletedNamespace) F.unit
         else {
           for {
-            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.aksCluster.name)
+            client <- kubeAlg.createAzureClient(cloudContext, AKSClusterName(landingZoneResources.aksCluster.name))
 
             kubernetesNamespace = KubernetesNamespace(app.appResources.namespace)
 
