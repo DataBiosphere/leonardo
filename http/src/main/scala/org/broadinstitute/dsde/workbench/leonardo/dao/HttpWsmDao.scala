@@ -156,14 +156,13 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
                                            "Microsoft.ContainerService/managedClusters",
                                             SHARED_RESOURCE
       )
-      aksCluster <- aksResource.toOption.traverse { resource =>
-        getLandingZoneResourceName(resource, useParent = false).map { aksName =>
-          val tagValue = getLandingZoneResourceTagValue(resource, "aks-cost-vpa-enabled")
+      aksCluster <- getLandingZoneResourceName(aksResource, useParent = false).map { aksName =>
+          val tagValue = getLandingZoneResourceTagValue(aksResource, "aks-cost-vpa-enabled")
           val tags: Map[String, Boolean] = Map("aks-cost-vpa-enabled" -> java.lang.Boolean.parseBoolean(tagValue.getOrElse("false")))
           logger.info(
             s"Landing Zone AKS has 'aks-cost-vpa-enabled' tag $tagValue."
           )
-          AksCluster(aksName, tags)
+          AKSCluster(aksName, tags)
         }
       }
       batchAccountName <- getLandingZoneResourceName(groupedLzResources,

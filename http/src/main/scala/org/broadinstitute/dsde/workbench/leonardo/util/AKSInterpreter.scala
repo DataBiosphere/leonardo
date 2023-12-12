@@ -183,7 +183,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.name, params.cloudContext, namespaceName)
 
       // Build listener helm values
       values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
@@ -255,7 +255,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
@@ -285,7 +285,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
+        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}"
       )
     } yield ()
 
@@ -413,7 +413,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.name, params.cloudContext, namespaceName)
 
       // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
@@ -465,13 +465,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppUpdateException(
-              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
 
       _ <- logger.info(
-        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.clusterName}"
+        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.aksCluster.name}"
       )
 
       // Update app chart version in the DB
@@ -543,7 +543,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         if (deletedNamespace) F.unit
         else {
           for {
-            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
+            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.aksCluster.name)
 
             kubernetesNamespace = KubernetesNamespace(app.appResources.namespace)
 
@@ -644,14 +644,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
     } yield appOk.isDone
 
-  private[util] def getHelmAuthContext(clusterName: AKSClusterName,
+  private[util] def getHelmAuthContext(clusterName: String,
                                        cloudContext: AzureCloudContext,
                                        namespaceName: NamespaceName
   )(implicit ev: Ask[F, AppContext]): F[AuthContext] =
     for {
       ctx <- ev.ask
 
-      credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
+      credentials <- azureContainerService.getClusterCredentials(AKSClusterName(clusterName), cloudContext)
 
       // Don't use AppContext.now for the tmp file name because we want it to be unique
       // for each helm invocation
@@ -670,7 +670,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Helm auth context for cluster ${clusterName.value} in cloud context ${cloudContext.asString}: ${authContext
+        s"Helm auth context for cluster ${clusterName} in cloud context ${cloudContext.asString}: ${authContext
             .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))}"
       )
 
