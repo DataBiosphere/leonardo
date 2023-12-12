@@ -163,7 +163,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
             s"Landing Zone AKS has 'aks-cost-vpa-enabled' tag $tagValue."
           )
           AKSCluster(aksName, tags)
-        }
       }
       batchAccountName <- getLandingZoneResourceName(groupedLzResources,
                                                      "Microsoft.Batch/batchAccounts",
