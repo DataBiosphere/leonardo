@@ -60,7 +60,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
         AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
-      // Get Vpa enabled tag 
+      // Get Vpa enabled tag
       vpaEnabled <- F.pure(params.landingZoneResources.aksCluster.tags.getOrElse("aks-cost-vpa-enabled", false))
 
       valuesList =

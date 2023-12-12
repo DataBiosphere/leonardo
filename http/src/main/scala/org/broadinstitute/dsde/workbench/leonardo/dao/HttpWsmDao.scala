@@ -5,11 +5,7 @@ import cats.data.OptionT
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{
-  ApplicationInsightsName,
-  BatchAccountName,
-  RelayNamespace
-}
+import org.broadinstitute.dsde.workbench.azure.{ApplicationInsightsName, BatchAccountName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
@@ -153,16 +149,17 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
       )
       aksResource <- getLandingZoneResource(groupedLzResources,
-                                           "Microsoft.ContainerService/managedClusters",
+                                            "Microsoft.ContainerService/managedClusters",
                                             SHARED_RESOURCE
       )
       aksCluster <- getLandingZoneResourceName(aksResource, useParent = false).map { aksName =>
-          val tagValue = getLandingZoneResourceTagValue(aksResource, "aks-cost-vpa-enabled")
-          val tags: Map[String, Boolean] = Map("aks-cost-vpa-enabled" -> java.lang.Boolean.parseBoolean(tagValue.getOrElse("false")))
-          logger.info(
-            s"Landing Zone AKS has 'aks-cost-vpa-enabled' tag $tagValue."
-          )
-          AKSCluster(aksName, tags)
+        val tagValue = getLandingZoneResourceTagValue(aksResource, "aks-cost-vpa-enabled")
+        val tags: Map[String, Boolean] =
+          Map("aks-cost-vpa-enabled" -> java.lang.Boolean.parseBoolean(tagValue.getOrElse("false")))
+        logger.info(
+          s"Landing Zone AKS has 'aks-cost-vpa-enabled' tag $tagValue."
+        )
+        AKSCluster(aksName, tags)
       }
       batchAccountName <- getLandingZoneResourceName(groupedLzResources,
                                                      "Microsoft.Batch/batchAccounts",

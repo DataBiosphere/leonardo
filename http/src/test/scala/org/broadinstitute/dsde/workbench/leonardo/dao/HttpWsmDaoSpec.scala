@@ -4,11 +4,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
-import org.broadinstitute.dsde.workbench.azure.{
-  ApplicationInsightsName,
-  BatchAccountName,
-  RelayNamespace
-}
+import org.broadinstitute.dsde.workbench.azure.{ApplicationInsightsName, BatchAccountName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig

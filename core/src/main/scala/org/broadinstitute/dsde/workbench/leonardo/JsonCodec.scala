@@ -760,7 +760,7 @@ object JsonCodec {
   implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
   implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
-  implicit val aksClusterEncoder: Encoder[AKSCluster] = 
+  implicit val aksClusterEncoder: Encoder[AKSCluster] =
     Encoder.forProduct2("name", "tags")(x => (x.name, x.tags))
   implicit val postgresServerEncoder: Encoder[PostgresServer] =
     Encoder.forProduct2("name", "pgBouncerEnabled")(x => (x.name, x.pgBouncerEnabled))
