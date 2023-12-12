@@ -61,7 +61,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
       )
 
       // Get Vpa enabled tag 
-      vpaEnabled <- java.lang.Boolean.parseBoolean(params.landingZoneResources.aksCluster.tags.getOrElse("aks-cost-vpa-enabled", "false"))
+      vpaEnabled <- params.landingZoneResources.aksCluster.tags.getOrElse("aks-cost-vpa-enabled", "false")
 
       valuesList =
         List(
