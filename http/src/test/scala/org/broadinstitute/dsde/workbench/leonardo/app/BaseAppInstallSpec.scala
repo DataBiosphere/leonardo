@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AKSInterpreterConfig
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AKSCluster,
   LandingZoneResources,
   LeonardoTestSuite,
   ManagedIdentityName,

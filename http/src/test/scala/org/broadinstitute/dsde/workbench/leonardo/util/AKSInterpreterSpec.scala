@@ -108,7 +108,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   "AKSInterpreter" should "get a helm auth context" in {
     val res = for {
-      authContext <- aksInterp.getHelmAuthContext(lzResources.clusterName, cloudContext, NamespaceName("ns"))
+      authContext <- aksInterp.getHelmAuthContext(lzResources.aksCluster.name, cloudContext, NamespaceName("ns"))
     } yield {
       authContext.namespace.asString shouldBe "ns"
       authContext.kubeApiServer.asString shouldBe "server"
