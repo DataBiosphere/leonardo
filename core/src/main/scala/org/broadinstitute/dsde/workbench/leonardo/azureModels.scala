@@ -1,10 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.azure.{
-  ApplicationInsightsName,
-  BatchAccountName,
-  RelayNamespace
-}
+import org.broadinstitute.dsde.workbench.azure.{ApplicationInsightsName, BatchAccountName, RelayNamespace}
 
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 
