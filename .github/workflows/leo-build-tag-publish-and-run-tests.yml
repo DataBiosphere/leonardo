@@ -66,8 +66,8 @@ jobs:
             exit 1
           fi
 
-          echo "app-version=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "build-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "app-version=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
+          echo "build-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
           # echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "automation-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
 
